@@ -2735,7 +2735,7 @@ void CRegistry_Dynamic::XRG_Read(const CStr& _Filename, TArray<CStr> _lDefines, 
 
 void CRegistry_Dynamic::XRG_Read(const CStr& _Filename)
 {
-	XRG_Read(_Filename, TArray<CStr>::TArray(), true);
+	XRG_Read(_Filename, TArray<CStr>(), true);
 }
 
 void CRegistry_Dynamic::ReadSimple(CCFile* _pFile)

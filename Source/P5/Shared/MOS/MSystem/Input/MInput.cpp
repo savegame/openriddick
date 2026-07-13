@@ -453,6 +453,9 @@ spCInputContext MCreateInputContext()
 #elif defined PLATFORM_PS3
 	spCInputContext spIC = (CInputContext*) MRTC_GetObjectManager()->CreateObject("CInputContext_PS3");
 
+#elif defined PLATFORM_LINUX
+	spCInputContext spIC = (CInputContext*) MRTC_GetObjectManager()->CreateObject("CInputContext_SDL2");
+
 #else
 	#error "Implement this"
 	

@@ -529,7 +529,7 @@ void CConsole::WriteExceptions()
 	if (pLog)
 	{
 		while(pLog->ExceptionAvail())
-			Write("§cf00ERROR: " + pLog->GetExceptionInfo().GetString());
+			Write(CFStr("§cf00ERROR: ") + pLog->GetExceptionInfo().GetString());
 	}
 
 //	while (CCException::ErrorAvail()) Write(CCException::ErrorMsg());

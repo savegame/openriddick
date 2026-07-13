@@ -20,8 +20,16 @@
 
 //class IFile;
 
+// Forward declarations for two-phase name lookup: these are referenced from
+// templates below with non-dependent (built-in) argument types, so they must
+// be visible at template-definition context (defined in MFloat_*.h).
+static M_INLINE fp32 M_Pow(fp32 _V, fp32 _V2);
+static M_INLINE fp64 M_Pow(fp64 _V, fp64 _V2);
+
 namespace NStr
 {
+	template<class t_CData, class t_CReturn, class t_CTerminator>
+		t_CReturn StrToIntParse(const t_CData *&_pStr, t_CReturn _FailValue, t_CTerminator *_pStrTerminators);
 
 	/************************************************************************************************\
 	||¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯||
@@ -317,7 +325,7 @@ Return:
 	}
 
 	template<class t_CData, class t_CReturn, class t_CTerminator>
-		t_CReturn StrToIntParse(const t_CData *&_pStr, t_CReturn _FailValue, t_CTerminator *_pStrTerminators = (const ch8 *)DNP)
+		t_CReturn StrToIntParse(const t_CData *&_pStr, t_CReturn _FailValue, t_CTerminator *_pStrTerminators)
 	{
 		t_CReturn DestNumber = 0;
 		const t_CData *pParseStr = _pStr;

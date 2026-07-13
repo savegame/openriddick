@@ -7,6 +7,24 @@
 #include "ws2tcpip.h"
 #elif defined (PLATFORM_XENON)
 #include "xtl.h"
+#elif defined (PLATFORM_LINUX)
+// BSD socket compatibility for the winsock-style code below
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <errno.h>
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET (-1)
+#endif
+#define closesocket ::close
+#define ioctlsocket ::ioctl
+#define WSAGetLastError() errno
+#define WSAENOBUFS ENOBUFS
+#define WSAEWOULDBLOCK EWOULDBLOCK
+#define WSAECONNRESET ECONNRESET
 #endif
 
 //#pragma optimize("",off)
@@ -152,7 +170,7 @@ public:
 	{
 		while(!Thread_IsTerminating())
 		{
-#ifndef PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 			int Connection = accept(m_pTaskManager->m_HostSocket, NULL, 0);
 			while(Connection != INVALID_SOCKET)
 			{
@@ -180,7 +198,7 @@ public:
 
 					spMRTC_TaskClient spClient = MNew(MRTC_TaskClient);
 					spClient->m_Socket	= Connection;
-					spClient->m_Host	= sock.sin_addr.S_un.S_addr;
+					spClient->m_Host	= sock.sin_addr.s_addr;
 					spClient->m_State	= TASKCLIENT_STATE_NEWCONNECTION;
 
 //					char aHost[256];
@@ -227,7 +245,7 @@ public:
 					spMRTC_TaskAgent spAgent = MNew(MRTC_TaskAgent);
 					spAgent->m_lExeFile	= m_pTaskManager->m_lExeFile;
 					spAgent->m_Socket	= Connection;
-					spAgent->m_Host	= sock.sin_addr.S_un.S_addr;
+					spAgent->m_Host	= sock.sin_addr.s_addr;
 					spAgent->m_State	= TASKCLIENT_STATE_NEWCONNECTION;
 
 //					char aHost[256];
@@ -733,7 +751,7 @@ bool MRTC_TaskManager::NetworkEnabled()
 void MRTC_TaskManager::Host_Start()
 {
 	// Don't allow this in non-static XWC
-#ifndef PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 	// Disable distribution by default
 	MACRO_GetSystem;
 	if(pSys->GetEnvironment()->GetValuei("XWC_ENABLEDISTRIBUTION",1) == 0)
@@ -806,8 +824,8 @@ void MRTC_TaskManager::Host_Start()
 	memset(&address, 0, sizeof(address));
 	address.sin_family	= AF_INET;
 	address.sin_port	= htons(TASKMAN_PORT_COORDINATOR);
-//	address.sin_addr.S_un.S_addr	= htonl(0xac121ac5);
-	address.sin_addr.S_un.S_addr	= *((int*)(pent->h_addr_list[0]));
+//	address.sin_addr.s_addr	= htonl(0xac121ac5);
+	address.sin_addr.s_addr	= *((int*)(pent->h_addr_list[0]));
 	if(connect(CoordSocket, (sockaddr*)&address, sizeof(address)))
 	{
 		closesocket(CoordSocket);
@@ -1690,7 +1708,7 @@ void MRTC_TaskManager::Host_SpawnClients()
 
 void MRTC_TaskManager::Host_AnswerCalls()
 {
-#ifndef PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 	if(!NetworkEnabled())
 		return;
 
@@ -1743,11 +1761,11 @@ void MRTC_TaskManager::Host_AnswerCalls()
 			int size = sizeof(sock);
 			getpeername(Connection, (sockaddr*)&sock, &size);
 
-			hostent* pent = gethostbyaddr((const char*)&sock.sin_addr.S_un.S_addr, 4, AF_INET);
+			hostent* pent = gethostbyaddr((const char*)&sock.sin_addr.s_addr, 4, AF_INET);
 
 			spMRTC_TaskClient spClient = MNew(MRTC_TaskClient);
 			spClient->m_Socket	= Connection;
-			spClient->m_Host	= sock.sin_addr.S_un.S_addr;
+			spClient->m_Host	= sock.sin_addr.s_addr;
 			spClient->m_State	= TASKCLIENT_STATE_NEWCONNECTION;
 			if(pent)
 				spClient->m_HostName	= pent->h_name;
@@ -1785,12 +1803,12 @@ void MRTC_TaskManager::Host_AnswerCalls()
 			int size = sizeof(sock);
 			getpeername(Connection, (sockaddr*)&sock, &size);
 
-			hostent* pent = gethostbyaddr((const char*)&sock.sin_addr.S_un.S_addr, 4, AF_INET);
+			hostent* pent = gethostbyaddr((const char*)&sock.sin_addr.s_addr, 4, AF_INET);
 
 			spMRTC_TaskAgent spAgent = MNew(MRTC_TaskAgent);
 			spAgent->m_lExeFile	= m_lExeFile;
 			spAgent->m_Socket	= Connection;
-			spAgent->m_Host	= sock.sin_addr.S_un.S_addr;
+			spAgent->m_Host	= sock.sin_addr.s_addr;
 			spAgent->m_State	= TASKCLIENT_STATE_NEWCONNECTION;
 			if(pent)
 				spAgent->m_HostName	= pent->h_name;
@@ -2051,6 +2069,7 @@ bool MRTC_TaskManager::Client_Start(int _Address, int _Port)
 	if(!m_bNetInitiated)
 	{
 		m_bNetInitiated	= true;
+#ifndef PLATFORM_LINUX
 		WORD wVersionRequested;
 		WSADATA wsaData;
 		int err;
@@ -2070,6 +2089,7 @@ bool MRTC_TaskManager::Client_Start(int _Address, int _Port)
 			WSACleanup( );
 			return false; 
 		}
+#endif
 	}
 
 	m_ClientSocket	= INVALID_SOCKET;
@@ -2081,7 +2101,7 @@ bool MRTC_TaskManager::Client_Start(int _Address, int _Port)
 
 	sockaddr_in address;
 	memset(&address, 0, sizeof(address));
-	address.sin_addr.S_un.S_addr	= htonl(_Address);
+	address.sin_addr.s_addr	= htonl(_Address);
 	address.sin_family	= AF_INET;
 	address.sin_port	= htons(_Port);
 

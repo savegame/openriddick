@@ -238,7 +238,7 @@ spCSCC_CodecStream CWaveContext::OpenStream(int _WaveID, int _Flags)
 		
 		TPtr<CReferenceCount> _spRefCount = MRTC_GetObjectManager()->CreateObject(ClassName);
 		if (!_spRefCount)
-			Error("OpenStream", "No such codec:" + ClassName);
+			Error("OpenStream", CFStr("No such codec:") + ClassName);
 
 		// Read the original format
 		CSCC_CodecFormat OriginalFormat;
