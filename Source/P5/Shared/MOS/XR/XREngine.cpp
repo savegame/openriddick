@@ -2889,7 +2889,7 @@ void CXR_EngineImpl::Engine_RVC_RenderPortals(CXR_ViewContextImpl* _pVC)
 
 								// Copy to texture
 								{
-									m_pVBM->ScopeBegin(false, 1);
+									m_pVBM->ScopeBegin(NULL, 1);
 
 									m_pVBM->AddCopyToTexture(0, CRct(0, 0, Desc.GetWidth(), Desc.GetHeight()), CPnt(0, 0), pPortal->m_TextureID, false);
 
@@ -2911,7 +2911,7 @@ void CXR_EngineImpl::Engine_RVC_RenderPortals(CXR_ViewContextImpl* _pVC)
 						// FIXME: Can we remove color buffer clear?
 //						m_pSystem->m_spDisplay->ClearFrameBuffer(CDC_CLEAR_ZBUFFER | CDC_CLEAR_COLOR | CDC_CLEAR_STENCIL, 0xff00ff00);
 //						ClearViewport(m_pRender, m_pVBM, GetFogState()->m_DepthFogColor & 0x00ffffff, 0.99f, 0, 1+2+4+8);
-						m_pVBM->ScopeBegin(false, 1);
+						m_pVBM->ScopeBegin(NULL, 1);
 						ClearViewport(m_pRender, m_pVBM, 0x0000ff00, 0.99f, 0, 1+2+4+8);
 						m_pVBM->ScopeEnd();
 					}

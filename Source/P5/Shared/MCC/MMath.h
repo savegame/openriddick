@@ -4541,12 +4541,12 @@ public:
 
 	M_INLINE TPlane3(const V& _n, const V& _p)
 	{
-		CreateNV(_n, _p);
+		this->CreateNV(_n, _p);
 	}
 
 	M_INLINE TPlane3(const V& _p0, const V& _p1, const V& _p2)
 	{
-		Create(_p0, _p1, _p2);
+		this->Create(_p0, _p1, _p2);
 	}
 
 	M_FORCEINLINE void operator= (const PBase& _p)

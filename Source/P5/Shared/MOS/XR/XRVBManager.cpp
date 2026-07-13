@@ -3141,7 +3141,7 @@ void CXR_VBManager::Internal_Render(CXR_VBMScope* _pScope, CRenderContext* _pRC,
 	void* pPerfQueryMem = NULL;
 	if (bProfileVBGPU)
 	{
-		pPerfQueryMem = Alloc(Max(sizeof(CMTime), _pRC->PerfQuery_GetStride()) * _pScope->GetNumVBs());
+		pPerfQueryMem = Alloc(Max((mint)sizeof(CMTime), (mint)_pRC->PerfQuery_GetStride()) * _pScope->GetNumVBs());
 		if (!pPerfQueryMem)
 			bProfileVBGPU = false;
 	}

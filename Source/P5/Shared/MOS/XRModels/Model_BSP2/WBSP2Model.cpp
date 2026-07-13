@@ -2729,12 +2729,12 @@ template <int tPlatform>
 static void SetWantTransform(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB);
 
 template <>
-static void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 }
 
 template <>
-static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 	CBSP2_VertexBuffer* pBSPVB = _pBSPVB;
 	
@@ -2894,7 +2894,7 @@ static void GetMinMax(const fp32* _pValues, fp32& _Min, fp32& _Max, uint _nV)
 }
 
 template <>
-static void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 	CBSP2_VertexBuffer* pBSPVB = _pBSPVB;
 	

@@ -1258,12 +1258,12 @@ template <int tPlatform>
 static void SetWantTransform(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal);
 
 template <>
-static void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
+void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
 {
 }
 
 template <>
-static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
+void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
 {
 	if(_VB.m_lpVReg[CRC_VREG_POS])
 	{
@@ -1299,7 +1299,7 @@ static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CBSP2
 }
 
 template <>
-static void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
+void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CBSP2_LightData* _pLD, int _iLocal)
 {
 	if(_VB.m_lpVReg[CRC_VREG_POS])
 	{

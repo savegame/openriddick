@@ -769,7 +769,7 @@ template <class T, class TAlignClass, class TCoreParent>
 void TArray<T, TAlignClass, TCoreParent>::Duplicate(TArray* _pDestList) const
 {
 	_pDestList->SetLen(CArrayCore<TCoreParent>::Len());
-	if (CArrayCore<TCoreParent>::m_pData && CArrayCore<TCoreParent>::Len()) CopyElements(CArrayCore<TCoreParent>::m_pData->m_pList, _pDestList->m_pData->m_pList, CArrayCore<TCoreParent>::m_pData->m_Len);
+	if (CArrayCore<TCoreParent>::m_pData && CArrayCore<TCoreParent>::Len()) this->CopyElements(CArrayCore<TCoreParent>::m_pData->m_pList, _pDestList->m_pData->m_pList, CArrayCore<TCoreParent>::m_pData->m_Len);
 }
 
 template <class T, class TAlignClass, class TCoreParent>

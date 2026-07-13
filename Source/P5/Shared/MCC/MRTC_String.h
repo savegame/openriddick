@@ -1357,6 +1357,30 @@ public:
 
 
 typedef TFStr<252> CFStr;
+
+// Free concatenation operators (MSVC accepted these via implicit
+// conversions; GCC needs them spelled out)
+template <int TMaxLen>
+M_INLINE TFStr<TMaxLen> operator+ (const TFStr<TMaxLen>& _s1, const char* _p2)
+{
+	TFStr<TMaxLen> Ret(_s1);
+	return Ret + TFStr<TMaxLen>(_p2);
+}
+
+template <int TMaxLen>
+M_INLINE TFStr<TMaxLen> operator+ (const char* _p1, const TFStr<TMaxLen>& _s2)
+{
+	TFStr<TMaxLen> Ret(_p1);
+	return Ret + _s2;
+}
+
+template <int TMaxLen>
+M_INLINE TFStr<TMaxLen> operator+ (const TFStr<TMaxLen>& _s1, const TFStr<TMaxLen>& _s2)
+{
+	TFStr<TMaxLen> Ret(_s1);
+	return Ret + _s2;
+}
+
 typedef TFStr<28> CFStr28;
 
 // -------------------------------------------------------------------
@@ -1663,6 +1687,21 @@ private:
 		void Write(class CCFile* _pFile) const;
 		void DummyRead(class CCFile* _pFile) const;
 };
+
+// Disambiguating concatenation overloads between CStr and TFStr (the
+// free char* operators above otherwise make CStr + CFStr ambiguous)
+template <int TMaxLen>
+M_INLINE CStr operator+ (const CStr& _s1, const TFStr<TMaxLen>& _s2)
+{
+	return _s1 + CStr(_s2.Str());
+}
+
+template <int TMaxLen>
+M_INLINE CStr operator+ (const TFStr<TMaxLen>& _s1, const CStr& _s2)
+{
+	return CStr(_s1.Str()) + _s2;
+}
+
 
 CStr CStrF(const char*, ...);
 CStr CStrF(const wchar*, ...);

@@ -18,11 +18,6 @@
 #ifndef _INC_MMISC
 #define _INC_MMISC
 
-// Two-phase lookup: M_Sqrt is used from templates below with built-in
-// argument types; make the declarations visible here (defined in MFloat_*.h).
-static M_INLINE fp32 M_Sqrt(fp32 _Val);
-static M_INLINE const fp64 M_Sqrt(fp64 _Val);
-
 #include "MCCInc.h"
 
 /*************************************************************************************************\
@@ -337,6 +332,11 @@ void Swap(T &a, T &b)
 	a = b; 
 	b = c;
 };
+
+// Two-phase lookup: M_Sqrt is used from the templates below with built-in
+// argument types; declarations must be visible here (defined in MFloat_*.h).
+static inline fp32 M_Sqrt(fp32 _Val);
+static inline const fp64 M_Sqrt(fp64 _Val);
 
 template <class T>
 T Length2(T a, T b)
