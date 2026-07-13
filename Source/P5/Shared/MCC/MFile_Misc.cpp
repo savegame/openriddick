@@ -267,7 +267,7 @@ extern void PS2File_FindClose( int _handle );
 		PS2File_FindClose( handle );
 	}
 // -------------------------------------------------------------------
-#elif defined PLATFORM_PS3
+#elif defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 extern aint PS3File_FindNext( aint, char *, int&, bool& );
 extern aint PS3File_FindFirst( const char *, char *, int&, bool& );
 extern void PS3File_FixPath( char *_String );

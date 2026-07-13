@@ -717,7 +717,7 @@ template <class T, class TAlignClass, class TCoreParent>
 int TArray<T, TAlignClass, TCoreParent>::Add(const T& _Elem)
 {
 	if (!CArrayCore<TCoreParent>::m_pData) Init();
-	InsertxElements(CArrayCore<TCoreParent>::m_pData->m_Len, &_Elem, 1, true);
+	this->InsertxElements(CArrayCore<TCoreParent>::m_pData->m_Len, &_Elem, 1, true);
 	return CArrayCore<TCoreParent>::m_pData->m_Len-1;
 }
 
@@ -725,14 +725,14 @@ template <class T, class TAlignClass, class TCoreParent>
 void TArray<T, TAlignClass, TCoreParent>::Insertx(int _Pos, const T* _pElem, int _nElem)
 {
 	if (!CArrayCore<TCoreParent>::m_pData) Init();
-	InsertxElements(_Pos, _pElem, _nElem, false);
+	this->InsertxElements(_Pos, _pElem, _nElem, false);
 }
 
 template <class T, class TAlignClass, class TCoreParent>
 void TArray<T, TAlignClass, TCoreParent>::Insert(int _Pos, const T& _Elem)
 {
 	if (!CArrayCore<TCoreParent>::m_pData) Init();
-	InsertxElements(_Pos, &_Elem, 1, true);
+	this->InsertxElements(_Pos, &_Elem, 1, true);
 }
 
 template <class T, class TAlignClass, class TCoreParent>

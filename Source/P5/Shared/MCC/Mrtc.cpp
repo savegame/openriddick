@@ -6,7 +6,7 @@
 #pragma warning(disable:4756)
 #endif
 
-#if defined(TARGET_PS2) || defined(TARGET_PS3)	// Should be COMPILER_GNU but that hasn't been defined yet
+#if defined(TARGET_PS2) || defined(TARGET_PS3) || defined(TARGET_LINUX_SDL2)	// Should be COMPILER_GNU but that hasn't been defined yet
 	#include <new>
 #else
 	#include <new.h>
@@ -62,6 +62,9 @@ class CStream;
 	#ifdef _DEBUG
 		#define MRTC_MEMMANAGEROVERRIDE_MEMDEBUG	//Enables SCB memory statistics
 	#endif
+
+#elif defined PLATFORM_LINUX
+//	#define MRTC_MEMMANAGEROVERRIDE		// Disabled: the system allocator is used directly
 
 #else
 	#define MRTC_MEMMANAGEROVERRIDE		//Enables SCB memory manager
@@ -3273,7 +3276,7 @@ NMemMgr::CMemTrack_Class::~CMemTrack_Class()
 
 #endif
 
-#if defined(PLATFORM_WIN_PC) || defined(PLATFORM_XBOX) || defined(PLATFORM_PS3)
+#if defined(PLATFORM_WIN_PC) || defined(PLATFORM_XBOX) || defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 
 void File_WriteLE(CCFile* _pFile, fp64 _Value)
 {

@@ -26,6 +26,7 @@
 #include "MFloat_PS3.h"
 #include "MFloat_Xenon.h"
 #include "MFloat_x86.h"
+#include "MFloat_Linux.h"
 
 void MCCDLLEXPORT MFloat_Init();
 void MCCDLLEXPORT MFloat_GetSineTable(const fp32*& _pSin);

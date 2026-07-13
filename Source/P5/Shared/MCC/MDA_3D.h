@@ -181,15 +181,13 @@ public:
 
 	void Insert(T* _p, const CMat4Dfp32& mpos)
 	{
-		CVec3Dfp32 pos;
-		pos.GetMatrixRow(3, mpos);
+		CVec3Dfp32 pos = CVec3Dfp32::GetMatrixRow(mpos, 3);
 		Insert(_p, pos);
 	};
 
 	void Insert(T* _p, const CMat43fp32& mpos)
 	{
-		CVec3Dfp32 pos;
-		pos.GetMatrixRow(3, mpos);
+		CVec3Dfp32 pos = CVec3Dfp32::GetMatrixRow(mpos, 3);
 		Insert(_p, pos);
 	}
 

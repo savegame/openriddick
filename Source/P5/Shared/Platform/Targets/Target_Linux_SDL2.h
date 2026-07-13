@@ -9,6 +9,8 @@
 #ifndef __INC_TARGET_LINUX_SDL2
 #define __INC_TARGET_LINUX_SDL2
 
+#include <string.h>	// memset for M_ZERO128
+
 #ifndef	TARGET_LINUX_SDL2
 #define TARGET_LINUX_SDL2
 #endif
@@ -111,9 +113,11 @@
 #define M_THREADSPINCOUNT 400
 
 #define MRTC_THREADLOCAL __thread
-#define M_PREZERO128(a, b) __builtin_prefetch((const char*)(a) + (b), 1)
-#define M_ZERO128(_x, _y) memset((char*)(_x) + (_y), 0, 128)
-#define M_PRECACHE128(_x, _y) __builtin_prefetch((const char*)(_x) + (_y))
+// Like the PPC dcbz/dcbt originals these take (pointer, offset) in either
+// order; the effective address is a + b.
+#define M_PREZERO128(a, b) __builtin_prefetch((const void*)((auint)(a) + (auint)(b)), 1)
+#define M_ZERO128(_x, _y) memset((void*)((auint)(_x) + (auint)(_y)), 0, 128)
+#define M_PRECACHE128(_x, _y) __builtin_prefetch((const void*)((auint)(_x) + (auint)(_y)))
 
 #define M_TRY
 #define M_CATCH(_ToCatch)
@@ -152,6 +156,7 @@ typedef int						bint;
 #endif
 
 #if defined(__LP64__) || defined(_LP64)
+	#define M_SEPARATETYPE_smint		// smint (long) is a distinct type from int32 (int)
 	typedef signed long			int64;
 	typedef unsigned long		uint64;
 	typedef signed long			aint;

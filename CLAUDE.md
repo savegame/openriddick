@@ -110,8 +110,8 @@ little-endian. Загрузчики файлов движка историчес
 
 ### Фаза 2 — Платформенный слой Linux/SDL2
 - [x] `Shared/Platform/Targets/Target_Linux_SDL2.h` + ветка в `Platform.h` (`TARGET_LINUX_SDL2`).
-- [ ] `MRTC_System_Linux.cpp` (POSIX-порт по образцу Win32-версии): память, потоки/синхронизация, время, файловая система (case-insensitive lookup поверх POSIX — данные ссылаются на файлы без учёта регистра), динамическая загрузка не нужна (статическая линковка всего).
-- [ ] Добиться компиляции **MCC** (первая большая веха; здесь всплывёт основная масса ошибок старого C++ — чинить точечно, через `-fpermissive` только временно).
+- [x] `MRTC_System_Linux.cpp` (POSIX-порт): память, потоки/синхронизация (pthread/sem), время (CLOCK_MONOTONIC), файлы (fd + синхронный async-слой), поиск файлов (`PS3File_Find*` через opendir/fnmatch), сеть — заглушки. Case-insensitive включения решены симлинками.
+- [x] Компиляция **MCC** → `libp5_mcc.a` (без `-fpermissive`; точечные фиксы two-phase lookup, MSVC-измов, vec128-кастов + `-flax-vector-conversions`). Отложено: `VPU/VPUWorkers.cpp` — SPU-job ABI предполагает 32-битные указатели, нужен 64-битный порт.
 - [ ] Компиляция MSystem с заглушками: null-звук, null-ввод, headless-дисплей.
 - [ ] Компиляция XR, XRModels, XRClasses, GameWorld, GameClasses, Exe → **линкуемый бинарь** (рендер — null-контекст).
 
@@ -193,3 +193,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-13 | Анализ исходников, план (этот файл) | Фаза 0 |
 | 2026-07-13 | CMake-каркас: SDK-библиотеки (zlib, libpng, ogg, vorbis) собираются на x86_64 | Фаза 1 |
 | 2026-07-13 | Target_Linux_SDL2.h (x86_64 SSE2 / ARM NEON-emu), ветка в Platform.h, smoke-тест platform_check | Фаза 2 (начало) |
+| 2026-07-13 | MRTC_System_Linux (POSIX), MFloat_Linux, симлинки для case-insensitive включений, фиксы MSVC-измов — libp5_mcc.a собирается | Фаза 2 |

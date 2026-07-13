@@ -12,6 +12,9 @@
 #elif defined(PLATFORM_PS3)
 	#include "MRTC_System_PS3.cpp"
 
+#elif defined(PLATFORM_LINUX)
+	#include "MRTC_System_Linux.cpp"
+
 #elif defined( PLATFORM_DOLPHIN )
 	#include "MRTC_System_Dolphin.cpp"
 

@@ -486,5 +486,6 @@ void File_WriteLE(class CCFile* _pFile, fp64 _Value);
 void File_ReadLE(class CCFile* _pFile, fp64& _Value);
 
 #include "MRTC_System_PS3.h"
+#include "MRTC_System_Linux.h"
 
 #endif //MACRO_INC_MRTC_System_h

@@ -593,26 +593,26 @@ namespace NIds
 			}
 
 			template <typename t_CParam0>
-			t_CData *New(t_CParam0 &_Param0)
+			t_CData *New(t_CParam0 &&_Param0)
 			{
 				void *pMem;
 				{
 					DLockTyped_FromTemplate(t_CLockType, m_Lock);
 					pMem = GetBlock();
 				}
-				t_CData *pObject = new(pMem) t_CData(_Param0);
+				t_CData *pObject = new(pMem) t_CData(static_cast<t_CParam0&&>(_Param0));
 				return pObject;
 			}
 
 			template <typename t_CParam0, typename t_CParam1>
-			t_CData *New(t_CParam0 &_Param0, t_CParam1 &_Param1)
+			t_CData *New(t_CParam0 &&_Param0, t_CParam1 &&_Param1)
 			{
 				void *pMem;
 				{
 					DLockTyped_FromTemplate(t_CLockType, m_Lock);
 					pMem = GetBlock();
 				}
-				t_CData *pObject = new(pMem) t_CData(_Param0, _Param1);
+				t_CData *pObject = new(pMem) t_CData(static_cast<t_CParam0&&>(_Param0), static_cast<t_CParam1&&>(_Param1));
 				return pObject;
 			}
 

@@ -539,7 +539,7 @@ CStr CDiskUtil::GetDrive()
 	Error_static("CDiskUtil::GetDrive", "Not supported.");
 	return "";
 
-#elif defined PLATFORM_PS3
+#elif defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 	Error_static("CDiskUtil::GetDrive", "Not supported.");
 	return "";
 
@@ -568,7 +568,7 @@ bool CDiskUtil::ChangeDrive(CStr _Drive)
 #elif defined PLATFORM_PS2
 	Error_static("CDiskUtil::ChangeDrive", "Not supported.");
 	return false;
-#elif defined PLATFORM_PS3
+#elif defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 	Error_static("CDiskUtil::ChangeDrive", "Not supported.");
 	return false;
 

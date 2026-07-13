@@ -477,7 +477,8 @@ CDA_MemoryManager_SizeClass *CDA_MemoryManager::GetFreeSizeClass(mint _Size, bin
 		SizeClass = (CDA_MemoryManager_SizeClass *)m_SizesFreeTreeFragments.FindEqual(_Size);
 		if (!SizeClass)
 		{
-			SizeClass = m_SizesPool.New(this);
+			CDA_MemoryManager* pThis = this;
+			SizeClass = m_SizesPool.New(pThis);
 			SizeClass->m_Size = _Size;
 			m_SizesFreeTreeFragments.f_InsertLowStack(SizeClass, (void*)NULL);
 	#ifdef DA__HEAPVALIDATE
@@ -491,7 +492,8 @@ CDA_MemoryManager_SizeClass *CDA_MemoryManager::GetFreeSizeClass(mint _Size, bin
 		SizeClass = (CDA_MemoryManager_SizeClass *)m_SizesFreeTreeNormal.FindEqual(_Size);
 		if (!SizeClass)
 		{
-			SizeClass = m_SizesPool.New(this);
+			CDA_MemoryManager* pThis = this;
+			SizeClass = m_SizesPool.New(pThis);
 			SizeClass->m_Size = _Size;
 			m_SizesFreeTreeNormal.f_InsertLowStack(SizeClass, (void*)NULL);
 	#ifdef DA__HEAPVALIDATE
