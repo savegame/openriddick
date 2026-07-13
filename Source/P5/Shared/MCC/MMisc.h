@@ -336,6 +336,7 @@ void Swap(T &a, T &b)
 // Two-phase lookup: M_Sqrt is used from the templates below with built-in
 // argument types; declarations must be visible here (defined in MFloat_*.h).
 static inline fp32 M_Sqrt(fp32 _Val);
+static inline const fp32 M_Sqrt(int _Val);
 static inline const fp64 M_Sqrt(fp64 _Val);
 
 template <class T>

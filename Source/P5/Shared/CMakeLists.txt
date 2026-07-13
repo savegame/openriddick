@@ -12,6 +12,7 @@ set(P5_ENGINE_CXX_FLAGS -w -flax-vector-conversions)
 add_subdirectory(MCC)
 add_subdirectory(MOS/MSystem)
 add_subdirectory(MOS/XR)
+add_subdirectory(MOS/Libs/XRClasses)
 
 # Smoke test: the target/platform header must compile standalone and define
 # the fundamental types with the sizes the engine assumes.

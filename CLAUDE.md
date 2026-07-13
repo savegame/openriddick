@@ -114,7 +114,8 @@ little-endian. Загрузчики файлов движка историчес
 - [x] Компиляция **MCC** → `libp5_mcc.a` (без `-fpermissive`; точечные фиксы two-phase lookup, MSVC-измов, vec128-кастов + `-flax-vector-conversions`). Отложено: `VPU/VPUWorkers.cpp` — SPU-job ABI предполагает 32-битные указатели, нужен 64-битный порт.
 - [x] Компиляция **MSystem** → `libp5_msystem.a` (106 TU; исключены Win32/Xenon/PS3-TU, ASIO, FaceFX/Bink/XMV-обёртки). Платформенная реализация `MSystem_Linux.cpp` — Фаза 3.
 - [x] Компиляция **XR** (+ часть XRModels из Lib_XR.vcproj) → `libp5_xr.a`
-- [ ] Компиляция XRClasses, GameWorld, GameClasses, Exe → **линкуемый бинарь** (рендер — null-контекст).
+- [x] Компиляция **XRClasses** → `libp5_xrclasses.a`
+- [ ] Компиляция XRModels (остаток), Classes, GameWorld, GameClasses, Exe → **линкуемый бинарь** (рендер — null-контекст).
 
 ### Фаза 3 — Окно, цикл, ввод (SDL2)
 - [ ] `MMain_Linux.cpp`: `main()` → SDL_Init → создание окна `SDL_WINDOW_OPENGL` (EGL/GLES3-контекст) → главный цикл движка (по образцу `MMain_PS3.cpp` / Win32-message-loop).
@@ -197,3 +198,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-13 | MRTC_System_Linux (POSIX), MFloat_Linux, симлинки для case-insensitive включений, фиксы MSVC-измов — libp5_mcc.a собирается | Фаза 2 |
 | 2026-07-13 | MSystem: фиксы two-phase lookup (StrToIntParse/M_Pow/M_Sqrt), BSD-сокеты в MRTC_Task, ветки PLATFORM_LINUX — libp5_msystem.a собирается | Фаза 2 |
 | 2026-07-13 | XR: глобальные фиксы (`template<> static`, операторы TFStr/CStr, bool→NULL, this->) — libp5_xr.a собирается (88 TU) | Фаза 2 |
+| 2026-07-13 | XRClasses: dDOT-декларации, M_Sqrt(int), restrict-касты, copysign — libp5_xrclasses.a (30 TU) | Фаза 2 |
