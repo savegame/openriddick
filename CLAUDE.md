@@ -103,8 +103,8 @@ little-endian. Загрузчики файлов движка историчес
 - [x] Анализ исходников, этот документ.
 
 ### Фаза 1 — Каркас сборки CMake
-- [ ] Топ-левел `CMakeLists.txt` (опции: `TARGET_LINUX_X86_64`, `TARGET_LINUX_ARM`, Android toolchain).
-- [ ] Сборка SDK-библиотек: zlib, libpng, ogg, vorbis (статически, из дерева).
+- [x] Топ-левел `CMakeLists.txt` (опции: `TARGET_LINUX_X86_64`, `TARGET_LINUX_ARM`, Android toolchain).
+- [x] Сборка SDK-библиотек: zlib, libpng, ogg, vorbis (статически, из дерева).
 - [ ] Цели-заглушки для модулей движка: MCC → MSystem → XR → XRClasses/XRModels → GameWorld → GameClasses → exe (компилируются по мере портирования; управляется опцией `ENGINE_MODULES`).
 - Коммит на каждый работающий уровень.
 
@@ -191,3 +191,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | Дата | Шаг | Коммит |
 |---|---|---|
 | 2026-07-13 | Анализ исходников, план (этот файл) | Фаза 0 |
+| 2026-07-13 | CMake-каркас: SDK-библиотеки (zlib, libpng, ogg, vorbis) собираются на x86_64 | Фаза 1 |
