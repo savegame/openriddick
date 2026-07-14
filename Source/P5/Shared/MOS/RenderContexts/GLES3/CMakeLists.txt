@@ -2,6 +2,9 @@
 
 add_library(p5_rc_gles3 STATIC
     MDisplaySDL2.cpp
+    GLES3_Shader.cpp
+    GLES3_Texture.cpp
+    GLES3_VBOStreamer.cpp
 )
 
 target_compile_options(p5_rc_gles3 PRIVATE ${P5_ENGINE_CXX_FLAGS})
