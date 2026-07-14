@@ -3,6 +3,7 @@
 #ifdef PLATFORM_LINUX
 
 #include "GLES3_Texture.h"
+#include "GLES3_DXT.h"
 
 #include "../../MSystem/Raster/MImage.h"
 
@@ -76,6 +77,56 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	const int W = _pImage->GetWidth();
 	const int H = _pImage->GetHeight();
 	if (W <= 0 || H <= 0) return 0;
+
+	// S3TC path: CPU-decode DXT1/DXT5 to RGBA8, then fall through to
+	// the normal upload code path with pTmp/pSrc.
+	unsigned char* pDecoded = 0;
+	if (_pImage->IsCompressed() &&
+	    (_pImage->GetMemModel() & IMAGE_MEM_COMPRESSTYPE_S3TC))
+	{
+		unsigned char* pRaw = (unsigned char*)_pImage->LockCompressed();
+		if (!pRaw) return 0;
+		const CImage_CompressHeader_S3TC& Hdr =
+			*(const CImage_CompressHeader_S3TC*)pRaw;
+		unsigned char* pPayload = pRaw + sizeof(CImage_CompressHeader_S3TC);
+		pDecoded = (unsigned char*)malloc((size_t)W * H * 4);
+		if (!pDecoded) return 0;
+		const uint32 Sub = Hdr.getCompressType();
+		if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT1)
+			GLES3_DecodeDXT1(pPayload, pDecoded, W, H);
+		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT5)
+			GLES3_DecodeDXT5(pPayload, pDecoded, W, H);
+		else
+		{
+			fprintf(stderr, "[GLES3] Upload2D: S3TC subformat %u not decoded yet (%dx%d)\n",
+				(unsigned)Sub, W, H);
+			free(pDecoded);
+			return 0;
+		}
+		// Upload as RGBA8 directly, bypassing the format-table + swizzle
+		// (already RGBA8 order from the decoders).
+		GLuint Tex = 0;
+		glGenTextures(1, &Tex);
+		if (!Tex) { free(pDecoded); return 0; }
+		glBindTexture(GL_TEXTURE_2D, Tex);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
+			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
+		if (_bGenerateMipmaps)
+		{
+			glGenerateMipmap(GL_TEXTURE_2D);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		}
+		else
+		{
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		}
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+		free(pDecoded);
+		return Tex;
+	}
 
 	SGLES3Format F = MapFormat(_pImage->GetFormat());
 	if (!F.Supported)
