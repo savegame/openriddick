@@ -26,6 +26,6 @@ target_include_directories(openriddick PRIVATE
 )
 target_link_libraries(openriddick PRIVATE
     -Wl,--start-group
-    p5_gameclasses p5_gameworld p5_xrclasses p5_xr p5_msystem p5_mcc p5_neuquant
+    p5_gameclasses p5_gameworld p5_xrclasses p5_xr p5_msystem p5_mcc p5_neuquant p5_rc_gles3
     -Wl,--end-group
 )

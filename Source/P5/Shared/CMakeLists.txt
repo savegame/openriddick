@@ -5,6 +5,7 @@ add_subdirectory(MCC)
 add_subdirectory(MOS/MSystem)
 add_subdirectory(MOS/XR)
 add_subdirectory(MOS/Libs/XRClasses)
+add_subdirectory(MOS/RenderContexts/GLES3)
 
 # Smoke test: the target/platform header must compile standalone and define
 # the fundamental types with the sizes the engine assumes.

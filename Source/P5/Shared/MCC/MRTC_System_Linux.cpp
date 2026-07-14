@@ -1074,6 +1074,45 @@ static bool Linux_FindReadNext(CLinuxFindFile* pFind, char *_pRet, int &_FileSiz
 	return false;
 }
 
+// Callers store the handle in a 32-bit int (MFile_Misc.cpp), so raw
+// pointers cannot be used as handles on 64-bit. Small slot table instead;
+// handle = index + 1.
+enum { LINUX_MAXFINDHANDLES = 64 };
+static CLinuxFindFile* g_lpFindSlots[LINUX_MAXFINDHANDLES];
+static pthread_mutex_t g_FindSlotLock = PTHREAD_MUTEX_INITIALIZER;
+
+static aint Linux_FindSlotAlloc(CLinuxFindFile* _pFind)
+{
+	pthread_mutex_lock(&g_FindSlotLock);
+	for (int i = 0; i < LINUX_MAXFINDHANDLES; i++)
+	{
+		if (!g_lpFindSlots[i])
+		{
+			g_lpFindSlots[i] = _pFind;
+			pthread_mutex_unlock(&g_FindSlotLock);
+			return i + 1;
+		}
+	}
+	pthread_mutex_unlock(&g_FindSlotLock);
+	return 0;
+}
+
+static CLinuxFindFile* Linux_FindSlotGet(aint _Handle)
+{
+	if (_Handle < 1 || _Handle > LINUX_MAXFINDHANDLES)
+		return NULL;
+	return g_lpFindSlots[_Handle - 1];
+}
+
+static void Linux_FindSlotFree(aint _Handle)
+{
+	if (_Handle < 1 || _Handle > LINUX_MAXFINDHANDLES)
+		return;
+	pthread_mutex_lock(&g_FindSlotLock);
+	g_lpFindSlots[_Handle - 1] = NULL;
+	pthread_mutex_unlock(&g_FindSlotLock);
+}
+
 aint PS3File_FindFirst( const char *_pPath, char *_pRet, int &_FileSize, bool &_bDir)
 {
 	char Path[1024];
@@ -1113,21 +1152,31 @@ aint PS3File_FindFirst( const char *_pPath, char *_pRet, int &_FileSize, bool &_
 		free(pFind);
 		return 0;
 	}
-	return (aint)pFind;
+	aint Handle = Linux_FindSlotAlloc(pFind);
+	if (!Handle)
+	{
+		closedir(pFind->m_pDir);
+		free(pFind);
+	}
+	return Handle;
 }
 
 aint PS3File_FindNext( aint _FindHandle, char *_pRet, int &_FileSize, bool &_bDir)
 {
-	return Linux_FindReadNext((CLinuxFindFile*)_FindHandle, _pRet, _FileSize, _bDir) ? 1 : 0;
+	CLinuxFindFile* pFind = Linux_FindSlotGet(_FindHandle);
+	if (!pFind)
+		return 0;
+	return Linux_FindReadNext(pFind, _pRet, _FileSize, _bDir) ? 1 : 0;
 }
 
 void PS3File_FindClose( aint _handle )
 {
-	CLinuxFindFile* pFind = (CLinuxFindFile*)_handle;
+	CLinuxFindFile* pFind = Linux_FindSlotGet(_handle);
 	if (pFind)
 	{
 		closedir(pFind->m_pDir);
 		free(pFind);
+		Linux_FindSlotFree(_handle);
 	}
 }
 

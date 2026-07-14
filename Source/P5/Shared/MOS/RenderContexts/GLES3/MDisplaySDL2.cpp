@@ -1,45 +1,113 @@
 
 /*
-	MSystem platform layer for the Linux/SDL2 port.
+	SDL2 display context + GLES3 render context skeleton (phases 3-4).
 
-	Bring-up version: a NULL display/render context (copied from
-	MSystem_PS3.cpp) so the engine links and runs headless. The real
-	SDL2 display context and the GLES3 renderer replace
-	CDisplayContextNULL in phases 3-4 (see CLAUDE.md).
+	Current state: opens an SDL2 window with a GLES 3.0 context, clears
+	and swaps on PageFlip. The CRC_GLES3 render methods are still stubs
+	inherited from the NULL bring-up renderer; attrib translation, VBO
+	streaming, textures and the shader generator land here next.
+	If SDL/GL init fails (e.g. headless), it degrades to NULL behaviour.
 */
 
 #include "PCH.h"
 
-#include "MSystem.h"
-#include "MSystem_Core.h"
-#include "Raster/MRCCore.h"
-#include "MContentContext.h"
+#include "../../MSystem/MSystem.h"
+#include "../../MSystem/MSystem_Core.h"
+#include "../../MSystem/Raster/MRCCore.h"
 
 #ifdef PLATFORM_LINUX
 
-class CDisplayContextNULL : public CDisplayContext
+#include <SDL.h>
+#include <GLES3/gl3.h>
+
+class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
 	MRTC_DECLARE;
 public:
 
 	CImage m_Image;
+	SDL_Window* m_pWindow;
+	SDL_GLContext m_GLContext;
+	int m_Width, m_Height;
 
-	CDisplayContextNULL()
+	CDisplayContextSDL2()
 	{
-		m_Image.Create(640, 480, IMAGE_FORMAT_BGRA8, IMAGE_MEM_IMAGE);
+		m_pWindow = NULL;
+		m_GLContext = NULL;
+		m_Width = 1280;
+		m_Height = 720;
+		m_Image.Create(m_Width, m_Height, IMAGE_FORMAT_BGRA8, IMAGE_MEM_IMAGE);
 	}
 
-	~CDisplayContextNULL()
+	~CDisplayContextSDL2()
 	{
+		if (m_GLContext) SDL_GL_DeleteContext(m_GLContext);
+		if (m_pWindow) SDL_DestroyWindow(m_pWindow);
 	}
 
-	virtual CPnt GetScreenSize(){return CPnt(640, 480);};
-	virtual CPnt GetMaxWindowSize(){return CPnt(640, 480);};
+	virtual CPnt GetScreenSize(){return CPnt(m_Width, m_Height);};
+	virtual CPnt GetMaxWindowSize(){return CPnt(m_Width, m_Height);};
+
+	bool InitWindow()
+	{
+		if (m_pWindow)
+			return true;
+		if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0)
+		{
+			ConOutL(CStrF("(CDisplayContextSDL2) SDL_Init failed: %s - running headless", SDL_GetError()));
+			return false;
+		}
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+		SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+		m_pWindow = SDL_CreateWindow("OpenRiddick",
+			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+			m_Width, m_Height, SDL_WINDOW_OPENGL);
+		if (!m_pWindow)
+		{
+			ConOutL(CStrF("(CDisplayContextSDL2) SDL_CreateWindow failed: %s - running headless", SDL_GetError()));
+			return false;
+		}
+		m_GLContext = SDL_GL_CreateContext(m_pWindow);
+		if (!m_GLContext)
+		{
+			ConOutL(CStrF("(CDisplayContextSDL2) SDL_GL_CreateContext failed: %s - running headless", SDL_GetError()));
+			SDL_DestroyWindow(m_pWindow);
+			m_pWindow = NULL;
+			return false;
+		}
+		SDL_GL_SetSwapInterval(1);
+		ConOutL(CStrF("(CDisplayContextSDL2) GL_VERSION: %s", (const char*)glGetString(GL_VERSION)));
+		return true;
+	}
 
 	virtual void Create()
 	{
 		CDisplayContext::Create();
+		InitWindow();
+	}
+
+	virtual int PageFlip()
+	{
+		if (m_pWindow)
+		{
+			// Pump the SDL event queue (input translation arrives with
+			// CInputContext_SDL2); keep the window responsive.
+			SDL_Event Event;
+			while (SDL_PollEvent(&Event))
+			{
+				if (Event.type == SDL_QUIT)
+					exit(0);
+			}
+			SDL_GL_SwapWindow(m_pWindow);
+			glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		}
+		return CDisplayContext::PageFlip();
 	}
 
 	virtual void SetMode(int nr)
@@ -86,11 +154,11 @@ public:
 	}
 
 
-	class CRenderContextNULL : public CRC_Core
+	class CRC_GLES3 : public CRC_Core
 	{
 	public:
 
-		CDisplayContextNULL *m_pDisplayContext;
+		CDisplayContextSDL2 *m_pDisplayContext;
 		
 
 		void Internal_RenderPolygon(int _nV, const CVec3Dfp32* _pV, const CVec3Dfp32* _pN, const CVec4Dfp32* _pCol = NULL, const CVec4Dfp32* _pSpec = NULL, /*const fp32* _pFog = NULL,*/
@@ -98,11 +166,11 @@ public:
 		{
 		}
 
-		CRenderContextNULL()
+		CRC_GLES3()
 		{
 		}
 
-		~CRenderContextNULL()
+		~CRC_GLES3()
 		{
 		}
 
@@ -162,14 +230,14 @@ public:
 
 	};
 
-	TPtr<CRenderContextNULL> m_spRenderContext;
+	TPtr<CRC_GLES3> m_spRenderContext;
 
 
 	virtual CRenderContext* GetRenderContext(class CRCLock* _pLock)
 	{
 		if (!m_spRenderContext)
 		{
-			m_spRenderContext = MNew(CRenderContextNULL);
+			m_spRenderContext = MNew(CRC_GLES3);
 			m_spRenderContext->m_pDisplayContext = this;
 			m_spRenderContext->Create(this, "");
 
@@ -208,78 +276,6 @@ public:
 
 };
 
-MRTC_IMPLEMENT_DYNAMIC_NO_IGNORE(CDisplayContextNULL, CDisplayContext);
-
-/*************************************************************************************************\
-| CSystemLinux
-\*************************************************************************************************/
-
-class CSystemLinux : public CSystemCore
-{
-	MRTC_DECLARE;
-public:
-
-	virtual void Create(void* this_inst, void* prev_inst, char* cmdline, int _cmdshow, const char* _pAppClassName)
-	{
-		CSystemCore::Create(cmdline, _pAppClassName);
-	}
-
-	virtual void DC_InitList()
-	{
-		// Pull the SDL2 display class object out of the p5_rc_gles3 archive
-		MRTC_REFERENCE(CDisplayContextSDL2);
-		m_lspDC.Add(MNew4(CDisplayContextDesc, "", "SDL2", "SDL2/GLES3 DisplayContext", "CDisplayContextSDL2") );
-		m_lspDC.Add(MNew4(CDisplayContextDesc, "", "NULL", "NULL DisplayContext", "CDisplayContextNULL") );
-	}
-
-	virtual void Render(CDisplayContext* _pDC, int _Context)
-	{
-		if (IsRendering()) return;
-		if (!m_spApp) return;
-		if (!_pDC || (_pDC == m_spDisplay))
-		{
-			_pDC = m_spDisplay;
-			if (!_pDC) return;
-
-			if (m_iMainWindow < 0)
-				m_iMainWindow = m_spDisplay->SpawnWindow();
-		}
-		if (!_pDC) return;
-		if (_pDC->GetMode() < 0) return;
-		if (!_pDC->IsValid()) return;
-
-		m_bIsRendering = true;
-		M_TRY
-		{
-			CImage *spImg = _pDC->GetFrameBuffer();
-			if (spImg != NULL)
-			{
-				CClipRect Clip = spImg->GetClipRect();
-				m_spApp->OnRender(_pDC, spImg, Clip, _Context);
-			};
-		}
-		M_CATCH(
-		catch(CCException)
-		{
-			m_bIsRendering = false;
-			throw;
-		};
-		)
-		m_bIsRendering = false;
-	}
-
-	CStr GetModuleName(CStr _Name, bool _bSystemPath)
-	{
-		return _Name + ".so";
-	}
-
-	CContentContext* GetContentContext(int _Context)
-	{
-		// Savegame container support arrives with the SDL2 platform layer
-		return NULL;
-	}
-};
-
-MRTC_IMPLEMENT_DYNAMIC(CSystemLinux, CSystemCore);
+MRTC_IMPLEMENT_DYNAMIC_NO_IGNORE(CDisplayContextSDL2, CDisplayContext);
 
 #endif // PLATFORM_LINUX

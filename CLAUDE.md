@@ -121,13 +121,13 @@ little-endian. Загрузчики файлов движка историчес
 
 ### Фаза 3 — Окно, цикл, ввод (SDL2)
 - [x] `MMain_Linux.cpp`: `main()` → Linux_Main → CSystemLinux → DoModal (главный цикл движка работает; окно пока NULL-дисплей).
-- [ ] SDL_Init + создание окна `SDL_WINDOW_OPENGL` (EGL/GLES3-контекст) в `MDisplaySDL2`.
+- [x] SDL_Init + окно `SDL_WINDOW_OPENGL` с GLES 3.0-контекстом в `MDisplaySDL2.cpp` (clear+swap в PageFlip, SDL_QUIT, деградация в headless при недоступном GL); каркас `CRC_GLES3 : CRC_Core` (методы-заглушки) — `p5_rc_gles3`.
 - [ ] `MDisplaySDL2.*`: `CDisplayContext` (режимы, размер окна, vsync/flip).
 - [ ] Ввод: SDL2 → `MInput` (клавиатура→scankey, мышь, `SDL_GameController`).
 - [x] Инструкция запуска с указанием папки ресурсов (см. §3): `-datapath` работает (chdir + case-insensitive пути).
 
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
-- [ ] Каркас `CRC_GLES3 : CRC_Core` (по образцу `CRCPS3GCM`), статическая регистрация через `M_STATIC_RENDERER`.
+- [x] Каркас `CRC_GLES3 : CRC_Core` (виртуальный, в `RenderContexts/GLES3/MDisplaySDL2.cpp`); наполнение методов — далее.
 - [ ] Трансляция `CRC_Attributes` → GL-состояние (blend/depth/stencil/cull/scissor).
 - [ ] Текстуры: `CTextureContext`-интеграция, форматы (S3TC → распаковка в RGBA8 на GLES, где нет `EXT_texture_compression_s3tc`; на десктопном GLES-эмуляторе расширение обычно есть).
 - [ ] Геометрия: пакеты `CXR_VBManager` → стриминг в VBO (кольцевой буфер) + `glDrawArrays/Elements`.
@@ -206,3 +206,5 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | Из плана исключён Android; imGui перенесён в конец (рисует в UI FBO) | план |
 | 2026-07-14 | Бинарь openriddick линкуется и запускается: MMain_Linux, MSystem_Linux (NULL-дисплей), VPU-стабы, bootstrap init_priority, фиксы 64-бит (CRC_Attributes 11×vec128, MDA_ALIGNMENT 16, RoundToInt), -datapath | Фазы 2-3 |
 | 2026-07-14 | Фикс поиска ресурсов: нормализация DEFAULTGAMEPATH (компоненты без разделителя на конце, `Content`+`FONTS\...`) — шрифт находится с реальным Environment.cfg | Фаза 3 |
+| 2026-07-14 | Фикс усечения find-хэндла (aint→int в MFile_Misc): таблица слотов вместо указателей | Фаза 3 |
+| 2026-07-14 | Каркас рендера: MDisplaySDL2 (окно SDL2 + GLES 3.0, clear+swap, SDL_QUIT) + CRC_GLES3-заглушка, цель p5_rc_gles3, дисплей SDL2 в списке CSystemLinux с fallback на NULL | Фазы 3-4 |
