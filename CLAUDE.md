@@ -132,6 +132,7 @@ little-endian. Загрузчики файлов движка историчес
 
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
 - [x] Каркас `CRC_GLES3 : CRC_Core` (виртуальный, в `RenderContexts/GLES3/MDisplaySDL2.cpp`); наполнение методов — далее.
+- [~] Render target: `RenderTarget_SetRenderTarget` биндит default fb0 + viewport, `RenderTarget_Clear` — реальный `glClear` (color/depth/stencil) со scissor'ом при частичном rect. FBO-композиция (offscreen UI/3D + поворот) — Фаза 5.
 - [ ] Трансляция `CRC_Attributes` → GL-состояние (blend/depth/stencil/cull/scissor).
 - [ ] Текстуры: `CTextureContext`-интеграция, форматы (S3TC → распаковка в RGBA8 на GLES, где нет `EXT_texture_compression_s3tc`; на десктопном GLES-эмуляторе расширение обычно есть).
 - [ ] Геометрия: пакеты `CXR_VBManager` → стриминг в VBO (кольцевой буфер) + `glDrawArrays/Elements`.
@@ -216,3 +217,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | Поддержка формата PC/Dark Athena CImage_FileHeader v0x0400: структура расширена m_ChunkSize/m_ChunkCount, добавлен пост-инвариантный fixup под флагом 0x4000 (сверено с MSystem.dll Ghidra) | bring-up |
 | 2026-07-14 | Фикс бесконечной рекурсии в трёх шаблонных `operator+` для TFStr<N> (MRTC_String.h): каст правого операнда к CStrBase& для выбора мембер-`operator+` — переполнение стека при конкатенациях от 4 уровней и глубже | bring-up |
 | 2026-07-14 | No-op заглушка ввода: `CInputContext_SDL2` (Input/MInput_SDL2.cpp) наследует CInputContextCore, регистрируется через MRTC_IMPLEMENT_DYNAMIC + MRTC_REFERENCE в MCreateInputContext; разблокирует CSystemCore::CreateInput. Реального pump'а событий пока нет. | Фаза 3 |
+| 2026-07-14 | Первые методы CRC_GLES3: RenderTarget_SetRenderTarget (bind fb0 + viewport) и RenderTarget_Clear (glClearColor/Depth/Stencil + scissor при частичном rect, с учётом top-left→bottom-left оси Y). Движок дошёл до цикла отрисовки фронтэнда (cg_rootmenu 'legal'→'esrb'→'logo_atari'). | Фаза 4 |

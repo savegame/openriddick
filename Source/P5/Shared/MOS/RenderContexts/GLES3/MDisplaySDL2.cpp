@@ -104,8 +104,10 @@ public:
 					exit(0);
 			}
 			SDL_GL_SwapWindow(m_pWindow);
-			glClearColor(0.05f, 0.05f, 0.08f, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+			// The engine now drives its own clears via
+			// CRC_GLES3::RenderTarget_Clear; the bring-up glClear here
+			// used to hide unrendered frames but would fight the engine
+			// once real drawing lands.
 		}
 		return CDisplayContext::PageFlip();
 	}
@@ -195,6 +197,60 @@ public:
 
 		const char* GetRenderingStatus() { return ""; }
 		virtual void Flip_SetInterval(int _nFrames){};
+
+		// Render target (Phase 4 bring-up). Only the default framebuffer
+		// (window backbuffer) exists so far -- FBO composition (phase 5)
+		// lands later. Setting a target is a no-op that just rebinds fb0
+		// and syncs the viewport with the current window size.
+		void RenderTarget_SetRenderTarget(const CRC_RenderTargetDesc& _RenderTarget)
+		{
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			if (m_pDisplayContext)
+				glViewport(0, 0, m_pDisplayContext->m_Width, m_pDisplayContext->m_Height);
+		}
+
+		void RenderTarget_Clear(CRct _ClearRect, int _WhatToClear, CPixel32 _Color, fp32 _ZBufferValue, int _StecilValue)
+		{
+			GLbitfield Mask = 0;
+			if (_WhatToClear & CDC_CLEAR_COLOR)
+			{
+				const fp32 s = 1.0f / 255.0f;
+				glClearColor(_Color.GetR() * s, _Color.GetG() * s, _Color.GetB() * s, _Color.GetA() * s);
+				glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+				Mask |= GL_COLOR_BUFFER_BIT;
+			}
+			if (_WhatToClear & CDC_CLEAR_ZBUFFER)
+			{
+				glClearDepthf(_ZBufferValue);
+				glDepthMask(GL_TRUE);
+				Mask |= GL_DEPTH_BUFFER_BIT;
+			}
+			if (_WhatToClear & CDC_CLEAR_STENCIL)
+			{
+				glClearStencil(_StecilValue);
+				glStencilMask(0xff);
+				Mask |= GL_STENCIL_BUFFER_BIT;
+			}
+			if (!Mask)
+				return;
+
+			// Empty rect => full target clear. Otherwise clip via scissor.
+			const int w = _ClearRect.p1.x - _ClearRect.p0.x;
+			const int h = _ClearRect.p1.y - _ClearRect.p0.y;
+			if (w > 0 && h > 0 && m_pDisplayContext)
+			{
+				glEnable(GL_SCISSOR_TEST);
+				// GLES scissor origin is bottom-left; engine rects are top-left.
+				const int y = m_pDisplayContext->m_Height - _ClearRect.p1.y;
+				glScissor(_ClearRect.p0.x, y, w, h);
+				glClear(Mask);
+				glDisable(GL_SCISSOR_TEST);
+			}
+			else
+			{
+				glClear(Mask);
+			}
+		}
 
 		void Attrib_Set(CRC_Attributes* _pAttrib){}
 		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib){}
