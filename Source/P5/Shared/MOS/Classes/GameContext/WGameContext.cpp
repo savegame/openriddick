@@ -10,7 +10,7 @@
 #include "../GameWorld/FrontEnd/WFrontEnd.h"
 #include "../Video/MVideo.h"
 
-#ifndef	PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 #include "../../SDK/Include/cdapfn.h" // SafeDisc
 #endif
 

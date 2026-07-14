@@ -4132,7 +4132,7 @@ void CXRealityApp::RenderStats(CDisplayContext* _pDisplay, CRenderContext* _pRC,
 						pAttr->Attrib_RasterMode(CRC_RASTERMODE_ALPHABLEND);
 						Util2D.Rect(CRct(0, 0, 640, 480), CRct(Origo, Origo + CPnt(128, 64)), TurtleColor);
 
-						Util2D.SetTexture(NULL);
+						Util2D.SetTexture(0);
 					}
 
 #if defined(M_Profile) || defined (PLATFORM_WIN)

@@ -4985,7 +4985,7 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 				if (pPlayer && (pPlayer->GetPhysState().m_ObjectFlags & OBJECT_FLAGS_CHARACTER) != 0)
 				{
 					CWO_Character_ClientData *pPlayerCD = GetClientData(pPlayer);
-					if (pPlayerCD->m_FocusFrameUseText == "§LACS_DEVOUR")
+					if (CFStr(pPlayerCD->m_FocusFrameUseText) == "§LACS_DEVOUR")
 					{
 						*pSt = pPlayerCD->m_FocusFrameUseText;
 						nChoices = 1;

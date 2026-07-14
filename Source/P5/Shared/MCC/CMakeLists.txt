@@ -7,6 +7,8 @@
 
 add_library(p5_mcc STATIC
     MCC_Dyn.cpp
+    MDA_3D.CPP
+    MMath_MIPS.cpp
     MDA_Hash.cpp
     MDataFile.cpp
     MFile.cpp

@@ -16,7 +16,7 @@
 #include "../../../XRModels/Model_BSP2/WBSP2Model.h"
 
 
-#ifndef	PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 #include "../../SDK/Include/cdapfn.h" // SafeDisc
 #endif
 

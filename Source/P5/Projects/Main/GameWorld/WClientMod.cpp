@@ -1756,7 +1756,7 @@ void CWClient_Mod::EnvBox_CaptureFrame(CXR_VBManager* _pVBM)
 	if (!CDiskUtil::CreatePath(pSys->m_ExePath + "ScreenShots"))
 		return;
 
-	_pVBM->ScopeBegin(false, 5);
+	_pVBM->ScopeBegin(NULL, 5);
 
 	CImage* pImg = pSys->m_spDisplay->GetFrameBuffer();
 	if (pImg != NULL)

@@ -386,7 +386,7 @@ CWRes_Dialogue *CWObject_RPG::GetDialogueResource(CWObject_CoreData* _pObj, CWor
 {
 	int iDialogueID = GetDialogueID(_pObj);
 	if(iDialogueID == 0)
-		return false;
+		return NULL;
 	
 	return _pWPhysState->GetMapData()->GetResource_Dialogue(iDialogueID);
 }

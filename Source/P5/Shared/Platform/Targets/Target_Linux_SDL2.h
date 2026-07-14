@@ -68,6 +68,7 @@
 #endif
 
 #define	dllvirtual
+#define __w64						// MSVC 32/64 portability annotation, no-op here
 
 #define M_FAKEDYNAMICCAST
 #define M_EXCEPTIONS 0

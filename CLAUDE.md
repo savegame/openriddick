@@ -1,4 +1,4 @@
-# OpenRiddick — портирование на GLES3 + SDL2 (Linux x86_64 / ARM Linux / Android)
+# OpenRiddick — портирование на GLES3 + SDL2 (Linux x86_64 / ARM Linux)
 
 Этот документ — анализ исходников и рабочий план портирования. Он ведётся по мере
 выполнения работ: каждый завершённый шаг помечается, каждый логический шаг — отдельный
@@ -103,7 +103,7 @@ little-endian. Загрузчики файлов движка историчес
 - [x] Анализ исходников, этот документ.
 
 ### Фаза 1 — Каркас сборки CMake
-- [x] Топ-левел `CMakeLists.txt` (опции: `TARGET_LINUX_X86_64`, `TARGET_LINUX_ARM`, Android toolchain).
+- [x] Топ-левел `CMakeLists.txt`.
 - [x] Сборка SDK-библиотек: zlib, libpng, ogg, vorbis (статически, из дерева).
 - [ ] Цели-заглушки для модулей движка: MCC → MSystem → XR → XRClasses/XRModels → GameWorld → GameClasses → exe (компилируются по мере портирования; управляется опцией `ENGINE_MODULES`).
 - Коммит на каждый работающий уровень.
@@ -115,7 +115,8 @@ little-endian. Загрузчики файлов движка историчес
 - [x] Компиляция **MSystem** → `libp5_msystem.a` (106 TU; исключены Win32/Xenon/PS3-TU, ASIO, FaceFX/Bink/XMV-обёртки). Платформенная реализация `MSystem_Linux.cpp` — Фаза 3.
 - [x] Компиляция **XR** (+ часть XRModels из Lib_XR.vcproj) → `libp5_xr.a`
 - [x] Компиляция **XRClasses** → `libp5_xrclasses.a`
-- [ ] Компиляция XRModels (остаток), Classes, GameWorld, GameClasses, Exe → **линкуемый бинарь** (рендер — null-контекст).
+- [x] Компиляция **GameWorld** (вкл. Shared/MOS/Classes/GameWorld) → `libp5_gameworld.a` (98 TU) и **GameClasses** → `libp5_gameclasses.a` (177 TU); игровой код собирается с `-fpermissive`.
+- [ ] Exe: точка входа `MMain_Linux.cpp` + линковка бинаря (Фаза 3; рендер — null-контекст).
 
 ### Фаза 3 — Окно, цикл, ввод (SDL2)
 - [ ] `MMain_Linux.cpp`: `main()` → SDL_Init → создание окна `SDL_WINDOW_OPENGL` (EGL/GLES3-контекст) → главный цикл движка (по образцу `MMain_PS3.cpp` / Win32-message-loop).
@@ -147,22 +148,22 @@ little-endian. Загрузчики файлов движка историчес
       (обратный поворот + масштаб; отдельная функция `WindowToFBO(x,y)` используется
       слоем SDL2-ввода до передачи в `MInput`).
 
-### Фаза 6 — imGui (отладочный оверлей)
-- [ ] Добавить исходники Dear ImGui (`Source/ThirdParty/imgui/`), бэкенды
-      `imgui_impl_sdl2` + `imgui_impl_opengl3` (GLES3-совместимы из коробки).
-- [ ] Оверлей поверх композиции (рисуется в координатах окна, не FBO):
-      панель управления поворотом/масштабом FBO, статистика рендера.
-
-### Фаза 7 — Платформы
+### Фаза 6 — Платформы
 - [ ] x86_64 Linux — основная платформа разработки (GLES3 через Mesa/ANGLE или
       десктопный драйвер с `libGLESv2`).
 - [ ] ARM Linux (aarch64/armhf) — кросс-компиляция или нативная сборка; NEON-путь
       математики (сначала `MMath_Vec128_Emu`, оптимизация потом).
-- [ ] Android: CMake уже готов к NDK toolchain; `SDL2` android-проект
-      (`SDLActivity`), ресурсы — во внешнем хранилище, путь через intent/конфиг.
 
-### Фаза 8 — Звук
+### Фаза 7 — Звук
 - [ ] SDL2-аудиобэкенд для `MSound_Core` (callback → микшер движка).
+
+### Фаза 8 — imGui (отладочный оверлей, в самом конце)
+- [ ] Добавить исходники Dear ImGui (`Source/ThirdParty/imgui/`), бэкенды
+      `imgui_impl_sdl2` + `imgui_impl_opengl3` (GLES3-совместимы из коробки).
+- [ ] ImGui рисуется в **UI FBO** (в логических координатах UI-слоя, поворот
+      применяется композитором как и ко всему UI): панель управления
+      поворотом/масштабом FBO, статистика рендера. Ввод ImGui получает уже
+      транслированные координаты (WindowToFBO).
 
 ---
 
@@ -199,3 +200,5 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-13 | MSystem: фиксы two-phase lookup (StrToIntParse/M_Pow/M_Sqrt), BSD-сокеты в MRTC_Task, ветки PLATFORM_LINUX — libp5_msystem.a собирается | Фаза 2 |
 | 2026-07-13 | XR: глобальные фиксы (`template<> static`, операторы TFStr/CStr, bool→NULL, this->) — libp5_xr.a собирается (88 TU) | Фаза 2 |
 | 2026-07-13 | XRClasses: dDOT-декларации, M_Sqrt(int), restrict-касты, copysign — libp5_xrclasses.a (30 TU) | Фаза 2 |
+| 2026-07-14 | GameWorld + GameClasses собираются (275 TU, -fpermissive), ветка MACRO_MAIN для Linux, BSD-сокеты в WGameMultiplayerHandler | Фаза 2 |
+| 2026-07-14 | Из плана исключён Android; imGui перенесён в конец (рисует в UI FBO) | план |

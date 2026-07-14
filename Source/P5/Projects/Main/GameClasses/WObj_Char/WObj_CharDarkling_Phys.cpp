@@ -964,7 +964,7 @@ bool CWO_CharDarkling_ClientData::PerformJump()
 	const CVec3Dfp32& Pos = PosMat.GetRow(3);
 
 	if(m_pWPhysState->Phys_Message_SendToObject(CWObject_Message(OBJMSG_GAME_GETISMP), m_pWPhysState->Game_GetObjectIndex()))	
-		if(m_pWPhysState->Phys_IntersectLine(Pos, Pos + PosMat.GetRow(0) * 64.0f, 0, OBJECT_FLAGS_WORLD | OBJECT_FLAGS_PHYSMODEL, XW_MEDIUM_SOLID, NULL, m_pObj->m_iObject))
+		if(m_pWPhysState->Phys_IntersectLine(Pos, Pos + PosMat.GetRow(0) * 64.0f, 0, OBJECT_FLAGS_WORLD | OBJECT_FLAGS_PHYSMODEL, XW_MEDIUM_SOLID, (CCollisionInfo*)NULL, m_pObj->m_iObject))
 			return false;
 
 	CMat4Dfp32 MatBody = PosMat;

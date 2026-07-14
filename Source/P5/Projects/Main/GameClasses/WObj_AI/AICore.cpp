@@ -272,7 +272,7 @@ bool CWObj_LightMeter::Measure(const CVec3Dfp32& _BoxPos,const CVec3Dfp32& _Meas
 		int32 Mediums = XW_MEDIUM_SOLID /*| XW_MEDIUM_PHYSSOLID | XW_MEDIUM_PLAYERSOLID | XW_MEDIUM_GLASS | XW_MEDIUM_CAMERASOLID*/;
 		CCollisionInfo Info;
 		Info.Clear();
-		if ((_TraceLines)&&(m_pAI->m_pServer->Phys_IntersectLine(_MeasurePos,pLight->GetPosition(),ObjectFlags,ObjectFlags,Mediums,NULL,_iSkipObj)))
+		if ((_TraceLines)&&(m_pAI->m_pServer->Phys_IntersectLine(_MeasurePos,pLight->GetPosition(),ObjectFlags,ObjectFlags,Mediums,(CCollisionInfo*)NULL,_iSkipObj)))
 		{
 			m_lpLightIntensities[curLight] = 0;
 			continue;

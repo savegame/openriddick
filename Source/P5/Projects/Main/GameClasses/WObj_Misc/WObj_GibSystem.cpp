@@ -184,7 +184,7 @@ void CWObject_GibSystem::OnClientNetMsg(CWObject_Client* _pObj, CWorld_Client* _
 				{
 					pObj->m_iModel[0] = iModel;
 					CBox3Dfp32 Box;
-					pModel->GetBound_Box(Box, NULL);
+					pModel->GetBound_Box(Box, (const CXR_AnimState*)NULL);
 					pObj->SetVisBoundBox(Box);
 
 					CVec3Dfp32 Pos = pObj->GetPosition();

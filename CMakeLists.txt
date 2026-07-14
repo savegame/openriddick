@@ -3,7 +3,7 @@ project(OpenRiddick CXX C)
 
 # ---------------------------------------------------------------------------
 # OpenRiddick — GLES3 + SDL2 port of the Starbreeze P5 engine.
-# Targets: Linux x86_64, Linux ARM (aarch64/armhf), Android (via NDK toolchain).
+# Targets: Linux x86_64, Linux ARM (aarch64/armhf).
 # See CLAUDE.md for the porting plan and current status.
 # ---------------------------------------------------------------------------
 
@@ -115,5 +115,15 @@ target_link_libraries(p5_vorbis PUBLIC p5_ogg)
 # ---------------------------------------------------------------------------
 if(ENGINE_MODULES)
     find_package(SDL2 REQUIRED)
+    find_package(Threads REQUIRED)
+
+    # All engine modules build as the Linux/SDL2 target
+    add_compile_definitions(TARGET_LINUX_SDL2)
+    # Old-codebase compile flags:
+    #  -flax-vector-conversions: the vec128 SSE code freely mixes __m128/__m128i
+    set(P5_ENGINE_CXX_FLAGS -w -flax-vector-conversions)
+
     add_subdirectory(Source/P5/Shared)
+    add_subdirectory(Source/P5/Projects/Main/GameWorld)
+    add_subdirectory(Source/P5/Projects/Main/GameClasses)
 endif()

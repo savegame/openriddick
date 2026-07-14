@@ -772,7 +772,7 @@ void CWorld_ClientCore::Render(CXR_VBManager* _pVBM, CRenderContext* _pRender, C
 			//pCapture->Render(_pRender, &DummyVP);
 		}
 
-		_pVBM->ScopeBegin(false, 1);
+		_pVBM->ScopeBegin(NULL, 1);
 		m_spWireContainer->Render(_pVBM, VMat);
 		_pVBM->ScopeEnd();
 
