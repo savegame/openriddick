@@ -628,28 +628,48 @@ public:
 		{
 			++m_DbgBeginScenes;
 			CRC_Core::BeginScene(_pVP);
-			if (_pVP)
-			{
-				// Matrix_Update() never dispatches CRC_MATRIX_PROJECTION
-				// through Matrix_SetRender (see MRender.cpp:3376+): it
-				// only forwards MODEL + TEXTUREn. The engine expects the
-				// backend to pull projection from the viewport itself
-				// here. Without this, m_ProjMat stays Unit() and every
-				// UI vertex ends up outside NDC -> black screen.
-				m_ProjMat = _pVP->GetProjectionMatrix();
+			// CRC_Core::BeginScene already calls Viewport_Set(_pVP)
+			// which invokes our overridden Viewport_Update below --
+			// projection + glViewport are set from there.
+		}
 
-				if (m_pDisplayContext)
-				{
-					CRct R = _pVP->GetViewArea();
-					const int W = R.p1.x - R.p0.x;
-					const int H = R.p1.y - R.p0.y;
-					if (W > 0 && H > 0)
-					{
-						// Flip Y from engine top-left to GL bottom-left.
-						const int Y = m_pDisplayContext->m_Height - R.p1.y;
-						glViewport(R.p0.x, Y, W, H);
-					}
-				}
+		// Called by CRC_Core whenever the active viewport changes
+		// (Viewport_Set from CRC_Core::BeginScene, from
+		// CXR_VBManager::Internal_Render mid-scene, from
+		// Viewport_Push/Pop). Mirrors CRCPS3GCM::Viewport_Update:
+		//
+		//   1) pull raw projection matrix from CRC_Viewport
+		//   2) scale rows 0 (x) and 1 (y) by 2/width, 2/height --
+		//      engine's projection projects into pixel-space
+		//      [-w/2, +w/2] / [-h/2, +h/2], not NDC [-1, +1]; the
+		//      backend has to bring it into clip space itself
+		//   3) set the actual GL viewport (Y-flipped for GLES)
+		void Viewport_Update()
+		{
+			CRC_Core::Viewport_Update();
+			CRC_Viewport* pVP = Viewport_Get();
+			if (!pVP) return;
+
+			CRct R = pVP->GetViewArea();
+			const int W = R.p1.x - R.p0.x;
+			const int H = R.p1.y - R.p0.y;
+
+			CMat4Dfp32 ProjMat = pVP->GetProjectionMatrix();
+			if (W > 0 && H > 0)
+			{
+				const fp32 xs = 2.0f / (fp32)W;
+				const fp32 ys = 2.0f / (fp32)H;
+				ProjMat.k[0][0] *= xs; ProjMat.k[1][0] *= xs;
+				ProjMat.k[2][0] *= xs; ProjMat.k[3][0] *= xs;
+				ProjMat.k[0][1] *= ys; ProjMat.k[1][1] *= ys;
+				ProjMat.k[2][1] *= ys; ProjMat.k[3][1] *= ys;
+			}
+			m_ProjMat = ProjMat;
+
+			if (m_pDisplayContext && W > 0 && H > 0)
+			{
+				const int Y = m_pDisplayContext->m_Height - R.p1.y;
+				glViewport(R.p0.x, Y, W, H);
 			}
 		}
 
