@@ -2173,6 +2173,16 @@ public:
 	int32 m_Height;
 	int32 m_Format;
 	int32 m_Flags;
+	// Added in file-header version 0x0400 (Dark Athena era). For a plain 2D
+	// texture m_ChunkCount == 1 and m_ChunkSize == payload bytes (i.e.
+	// m_AllocSize - 16). For chunked/tiled images the payload is split into
+	// m_ChunkCount pieces of m_ChunkSize bytes plus a 16-byte prefix. When
+	// m_Compression has the 0x4000 flag the invariant
+	//   m_AllocSize == m_ChunkSize * m_ChunkCount + 16
+	// holds; if it doesn't, m_ChunkSize is recomputed from m_AllocSize
+	// (matches MXR/MSystem.dll behaviour).
+	int32 m_ChunkSize;
+	int32 m_ChunkCount;
 
 	CImage_FileHeader()
 	{
@@ -2184,6 +2194,8 @@ public:
 		m_Height = 0;
 		m_Format = 0;
 		m_Flags = 0;
+		m_ChunkSize = 0;
+		m_ChunkCount = 0;
 	}
 
 
@@ -2211,10 +2223,18 @@ public:
 		{
 		case 0x0200 :
 			_pFile->ReadLE(&m_Compression, 5); // read all at once
+			m_ChunkSize = m_AllocSize;         // v0x0400 back-compat: seed new field
+			m_ChunkCount = 1;
 			break;
 		case 0x0300 :
 			// wow, this is nice. make sure to only use int32 in this struct or this won't work on big endian
 			_pFile->ReadLE(&m_Compression, 6); // read all at once
+			m_ChunkSize = m_AllocSize;         // v0x0400 back-compat: seed new field
+			m_ChunkCount = 1;
+			break;
+		case 0x0400 :
+			// Dark Athena format: struct extended with 2 int32 chunk fields.
+			_pFile->ReadLE(&m_Compression, 8); // read all 8 int32s at once
 			break;
 
 		case 0 :
@@ -2264,6 +2284,18 @@ public:
 				fflush(stderr);
 				Error_static("CImage_FileHeader::Write", CStrF("Unsupported version %.4x", Ver));
 			}
+		}
+
+		// Chunk-size fixup for v0x0400+ (mirrors MXR/MSystem.dll). When
+		// m_Compression has bit 0x4000 set and the invariant does not hold,
+		// recompute m_ChunkSize from m_AllocSize so downstream code sees a
+		// self-consistent header. For versions <0x0400 we seeded
+		// m_ChunkCount=1 above, so this is a no-op unless the file already
+		// agreed.
+		if ((m_Compression & 0x4000) != 0)
+		{
+			if (m_ChunkCount != 0 && m_AllocSize != m_ChunkSize * m_ChunkCount + 0x10)
+				m_ChunkSize = (m_AllocSize - 0x10) / m_ChunkCount;
 		}
 	}
 
