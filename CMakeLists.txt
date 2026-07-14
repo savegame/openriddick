@@ -111,6 +111,14 @@ target_compile_options(p5_vorbis PRIVATE ${SDK_C_FLAGS})
 target_link_libraries(p5_vorbis PUBLIC p5_ogg)
 
 # ---------------------------------------------------------------------------
+# SDK: NeuQuant (palette quantizer, used by MImageQuantize)
+# ---------------------------------------------------------------------------
+add_library(p5_neuquant STATIC ${P5}/SDK/NeuQuant/NEUQUANT.C)
+set_source_files_properties(${P5}/SDK/NeuQuant/NEUQUANT.C PROPERTIES LANGUAGE C)
+target_include_directories(p5_neuquant PUBLIC ${P5}/SDK/NeuQuant)
+target_compile_options(p5_neuquant PRIVATE ${SDK_C_FLAGS})
+
+# ---------------------------------------------------------------------------
 # Engine modules (ported incrementally; see CLAUDE.md phase 2)
 # ---------------------------------------------------------------------------
 if(ENGINE_MODULES)
@@ -126,4 +134,5 @@ if(ENGINE_MODULES)
     add_subdirectory(Source/P5/Shared)
     add_subdirectory(Source/P5/Projects/Main/GameWorld)
     add_subdirectory(Source/P5/Projects/Main/GameClasses)
+    add_subdirectory(Source/P5/Projects/Main/Exe)
 endif()

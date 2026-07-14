@@ -10,6 +10,7 @@ add_library(p5_xrclasses STATIC
     ../../XR/Phys/WPhysColllisionPolyOBB.cpp
     ../../XR/Phys/WPhysOBB.cpp
     ../../XR/Phys/WPhysPCS.cpp
+    ../../XR/Phys/WPhysPolyOBB.cpp
     ../../XR/Phys/WPhysPolyOBB_fp4.cpp
     ../../XR/Phys/WPhysTT.cpp
     ../../XR/Phys/WPhysTriLine.cpp

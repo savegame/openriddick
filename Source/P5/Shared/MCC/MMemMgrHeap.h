@@ -40,7 +40,7 @@
 #define MDA_DEBUG_BLOCK_POSTCHECK 16*/
 
 
-#if defined(CPU_AMD64) || defined(PLATFORM_XENON) || defined(PLATFORM_PS3)
+#if defined(CPU_AMD64) || defined(PLATFORM_XENON) || defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 #define MDA_ALIGNMENT 16
 #define MDA_DEBUG_BLOCK_PRECHECK 16
 #define MDA_DEBUG_BLOCK_POSTCHECK 16

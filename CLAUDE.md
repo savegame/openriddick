@@ -116,13 +116,15 @@ little-endian. Загрузчики файлов движка историчес
 - [x] Компиляция **XR** (+ часть XRModels из Lib_XR.vcproj) → `libp5_xr.a`
 - [x] Компиляция **XRClasses** → `libp5_xrclasses.a`
 - [x] Компиляция **GameWorld** (вкл. Shared/MOS/Classes/GameWorld) → `libp5_gameworld.a` (98 TU) и **GameClasses** → `libp5_gameclasses.a` (177 TU); игровой код собирается с `-fpermissive`.
-- [ ] Exe: точка входа `MMain_Linux.cpp` + линковка бинаря (Фаза 3; рендер — null-контекст).
+- [x] **Линкуемый и запускаемый бинарь** `build/bin/openriddick`: `MMain_Linux.cpp` (Linux_Main), `MSystem_Linux.cpp` (CSystemLinux + NULL-дисплей/рендер), загрузчик доходит до поиска игровых ресурсов (`Content\`) и корректно сообщает об их отсутствии. Все float-самотесты движка проходят.
+- Замечания bring-up: `M_STATIC_RENDERER` отключён (виртуальный CRenderContext, включим обратно при желании после GLES3); `CRC_Attributes` расширен до 11 vec128 на 64-битных указателях; кастомный аллокатор — MDA_ALIGNMENT 16; `-datapath` реализован через chdir + case-insensitive/backslash-разрешение путей в файловом слое.
 
 ### Фаза 3 — Окно, цикл, ввод (SDL2)
-- [ ] `MMain_Linux.cpp`: `main()` → SDL_Init → создание окна `SDL_WINDOW_OPENGL` (EGL/GLES3-контекст) → главный цикл движка (по образцу `MMain_PS3.cpp` / Win32-message-loop).
+- [x] `MMain_Linux.cpp`: `main()` → Linux_Main → CSystemLinux → DoModal (главный цикл движка работает; окно пока NULL-дисплей).
+- [ ] SDL_Init + создание окна `SDL_WINDOW_OPENGL` (EGL/GLES3-контекст) в `MDisplaySDL2`.
 - [ ] `MDisplaySDL2.*`: `CDisplayContext` (режимы, размер окна, vsync/flip).
 - [ ] Ввод: SDL2 → `MInput` (клавиатура→scankey, мышь, `SDL_GameController`).
-- [ ] Инструкция запуска с указанием папки ресурсов (см. §3).
+- [x] Инструкция запуска с указанием папки ресурсов (см. §3): `-datapath` работает (chdir + case-insensitive пути).
 
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
 - [ ] Каркас `CRC_GLES3 : CRC_Core` (по образцу `CRCPS3GCM`), статическая регистрация через `M_STATIC_RENDERER`.
@@ -202,3 +204,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-13 | XRClasses: dDOT-декларации, M_Sqrt(int), restrict-касты, copysign — libp5_xrclasses.a (30 TU) | Фаза 2 |
 | 2026-07-14 | GameWorld + GameClasses собираются (275 TU, -fpermissive), ветка MACRO_MAIN для Linux, BSD-сокеты в WGameMultiplayerHandler | Фаза 2 |
 | 2026-07-14 | Из плана исключён Android; imGui перенесён в конец (рисует в UI FBO) | план |
+| 2026-07-14 | Бинарь openriddick линкуется и запускается: MMain_Linux, MSystem_Linux (NULL-дисплей), VPU-стабы, bootstrap init_priority, фиксы 64-бит (CRC_Attributes 11×vec128, MDA_ALIGNMENT 16, RoundToInt), -datapath | Фазы 2-3 |

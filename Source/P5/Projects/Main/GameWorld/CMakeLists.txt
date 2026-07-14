@@ -2,6 +2,7 @@
 # Список из makefile.Lib_GameWorld (PS3) минус платформенные TU.
 
 add_library(p5_gameworld STATIC
+    ../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/WAG2I_SIID.cpp
     MWinCtrlMod.cpp
     WClientMod.cpp
     WClientModWnd.cpp

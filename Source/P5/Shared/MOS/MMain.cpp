@@ -17,5 +17,9 @@
 #endif
 
 
+#ifdef PLATFORM_PS3
 #include "MMain_PS3.cpp"
+#elif defined(PLATFORM_LINUX)
+#include "MMain_Linux.cpp"
+#endif
 

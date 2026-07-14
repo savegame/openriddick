@@ -905,26 +905,8 @@ void CRC_Attributes::SetDefault()
 #endif
 
 	const CRC_Attributes& Src = ms_AttribDefault;
-	vec128 v0 = Src.m_v128[0];
-	vec128 v1 = Src.m_v128[1];
-	vec128 v2 = Src.m_v128[2];
-	vec128 v3 = Src.m_v128[3];
-	vec128 v4 = Src.m_v128[4];
-	vec128 v5 = Src.m_v128[5];
-	vec128 v6 = Src.m_v128[6];
-	vec128 v7 = Src.m_v128[7];
-	vec128 v8 = Src.m_v128[8];
-	vec128 v9 = Src.m_v128[9];
-	m_v128[0] = v0;
-	m_v128[1] = v1;
-	m_v128[2] = v2;
-	m_v128[3] = v3;
-	m_v128[4] = v4;
-	m_v128[5] = v5;
-	m_v128[6] = v6;
-	m_v128[7] = v7;
-	m_v128[8] = v8;
-	m_v128[9] = v9;
+	for (int i = 0; i < k_nAttribVec128; i++)
+		m_v128[i] = Src.m_v128[i];
 }
 
 void CRC_Attributes::SetDefaultReal()

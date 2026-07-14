@@ -89,7 +89,6 @@ add_library(p5_xr STATIC
     XRVBManager.cpp
     XRVBOperators.cpp
     XRVBOperators_NVidia.cpp
-    XR_Dyn.cpp
     XRVBOperators_GC.cpp
 )
 

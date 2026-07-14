@@ -6,7 +6,6 @@
 # PPU<->SPU job ABI and needs a dedicated 64-bit port (see CLAUDE.md).
 
 add_library(p5_mcc STATIC
-    MCC_Dyn.cpp
     MDA_3D.CPP
     MMath_MIPS.cpp
     MDA_Hash.cpp
@@ -36,12 +35,12 @@ add_library(p5_mcc STATIC
     MMemMgrPool.cpp
     MMisc.cpp
     MNetwork.cpp
-    MRTC_Dyn.cpp
     MRTC_VPUManager.cpp
     MSIMD.cpp
     Mcomp.cpp
     Mda.cpp
     Mrtc.cpp
+    VPU/MRTC_VPU_LinuxStub.cpp
 )
 
 target_include_directories(p5_mcc PUBLIC

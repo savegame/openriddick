@@ -82,6 +82,7 @@
 #define SOUND_IO_NOCOMPRESS
 #define	SOUND_IO_NODECOMPRESS
 #define IMAGE_IO_PNG
+#define LIPSYNC_NOANALYSER				// FaceFX/TalkBack SDKs are not available
 
 #define M_DISABLE_CURRENTPROJECT
 #define M_DISABLE_TODELETE
@@ -93,7 +94,7 @@
 
 #define M_STATICINIT
 #define M_STATIC
-#define M_STATIC_RENDERER				// Renderer (GLES3) is linked statically
+//#define M_STATIC_RENDERER				// Bring-up uses the virtual CRenderContext interface; the GLES3 backend can go static later
 
 #define M_ARGLISTCALL
 #define M_INLINE	inline

@@ -292,7 +292,11 @@ bool Phys_Intersect_PolyOBB(const CVec3Dfp32* _pVertices, const uint16* _pVertIn
 			Phys_CreatePlaneOnBox(BestPlane.n, _BoxDest, BestPlane);
 		}
 
-		BestPlane.n.Assignfp32( _pCollisionInfo->m_Plane.n );
+		{
+			CVec3Dfp32 PlaneN;
+			BestPlane.n.Assignfp32(PlaneN);
+			_pCollisionInfo->m_Plane.n = PlaneN;
+		}
 		_pCollisionInfo->m_Plane.d = BestPlane.d;
 
 		_pCollisionInfo->m_bIsValid = true;

@@ -80,14 +80,15 @@ static M_INLINE int TruncToInt( fp32 _Val )
 	return (int)_Val;
 }
 
+// The engine expects round-half-away-from-zero (see FloatTestRound in XRApp.cpp)
 static M_INLINE int RoundToInt(fp32 _Val)
 {
-	return (int)lrintf(_Val);
+	return (int)(_Val < 0.0f ? _Val - 0.5f : _Val + 0.5f);
 }
 
 static M_INLINE int RoundToInt(fp64 _Val)
 {
-	return (int)lrint(_Val);
+	return (int)(_Val < 0.0 ? _Val - 0.5 : _Val + 0.5);
 }
 
 static M_INLINE fp32 Fraction(fp32 _Val)

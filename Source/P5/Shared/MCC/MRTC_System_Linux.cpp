@@ -201,7 +201,11 @@ mint MRTC_SystemInfo::OS_MemSize(void *_pBlock)
 
 void* MRTC_SystemInfo::OS_Alloc(uint32 _Size, uint32 _Alignment)
 {
-	return OS_HeapAllocAlign(_Size, _Alignment);
+	// Like VirtualAlloc on Win32, callers rely on this memory being zeroed
+	void* pMem = OS_HeapAllocAlign(_Size, _Alignment);
+	if (pMem)
+		memset(pMem, 0, _Size);
+	return pMem;
 }
 
 void MRTC_SystemInfo::OS_Free(void* _pMem)
@@ -669,6 +673,82 @@ void MRTC_SystemInfo::RD_PeriodicUpdate()
 }
 
 /*************************************************************************************************\
+| Path resolution
+|
+| Game data references files with backslashes and arbitrary case (the
+| original filesystems were case-insensitive). Convert separators and,
+| when the exact path does not exist, resolve each component
+| case-insensitively against the actual directory contents.
+\*************************************************************************************************/
+
+static bool Linux_CaseResolve(char* _pPath)
+{
+	// _pPath uses '/' separators. Returns true if some existing path was
+	// found (possibly rewriting the case of components in-place).
+	if (access(_pPath, F_OK) == 0)
+		return true;
+
+	char Buf[2048];
+	char* pOut = Buf;
+	const char* pIn = _pPath;
+	if (*pIn == '/')
+		*pOut++ = *pIn++;
+	*pOut = 0;
+
+	while (*pIn)
+	{
+		const char* pSep = strchr(pIn, '/');
+		size_t CompLen = pSep ? (size_t)(pSep - pIn) : strlen(pIn);
+		char Comp[512];
+		if (CompLen >= sizeof(Comp)) return false;
+		memcpy(Comp, pIn, CompLen); Comp[CompLen] = 0;
+
+		char Test[2048];
+		snprintf(Test, sizeof(Test), "%s%s", Buf[0] ? Buf : "", Comp);
+		if (access(Test, F_OK) != 0)
+		{
+			// search directory for a case-insensitive match
+			const char* pDir = Buf[0] ? Buf : ".";
+			DIR* pD = opendir(pDir);
+			bool bFound = false;
+			if (pD)
+			{
+				struct dirent* pE;
+				while ((pE = readdir(pD)) != NULL)
+				{
+					if (strcasecmp(pE->d_name, Comp) == 0)
+					{
+						strcpy(Comp, pE->d_name);
+						bFound = true;
+						break;
+					}
+				}
+				closedir(pD);
+			}
+			if (!bFound)
+				return false;
+		}
+		size_t l = strlen(Comp);
+		memcpy(pOut, Comp, l); pOut += l;
+		if (pSep) { *pOut++ = '/'; pIn = pSep + 1; } else pIn += CompLen;
+		*pOut = 0;
+	}
+	strcpy(_pPath, Buf);
+	return true;
+}
+
+static const char* Linux_ResolvePath(const char* _pPath, char* _pBuf, int _BufSize)
+{
+	// Fix separators
+	int i = 0;
+	for (; _pPath[i] && i < _BufSize - 1; i++)
+		_pBuf[i] = (_pPath[i] == '\\') ? '/' : _pPath[i];
+	_pBuf[i] = 0;
+	Linux_CaseResolve(_pBuf);
+	return _pBuf;
+}
+
+/*************************************************************************************************\
 | Directories
 \*************************************************************************************************/
 
@@ -679,7 +759,9 @@ char* MRTC_SystemInfo::OS_DirectoryGetCurrent(char* _pBuf, int _MaxLength)
 
 bool MRTC_SystemInfo::OS_DirectoryChange(const char* _pPath)
 {
-	return chdir(_pPath) == 0;
+	char Path[2048];
+	Linux_ResolvePath(_pPath, Path, sizeof(Path));
+	return chdir(Path) == 0;
 }
 
 bool MRTC_SystemInfo::OS_DirectoryCreate(const char* _pPath)
@@ -694,8 +776,10 @@ bool MRTC_SystemInfo::OS_DirectoryRemove(const char* _pPath)
 
 bool MRTC_SystemInfo::OS_DirectoryExists(const char *_pPath)
 {
+	char Path[2048];
+	Linux_ResolvePath(_pPath, Path, sizeof(Path));
 	struct stat St;
-	return stat(_pPath, &St) == 0 && S_ISDIR(St.st_mode);
+	return stat(Path, &St) == 0 && S_ISDIR(St.st_mode);
 }
 
 const char* MRTC_SystemInfo::OS_DirectorySeparator()
@@ -729,7 +813,9 @@ void* MRTC_SystemInfo::OS_FileOpen(const char *_pFileName, bool _bRead, bool _bW
 	if (_bTruncate)
 		Flags |= O_TRUNC;
 
-	int fd = open(_pFileName, Flags, 0644);
+	char Path[2048];
+	Linux_ResolvePath(_pFileName, Path, sizeof(Path));
+	int fd = open(Path, Flags, 0644);
 	if (fd < 0)
 		return NULL;
 	return (void*)(mint)(fd + 1);
@@ -755,8 +841,10 @@ fint MRTC_SystemInfo::OS_FileSize(void *_pFile)
 
 bool MRTC_SystemInfo::OS_FileExists(const char *_pPath)
 {
+	char Path[2048];
+	Linux_ResolvePath(_pPath, Path, sizeof(Path));
 	struct stat St;
-	return stat(_pPath, &St) == 0 && S_ISREG(St.st_mode);
+	return stat(Path, &St) == 0 && S_ISREG(St.st_mode);
 }
 
 fint MRTC_SystemInfo::OS_FilePosition(const char *_pFileName)
@@ -1042,3 +1130,37 @@ void PS3File_FindClose( aint _handle )
 		free(pFind);
 	}
 }
+
+// Referenced by the *_Dyn.cpp static-registration files
+void MRTC_ReferenceSymbol(...)
+{
+}
+
+void gf_ModuleAdd()
+{
+	// Module (DLL) tracking is not used on Linux — everything is
+	// statically linked.
+}
+
+/*************************************************************************************************\
+| Bootstrap: the object manager (and its memory manager) must exist before
+| any other static initializer runs. Same trick as on PS3.
+\*************************************************************************************************/
+
+void MRTC_CreateObjectManager();
+void MRTC_DestroyObjectManager();
+
+class CInitFirst
+{
+public:
+	CInitFirst()
+	{
+		MRTC_CreateObjectManager();
+	}
+	~CInitFirst()
+	{
+		MRTC_DestroyObjectManager();
+	}
+};
+
+static CInitFirst __attribute__((init_priority(101))) g_LinuxInit;
