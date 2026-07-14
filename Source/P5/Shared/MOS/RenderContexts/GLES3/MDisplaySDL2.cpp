@@ -14,6 +14,10 @@
 #include "../../MSystem/MSystem.h"
 #include "../../MSystem/MSystem_Core.h"
 #include "../../MSystem/Raster/MRCCore.h"
+#include "../../MSystem/Raster/MTexture.h"
+#include "../../MSystem/Raster/MTextureContainers.h"
+
+#include "GLES3_Texture.h"
 
 #ifdef PLATFORM_LINUX
 
@@ -210,6 +214,10 @@ public:
 		CMat4Dfp32 m_ModelMat;
 		CMat4Dfp32 m_TexMat[4];
 
+		// M2: engine TextureID -> GLuint. Sparse; 0 means "not
+		// uploaded yet"; the vector grows on first touch.
+		TArray<GLuint> m_lGLTex;
+
 		CRC_GLES3()
 		{
 			m_ProjMat.Unit();
@@ -219,7 +227,65 @@ public:
 
 		~CRC_GLES3()
 		{
+			Texture_ReleaseAll();
 		}
+
+		// --- M2 texture path ---------------------------------------
+		void Texture_ReleaseAll()
+		{
+			for (int i = 0; i < m_lGLTex.Len(); ++i)
+			{
+				if (m_lGLTex[i])
+					glDeleteTextures(1, &m_lGLTex[i]);
+				m_lGLTex[i] = 0;
+			}
+		}
+
+		// Ensures engine textureID has been uploaded to a GLuint.
+		// Returns 0 on failure (unknown ID, empty container, format
+		// not yet supported by GLES3_Texture MapFormat).
+		GLuint TextureID_EnsureUploaded(int _TextureID)
+		{
+			if (_TextureID < 0 || !m_pTC) return 0;
+			if (_TextureID >= m_lGLTex.Len())
+			{
+				const int Old = m_lGLTex.Len();
+				m_lGLTex.SetLen(_TextureID + 1);
+				for (int i = Old; i < m_lGLTex.Len(); ++i)
+					m_lGLTex[i] = 0;
+			}
+			if (m_lGLTex[_TextureID])
+				return m_lGLTex[_TextureID];
+
+			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
+			if (!pImg) return 0;
+			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
+			m_lGLTex[_TextureID] = T;
+			return T;
+		}
+
+		virtual void Texture_Precache(int _TextureID)
+		{
+			TextureID_EnsureUploaded(_TextureID);
+		}
+
+		virtual void Texture_Flush(int _TextureID)
+		{
+			if (_TextureID >= 0 && _TextureID < m_lGLTex.Len() && m_lGLTex[_TextureID])
+			{
+				glDeleteTextures(1, &m_lGLTex[_TextureID]);
+				m_lGLTex[_TextureID] = 0;
+			}
+		}
+
+		virtual void Texture_MakeAllDirty(int _iPicMip = -1)
+		{
+			Texture_ReleaseAll();
+		}
+
+		virtual void Texture_PrecacheFlush() {}
+		virtual void Texture_PrecacheBegin(int _Count) {}
+		virtual void Texture_PrecacheEnd() {}
 
 		void Create(CObj* _pContext, const char* _pParams)
 		{
@@ -450,11 +516,6 @@ public:
 				}
 			}
 		}
-
-		virtual void Texture_PrecacheFlush(){}
-		virtual void Texture_PrecacheBegin( int _Count ){}
-		virtual void Texture_PrecacheEnd(){}
-		virtual void Texture_Precache(int _TextureID){}
 
 		virtual int Texture_GetBackBufferTextureID() {return 0;}
 		virtual int Texture_GetFrontBufferTextureID() {return 0;}
