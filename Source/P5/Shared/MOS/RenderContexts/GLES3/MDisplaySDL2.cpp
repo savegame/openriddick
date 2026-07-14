@@ -601,16 +601,20 @@ public:
 		void Matrix_SetRender(int _iMode, const CMat4Dfp32* _pMatrix)
 		{
 			++m_DbgMatrixSets;
-			if (!_pMatrix) return;
+			// Matrix_Update passes NULL to mean "matrix is identity"
+			// (see MRender.cpp:3410). Reset our cached matrix so a
+			// stale value from a previous frame doesn't leak in.
+			CMat4Dfp32 Unit; Unit.Unit();
+			const CMat4Dfp32& M = _pMatrix ? *_pMatrix : Unit;
 			switch (_iMode)
 			{
-			case CRC_MATRIX_MODEL:      m_ModelMat = *_pMatrix; break;
-			case CRC_MATRIX_PROJECTION: m_ProjMat  = *_pMatrix; break;
+			case CRC_MATRIX_MODEL:      m_ModelMat = M; break;
+			case CRC_MATRIX_PROJECTION: m_ProjMat  = M; break;
 			case CRC_MATRIX_TEXTURE0:
 			case CRC_MATRIX_TEXTURE0 + 1:
 			case CRC_MATRIX_TEXTURE0 + 2:
 			case CRC_MATRIX_TEXTURE0 + 3:
-				m_TexMat[_iMode - CRC_MATRIX_TEXTURE0] = *_pMatrix;
+				m_TexMat[_iMode - CRC_MATRIX_TEXTURE0] = M;
 				break;
 			default: break;
 			}
@@ -624,16 +628,27 @@ public:
 		{
 			++m_DbgBeginScenes;
 			CRC_Core::BeginScene(_pVP);
-			if (_pVP && m_pDisplayContext)
+			if (_pVP)
 			{
-				CRct R = _pVP->GetViewArea();
-				const int W = R.p1.x - R.p0.x;
-				const int H = R.p1.y - R.p0.y;
-				if (W > 0 && H > 0)
+				// Matrix_Update() never dispatches CRC_MATRIX_PROJECTION
+				// through Matrix_SetRender (see MRender.cpp:3376+): it
+				// only forwards MODEL + TEXTUREn. The engine expects the
+				// backend to pull projection from the viewport itself
+				// here. Without this, m_ProjMat stays Unit() and every
+				// UI vertex ends up outside NDC -> black screen.
+				m_ProjMat = _pVP->GetProjectionMatrix();
+
+				if (m_pDisplayContext)
 				{
-					// Flip Y from engine top-left to GL bottom-left.
-					const int Y = m_pDisplayContext->m_Height - R.p1.y;
-					glViewport(R.p0.x, Y, W, H);
+					CRct R = _pVP->GetViewArea();
+					const int W = R.p1.x - R.p0.x;
+					const int H = R.p1.y - R.p0.y;
+					if (W > 0 && H > 0)
+					{
+						// Flip Y from engine top-left to GL bottom-left.
+						const int Y = m_pDisplayContext->m_Height - R.p1.y;
+						glViewport(R.p0.x, Y, W, H);
+					}
 				}
 			}
 		}
