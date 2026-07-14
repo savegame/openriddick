@@ -18,6 +18,42 @@
 #include "../../MSystem/Raster/MTextureContainers.h"
 
 #include "GLES3_Texture.h"
+#include "GLES3_Shader.h"
+#include "GLES3_VBOStreamer.h"
+
+#include <cstdlib>
+#include <cstdint>
+
+// One shared shader for M3 UI/frontend drawing. Attributes: aPos
+// (vec3 world), aUV (vec2), aCol (vec4, unpacked from CPixel32 BGRA).
+// Uniforms: uMVP (mat4), uUseTexture (bool), uTex (sampler2D).
+static const char* kGLES3_UIVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=2) in vec4 aCol;\n"
+	"uniform mat4 uMVP;\n"
+	"out vec2 vUV;\n"
+	"out vec4 vCol;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	"  vUV = aUV;\n"
+	"  vCol = aCol;\n"
+	"}\n";
+
+static const char* kGLES3_UIFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec4 vCol;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  vec4 c = vCol;\n"
+	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
+	"  oColor = c;\n"
+	"}\n";
 
 #ifdef PLATFORM_LINUX
 
@@ -218,7 +254,21 @@ public:
 		// uploaded yet"; the vector grows on first touch.
 		TArray<GLuint> m_lGLTex;
 
+		// M3: GL resources for the draw path. Initialised lazily on
+		// first Render_* call (Create() may run before the SDL2 GL
+		// context is current).
+		CGLES3Shader      m_UIShader;
+		CGLES3VBOStreamer m_Streamer;
+		GLuint            m_VAO;
+		bool              m_bGLInited;
+		int               m_UMVPLoc;
+		int               m_UUseTexLoc;
+		int               m_UTexLoc;
+		CRC_Attributes*   m_pCurAttrib;
+
 		CRC_GLES3()
+			: m_VAO(0), m_bGLInited(false), m_UMVPLoc(-1),
+			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_pCurAttrib(0)
 		{
 			m_ProjMat.Unit();
 			m_ModelMat.Unit();
@@ -228,6 +278,21 @@ public:
 		~CRC_GLES3()
 		{
 			Texture_ReleaseAll();
+			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
+		}
+
+		void InitGLResources()
+		{
+			if (m_bGLInited) return;
+			m_bGLInited = true;
+			m_Streamer.Create();
+			if (m_UIShader.Build(kGLES3_UIVertSrc, kGLES3_UIFragSrc, "UI"))
+			{
+				m_UMVPLoc    = m_UIShader.UniformLocation("uMVP");
+				m_UUseTexLoc = m_UIShader.UniformLocation("uUseTexture");
+				m_UTexLoc    = m_UIShader.UniformLocation("uTex");
+			}
+			glGenVertexArrays(1, &m_VAO);
 		}
 
 		// --- M2 texture path ---------------------------------------
@@ -370,6 +435,7 @@ public:
 		void ApplyAttribs(CRC_Attributes* _pAttrib)
 		{
 			if (!_pAttrib) return;
+			m_pCurAttrib = _pAttrib;
 			const uint32 F = _pAttrib->m_Flags;
 
 			// Depth
@@ -522,12 +588,180 @@ public:
 		virtual int Texture_GetZBufferTextureID() {return 0;}
 		virtual int Geometry_GetVBSize(int _VBID) {return 0;}
 
-		void Render_IndexedTriangles(uint16* _pTriVertIndices, int _nTriangles){}
-		void Render_IndexedTriangleStrip(uint16* _pIndices, int _Len){}
-		void Render_IndexedWires(uint16* _pIndices, int _Len){}
-		void Render_IndexedPolygon(uint16* _pIndices, int _Len){}
-		void Render_IndexedPrimitives(uint16* _pPrimStream, int _StreamLen){}
-		void Render_VertexBuffer(int _VBID){}
+		// --- M3 draw path ------------------------------------------
+		// Interleaved vertex: pos.xyz (3f) + uv.xy (2f) + colour BGRA
+		// packed as uint32. 24 bytes.
+		struct SUIVert { float x,y,z, u,v; uint32_t col; };
+
+		// Pack CPixel32 (BGRA byte order per MImage.h) to RGBA-word for
+		// the shader (glVertexAttribPointer normalized ubyte4 reads in
+		// memory order, so we swap B/R to feed vCol.rgb correctly).
+		static uint32_t PackColorBGRA_to_RGBA(uint32_t _bgra)
+		{
+			return ( _bgra & 0xff00ff00u)
+				 | ((_bgra & 0x00ff0000u) >> 16)
+				 | ((_bgra & 0x000000ffu) << 16);
+		}
+
+		// Build interleaved buffer from the CRC_Core-accumulated
+		// m_Geom + m_GeomColor. tex-channel 0 is enough for UI; higher
+		// channels arrive in M4 shader generator.
+		bool BuildInterleavedVerts(SUIVert*& _pOut, int& _nOut)
+		{
+			const int nV = (int)m_Geom.m_nV;
+			if (nV <= 0 || !m_Geom.m_pV) { _pOut = 0; _nOut = 0; return false; }
+			static SUIVert sScratch[16384];
+			SUIVert* p = (nV <= 16384) ? sScratch : (SUIVert*)malloc(sizeof(SUIVert) * nV);
+			if (!p) return false;
+
+			const CVec3Dfp32* pV   = m_Geom.m_pV;
+			const fp32*       pTV0 = m_Geom.m_pTV[0];
+			const int         nUV  = m_Geom.m_nTVComp[0]; // 0/2/3/4
+			const CPixel32*   pCol = m_Geom.m_pCol;
+			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
+
+			for (int i = 0; i < nV; ++i)
+			{
+				p[i].x = pV[i].k[0];
+				p[i].y = pV[i].k[1];
+				p[i].z = pV[i].k[2];
+				if (pTV0 && nUV >= 2)
+				{
+					p[i].u = pTV0[i * nUV + 0];
+					p[i].v = pTV0[i * nUV + 1];
+				}
+				else
+				{
+					p[i].u = 0.0f; p[i].v = 0.0f;
+				}
+				p[i].col = pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol;
+			}
+			_pOut = p;
+			_nOut = nV;
+			return true;
+		}
+
+		void FreeScratch(SUIVert* _p, int _nV)
+		{
+			static SUIVert sMarker;  (void)sMarker;
+			if (_nV > 16384) free(_p);
+		}
+
+		// Common draw: submits _nInd 16-bit indices with GL primitive
+		// _GLPrim, using the currently-set geometry (m_Geom) + attrib
+		// (m_pCurAttrib) + captured matrices.
+		void DrawIndexed(GLenum _GLPrim, uint16* _pInd, int _nInd)
+		{
+			if (!_pInd || _nInd <= 0) return;
+			if (!m_bGLInited) InitGLResources();
+			if (!m_UIShader.IsValid()) return;
+
+			SUIVert* pVerts = 0; int nVerts = 0;
+			if (!BuildInterleavedVerts(pVerts, nVerts)) return;
+
+			glBindVertexArray(m_VAO);
+			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
+			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
+			FreeScratch(pVerts, nVerts);
+			if (!vRes.Ok || !iRes.Ok) return;
+
+			// Attribs (VBO already bound by PushVertices).
+			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
+			glEnableVertexAttribArray(0);
+			glEnableVertexAttribArray(1);
+			glEnableVertexAttribArray(2);
+			const GLsizei S = (GLsizei)sizeof(SUIVert);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 0));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 12));
+			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(intptr_t)(vRes.ByteOffset + 20));
+
+			// Shader + uniforms.
+			m_UIShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
+
+			// Bind current texture (if any).
+			int UseTex = 0;
+			if (m_pCurAttrib)
+			{
+				const int TexID = (int)m_pCurAttrib->m_TextureID[0];
+				if (TexID > 0)
+				{
+					GLuint T = TextureID_EnsureUploaded(TexID);
+					if (T)
+					{
+						glActiveTexture(GL_TEXTURE0);
+						glBindTexture(GL_TEXTURE_2D, T);
+						m_UIShader.SetInt(m_UTexLoc, 0);
+						UseTex = 1;
+					}
+				}
+			}
+			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
+			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+
+			glDisableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+			glBindVertexArray(0);
+		}
+
+		void Render_IndexedTriangles(uint16* _pTriVertIndices, int _nTriangles)
+		{
+			// nTriangles == 0xffff is the "list of lists" recursion
+			// convention (see PS3 backend). Handle it too so BSP4 can
+			// batch. For M3 (UI) it will effectively never trigger.
+			if (_nTriangles == 0xffff)
+			{
+				mint* pList = (mint*)_pTriVertIndices;
+				int nLists = (int)*pList++;
+				for (int i = 0; i < nLists; ++i)
+				{
+					int nTri = (int)*pList++;
+					Render_IndexedTriangles(*((uint16**)pList), nTri);
+					++pList;
+				}
+				return;
+			}
+			DrawIndexed(GL_TRIANGLES, _pTriVertIndices, _nTriangles * 3);
+		}
+
+		void Render_IndexedTriangleStrip(uint16* _pIndices, int _Len)
+		{
+			DrawIndexed(GL_TRIANGLE_STRIP, _pIndices, _Len);
+		}
+
+		void Render_IndexedWires(uint16* _pIndices, int _Len)
+		{
+			DrawIndexed(GL_LINES, _pIndices, _Len);
+		}
+
+		void Render_IndexedPolygon(uint16* _pIndices, int _Len)
+		{
+			// GLES has no GL_POLYGON. Treat as triangle fan; caller
+			// generally sends convex fan-friendly ordering.
+			DrawIndexed(GL_TRIANGLE_FAN, _pIndices, _Len);
+		}
+
+		void Render_IndexedPrimitives(uint16* _pPrimStream, int _StreamLen)
+		{
+			// CRC_RIP_STREAM: sub-list-encoded stream. Feed through
+			// CRC_Core's helper that turns it into a plain triangle
+			// list, then draw that. Same trick PS3 uses (see
+			// Geometry_BuildTriangleListFromPrimitives).
+			// For M3 simplicity assume caller sends triangles only.
+			DrawIndexed(GL_TRIANGLES, _pPrimStream, _StreamLen);
+		}
+
+		void Render_VertexBuffer(int _VBID)
+		{
+			// Pre-built VBIDs from Geometry_Precache are not yet
+			// supported in this backend; they arrive in M4 alongside
+			// the geometry cache. Silent no-op for now.
+		}
 		void Render_Wire(const CVec3Dfp32& _v0, const CVec3Dfp32& _v1, CPixel32 _Color){}
 		void Render_WireStrip(const CVec3Dfp32* _pV, const uint16* _piV, int _nVertices, CPixel32 _Color){}
 		void Render_WireLoop(const CVec3Dfp32* _pV, const uint16* _piV, int _nVertices, CPixel32 _Color){}
