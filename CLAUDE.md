@@ -75,6 +75,10 @@ little-endian. Загрузчики файлов движка историчес
 **VPU/SPU.** `MCC/VPU/MRTC_VPU_*` — задачи для SPU (PS3) с Win32-хелпером
 (`MRTC_VPU_Win32_Helper.cpp`) — т.е. существует CPU-путь эмуляции; используем его.
 
+**Известные ресурсные форматы Dark Athena, не покрытые исходником PS3-снапшота (по реверсу PC MSystem.dll):**
+- `CImage_FileHeader` v0x0400 — поддержано (см. журнал).
+- `CTextureContainer_VirtualXTC2` + секция `IMAGEDIRECTORY5` — **отдельный container-класс**, не наследник существующего `VirtualXTC`. Наши текущие .xtc всё ещё старого формата (парсятся через `IMAGEDIRECTORY4`), но часть архивов DA использует XTC2 и потребует нового класса-парсера (`ReadImageDirectory` считывает список через `ReadImageDirectoryData` в `TThinArray<CTextureDesc>`; текстуры регистрируются в `m_pTC` по описателям). Ожидаемый следующий блокер после подъёма рендера.
+
 **Прочие препятствия к компиляции современным GCC/Clang:**
 - код 2003–2008 гг. под MSVC/GCC-4 (PS3 SNC/GCC): нестандартные конструкции, `__forceinline`, `#pragma`, кодировка CP1252 в комментариях;
 - inline-ассемблер x86/AMD64 (`MAsm.asm`, `MRTC_System_AMD64.asm`, `MScriptAMD64.asm`) — заменить интринсиками/С++;
@@ -123,7 +127,7 @@ little-endian. Загрузчики файлов движка историчес
 - [x] `MMain_Linux.cpp`: `main()` → Linux_Main → CSystemLinux → DoModal (главный цикл движка работает; окно пока NULL-дисплей).
 - [x] SDL_Init + окно `SDL_WINDOW_OPENGL` с GLES 3.0-контекстом в `MDisplaySDL2.cpp` (clear+swap в PageFlip, SDL_QUIT, деградация в headless при недоступном GL); каркас `CRC_GLES3 : CRC_Core` (методы-заглушки) — `p5_rc_gles3`.
 - [ ] `MDisplaySDL2.*`: `CDisplayContext` (режимы, размер окна, vsync/flip).
-- [ ] Ввод: SDL2 → `MInput` (клавиатура→scankey, мышь, `SDL_GameController`).
+- [~] Ввод: no-op заглушка `CInputContext_SDL2` в `Input/MInput_SDL2.cpp` (пустой наследник `CInputContextCore` + `MRTC_IMPLEMENT_DYNAMIC` + `MRTC_REFERENCE` в `MCreateInputContext`) — разблокирует `CSystemCore::CreateInput`, но клавиатуру/мышь пока не читает. Полноценный SDL2-pump (`SDL_PollEvent` → `AddScanKey`, mouse-delta, `SDL_GameController`) — TODO.
 - [x] Инструкция запуска с указанием папки ресурсов (см. §3): `-datapath` работает (chdir + case-insensitive пути).
 
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
@@ -208,3 +212,7 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | Фикс поиска ресурсов: нормализация DEFAULTGAMEPATH (компоненты без разделителя на конце, `Content`+`FONTS\...`) — шрифт находится с реальным Environment.cfg | Фаза 3 |
 | 2026-07-14 | Фикс усечения find-хэндла (aint→int в MFile_Misc): таблица слотов вместо указателей | Фаза 3 |
 | 2026-07-14 | Каркас рендера: MDisplaySDL2 (окно SDL2 + GLES 3.0, clear+swap, SDL_QUIT) + CRC_GLES3-заглушка, цель p5_rc_gles3, дисплей SDL2 в списке CSystemLinux с fallback на NULL | Фазы 3-4 |
+| 2026-07-14 | Диагностика загрузки XTC: hex-дамп «плохого» хедера в CImage_FileHeader::Read, опциональная трасса CTexture::ReadIndexData + VirtualXTC::ScanImageList (`RIDDICK_DBG_XTC=1`) | bring-up |
+| 2026-07-14 | Поддержка формата PC/Dark Athena CImage_FileHeader v0x0400: структура расширена m_ChunkSize/m_ChunkCount, добавлен пост-инвариантный fixup под флагом 0x4000 (сверено с MSystem.dll Ghidra) | bring-up |
+| 2026-07-14 | Фикс бесконечной рекурсии в трёх шаблонных `operator+` для TFStr<N> (MRTC_String.h): каст правого операнда к CStrBase& для выбора мембер-`operator+` — переполнение стека при конкатенациях от 4 уровней и глубже | bring-up |
+| 2026-07-14 | No-op заглушка ввода: `CInputContext_SDL2` (Input/MInput_SDL2.cpp) наследует CInputContextCore, регистрируется через MRTC_IMPLEMENT_DYNAMIC + MRTC_REFERENCE в MCreateInputContext; разблокирует CSystemCore::CreateInput. Реального pump'а событий пока нет. | Фаза 3 |

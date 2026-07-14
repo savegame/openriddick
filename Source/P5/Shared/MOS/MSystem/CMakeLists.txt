@@ -10,6 +10,7 @@ add_library(p5_msystem STATIC
     Input/MInput.cpp
     Input/MInputEnvelope.cpp
     Input/MInputScankey.cpp
+    Input/MInput_SDL2.cpp
     MSystem_Core.cpp
     Misc/MConsole.cpp
     Misc/MLocalizer.cpp
