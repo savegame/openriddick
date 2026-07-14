@@ -184,6 +184,8 @@ public:
 			// CRC_GLES3::RenderTarget_Clear; the bring-up glClear here
 			// used to hide unrendered frames but would fight the engine
 			// once real drawing lands.
+			if (m_spRenderContext)
+				m_spRenderContext->DbgFramePrint();
 		}
 		return CDisplayContext::PageFlip();
 	}
@@ -266,6 +268,56 @@ public:
 		int               m_UTexLoc;
 		CRC_Attributes*   m_pCurAttrib;
 
+		// Diagnostic per-frame counters. Enable with RIDDICK_DBG_GL=1;
+		// prints one line every DBG_INTERVAL frames.
+		enum { DBG_INTERVAL = 60 };
+		int m_DbgEnabled;
+		int m_DbgFrames;
+		int m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire, m_DbgDrawPoly, m_DbgDrawPrim;
+		int m_DbgDrawVBID, m_DbgTexBound, m_DbgTexMissing;
+		int m_DbgTotalVerts, m_DbgTotalIdx;
+		int m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes;
+		int m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT5, m_DbgUploadFail;
+
+		void DbgInit()
+		{
+			const char* e = getenv("RIDDICK_DBG_GL");
+			m_DbgEnabled = (e && *e && *e != '0') ? 1 : 0;
+			m_DbgFrames = 0;
+			DbgResetCounters();
+		}
+		void DbgResetCounters()
+		{
+			m_DbgDrawTri = m_DbgDrawStrip = m_DbgDrawWire = m_DbgDrawPoly = m_DbgDrawPrim = 0;
+			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
+			m_DbgTotalVerts = m_DbgTotalIdx = 0;
+			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
+			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
+		}
+		void DbgFramePrint()
+		{
+			if (!m_DbgEnabled) return;
+			++m_DbgFrames;
+			if (m_DbgFrames < DBG_INTERVAL) return;
+			// Snapshot + reset the global upload counters.
+			m_DbgUploadRGBA = g_GLES3_UploadRGBA; g_GLES3_UploadRGBA = 0;
+			m_DbgUploadDXT1 = g_GLES3_UploadDXT1; g_GLES3_UploadDXT1 = 0;
+			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
+			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
+			fprintf(stderr,
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d} "
+				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
+				"upl{rgba=%d dxt1=%d dxt5=%d fail=%d}\n",
+				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
+				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
+				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
+				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
+				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT5, m_DbgUploadFail);
+			fflush(stderr);
+			m_DbgFrames = 0;
+			DbgResetCounters();
+		}
+
 		CRC_GLES3()
 			: m_VAO(0), m_bGLInited(false), m_UMVPLoc(-1),
 			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_pCurAttrib(0)
@@ -273,6 +325,7 @@ public:
 			m_ProjMat.Unit();
 			m_ModelMat.Unit();
 			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
+			DbgInit();
 		}
 
 		~CRC_GLES3()
@@ -542,11 +595,12 @@ public:
 			}
 		}
 
-		void Attrib_Set(CRC_Attributes* _pAttrib)         { ApplyAttribs(_pAttrib); }
-		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib) { ApplyAttribs(_pAttrib); }
+		void Attrib_Set(CRC_Attributes* _pAttrib)         { ++m_DbgAttribSets; ApplyAttribs(_pAttrib); }
+		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib) { ++m_DbgAttribSets; ApplyAttribs(_pAttrib); }
 
 		void Matrix_SetRender(int _iMode, const CMat4Dfp32* _pMatrix)
 		{
+			++m_DbgMatrixSets;
 			if (!_pMatrix) return;
 			switch (_iMode)
 			{
@@ -568,6 +622,7 @@ public:
 		// before draw calls start.
 		void BeginScene(CRC_Viewport* _pVP)
 		{
+			++m_DbgBeginScenes;
 			CRC_Core::BeginScene(_pVP);
 			if (_pVP && m_pDisplayContext)
 			{
@@ -695,10 +750,17 @@ public:
 						glBindTexture(GL_TEXTURE_2D, T);
 						m_UIShader.SetInt(m_UTexLoc, 0);
 						UseTex = 1;
+						++m_DbgTexBound;
+					}
+					else
+					{
+						++m_DbgTexMissing;
 					}
 				}
 			}
 			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
+			m_DbgTotalVerts += nVerts;
+			m_DbgTotalIdx   += _nInd;
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
@@ -726,21 +788,25 @@ public:
 				}
 				return;
 			}
+			++m_DbgDrawTri;
 			DrawIndexed(GL_TRIANGLES, _pTriVertIndices, _nTriangles * 3);
 		}
 
 		void Render_IndexedTriangleStrip(uint16* _pIndices, int _Len)
 		{
+			++m_DbgDrawStrip;
 			DrawIndexed(GL_TRIANGLE_STRIP, _pIndices, _Len);
 		}
 
 		void Render_IndexedWires(uint16* _pIndices, int _Len)
 		{
+			++m_DbgDrawWire;
 			DrawIndexed(GL_LINES, _pIndices, _Len);
 		}
 
 		void Render_IndexedPolygon(uint16* _pIndices, int _Len)
 		{
+			++m_DbgDrawPoly;
 			// GLES has no GL_POLYGON. Treat as triangle fan; caller
 			// generally sends convex fan-friendly ordering.
 			DrawIndexed(GL_TRIANGLE_FAN, _pIndices, _Len);
@@ -748,6 +814,7 @@ public:
 
 		void Render_IndexedPrimitives(uint16* _pPrimStream, int _StreamLen)
 		{
+			++m_DbgDrawPrim;
 			// CRC_RIP_STREAM: sub-list-encoded stream. Feed through
 			// CRC_Core's helper that turns it into a plain triangle
 			// list, then draw that. Same trick PS3 uses (see
@@ -758,6 +825,7 @@ public:
 
 		void Render_VertexBuffer(int _VBID)
 		{
+			++m_DbgDrawVBID;
 			// Pre-built VBIDs from Geometry_Precache are not yet
 			// supported in this backend; they arrive in M4 alongside
 			// the geometry cache. Silent no-op for now.

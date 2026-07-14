@@ -22,6 +22,13 @@ struct SGLES3Format
 	bool   Supported;
 };
 
+// Diagnostic counters, bumped by Upload2D. Read + reset by the render
+// context per-frame diagnostics.
+extern int g_GLES3_UploadRGBA;
+extern int g_GLES3_UploadDXT1;
+extern int g_GLES3_UploadDXT5;
+extern int g_GLES3_UploadFail;
+
 class CGLES3TextureUploader
 {
 public:

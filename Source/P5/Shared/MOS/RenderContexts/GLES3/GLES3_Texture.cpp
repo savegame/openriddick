@@ -11,6 +11,11 @@
 #include <cstdlib>
 #include <cstring>
 
+int g_GLES3_UploadRGBA = 0;
+int g_GLES3_UploadDXT1 = 0;
+int g_GLES3_UploadDXT5 = 0;
+int g_GLES3_UploadFail = 0;
+
 SGLES3Format CGLES3TextureUploader::MapFormat(int _ImageFormat)
 {
 	SGLES3Format F;
@@ -93,13 +98,20 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		if (!pDecoded) return 0;
 		const uint32 Sub = Hdr.getCompressType();
 		if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT1)
+		{
 			GLES3_DecodeDXT1(pPayload, pDecoded, W, H);
+			++g_GLES3_UploadDXT1;
+		}
 		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT5)
+		{
 			GLES3_DecodeDXT5(pPayload, pDecoded, W, H);
+			++g_GLES3_UploadDXT5;
+		}
 		else
 		{
 			fprintf(stderr, "[GLES3] Upload2D: S3TC subformat %u not decoded yet (%dx%d)\n",
 				(unsigned)Sub, W, H);
+			++g_GLES3_UploadFail;
 			free(pDecoded);
 			return 0;
 		}
@@ -133,11 +145,13 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	{
 		fprintf(stderr, "[GLES3] Upload2D: unsupported image format 0x%x (%dx%d)\n",
 			(unsigned)_pImage->GetFormat(), W, H);
+		++g_GLES3_UploadFail;
 		return 0;
 	}
 
 	void* pLocked = _pImage->Lock();
-	if (!pLocked) return 0;
+	if (!pLocked) { ++g_GLES3_UploadFail; return 0; }
+	++g_GLES3_UploadRGBA;
 
 	// If BGR(A) input on core GLES: copy + swizzle. For BGRX8 alpha byte
 	// is undefined, force it to 0xff so the sampler yields opaque.
