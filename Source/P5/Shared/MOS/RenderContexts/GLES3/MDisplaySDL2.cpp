@@ -20,6 +20,42 @@
 #include <SDL.h>
 #include <GLES3/gl3.h>
 
+// --- CRC_* -> GL enum tables (M1). -------------------------------------
+static GLenum GLES3_MapBlend(int _CRCBlend)
+{
+	switch (_CRCBlend)
+	{
+	case CRC_BLEND_ZERO:         return GL_ZERO;
+	case CRC_BLEND_ONE:          return GL_ONE;
+	case CRC_BLEND_SRCCOLOR:     return GL_SRC_COLOR;
+	case CRC_BLEND_INVSRCCOLOR:  return GL_ONE_MINUS_SRC_COLOR;
+	case CRC_BLEND_SRCALPHA:     return GL_SRC_ALPHA;
+	case CRC_BLEND_INVSRCALPHA:  return GL_ONE_MINUS_SRC_ALPHA;
+	case CRC_BLEND_DESTALPHA:    return GL_DST_ALPHA;
+	case CRC_BLEND_INVDESTALPHA: return GL_ONE_MINUS_DST_ALPHA;
+	case CRC_BLEND_DESTCOLOR:    return GL_DST_COLOR;
+	case CRC_BLEND_INVDESTCOLOR: return GL_ONE_MINUS_DST_COLOR;
+	case CRC_BLEND_SRCALPHASAT:  return GL_SRC_ALPHA_SATURATE;
+	default:                     return GL_ONE;
+	}
+}
+
+static GLenum GLES3_MapCompare(int _CRCCompare)
+{
+	switch (_CRCCompare)
+	{
+	case CRC_COMPARE_NEVER:        return GL_NEVER;
+	case CRC_COMPARE_LESS:         return GL_LESS;
+	case CRC_COMPARE_EQUAL:        return GL_EQUAL;
+	case CRC_COMPARE_LESSEQUAL:    return GL_LEQUAL;
+	case CRC_COMPARE_GREATER:      return GL_GREATER;
+	case CRC_COMPARE_NOTEQUAL:     return GL_NOTEQUAL;
+	case CRC_COMPARE_GREATEREQUAL: return GL_GEQUAL;
+	case CRC_COMPARE_ALWAYS:       return GL_ALWAYS;
+	default:                       return GL_LEQUAL;
+	}
+}
+
 class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
@@ -168,8 +204,17 @@ public:
 		{
 		}
 
+		// M1 cached GL state / matrix capture. Uploaded to shader
+		// programs by M3 draw calls.
+		CMat4Dfp32 m_ProjMat;
+		CMat4Dfp32 m_ModelMat;
+		CMat4Dfp32 m_TexMat[4];
+
 		CRC_GLES3()
 		{
+			m_ProjMat.Unit();
+			m_ModelMat.Unit();
+			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
 		}
 
 		~CRC_GLES3()
@@ -252,9 +297,159 @@ public:
 			}
 		}
 
-		void Attrib_Set(CRC_Attributes* _pAttrib){}
-		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib){}
-		void Matrix_SetRender(int _iMode, const CMat4Dfp32* _pMatrix){}
+		// Full-set translation of a CRC_Attributes bundle to GL state.
+		// Called by both Attrib_Set (delta) and Attrib_SetAbsolute
+		// (reset). We ignore the delta hint for M1 and re-apply
+		// everything -- keep it simple; M4 can turn this into a diff.
+		void ApplyAttribs(CRC_Attributes* _pAttrib)
+		{
+			if (!_pAttrib) return;
+			const uint32 F = _pAttrib->m_Flags;
+
+			// Depth
+			if (F & CRC_FLAGS_ZCOMPARE)
+			{
+				glEnable(GL_DEPTH_TEST);
+				glDepthFunc(GLES3_MapCompare(_pAttrib->m_ZCompare));
+			}
+			else
+			{
+				glDisable(GL_DEPTH_TEST);
+			}
+			glDepthMask((F & CRC_FLAGS_ZWRITE) ? GL_TRUE : GL_FALSE);
+
+			// Blend
+			if (F & CRC_FLAGS_BLEND)
+			{
+				glEnable(GL_BLEND);
+				const uint16 SD = _pAttrib->m_SourceDestBlend;
+				const uint8  Src = (uint8)(SD & 0xff);
+				const uint8  Dst = (uint8)((SD >> 8) & 0xff);
+				glBlendFunc(GLES3_MapBlend(Src), GLES3_MapBlend(Dst));
+			}
+			else
+			{
+				glDisable(GL_BLEND);
+			}
+
+			// Colour + alpha write
+			const GLboolean CW = (F & CRC_FLAGS_COLORWRITE) ? GL_TRUE : GL_FALSE;
+			const GLboolean AW = (F & CRC_FLAGS_ALPHAWRITE) ? GL_TRUE : GL_FALSE;
+			glColorMask(CW, CW, CW, AW);
+
+			// Culling
+			if (F & CRC_FLAGS_CULL)
+			{
+				glEnable(GL_CULL_FACE);
+				// Engine winding is CW when CULLCW; GLES default front = CCW.
+				glFrontFace((F & CRC_FLAGS_CULLCW) ? GL_CW : GL_CCW);
+				glCullFace(GL_BACK);
+			}
+			else
+			{
+				glDisable(GL_CULL_FACE);
+			}
+
+			// Scissor
+			if (F & CRC_FLAGS_SCISSOR)
+			{
+				uint32 MinX, MinY, MaxX, MaxY;
+				_pAttrib->m_Scissor.GetRect(MinX, MinY, MaxX, MaxY);
+				const int H = m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+				const int W = (int)(MaxX - MinX);
+				const int Hgt = (int)(MaxY - MinY);
+				if (W > 0 && Hgt > 0)
+				{
+					glEnable(GL_SCISSOR_TEST);
+					glScissor((int)MinX, H - (int)MaxY, W, Hgt);
+				}
+				else
+				{
+					glDisable(GL_SCISSOR_TEST);
+				}
+			}
+			else
+			{
+				glDisable(GL_SCISSOR_TEST);
+			}
+
+			// Polygon offset
+			if (F & CRC_FLAGS_POLYGONOFFSET)
+			{
+				glEnable(GL_POLYGON_OFFSET_FILL);
+				glPolygonOffset(_pAttrib->m_PolygonOffsetScale, _pAttrib->m_PolygonOffsetUnits);
+			}
+			else
+			{
+				glDisable(GL_POLYGON_OFFSET_FILL);
+			}
+
+			// Stencil
+			if (F & CRC_FLAGS_STENCIL)
+			{
+				glEnable(GL_STENCIL_TEST);
+				glStencilMask(_pAttrib->m_StencilWriteMask);
+				// FrontFunc is stored 1..8 in CRC_COMPARE_*; op codes stored
+				// as small ints too. For now use the front pair for both
+				// faces -- separate-stencil arrives in M4.
+				glStencilFunc(GLES3_MapCompare(_pAttrib->m_StencilFrontFunc),
+					_pAttrib->m_StencilRef, _pAttrib->m_StencilFuncAnd);
+				// Op mapping: 0..5 keep/zero/replace/incr/decr/invert.
+				static const GLenum sOpTbl[] = {
+					GL_KEEP, GL_ZERO, GL_REPLACE, GL_INCR, GL_DECR, GL_INVERT,
+					GL_INCR_WRAP, GL_DECR_WRAP,
+				};
+				const int F0 = _pAttrib->m_StencilFrontOpFail   & 7;
+				const int F1 = _pAttrib->m_StencilFrontOpZFail  & 7;
+				const int F2 = _pAttrib->m_StencilFrontOpZPass  & 7;
+				glStencilOp(sOpTbl[F0], sOpTbl[F1], sOpTbl[F2]);
+			}
+			else
+			{
+				glDisable(GL_STENCIL_TEST);
+			}
+		}
+
+		void Attrib_Set(CRC_Attributes* _pAttrib)         { ApplyAttribs(_pAttrib); }
+		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib) { ApplyAttribs(_pAttrib); }
+
+		void Matrix_SetRender(int _iMode, const CMat4Dfp32* _pMatrix)
+		{
+			if (!_pMatrix) return;
+			switch (_iMode)
+			{
+			case CRC_MATRIX_MODEL:      m_ModelMat = *_pMatrix; break;
+			case CRC_MATRIX_PROJECTION: m_ProjMat  = *_pMatrix; break;
+			case CRC_MATRIX_TEXTURE0:
+			case CRC_MATRIX_TEXTURE0 + 1:
+			case CRC_MATRIX_TEXTURE0 + 2:
+			case CRC_MATRIX_TEXTURE0 + 3:
+				m_TexMat[_iMode - CRC_MATRIX_TEXTURE0] = *_pMatrix;
+				break;
+			default: break;
+			}
+		}
+
+		// BeginScene: sync viewport with the active CRC_Viewport rect.
+		// The engine calls Viewport_Set separately too, but Base_CRC's
+		// stub does nothing; we just do it here so state is coherent
+		// before draw calls start.
+		void BeginScene(CRC_Viewport* _pVP)
+		{
+			CRC_Core::BeginScene(_pVP);
+			if (_pVP && m_pDisplayContext)
+			{
+				CRct R = _pVP->GetViewArea();
+				const int W = R.p1.x - R.p0.x;
+				const int H = R.p1.y - R.p0.y;
+				if (W > 0 && H > 0)
+				{
+					// Flip Y from engine top-left to GL bottom-left.
+					const int Y = m_pDisplayContext->m_Height - R.p1.y;
+					glViewport(R.p0.x, Y, W, H);
+				}
+			}
+		}
 
 		virtual void Texture_PrecacheFlush(){}
 		virtual void Texture_PrecacheBegin( int _Count ){}

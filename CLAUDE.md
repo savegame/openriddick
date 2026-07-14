@@ -133,7 +133,7 @@ little-endian. Загрузчики файлов движка историчес
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
 - [x] Каркас `CRC_GLES3 : CRC_Core` (виртуальный, в `RenderContexts/GLES3/MDisplaySDL2.cpp`); наполнение методов — далее.
 - [~] Render target: `RenderTarget_SetRenderTarget` биндит default fb0 + viewport, `RenderTarget_Clear` — реальный `glClear` (color/depth/stencil) со scissor'ом при частичном rect. FBO-композиция (offscreen UI/3D + поворот) — Фаза 5.
-- [ ] Трансляция `CRC_Attributes` → GL-состояние (blend/depth/stencil/cull/scissor).
+- [~] M1: Трансляция `CRC_Attributes` → GL state (blend/depth/stencil/cull/scissor/colormask/polygon-offset) в `ApplyAttribs`; `Matrix_SetRender` захватывает Model/Projection/Texture0..3 в поля `CRC_GLES3`; `BeginScene` синкает `glViewport` с `CRC_Viewport::GetViewArea()` (Y-flip). Separate-stencil и per-attribute diff — в M4.
 - [ ] Текстуры: `CTextureContext`-интеграция, форматы (S3TC → распаковка в RGBA8 на GLES, где нет `EXT_texture_compression_s3tc`; на десктопном GLES-эмуляторе расширение обычно есть).
 - [ ] Геометрия: пакеты `CXR_VBManager` → стриминг в VBO (кольцевой буфер) + `glDrawArrays/Elements`.
 - [ ] Генератор GLSL ES 3.00-шейдеров из attrib/texenv-комбинаций (кэш по ключу состояния) — эквивалент того, что PS3-бэкенд делает для RSX.
@@ -219,3 +219,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | No-op заглушка ввода: `CInputContext_SDL2` (Input/MInput_SDL2.cpp) наследует CInputContextCore, регистрируется через MRTC_IMPLEMENT_DYNAMIC + MRTC_REFERENCE в MCreateInputContext; разблокирует CSystemCore::CreateInput. Реального pump'а событий пока нет. | Фаза 3 |
 | 2026-07-14 | Первые методы CRC_GLES3: RenderTarget_SetRenderTarget (bind fb0 + viewport) и RenderTarget_Clear (glClearColor/Depth/Stencil + scissor при частичном rect, с учётом top-left→bottom-left оси Y). Движок дошёл до цикла отрисовки фронтэнда (cg_rootmenu 'legal'→'esrb'→'logo_atari'). | Фаза 4 |
 | 2026-07-14 | Фаза 4 M0: скелетные модули GLES3-бэкенда — `GLES3_Shader` (compile/link + uniform cache), `GLES3_Texture` (CImage→GLuint аплоадер, RGBA8/BGRA8-swizzle/RGB8/I8/A8/I8A8; DXT в M5), `GLES3_VBOStreamer` (кольцевые dynamic VBO+IBO, orphan-refill). Добавлены в цель p5_rc_gles3, к CRC_GLES3 пока не подключены — база для M1..M3. | Фаза 4 |
+| 2026-07-14 | Фаза 4 M1: `Attrib_Set/Attrib_SetAbsolute` → GL state (depth-test/write, blend + src/dst mapping, color/alpha mask, cull + winding, scissor + Y-flip, polygon-offset, stencil w/ front-only + op-таблица keep/zero/replace/incr/decr/invert/wrap); `Matrix_SetRender` → Model/Projection/Texture0..3 в CRC_GLES3; `BeginScene` → `glViewport` от `CRC_Viewport::GetViewArea()`. Помощники `GLES3_MapBlend`/`GLES3_MapCompare`. | Фаза 4 |
