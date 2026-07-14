@@ -205,3 +205,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | GameWorld + GameClasses собираются (275 TU, -fpermissive), ветка MACRO_MAIN для Linux, BSD-сокеты в WGameMultiplayerHandler | Фаза 2 |
 | 2026-07-14 | Из плана исключён Android; imGui перенесён в конец (рисует в UI FBO) | план |
 | 2026-07-14 | Бинарь openriddick линкуется и запускается: MMain_Linux, MSystem_Linux (NULL-дисплей), VPU-стабы, bootstrap init_priority, фиксы 64-бит (CRC_Attributes 11×vec128, MDA_ALIGNMENT 16, RoundToInt), -datapath | Фазы 2-3 |
+| 2026-07-14 | Фикс поиска ресурсов: нормализация DEFAULTGAMEPATH (компоненты без разделителя на конце, `Content`+`FONTS\...`) — шрифт находится с реальным Environment.cfg | Фаза 3 |

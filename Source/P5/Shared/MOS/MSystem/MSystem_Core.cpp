@@ -536,6 +536,36 @@ void CSystemCore::CreateSystems()
 			}
 #endif
 			
+#ifdef PLATFORM_LINUX
+			// The engine concatenates DEFAULTGAMEPATH components directly with
+			// file names ("Content" + "FONTS\\..."), so every ';'-separated
+			// component must end with a path separator. Environment.cfg files
+			// in the wild ship without one - normalize here.
+			{
+				spCRegistry spEnv = m_spRegistry->Find("ENV");
+				if (spEnv && spEnv->FindChild("DEFAULTGAMEPATH"))
+				{
+					CStr Paths = spEnv->GetValue("DEFAULTGAMEPATH", "Content\\");
+					CStr Fixed;
+					while (Paths != "")
+					{
+						CStr Path = Paths.GetStrSep(";");
+						if (Path != "")
+						{
+							char Last = Path[Path.Len() - 1];
+							if (Last != '\\' && Last != '/')
+								Path = Path + "\\";
+							if (Fixed != "")
+								Fixed = Fixed + ";";
+							Fixed = Fixed + Path;
+						}
+					}
+					if (Fixed != "")
+						spEnv->SetValue("DEFAULTGAMEPATH", Fixed);
+				}
+			}
+#endif
+
 			// Don't flag environment as loaded if we're remote (so we won't save it)
 			if(!bIsRemote) m_bEnvLoaded = true;
 			
