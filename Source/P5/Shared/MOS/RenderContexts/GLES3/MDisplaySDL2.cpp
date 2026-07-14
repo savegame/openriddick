@@ -711,6 +711,15 @@ public:
 			if (!m_bGLInited) InitGLResources();
 			if (!m_UIShader.IsValid()) return;
 
+			// Flush deferred attrib/matrix state (mirrors the PS3
+			// backend: engine mutates its own stack, then expects
+			// the backend to reify GL state at draw time). Without
+			// this our virtual Attrib_Set/Matrix_SetRender never
+			// fire and m_pCurAttrib stays null -> no texture ever
+			// binds, m_TextureID lookups all return 0.
+			if (m_AttribChanged) Attrib_Update();
+			if (m_MatrixChanged) Matrix_Update();
+
 			SUIVert* pVerts = 0; int nVerts = 0;
 			if (!BuildInterleavedVerts(pVerts, nVerts)) return;
 
