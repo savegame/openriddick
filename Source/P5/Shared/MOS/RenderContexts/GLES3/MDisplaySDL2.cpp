@@ -259,6 +259,29 @@ public:
 		// uploaded yet"; the vector grows on first touch.
 		TArray<GLuint> m_lGLTex;
 
+		// 1x1 magenta placeholder handed back for texture IDs the
+		// texture context can't produce (typically CTextureContainer_
+		// Screen / RTT slots -- we don't render-to-texture yet, so
+		// the engine samples "nothing"; give it a loud debug colour
+		// so missing-RTT surfaces are obvious rather than invisible.
+		GLuint m_PlaceholderTex;
+
+		GLuint GetPlaceholderTex()
+		{
+			if (m_PlaceholderTex) return m_PlaceholderTex;
+			glGenTextures(1, &m_PlaceholderTex);
+			glBindTexture(GL_TEXTURE_2D, m_PlaceholderTex);
+			const unsigned char Magenta[4] = { 255, 0, 255, 255 };
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0,
+				GL_RGBA, GL_UNSIGNED_BYTE, Magenta);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
+			return m_PlaceholderTex;
+		}
+
 		// M3: GL resources for the draw path. Initialised lazily on
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
@@ -332,7 +355,7 @@ public:
 		CRC_GLES3()
 			: m_VAO(0), m_bGLInited(false), m_UMVPLoc(-1),
 			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_UDbgModeLoc(-1),
-			  m_DbgShaderMode(0), m_pCurAttrib(0)
+			  m_DbgShaderMode(0), m_PlaceholderTex(0), m_pCurAttrib(0)
 		{
 			m_ProjMat.Unit();
 			m_ModelMat.Unit();
@@ -350,6 +373,7 @@ public:
 		~CRC_GLES3()
 		{
 			Texture_ReleaseAll();
+			if (m_PlaceholderTex) { glDeleteTextures(1, &m_PlaceholderTex); m_PlaceholderTex = 0; }
 			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
 		}
 
@@ -409,16 +433,22 @@ public:
 			if (m_lGLTex[_TextureID])
 				return m_lGLTex[_TextureID];
 			if (m_lTexLogged[_TextureID])
-				return 0; // already attempted, failed silently now
+				return GetPlaceholderTex(); // already attempted, placeholder
 
 			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
 			if (!pImg)
 			{
 				m_lTexLogged[_TextureID] = 1;
-				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture()==NULL\n",
+				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture()==NULL -> placeholder\n",
 					_TextureID, (const char*)m_pTC->GetName(_TextureID));
 				fflush(stderr);
-				return 0;
+				// Return shared magenta placeholder each time. Do NOT
+				// store it into m_lGLTex -- the release path would then
+				// double-free the shared GLuint. m_lTexLogged=1 stops
+				// the "return early on cached-fail" branch, so we come
+				// back here on every draw (cheap: this branch is on
+				// same-ID re-request, no allocation).
+				return GetPlaceholderTex();
 			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
