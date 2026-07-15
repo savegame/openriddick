@@ -415,13 +415,22 @@ public:
 			if (!pImg)
 			{
 				m_lTexLogged[_TextureID] = 1;
-				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  GetTexture()==NULL\n", _TextureID);
+				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture()==NULL\n",
+					_TextureID, (const char*)m_pTC->GetName(_TextureID));
 				fflush(stderr);
 				return 0;
 			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
 			m_lTexLogged[_TextureID] = 1;
+			if (T)
+			{
+				fprintf(stderr, "[GLES3-TEX-OK] id=%d  name='%s'  %dx%d  fmt=0x%x mem=0x%x\n",
+					_TextureID, (const char*)m_pTC->GetName(_TextureID),
+					pImg->GetWidth(), pImg->GetHeight(),
+					(unsigned)pImg->GetFormat(), (unsigned)pImg->GetMemModel());
+				fflush(stderr);
+			}
 			if (!T)
 			{
 				const int Fmt = pImg->GetFormat();
@@ -856,15 +865,8 @@ public:
 						break;
 					}
 				}
-				// Diagnostic: dump first N attrib channel arrays.
-				if (m_DbgEnabled && m_DbgTexDumpsLeft > 0)
-				{
-					--m_DbgTexDumpsLeft;
-					fprintf(stderr, "[GLES3-ATTR] ch:");
-					for (int c = 0; c < CRC_MAXTEXTURES; ++c)
-						fprintf(stderr, " [%d]=%u", c, (unsigned)m_pCurAttrib->m_TextureID[c]);
-					fprintf(stderr, "  flags=0x%x\n", (unsigned)m_pCurAttrib->m_Flags);
-				}
+				// Multitexture path: confirmed unused (only channel 0
+				// ever non-zero). Attrib channel dump removed.
 				if (TexID > 0)
 				{
 					GLuint T = TextureID_EnsureUploaded(TexID);
