@@ -277,6 +277,7 @@ public:
 		// prints one line every DBG_INTERVAL frames.
 		enum { DBG_INTERVAL = 60 };
 		int m_DbgEnabled;
+		int m_DbgTexDumpsLeft;
 		int m_DbgFrames;
 		int m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire, m_DbgDrawPoly, m_DbgDrawPrim;
 		int m_DbgDrawVBID, m_DbgTexBound, m_DbgTexMissing;
@@ -288,6 +289,10 @@ public:
 		{
 			const char* e = getenv("RIDDICK_DBG_GL");
 			m_DbgEnabled = (e && *e && *e != '0') ? 1 : 0;
+			// One-shot: dump the first 30 draw-call attrib channel
+			// arrays to see whether the engine ever uses texture
+			// slots > 0 (multitexture).
+			m_DbgTexDumpsLeft = m_DbgEnabled ? 30 : 0;
 			m_DbgFrames = 0;
 			DbgResetCounters();
 		}
@@ -348,42 +353,6 @@ public:
 			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
 		}
 
-		// Optional diagnostic: on first frame, iterate every allocated
-		// texture ID in the texture context and try to upload. Prints
-		// a summary to stderr. Enabled via RIDDICK_PRECACHE_ALL=1.
-		void DiagPrecacheAll()
-		{
-			if (!m_pTC) return;
-			const int N = m_pTC->GetIDCapacity();
-			int nOK = 0, nNullImg = 0, nNullUpload = 0, nSkip = 0;
-			fprintf(stderr, "[GLES3-PRECACHE] scanning %d texture IDs...\n", N);
-			for (int i = 1; i < N; ++i)
-			{
-				if (i < m_lGLTex.Len() && m_lGLTex[i]) { ++nSkip; continue; }
-				CImage* pImg = m_pTC->GetTexture(i, 0, -1);
-				if (!pImg) { ++nNullImg; continue; }
-				GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
-				if (T)
-				{
-					if (i >= m_lGLTex.Len())
-					{
-						const int Old = m_lGLTex.Len();
-						m_lGLTex.SetLen(i + 1);
-						for (int j = Old; j < m_lGLTex.Len(); ++j) m_lGLTex[j] = 0;
-					}
-					m_lGLTex[i] = T;
-					++nOK;
-				}
-				else
-				{
-					++nNullUpload;
-				}
-			}
-			fprintf(stderr, "[GLES3-PRECACHE] done: ok=%d nullImg=%d nullUpload=%d cached=%d total=%d\n",
-				nOK, nNullImg, nNullUpload, nSkip, N);
-			fflush(stderr);
-		}
-
 		void InitGLResources()
 		{
 			if (m_bGLInited) return;
@@ -397,9 +366,6 @@ public:
 				m_UDbgModeLoc = m_UIShader.UniformLocation("uDbgMode");
 			}
 			glGenVertexArrays(1, &m_VAO);
-			const char* e = getenv("RIDDICK_PRECACHE_ALL");
-			if (e && *e && *e != '0')
-				DiagPrecacheAll();
 		}
 
 		// --- M2 texture path ---------------------------------------
@@ -875,10 +841,30 @@ public:
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
 
 			// Bind current texture (if any).
+			// Try channel 0 first; if empty, scan 1..CRC_MAXTEXTURES-1
+			// (engine's multitexture path may put the main tex in a
+			// slot > 0 for shader-driven UI surfaces).
 			int UseTex = 0;
 			if (m_pCurAttrib)
 			{
-				const int TexID = (int)m_pCurAttrib->m_TextureID[0];
+				int TexID = 0;
+				for (int c = 0; c < CRC_MAXTEXTURES; ++c)
+				{
+					if (m_pCurAttrib->m_TextureID[c])
+					{
+						TexID = (int)m_pCurAttrib->m_TextureID[c];
+						break;
+					}
+				}
+				// Diagnostic: dump first N attrib channel arrays.
+				if (m_DbgEnabled && m_DbgTexDumpsLeft > 0)
+				{
+					--m_DbgTexDumpsLeft;
+					fprintf(stderr, "[GLES3-ATTR] ch:");
+					for (int c = 0; c < CRC_MAXTEXTURES; ++c)
+						fprintf(stderr, " [%d]=%u", c, (unsigned)m_pCurAttrib->m_TextureID[c]);
+					fprintf(stderr, "  flags=0x%x\n", (unsigned)m_pCurAttrib->m_Flags);
+				}
 				if (TexID > 0)
 				{
 					GLuint T = TextureID_EnsureUploaded(TexID);
