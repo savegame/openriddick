@@ -652,6 +652,15 @@ public:
 					break;
 				}
 			}
+			if (m_DbgEnabled)
+			{
+				fprintf(stderr, "[GLES3-RT] SetRenderTarget ids=[%u,%u,%u,%u] -> %s\n",
+					(unsigned)_RenderTarget.m_lColorTextureID[0],
+					(unsigned)_RenderTarget.m_lColorTextureID[1],
+					(unsigned)_RenderTarget.m_lColorTextureID[2],
+					(unsigned)_RenderTarget.m_lColorTextureID[3],
+					TargetID ? "FBO" : "backbuffer");
+			}
 			if (TargetID > 0)
 			{
 				SFBOSlot* pSlot = EnsureFBOFor(TargetID);
@@ -667,6 +676,44 @@ public:
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			if (m_pDisplayContext)
 				glViewport(0, 0, m_pDisplayContext->m_Width, m_pDisplayContext->m_Height);
+		}
+
+		// Copy the current READ framebuffer's colour attachment into the
+		// GL texture backing _TextureID. This is how the engine
+		// "snapshots" a scene rendered into the backbuffer for later
+		// sampling by another pass (PS3 backend uses gcmSetTransferImage
+		// for the same purpose -- see MRenderPS3_Texture.cpp:2107).
+		void RenderTarget_CopyToTexture(int _TextureID, CRct _SrcRect, CPnt _Dest, bint _bContinueTiling, uint16 _Slice, int _iMRT)
+		{
+			if (_TextureID <= 0) return;
+			SFBOSlot* pSlot = EnsureFBOFor(_TextureID);
+			if (!pSlot) return;
+
+			// The engine's rect is top-left origin, GL is bottom-left.
+			// Flip Y so the copy pulls the correct region from the
+			// currently-bound framebuffer.
+			int SrcH = m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+			int W = _SrcRect.p1.x - _SrcRect.p0.x;
+			int H = _SrcRect.p1.y - _SrcRect.p0.y;
+			if (W <= 0 || H <= 0) return;
+			int SrcY = SrcH - _SrcRect.p1.y;
+
+			// Save + restore currently-bound texture so we don't
+			// disturb the current drawcall's binding.
+			GLint PrevTex = 0;
+			glGetIntegerv(GL_TEXTURE_BINDING_2D, &PrevTex);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, pSlot->m_ColorTex);
+			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, _Dest.x, _Dest.y,
+				_SrcRect.p0.x, SrcY, W, H);
+			glBindTexture(GL_TEXTURE_2D, (GLuint)PrevTex);
+
+			if (m_DbgEnabled)
+			{
+				fprintf(stderr, "[GLES3-RT] CopyToTexture id=%d  src(%d,%d..%d,%d)->dst(%d,%d)  %dx%d\n",
+					_TextureID, _SrcRect.p0.x, _SrcRect.p0.y,
+					_SrcRect.p1.x, _SrcRect.p1.y, _Dest.x, _Dest.y, W, H);
+			}
 		}
 
 		void RenderTarget_Clear(CRct _ClearRect, int _WhatToClear, CPixel32 _Color, fp32 _ZBufferValue, int _StecilValue)
