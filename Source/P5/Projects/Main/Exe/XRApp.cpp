@@ -1130,7 +1130,7 @@ class CXRealityApp : public CApplication
 			const MEMORYSTATUS& s = m_Win32MemoryStatus;
 #ifdef PLATFORM_XENON
 			const fp32 ScaleMiB = (1.0f / (1024.0f * 1024.0f));
-			m_Win32MemoryStatusStr = CFStrF("§c55FP(F:%.1fM) §c5f5PH(F:%.1fM §c5f5L:%.1fM) §cf55GH(F:§cfff%.1fM §cf55L:%.1fM U:%.1fM(E%.1fM)/%.1fM MS:%.1fM/%.1fM) ", 
+			m_Win32MemoryStatusStr = CFStrF("ï¿½c55FP(F:%.1fM) ï¿½c5f5PH(F:%.1fM ï¿½c5f5L:%.1fM) ï¿½cf55GH(F:ï¿½cfff%.1fM ï¿½cf55L:%.1fM U:%.1fM(E%.1fM)/%.1fM MS:%.1fM/%.1fM) ", 
 				fp32(s.dwAvailPhys) * ScaleMiB, 
 				fp32(gf_GetFreePhysicalMemory()) * ScaleMiB,
 				fp32(gf_GetLargestBlockPhysicalMemory()) * ScaleMiB,
@@ -1765,8 +1765,8 @@ void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 	catch(CCException)
 	{
 	m_pSystem->m_spCon->WriteExceptions();
-	ConOut("§cf80WARNING: CD-Audio shut-down.");
-	LogFile("§cf80WARNING: CD-Audio shut-down.");
+	ConOut("ï¿½cf80WARNING: CD-Audio shut-down.");
+	LogFile("ï¿½cf80WARNING: CD-Audio shut-down.");
 	m_spCDAudio = NULL;
 	}
 	}*/
@@ -3741,8 +3741,8 @@ void CXRealityApp::Create()
 #endif
 				if (BaseVersion < 9)
 				{
-					CStr Msg = Localize_Str(CStr("§LSYS_WRONGDIRECTXVERSION"));
-					CStr Title = Localize_Str(CStr("§LSYS_APPNAME"));
+					CStr Msg = Localize_Str(CStr("ï¿½LSYS_WRONGDIRECTXVERSION"));
+					CStr Title = Localize_Str(CStr("ï¿½LSYS_APPNAME"));
 
 					MessageBoxW(NULL, (LPCWSTR)Msg.Unicode().StrW(), (LPCWSTR)Title.Unicode().StrW(), MB_OK | MB_ICONEXCLAMATION);
 					m_pSystem->m_bBreakRequested = true;
@@ -4150,7 +4150,7 @@ void CXRealityApp::RenderStats(CDisplayContext* _pDisplay, CRenderContext* _pRC,
 						}
 						else
 						{
-							FPSStr = CFStrF("%s§cff5MH(F:§cfff%.1fM §cff5L:%.1fM MF:%.1fM U:%.1fM/%.1fM) §caaa %-9d", 
+							FPSStr = CFStrF("%sï¿½cff5MH(F:ï¿½cfff%.1fM ï¿½cff5L:%.1fM MF:%.1fM U:%.1fM/%.1fM) ï¿½caaa %-9d", 
 								(char*)m_Win32MemoryStatusStr, 
 								(float)pMemMgr->GetFreeMem() / (1024.0f* 1024.0f), 
 								(float)pMemMgr->GetLargestFreeMem() / (1024.0f* 1024.0f), 
@@ -4239,7 +4239,7 @@ void CXRealityApp::RenderStats(CDisplayContext* _pDisplay, CRenderContext* _pRC,
 									while(Pos2 < Len && pS[Pos2] != ',')
 									{
 										Buff[Pos2-Pos] = (uint8)pS[Pos2];
-										char moo = '§';
+										char moo = 'ï¿½';
 										if (pS[Pos2] == moo && pS[Pos2+1] == 'n')
 										{
 											int dy = ((uint8)pS[Pos2 + 2] - '0') * 100;
@@ -5104,7 +5104,7 @@ void CXRealityApp::DoInput(bool _FromBusy)
 	#endif
 				{
 
-					// '§' Toggle console
+					// 'ï¿½' Toggle console
 					if (m_pSystem->m_spCon->GetMode() == CONST_CONSOLE_INPUTKEY)
 						m_pSystem->m_spCon->SetMode(CONST_CONSOLE_EXECUTEKEY);
 					else
@@ -5304,8 +5304,8 @@ void CXRealityApp::DoModal()
 		catch(CCException)
 		{
 			m_pSystem->m_spCon->WriteExceptions();
-			ConOut("§fc80WARNING: CD-Audio shut-down.");
-			LogFile("§cf80WARNING: CD-Audio shut-down.");
+			ConOut("ï¿½fc80WARNING: CD-Audio shut-down.");
+			LogFile("ï¿½cf80WARNING: CD-Audio shut-down.");
 			m_spCDAudio = NULL;
 		}
 	}*/
@@ -5362,8 +5362,8 @@ void CXRealityApp::DoModal()
 
 			m_pSystem->DC_Set(-1);
 
-			CStr Msg = Localize_Str(CStr("§LSYS_INSUFFICIENTRENDERERFEATURES"));
-			CStr Title = Localize_Str(CStr("§LSYS_APPNAME"));
+			CStr Msg = Localize_Str(CStr("ï¿½LSYS_INSUFFICIENTRENDERERFEATURES"));
+			CStr Title = Localize_Str(CStr("ï¿½LSYS_APPNAME"));
 
 			MessageBoxW(NULL, (LPCWSTR)Msg.Unicode().StrW(), (LPCWSTR)Title.Unicode().StrW(), MB_OK | MB_ICONEXCLAMATION);
 			return;
@@ -6503,9 +6503,9 @@ void CXRealityApp::CommitOptions()
 	}
 
 	if (ModelQuality)
-		pGlobalOpt->SetValue("VIDEO_MODELQUALITYSELECTED", Localize_Str("§LMENU_HIGH"));
+		pGlobalOpt->SetValue("VIDEO_MODELQUALITYSELECTED", Localize_Str("ï¿½LMENU_HIGH"));
 	else
-		pGlobalOpt->SetValue("VIDEO_MODELQUALITYSELECTED", Localize_Str("§LMENU_DYNAMIC"));
+		pGlobalOpt->SetValue("VIDEO_MODELQUALITYSELECTED", Localize_Str("ï¿½LMENU_DYNAMIC"));
 	
 	// Set surface options
 	if(m_spGame && m_spGame->GetCurrentClient() &&m_spGame->GetCurrentClient()->Render_GetEngine())
@@ -6782,6 +6782,29 @@ void Dummy1(const ch8*, const ch8*, int)
 {
 }
 
+// Extra dummy signatures for the Linux/SDL2 port: the frontend menu
+// scripts call a number of console functions that only exist on the
+// PS3/Xbox platforms (sign-in, parental control, disc-check, sound
+// stream, various renderer cvars). A single missing identifier makes
+// the ENTIRE script line parse-fail and get discarded, which is why
+// cg_cubeseq() etc never fire and the menu stays frozen at Atari
+// logo. Register these as no-ops so the parser accepts them and the
+// menu can proceed.
+static void DummyVoid()                                {}
+static void DummyInt(int)                              {}
+static void DummyIntInt(int, int)                      {}
+static void DummyFloat(fp32)                           {}
+// issignedin("cmd_yes", "cmd_no") -- called via cachecommand to
+// route on profile-signed-in state. On PC we have no profile
+// system yet; fire the "yes" branch so menu progresses to
+// autosave_info (or whatever the first cmd expects).
+static void DummySignedIn(const ch8* _pCmdYes, const ch8* _pCmdNo)
+{
+	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
+	if (pCon && _pCmdYes && *_pCmdYes)
+		pCon->ExecuteString(_pCmdYes);
+}
+
 void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 {
 	CApplication::Register(_RegContext);
@@ -6796,6 +6819,30 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 		_RegContext.RegFunction("stream_stop", &Dummy0);
 		_RegContext.RegFunction("stream_play", &Dummy1);
 	}
+
+#ifdef PLATFORM_LINUX
+	// PC/Linux stubs for missing platform script functions.
+	// Sound streams: always register no-op if the real backend didn't
+	// (bSound=true path skips the dummy above but we don't yet have
+	// MSound_CoreDualStream wired up on Linux either).
+	if (bSound)
+	{
+		_RegContext.RegFunction("stream_stop", &Dummy0);
+		_RegContext.RegFunction("stream_play", &Dummy1);
+	}
+	// Renderer cvars (all no-ops for now).
+	_RegContext.RegFunction("r_dynamicloadmips",  &DummyInt);
+	_RegContext.RegFunction("r_picmip",           &DummyIntInt);
+	_RegContext.RegFunction("r_anisotropy",       &DummyFloat);
+	_RegContext.RegFunction("r_vsync",            &DummyInt);
+	_RegContext.RegFunction("r_antialias",        &DummyInt);
+	_RegContext.RegFunction("r_backbufferformat", &DummyInt);
+	_RegContext.RegFunction("vwinsize",           &DummyIntInt);
+	_RegContext.RegFunction("in_gamepad",         &DummyInt);
+	// Console-only helpers used by the frontend menu scripts.
+	_RegContext.RegFunction("checkbrokendc",      &DummyVoid);
+	_RegContext.RegFunction("issignedin",         &DummySignedIn);
+#endif
 
 	_RegContext.RegFunction("launch", this, &CXRealityApp::Con_Launch);
 
@@ -6916,45 +6963,45 @@ int CXRealityApp::Options_GetScanKey(const CStr &_Action, CRegistry *_pOptions, 
 	{
 		if(iScanKey == 0)
 		{
-			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_A", "§LCONTROLLER_UNDEFINED_A");
-			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_B", "§LCONTROLLER_UNDEFINED_B");
-			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_C", "§LCONTROLLER_UNDEFINED_C");
+			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_A", "ï¿½LCONTROLLER_UNDEFINED_A");
+			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_B", "ï¿½LCONTROLLER_UNDEFINED_B");
+			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_C", "ï¿½LCONTROLLER_UNDEFINED_C");
 		}
 		else
 		{
 			CStr Prefix;
 #ifdef PLATFORM_XBOX
 			if(iScanKey <= XBOX_CONTROLS_Y)
-				Prefix = "§LCONTROLLER_XBOX_BUTTON_1";
+				Prefix = "ï¿½LCONTROLLER_XBOX_BUTTON_1";
 			else if(iScanKey <= XBOX_CONTROLS_WHITE)
-				Prefix = "§LCONTROLLER_XBOX_BUTTON_2";
+				Prefix = "ï¿½LCONTROLLER_XBOX_BUTTON_2";
 			else if(iScanKey <= XBOX_CONTROLS_RTRIGGER)
-				Prefix = "§LCONTROLLER_XBOX_TRIGGER";
+				Prefix = "ï¿½LCONTROLLER_XBOX_TRIGGER";
 			else if(iScanKey <= XBOX_CONTROLS_BACK)
-				Prefix = "§LCONTROLLER_XBOX_BUTTON_3";
+				Prefix = "ï¿½LCONTROLLER_XBOX_BUTTON_3";
 			else if(iScanKey <= XBOX_CONTROLS_RTHUMBSTICKBUT)
-				Prefix = "§LCONTROLLER_XBOX_THUMBSTICK_CLICK";
+				Prefix = "ï¿½LCONTROLLER_XBOX_THUMBSTICK_CLICK";
 			else if(iScanKey <= XBOX_CONTROLS_RTHUMBSTICK)
 			{
-				Prefix = "§LCONTROLLER_XBOX_THUMBSTICK";
+				Prefix = "ï¿½LCONTROLLER_XBOX_THUMBSTICK";
 			}
 			else if(iScanKey <= XBOX_CONTROLS_DPAD)
 			{
-				Prefix = "§LCONTROLLER_XBOX_DPAD";
+				Prefix = "ï¿½LCONTROLLER_XBOX_DPAD";
 			}
 			else
 #endif
 			{
 				if(_iType == 0)
-					Prefix = "§LCONTROLLER_PC_BUTTON";
+					Prefix = "ï¿½LCONTROLLER_PC_BUTTON";
 				else if(_iType == 1)
-					Prefix = "§LCONTROLLER_PC_AXIS";
+					Prefix = "ï¿½LCONTROLLER_PC_AXIS";
 			}
 
 			CStr KeyName;
 #ifdef PLATFORM_XBOX
 			if(iScanKey >= XBOX_CONTROLS_A && iScanKey <= XBOX_CONTROLS_DPAD)
-				KeyName = CStrF("§LCONTROLLER_XBOX_%.2x", iScanKey - XBOX_CONTROLS_A);
+				KeyName = CStrF("ï¿½LCONTROLLER_XBOX_%.2x", iScanKey - XBOX_CONTROLS_A);
 			else
 				KeyName = CScanKey::GetLocalizedKeyName(iScanKey);
 #else
@@ -6978,15 +7025,15 @@ int CXRealityApp::Options_GetScanKey(const CStr &_Action, CRegistry *_pOptions, 
 				// there is a risk that this will be interpretated as an octal value.
 				while(St2[0] == '0')
 					St2 = St2.Copy(1, 1024);
-				KeyName = "§L" + St + CStrF(" %i", ("0x" + St2).Val_int());
+				KeyName = "ï¿½L" + St + CStrF(" %i", ("0x" + St2).Val_int());
 			}
 			else if(KeyName.CompareSubStr("MOUSE") == 0)
-				KeyName = "§LMOUSE_BUTTON " + KeyName.Copy(5, 1024);
+				KeyName = "ï¿½LMOUSE_BUTTON " + KeyName.Copy(5, 1024);
 
-			CStr Key = Prefix + "_A§p0" + KeyName + "§pq";
+			CStr Key = Prefix + "_Aï¿½p0" + KeyName + "ï¿½pq";
 			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_A", Key);
-			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_B", Prefix + "_B§p0" + KeyName + "§pq");
-			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_C", Prefix + "_C§p0" + KeyName + "§pq");
+			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_B", Prefix + "_Bï¿½p0" + KeyName + "ï¿½pq");
+			_pDynamicStringTable->SetValue("CONTROLLER_" + _Action + "_C", Prefix + "_Cï¿½p0" + KeyName + "ï¿½pq");
 		}
 	}
 	return iScanKey;
@@ -7419,7 +7466,7 @@ void CXRealityApp::Options_UpdateBinds()
 	{
 		CRegistry *pChild = pSt->GetChild(i);
 		for(int j = 0; j < pChild->GetNumChildren(); j++)
-			if(pChild->GetValue(j).Find("§LCONTROLLER_") != -1)
+			if(pChild->GetValue(j).Find("ï¿½LCONTROLLER_") != -1)
 				LogFile(pChild->GetName(j) + " = " + Localize_Str(pChild->GetValue(j)));
 	}
 	exit(0);*/
