@@ -1,4 +1,5 @@
 #include "PCH.h"
+#include <cstdio>
 #include "MRTC_Callgraph.h"
 #include "../../Shared/MOS/MMain.h"
 #include "../../Shared/MOS/Classes/Render/MRenderCapture.h"
@@ -6800,9 +6801,17 @@ static void DummyFloat(fp32)                           {}
 // autosave_info (or whatever the first cmd expects).
 static void DummySignedIn(const ch8* _pCmdYes, const ch8* _pCmdNo)
 {
+	fprintf(stderr, "[STUB] issignedin(\"%s\", \"%s\")\n",
+		_pCmdYes ? _pCmdYes : "<null>",
+		_pCmdNo  ? _pCmdNo  : "<null>");
 	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
-	if (pCon && _pCmdYes && *_pCmdYes)
+	if (!pCon) { fprintf(stderr, "[STUB] issignedin: no CConsole!\n"); return; }
+	if (_pCmdYes && *_pCmdYes)
+	{
+		fprintf(stderr, "[STUB] issignedin -> ExecuteString(yes)\n");
 		pCon->ExecuteString(_pCmdYes);
+	}
+	fflush(stderr);
 }
 
 void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
@@ -6842,6 +6851,11 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 	// Console-only helpers used by the frontend menu scripts.
 	_RegContext.RegFunction("checkbrokendc",      &DummyVoid);
 	_RegContext.RegFunction("issignedin",         &DummySignedIn);
+	// Keybind scripts reference `look(dx, dy)` for mouse-look. Compile
+	// happens at engine startup; the actual look function comes from
+	// game-mode code that isn't yet reached, so parse fails and the
+	// bind is discarded. Register a no-op with the right signature.
+	_RegContext.RegFunction("look",               &DummyIntInt);
 #endif
 
 	_RegContext.RegFunction("launch", this, &CXRealityApp::Con_Launch);
