@@ -23,6 +23,7 @@
 
 #include <cstdlib>
 #include <cstdint>
+#include <cstring>
 
 // One shared shader for M3 UI/frontend drawing. Attributes: aPos
 // (vec3 world), aUV (vec2), aCol (vec4, unpacked from CPixel32 BGRA).
@@ -48,8 +49,15 @@ static const char* kGLES3_UIFragSrc =
 	"in vec4 vCol;\n"
 	"uniform sampler2D uTex;\n"
 	"uniform int uUseTexture;\n"
+	// Debug modes for RIDDICK_DBG_SHADER: 0=normal, 1=UV as
+	// RGB (see quad UVs), 2=solid red (see quad positions),
+	// 3=vertex-color only (ignore texture).
+	"uniform int uDbgMode;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
+	"  if (uDbgMode == 1) { oColor = vec4(vUV.x, vUV.y, 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 2) { oColor = vec4(1.0, 0.0, 0.0, 0.5); return; }\n"
+	"  if (uDbgMode == 3) { oColor = vCol; return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  oColor = c;\n"
@@ -266,6 +274,8 @@ public:
 		int               m_UMVPLoc;
 		int               m_UUseTexLoc;
 		int               m_UTexLoc;
+		int               m_UDbgModeLoc;
+		int               m_DbgShaderMode; // 0=off, 1=uv, 2=pos, 3=no_tex
 		CRC_Attributes*   m_pCurAttrib;
 
 		// Diagnostic per-frame counters. Enable with RIDDICK_DBG_GL=1;
@@ -321,12 +331,20 @@ public:
 
 		CRC_GLES3()
 			: m_VAO(0), m_bGLInited(false), m_UMVPLoc(-1),
-			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_pCurAttrib(0)
+			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_UDbgModeLoc(-1),
+			  m_DbgShaderMode(0), m_pCurAttrib(0)
 		{
 			m_ProjMat.Unit();
 			m_ModelMat.Unit();
 			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
 			DbgInit();
+			const char* e = getenv("RIDDICK_DBG_SHADER");
+			if (e)
+			{
+				if      (strcmp(e, "uv")     == 0) m_DbgShaderMode = 1;
+				else if (strcmp(e, "pos")    == 0) m_DbgShaderMode = 2;
+				else if (strcmp(e, "no_tex") == 0) m_DbgShaderMode = 3;
+			}
 		}
 
 		~CRC_GLES3()
@@ -342,9 +360,10 @@ public:
 			m_Streamer.Create();
 			if (m_UIShader.Build(kGLES3_UIVertSrc, kGLES3_UIFragSrc, "UI"))
 			{
-				m_UMVPLoc    = m_UIShader.UniformLocation("uMVP");
-				m_UUseTexLoc = m_UIShader.UniformLocation("uUseTexture");
-				m_UTexLoc    = m_UIShader.UniformLocation("uTex");
+				m_UMVPLoc     = m_UIShader.UniformLocation("uMVP");
+				m_UUseTexLoc  = m_UIShader.UniformLocation("uUseTexture");
+				m_UTexLoc     = m_UIShader.UniformLocation("uTex");
+				m_UDbgModeLoc = m_UIShader.UniformLocation("uDbgMode");
 			}
 			glGenVertexArrays(1, &m_VAO);
 		}
@@ -804,6 +823,7 @@ public:
 				}
 			}
 			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
+			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
 			m_DbgTotalVerts += nVerts;
 			m_DbgTotalIdx   += _nInd;
 
