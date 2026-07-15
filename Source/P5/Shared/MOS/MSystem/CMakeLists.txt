@@ -120,4 +120,4 @@ target_include_directories(p5_msystem PUBLIC
 target_include_directories(p5_msystem PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/PCH)
 
 target_compile_options(p5_msystem PRIVATE ${P5_ENGINE_CXX_FLAGS})
-target_link_libraries(p5_msystem PUBLIC p5_mcc p5_png p5_vorbis)
+target_link_libraries(p5_msystem PUBLIC p5_mcc p5_png p5_vorbis SDL2::SDL2)
