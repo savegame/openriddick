@@ -407,7 +407,13 @@ public:
 				return 0; // already attempted, failed silently now
 
 			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
-			if (!pImg) { m_lTexLogged[_TextureID] = 1; return 0; }
+			if (!pImg)
+			{
+				m_lTexLogged[_TextureID] = 1;
+				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  GetTexture()==NULL\n", _TextureID);
+				fflush(stderr);
+				return 0;
+			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
 			m_lTexLogged[_TextureID] = 1;
