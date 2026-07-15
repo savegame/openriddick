@@ -4,7 +4,7 @@
 #include "WServerMod.h"
 
 #include "../../Shared/MOS/Classes/GameWorld/WDataRes_AnimGraph2.h"
-#include "../exe/WGameContextMain.h"
+#include "../Exe/WGameContextMain.h"
 #include "../GameClasses/WObj_Game/WObj_GameMod.h"
 #include "../GameClasses/WObj_Char.h"
 //#include "../GameClasses/WRPG/WRPGCore.h"
@@ -364,7 +364,7 @@ void CWServer_Mod::Con_ExecuteTestRun()
 	}
 	else
 	{
-		ConOutL(CStrF("§cf00ERROR (CWServer_Mod::Con_ExecuteTestRun): file '%s' not found!", RegisterFile.Str()));
+		ConOutL(CStrF("ï¿½cf00ERROR (CWServer_Mod::Con_ExecuteTestRun): file '%s' not found!", RegisterFile.Str()));
 		M_TRACEALWAYS("ERROR (CWServer_Mod::Con_ExecuteTestRun): file '%s' not found!\n", RegisterFile.Str());
 		return;
 	}

@@ -9,7 +9,7 @@
 #include "../../../MSystem/Misc/MPerfGraph.h"
 #include "../../../XRModels/Model_TriMesh/WTriMesh.h"
 
-#include "../../../../../projects/main/gameclasses/WObj_Char.h"
+#include "../../../../../Projects/Main/GameClasses/WObj_Char.h"
 
 
 // MUPPJOKKO -	Temp fix, this still fucks upp with translucent surfaces in the world!
