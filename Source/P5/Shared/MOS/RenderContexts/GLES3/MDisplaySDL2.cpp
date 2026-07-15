@@ -282,6 +282,113 @@ public:
 			return m_PlaceholderTex;
 		}
 
+		// Render-to-texture support. The engine allocates a set of
+		// texture IDs from CTextureContainer_Screen; those IDs have no
+		// data on disk -- we're supposed to render into them, then the
+		// engine samples them as normal textures for compositing.
+		// One SFBOSlot per RTT texture ID: colorTex is what samplers
+		// see, depthRbo is a bundled depth+stencil renderbuffer, fbo
+		// binds them together.
+		struct SFBOSlot
+		{
+			GLuint m_FBO;
+			GLuint m_ColorTex;
+			GLuint m_DepthRbo;
+			int    m_Width, m_Height;
+		};
+		TArray<SFBOSlot> m_lFBO; // sparse, indexed by texture id
+
+		SFBOSlot* GetFBOSlot(int _TextureID)
+		{
+			if (_TextureID <= 0) return 0;
+			if (_TextureID >= m_lFBO.Len()) return 0;
+			SFBOSlot* p = &m_lFBO[_TextureID];
+			return p->m_FBO ? p : 0;
+		}
+
+		SFBOSlot* EnsureFBOFor(int _TextureID)
+		{
+			if (_TextureID <= 0 || !m_pTC) return 0;
+			if (_TextureID >= m_lFBO.Len())
+			{
+				const int Old = m_lFBO.Len();
+				m_lFBO.SetLen(_TextureID + 1);
+				for (int i = Old; i < m_lFBO.Len(); ++i)
+				{
+					m_lFBO[i].m_FBO = 0; m_lFBO[i].m_ColorTex = 0;
+					m_lFBO[i].m_DepthRbo = 0;
+					m_lFBO[i].m_Width = m_lFBO[i].m_Height = 0;
+				}
+			}
+			SFBOSlot& S = m_lFBO[_TextureID];
+			if (S.m_FBO) return &S;
+
+			CImage Desc;
+			int nMips = 0;
+			m_pTC->GetTextureDesc(_TextureID, &Desc, nMips);
+			int W = Desc.GetWidth();
+			int H = Desc.GetHeight();
+			// Screen container may report zero if the engine hasn't
+			// called PrepareFrame yet; fall back to the window size --
+			// it's what the frontend composition wants anyway.
+			if ((W <= 0 || H <= 0) && m_pDisplayContext)
+			{
+				W = m_pDisplayContext->m_Width;
+				H = m_pDisplayContext->m_Height;
+			}
+			if (W <= 0 || H <= 0) return 0;
+
+			glGenTextures(1, &S.m_ColorTex);
+			glBindTexture(GL_TEXTURE_2D, S.m_ColorTex);
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
+				GL_RGBA, GL_UNSIGNED_BYTE, 0);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
+
+			glGenRenderbuffers(1, &S.m_DepthRbo);
+			glBindRenderbuffer(GL_RENDERBUFFER, S.m_DepthRbo);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, W, H);
+			glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+			glGenFramebuffers(1, &S.m_FBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, S.m_FBO);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_2D, S.m_ColorTex, 0);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+				GL_RENDERBUFFER, S.m_DepthRbo);
+			GLenum Status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			if (Status != GL_FRAMEBUFFER_COMPLETE)
+			{
+				fprintf(stderr, "[GLES3-RTT] id=%d FBO incomplete 0x%x (%dx%d)\n",
+					_TextureID, (unsigned)Status, W, H);
+				glDeleteFramebuffers(1, &S.m_FBO);   S.m_FBO = 0;
+				glDeleteRenderbuffers(1, &S.m_DepthRbo); S.m_DepthRbo = 0;
+				glDeleteTextures(1, &S.m_ColorTex);  S.m_ColorTex = 0;
+				return 0;
+			}
+			S.m_Width  = W;
+			S.m_Height = H;
+			fprintf(stderr, "[GLES3-RTT] id=%d FBO ok %dx%d  colorTex=%u fbo=%u\n",
+				_TextureID, W, H, S.m_ColorTex, S.m_FBO);
+			fflush(stderr);
+			return &S;
+		}
+
+		void ReleaseAllFBOs()
+		{
+			for (int i = 0; i < m_lFBO.Len(); ++i)
+			{
+				if (m_lFBO[i].m_FBO)       glDeleteFramebuffers(1,  &m_lFBO[i].m_FBO);
+				if (m_lFBO[i].m_DepthRbo)  glDeleteRenderbuffers(1, &m_lFBO[i].m_DepthRbo);
+				if (m_lFBO[i].m_ColorTex)  glDeleteTextures(1,      &m_lFBO[i].m_ColorTex);
+				m_lFBO[i].m_FBO = m_lFBO[i].m_DepthRbo = m_lFBO[i].m_ColorTex = 0;
+			}
+		}
+
 		// M3: GL resources for the draw path. Initialised lazily on
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
@@ -373,6 +480,7 @@ public:
 		~CRC_GLES3()
 		{
 			Texture_ReleaseAll();
+			ReleaseAllFBOs();
 			if (m_PlaceholderTex) { glDeleteTextures(1, &m_PlaceholderTex); m_PlaceholderTex = 0; }
 			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
 		}
@@ -432,6 +540,11 @@ public:
 			}
 			if (m_lGLTex[_TextureID])
 				return m_lGLTex[_TextureID];
+			// If this ID is bound to an FBO (RTT slot), hand back its
+			// color texture -- that's the "content" the engine expects
+			// to sample after rendering to it.
+			if (SFBOSlot* pSlot = GetFBOSlot(_TextureID))
+				return pSlot->m_ColorTex;
 			if (m_lTexLogged[_TextureID])
 				return GetPlaceholderTex(); // already attempted, placeholder
 
@@ -526,12 +639,31 @@ public:
 		const char* GetRenderingStatus() { return ""; }
 		virtual void Flip_SetInterval(int _nFrames){};
 
-		// Render target (Phase 4 bring-up). Only the default framebuffer
-		// (window backbuffer) exists so far -- FBO composition (phase 5)
-		// lands later. Setting a target is a no-op that just rebinds fb0
-		// and syncs the viewport with the current window size.
+		// Render target: bind engine-requested FBO if any texture ID is
+		// specified, otherwise fall back to the window backbuffer (fb0).
 		void RenderTarget_SetRenderTarget(const CRC_RenderTargetDesc& _RenderTarget)
 		{
+			int TargetID = 0;
+			for (int i = 0; i < 4 /*CRC_MAXMRT*/; ++i)
+			{
+				if (_RenderTarget.m_lColorTextureID[i])
+				{
+					TargetID = (int)_RenderTarget.m_lColorTextureID[i];
+					break;
+				}
+			}
+			if (TargetID > 0)
+			{
+				SFBOSlot* pSlot = EnsureFBOFor(TargetID);
+				if (pSlot)
+				{
+					glBindFramebuffer(GL_FRAMEBUFFER, pSlot->m_FBO);
+					glViewport(0, 0, pSlot->m_Width, pSlot->m_Height);
+					return;
+				}
+				// Failed to build FBO -- fall through to backbuffer so
+				// something renders.
+			}
 			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			if (m_pDisplayContext)
 				glViewport(0, 0, m_pDisplayContext->m_Width, m_pDisplayContext->m_Height);
