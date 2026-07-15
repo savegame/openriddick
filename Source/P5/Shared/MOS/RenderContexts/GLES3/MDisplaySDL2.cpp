@@ -179,14 +179,9 @@ public:
 	{
 		if (m_pWindow)
 		{
-			// Pump the SDL event queue (input translation arrives with
-			// CInputContext_SDL2); keep the window responsive.
-			SDL_Event Event;
-			while (SDL_PollEvent(&Event))
-			{
-				if (Event.type == SDL_QUIT)
-					exit(0);
-			}
+			// SDL event pump lives in CInputContext_SDL2::Update now --
+			// draining SDL_PollEvent here too would split events
+			// between the two consumers.
 			SDL_GL_SwapWindow(m_pWindow);
 			// The engine now drives its own clears via
 			// CRC_GLES3::RenderTarget_Clear; the bring-up glClear here

@@ -127,7 +127,7 @@ little-endian. Загрузчики файлов движка историчес
 - [x] `MMain_Linux.cpp`: `main()` → Linux_Main → CSystemLinux → DoModal (главный цикл движка работает; окно пока NULL-дисплей).
 - [x] SDL_Init + окно `SDL_WINDOW_OPENGL` с GLES 3.0-контекстом в `MDisplaySDL2.cpp` (clear+swap в PageFlip, SDL_QUIT, деградация в headless при недоступном GL); каркас `CRC_GLES3 : CRC_Core` (методы-заглушки) — `p5_rc_gles3`.
 - [ ] `MDisplaySDL2.*`: `CDisplayContext` (режимы, размер окна, vsync/flip).
-- [~] Ввод: no-op заглушка `CInputContext_SDL2` в `Input/MInput_SDL2.cpp` (пустой наследник `CInputContextCore` + `MRTC_IMPLEMENT_DYNAMIC` + `MRTC_REFERENCE` в `MCreateInputContext`) — разблокирует `CSystemCore::CreateInput`, но клавиатуру/мышь пока не читает. Полноценный SDL2-pump (`SDL_PollEvent` → `AddScanKey`, mouse-delta, `SDL_GameController`) — TODO.
+- [~] Ввод: `CInputContext_SDL2::Update` дренит `SDL_PollEvent` и мапит клавиатуру (`SDL_Scancode` → таблица `SKEY_*`), мышь (motion → `SKEY_MOUSEMOVEREL`, кнопки 1..5 → `SKEY_MOUSE1..5`, wheel → `SKEY_MOUSEWHEELUP/DOWN`), text input (`SDL_TEXTINPUT` → `DownKey(0, ch, ...)`), `SDL_QUIT` → exit. `SDL_PollEvent` в `PageFlip` убран (иначе события расщепляются между двумя дренажами). Геймпад — TODO.
 - [x] Инструкция запуска с указанием папки ресурсов (см. §3): `-datapath` работает (chdir + case-insensitive пути).
 
 ### Фаза 4 — Рендерер GLES3 (`Shared/MOS/RenderContexts/GLES3/`)
