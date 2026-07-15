@@ -377,6 +377,13 @@ public:
 		// Ensures engine textureID has been uploaded to a GLuint.
 		// Returns 0 on failure (unknown ID, empty container, format
 		// not yet supported by GLES3_Texture MapFormat).
+		// Sparse "we already logged this failure" flags parallel to
+		// m_lGLTex. Byte per texture ID: 0 = not touched, 1 =
+		// upload attempted (success or failure). Prevents stderr
+		// flood when the engine keeps re-requesting an unsupported
+		// texture every frame.
+		TArray<uint8> m_lTexLogged;
+
 		GLuint TextureID_EnsureUploaded(int _TextureID)
 		{
 			if (_TextureID < 0 || !m_pTC) return 0;
@@ -387,13 +394,40 @@ public:
 				for (int i = Old; i < m_lGLTex.Len(); ++i)
 					m_lGLTex[i] = 0;
 			}
+			if (_TextureID >= m_lTexLogged.Len())
+			{
+				const int Old = m_lTexLogged.Len();
+				m_lTexLogged.SetLen(_TextureID + 1);
+				for (int i = Old; i < m_lTexLogged.Len(); ++i)
+					m_lTexLogged[i] = 0;
+			}
 			if (m_lGLTex[_TextureID])
 				return m_lGLTex[_TextureID];
+			if (m_lTexLogged[_TextureID])
+				return 0; // already attempted, failed silently now
 
 			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
-			if (!pImg) return 0;
+			if (!pImg) { m_lTexLogged[_TextureID] = 1; return 0; }
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
+			m_lTexLogged[_TextureID] = 1;
+			if (!T)
+			{
+				const int Fmt = pImg->GetFormat();
+				const int Mem = pImg->GetMemModel();
+				int S3TCSub = -1;
+				if (pImg->IsCompressed() && (Mem & IMAGE_MEM_COMPRESSTYPE_S3TC))
+				{
+					unsigned char* pRaw = (unsigned char*)pImg->LockCompressed();
+					if (pRaw)
+						S3TCSub = (int)((const CImage_CompressHeader_S3TC*)pRaw)->getCompressType();
+				}
+				fprintf(stderr,
+					"[GLES3-TEX-FAIL] id=%d  %dx%d  format=0x%x  memmodel=0x%x  s3tcSub=%d\n",
+					_TextureID, pImg->GetWidth(), pImg->GetHeight(),
+					(unsigned)Fmt, (unsigned)Mem, S3TCSub);
+				fflush(stderr);
+			}
 			return T;
 		}
 
