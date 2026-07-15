@@ -277,7 +277,7 @@ public:
 		int m_DbgDrawVBID, m_DbgTexBound, m_DbgTexMissing;
 		int m_DbgTotalVerts, m_DbgTotalIdx;
 		int m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes;
-		int m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT5, m_DbgUploadFail;
+		int m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail;
 
 		void DbgInit()
 		{
@@ -292,7 +292,7 @@ public:
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgTotalVerts = m_DbgTotalIdx = 0;
 			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
-			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
+			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT3 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
 		}
 		void DbgFramePrint()
 		{
@@ -302,17 +302,18 @@ public:
 			// Snapshot + reset the global upload counters.
 			m_DbgUploadRGBA = g_GLES3_UploadRGBA; g_GLES3_UploadRGBA = 0;
 			m_DbgUploadDXT1 = g_GLES3_UploadDXT1; g_GLES3_UploadDXT1 = 0;
+			m_DbgUploadDXT3 = g_GLES3_UploadDXT3; g_GLES3_UploadDXT3 = 0;
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
 				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
-				"upl{rgba=%d dxt1=%d dxt5=%d fail=%d}\n",
+				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
-				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT5, m_DbgUploadFail);
+				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
 			fflush(stderr);
 			m_DbgFrames = 0;
 			DbgResetCounters();

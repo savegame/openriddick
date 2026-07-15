@@ -16,6 +16,10 @@
 // 1-bit-alpha variant (c0 <= c1 -> transparent index 3).
 void GLES3_DecodeDXT1(const unsigned char* _pSrc, unsigned char* _pDst, int _Width, int _Height);
 
+// Decode DXT3 (16 bytes/block: 8-byte explicit-4bit alpha + 8-byte
+// DXT1-style RGB, always in opaque 4-color mode).
+void GLES3_DecodeDXT3(const unsigned char* _pSrc, unsigned char* _pDst, int _Width, int _Height);
+
 // Decode DXT5 (16 bytes/block: 8-byte alpha + 8-byte DXT1-style RGB).
 void GLES3_DecodeDXT5(const unsigned char* _pSrc, unsigned char* _pDst, int _Width, int _Height);
 

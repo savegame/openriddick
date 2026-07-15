@@ -111,6 +111,47 @@ static void DecodeAlphaBlockDXT5(const unsigned char* _pSrc,
 	}
 }
 
+// -- Decode one DXT3 alpha block (8 bytes: 4-bit alpha per texel). -------
+static void DecodeAlphaBlockDXT3(const unsigned char* _pSrc,
+	unsigned char* _pOut, int _RowStride)
+{
+	// 64 bits, 4 bits per texel, row-major within 4x4 block.
+	for (int y = 0; y < 4; ++y)
+	{
+		unsigned char* pRow = _pOut + y * _RowStride;
+		unsigned char b0 = _pSrc[y * 2 + 0];
+		unsigned char b1 = _pSrc[y * 2 + 1];
+		// Two texels per byte, low nibble is the earlier texel.
+		unsigned char a[4] = {
+			(unsigned char)((b0 & 0x0f) * 17),
+			(unsigned char)(((b0 >> 4) & 0x0f) * 17),
+			(unsigned char)((b1 & 0x0f) * 17),
+			(unsigned char)(((b1 >> 4) & 0x0f) * 17),
+		};
+		pRow[0 * 4 + 3] = a[0];
+		pRow[1 * 4 + 3] = a[1];
+		pRow[2 * 4 + 3] = a[2];
+		pRow[3 * 4 + 3] = a[3];
+	}
+}
+
+void GLES3_DecodeDXT3(const unsigned char* _pSrc, unsigned char* _pDst, int _Width, int _Height)
+{
+	const int RowStride = _Width * 4;
+	const int BlocksX = (_Width  + 3) / 4;
+	const int BlocksY = (_Height + 3) / 4;
+	for (int by = 0; by < BlocksY; ++by)
+	{
+		for (int bx = 0; bx < BlocksX; ++bx)
+		{
+			unsigned char* pOut = _pDst + (by * 4) * RowStride + (bx * 4) * 4;
+			DecodeColorBlock(_pSrc + 8, pOut, RowStride, /*punchthrough*/false);
+			DecodeAlphaBlockDXT3(_pSrc, pOut, RowStride);
+			_pSrc += 16;
+		}
+	}
+}
+
 void GLES3_DecodeDXT1(const unsigned char* _pSrc, unsigned char* _pDst, int _Width, int _Height)
 {
 	const int RowStride = _Width * 4;

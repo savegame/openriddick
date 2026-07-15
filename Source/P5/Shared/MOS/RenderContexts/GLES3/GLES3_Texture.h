@@ -26,6 +26,7 @@ struct SGLES3Format
 // context per-frame diagnostics.
 extern int g_GLES3_UploadRGBA;
 extern int g_GLES3_UploadDXT1;
+extern int g_GLES3_UploadDXT3;
 extern int g_GLES3_UploadDXT5;
 extern int g_GLES3_UploadFail;
 

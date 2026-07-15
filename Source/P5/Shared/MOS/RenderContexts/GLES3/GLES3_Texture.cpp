@@ -13,6 +13,7 @@
 
 int g_GLES3_UploadRGBA = 0;
 int g_GLES3_UploadDXT1 = 0;
+int g_GLES3_UploadDXT3 = 0;
 int g_GLES3_UploadDXT5 = 0;
 int g_GLES3_UploadFail = 0;
 
@@ -101,6 +102,15 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		{
 			GLES3_DecodeDXT1(pPayload, pDecoded, W, H);
 			++g_GLES3_UploadDXT1;
+		}
+		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT3 ||
+		         Sub == IMAGE_COMPRESSTYPE_S3TC_DXT2)
+		{
+			// DXT2 differs from DXT3 only in "premultiplied alpha" hint;
+			// on-disk layout is identical, sampler-side interpretation
+			// is up to the caller. Decode the same way.
+			GLES3_DecodeDXT3(pPayload, pDecoded, W, H);
+			++g_GLES3_UploadDXT3;
 		}
 		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT5)
 		{
