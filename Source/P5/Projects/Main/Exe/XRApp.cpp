@@ -6851,11 +6851,12 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 	// Console-only helpers used by the frontend menu scripts.
 	_RegContext.RegFunction("checkbrokendc",      &DummyVoid);
 	_RegContext.RegFunction("issignedin",         &DummySignedIn);
-	// Keybind scripts reference `look(dx, dy)` for mouse-look. Compile
-	// happens at engine startup; the actual look function comes from
-	// game-mode code that isn't yet reached, so parse fails and the
-	// bind is discarded. Register a no-op with the right signature.
-	_RegContext.RegFunction("look",               &DummyIntInt);
+	// NB: `look(dx, dy)` intentionally NOT stubbed here. That's a real
+	// gameplay function registered by CGameClient when the player
+	// enters a session. The parse-error at keybind-compile time is a
+	// legitimate signal that we tried to compile a keybind before the
+	// game session existed -- stubbing would silently break the bind
+	// once we're actually in-game.
 #endif
 
 	_RegContext.RegFunction("launch", this, &CXRealityApp::Con_Launch);
