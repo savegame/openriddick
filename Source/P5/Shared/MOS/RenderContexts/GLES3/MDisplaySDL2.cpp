@@ -636,6 +636,7 @@ public:
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_DbgVBIDSkipFmt = 0;
+		int m_DbgVBIDLastSkip = -1;
 		CGLES3VBOStreamer m_Streamer;
 		GLuint            m_VAO;
 		bool              m_bGLInited;
@@ -673,6 +674,7 @@ public:
 		{
 			m_DbgDrawTri = m_DbgDrawStrip = m_DbgDrawWire = m_DbgDrawPoly = m_DbgDrawPrim = 0;
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
+			m_DbgVBIDSkipFmt = 0;
 			m_DbgTotalVerts = m_DbgTotalIdx = 0;
 			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
 			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT3 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
@@ -689,11 +691,12 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
@@ -1549,12 +1552,68 @@ public:
 			glBindVertexArray(0);
 		}
 
+		// Fetch component _c (0..3) of vertex _i from a vertex register
+		// of format _Fmt, following the range semantics documented at
+		// the CRC_VREGFMT_* enum (MRender_Classes.h): F32/I16/U16 raw,
+		// NSx normalized signed -1..1, NUx normalized unsigned 0..1.
+		// Returns false for unsupported formats.
+		static bool VRegFetch(const void* _p, int _Fmt, int _i, int _c, float& _Out)
+		{
+			switch (_Fmt)
+			{
+			case CRC_VREGFMT_V1_F32: case CRC_VREGFMT_V2_F32:
+			case CRC_VREGFMT_V3_F32: case CRC_VREGFMT_V4_F32:
+			{
+				const int n = _Fmt - CRC_VREGFMT_V1_F32 + 1;
+				if (_c >= n) { _Out = (_c == 3) ? 1.0f : 0.0f; return true; }
+				_Out = ((const fp32*)_p)[_i * n + _c];
+				return true;
+			}
+			case CRC_VREGFMT_V1_I16: case CRC_VREGFMT_V2_I16:
+			case CRC_VREGFMT_V3_I16: case CRC_VREGFMT_V4_I16:
+			{
+				const int n = _Fmt - CRC_VREGFMT_V1_I16 + 1;
+				if (_c >= n) { _Out = (_c == 3) ? 1.0f : 0.0f; return true; }
+				_Out = (float)((const int16*)_p)[_i * n + _c];
+				return true;
+			}
+			case CRC_VREGFMT_V1_U16: case CRC_VREGFMT_V2_U16:
+			case CRC_VREGFMT_V3_U16: case CRC_VREGFMT_V4_U16:
+			{
+				const int n = _Fmt - CRC_VREGFMT_V1_U16 + 1;
+				if (_c >= n) { _Out = (_c == 3) ? 1.0f : 0.0f; return true; }
+				_Out = (float)((const uint16*)_p)[_i * n + _c];
+				return true;
+			}
+			case CRC_VREGFMT_NS1_I16: case CRC_VREGFMT_NS2_I16:
+			case CRC_VREGFMT_NS3_I16: case CRC_VREGFMT_NS4_I16:
+			{
+				int n;
+				if      (_Fmt == CRC_VREGFMT_NS1_I16) n = 1;
+				else if (_Fmt == CRC_VREGFMT_NS2_I16) n = 2;
+				else if (_Fmt == CRC_VREGFMT_NS3_I16) n = 3;
+				else                                  n = 4;
+				if (_c >= n) { _Out = (_c == 3) ? 1.0f : 0.0f; return true; }
+				_Out = (float)((const int16*)_p)[_i * n + _c] * (1.0f / 32767.0f);
+				return true;
+			}
+			case CRC_VREGFMT_NU1_I16: case CRC_VREGFMT_NU2_I16:
+			{
+				const int n = (_Fmt == CRC_VREGFMT_NU1_I16) ? 1 : 2;
+				if (_c >= n) { _Out = (_c == 3) ? 1.0f : 0.0f; return true; }
+				_Out = (float)((const uint16*)_p)[_i * n + _c] * (1.0f / 65535.0f);
+				return true;
+			}
+			default:
+				return false;
+			}
+		}
+
 		// VBID path (precached geometry: frontend cube, models, BSP).
 		// No GPU-side cache yet: fetch the CPU data from the engine's
-		// VB context each draw and stream it. Supports the float
-		// formats (pos V3_F32, uv V2_F32, colour N4_COL); packed I16
-		// variants are counted and skipped until the geometry cache
-		// lands.
+		// VB context each draw, convert to SUIVert and stream it.
+		// Positions/UVs accept the F32 and packed I16/U16/NSx/NUx
+		// formats; anything else bumps m_DbgVBIDSkipFmt.
 		void Render_VertexBuffer(int _VBID)
 		{
 			++m_DbgDrawVBID;
@@ -1566,19 +1625,22 @@ public:
 			const int nV = VBB.m_nV;
 			if (nV <= 0 || !VBB.m_piPrim || !VBB.m_nPrim) return;
 
-			if (VBB.m_Format.GetFormat(CRC_VREG_POS) != CRC_VREGFMT_V3_F32 || !VBB.m_lpVReg[CRC_VREG_POS])
+			const void* pPos = VBB.m_lpVReg[CRC_VREG_POS];
+			const int PosFmt = VBB.m_Format.GetFormat(CRC_VREG_POS);
 			{
-				++m_DbgVBIDSkipFmt;
-				return;
+				float Dummy;
+				if (!pPos || !VRegFetch(pPos, PosFmt, 0, 0, Dummy))
+				{
+					++m_DbgVBIDSkipFmt;
+					m_DbgVBIDLastSkip = PosFmt;
+					return;
+				}
 			}
 
-			const CVec3Dfp32* pPos = (const CVec3Dfp32*)VBB.m_lpVReg[CRC_VREG_POS];
-			const fp32* pUV = 0;
-			if (VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD0) == CRC_VREGFMT_V2_F32)
-				pUV = (const fp32*)VBB.m_lpVReg[CRC_VREG_TEXCOORD0];
-			const fp32* pUV1 = 0;
-			if (VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD1) == CRC_VREGFMT_V2_F32)
-				pUV1 = (const fp32*)VBB.m_lpVReg[CRC_VREG_TEXCOORD1];
+			const void* pUV  = VBB.m_lpVReg[CRC_VREG_TEXCOORD0];
+			const int   UVFmt = VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD0);
+			const void* pUV1 = VBB.m_lpVReg[CRC_VREG_TEXCOORD1];
+			const int   UV1Fmt = VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD1);
 			const uint32_t* pCol = 0;
 			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
@@ -1587,13 +1649,21 @@ public:
 			if (!pVerts) return;
 			for (int i = 0; i < nV; ++i)
 			{
-				pVerts[i].x = pPos[i].k[0];
-				pVerts[i].y = pPos[i].k[1];
-				pVerts[i].z = pPos[i].k[2];
-				pVerts[i].u = pUV ? pUV[i * 2 + 0] : 0.0f;
-				pVerts[i].v = pUV ? pUV[i * 2 + 1] : 0.0f;
-				pVerts[i].u1 = pUV1 ? pUV1[i * 2 + 0] : 0.0f;
-				pVerts[i].v1 = pUV1 ? pUV1[i * 2 + 1] : 0.0f;
+				VRegFetch(pPos, PosFmt, i, 0, pVerts[i].x);
+				VRegFetch(pPos, PosFmt, i, 1, pVerts[i].y);
+				VRegFetch(pPos, PosFmt, i, 2, pVerts[i].z);
+				pVerts[i].u = pVerts[i].v = 0.0f;
+				if (pUV)
+				{
+					if (!VRegFetch(pUV, UVFmt, i, 0, pVerts[i].u)) pVerts[i].u = 0.0f;
+					if (!VRegFetch(pUV, UVFmt, i, 1, pVerts[i].v)) pVerts[i].v = 0.0f;
+				}
+				pVerts[i].u1 = pVerts[i].v1 = 0.0f;
+				if (pUV1)
+				{
+					if (!VRegFetch(pUV1, UV1Fmt, i, 0, pVerts[i].u1)) pVerts[i].u1 = 0.0f;
+					if (!VRegFetch(pUV1, UV1Fmt, i, 1, pVerts[i].v1)) pVerts[i].v1 = 0.0f;
+				}
 				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
 			}
 
