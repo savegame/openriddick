@@ -1918,15 +1918,29 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 			((CBSP_CoreFace*)&pFaces[iFace])->Read(pFile, 0x0200);
 
 #else
-		M_ASSERT(_pDFile->GetUserData2() == XW_FACE_VERSION && 
-			sizeof(CBSP_CoreFace) * nFaces == _pDFile->GetEntrySize(), "!");
+		const int FaceVersion = _pDFile->GetUserData2();
 		CBSP_Face* pFaces = m_lFaces.GetBasePtr();
-		for (int iFace=0; iFace < nFaces; iFace++)
+		if (FaceVersion == XW_FACE_VERSION &&
+			sizeof(CBSP_CoreFace) * nFaces == _pDFile->GetEntrySize())
 		{
-			pFile->Read(&pFaces[iFace], sizeof(CBSP_CoreFace));
+			// Fast path: on-disk layout matches the in-memory struct.
+			for (int iFace=0; iFace < nFaces; iFace++)
+			{
+				pFile->Read(&pFaces[iFace], sizeof(CBSP_CoreFace));
 #ifndef CPU_LITTLEENDIAN
-			pFaces[iFace].SwapLE();
+				pFaces[iFace].SwapLE();
 #endif
+			}
+		}
+		else
+		{
+			// Older/other face versions (PC world files): go through the
+			// version-aware per-face reader instead of asserting.
+			M_TRACEALWAYS("(CBSP_Model::Read) FACES version 0x%04x, entry size %d (n=%d, fast path needs 0x%04x/%d) - using per-face reader\n",
+				FaceVersion, (int)_pDFile->GetEntrySize(), nFaces,
+				XW_FACE_VERSION, (int)(sizeof(CBSP_CoreFace) * nFaces));
+			for (int iFace=0; iFace < nFaces; iFace++)
+				((CBSP_CoreFace*)&pFaces[iFace])->Read(pFile, FaceVersion);
 		}
 #endif
 	}
