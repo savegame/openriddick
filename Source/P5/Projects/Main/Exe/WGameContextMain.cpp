@@ -1125,10 +1125,28 @@ void CGameContextMod::Con_InitCampaign(int _Mode)
 // game class to "campaign" and load the campaign's first map (index 0).
 void CGameContextMod::Con_StartNewCampaign(int _Mode)
 {
-	ConOutL(CStrF("(Con_StartNewCampaign) mode %d", _Mode));
+	M_TRACEALWAYS("(Con_StartNewCampaign) mode %d\n", _Mode);
+
+	// Bring-up: the profile/savegame subsystem needs the async save
+	// content context which the Linux port does not provide yet.
+	// Without a "valid profile" Con_ChangeMap silently refuses to load
+	// any map, so force a default profile for now (no persistence).
+	if (!m_bValidProfileLoaded)
+	{
+		M_TRACEALWAYS("(Con_StartNewCampaign) no profile subsystem - forcing default profile\n");
+		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
+		if (pSys)
+		{
+			SetDefaultProfileSettings(pSys->GetOptions(1));
+			pSys->GetOptions()->SetValue("GAME_PROFILE", "Player");
+		}
+		m_bValidProfileLoaded = true;
+	}
+
 	Con_SetGameClass("campaign");
 	Con_SetGameKey("current_campaign", (_Mode == 1) ? "DA" : "EFBB");
 	Con_ChangeMap("0", 0);
+	M_TRACEALWAYS("(Con_StartNewCampaign) changemap '0' queued\n");
 }
 
 void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
