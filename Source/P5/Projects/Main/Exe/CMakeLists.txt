@@ -29,3 +29,7 @@ target_link_libraries(openriddick PRIVATE
     p5_gameclasses p5_gameworld p5_xrclasses p5_xr p5_msystem p5_mcc p5_neuquant p5_rc_gles3
     -Wl,--end-group
 )
+
+# Export symbols so backtrace_symbols() in bring-up diagnostics prints
+# function names instead of bare addresses.
+target_link_options(openriddick PRIVATE -rdynamic)

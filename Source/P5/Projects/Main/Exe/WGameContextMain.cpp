@@ -1173,6 +1173,10 @@ void CGameContextMod::Con_StartNewCampaign(int _Mode)
 void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
 {
 	Con_SetGameKey("difficulty", _Difficulty);
+	// Also store the numeric GAME_DIFFICULTY option -- CWObject_GameP4::
+	// OnCreate reads it at world spawn ("Difficulty option net set"
+	// warning + NORMAL fallback otherwise).
+	Con_SetDifficulty(_Difficulty);
 }
 
 void CGameContextMod::UpdateControllerStatus()
