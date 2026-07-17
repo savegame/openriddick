@@ -67,6 +67,7 @@ add_library(p5_msystem STATIC
     Raster/JPGLib/jquant2.cpp
     Raster/JPGLib/jutils.cpp
     Raster/MDisplay.cpp
+    Raster/MDisplayPresent.cpp
     Raster/MImage.cpp
     Raster/MImageCompress3DC.cpp
     Raster/MImageCompressCTX.cpp

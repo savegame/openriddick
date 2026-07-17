@@ -13,6 +13,7 @@
 #include "PCH.h"
 #include "MInputCore.h"
 #include "MInputScankey.h"
+#include "../Raster/MDisplayPresent.h"
 
 #ifdef PLATFORM_LINUX
 
@@ -168,8 +169,11 @@ public:
 			case SDL_MOUSEMOTION:
 				if (e.motion.xrel || e.motion.yrel)
 				{
-					DownKey(SKEY_MOUSEMOVEREL, 0, 0.0, 1,
-						e.motion.xrel, e.motion.yrel, 0);
+					// Rotate the delta into FBO space when the presented
+					// image is rotated (see MDisplayPresent.h).
+					int dx, dy;
+					g_RiddickPresent.RotateDelta(e.motion.xrel, e.motion.yrel, dx, dy);
+					DownKey(SKEY_MOUSEMOVEREL, 0, 0.0, 1, dx, dy, 0);
 				}
 				break;
 

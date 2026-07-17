@@ -142,18 +142,21 @@ little-endian. Загрузчики файлов движка историчес
 ### Фаза 5 — FBO-композиция и поворот экрана
 Требование: движок «видит» разрешение не окна, а FBO; UI и 3D — раздельные FBO;
 финальная композиция в окно с поворотом 0/90/180/270.
-- [ ] В `CRC_GLES3`: два offscreen-таргета —
-      `FBO_UI` (нативный DPI, размер = логический размер экрана до поворота) и
-      `FBO_3D` (масштабируемый, может быть меньше для слабых GPU).
-- [ ] `CDisplayContext` (`MDisplaySDL2`) отдаёт движку размеры/aspect **из FBO**
-      (с учётом поворота: при 90/270 ширина и высота меняются местами) — все
-      viewport'ы и матрицы проекций движок строит от этих значений без его модификации.
-- [ ] Композитор: fullscreen-quad, шейдер с матрицей поворота; 3D-слой →
-      билинейный апскейл в окно, поверх — UI-слой (alpha blend), затем `SDL_GL_SwapWindow`.
-- [ ] Конфиг: cvar/параметры командной строки `-rotate 0|90|180|270`, `-res3d WxH`, `-resui WxH`.
-- [ ] Трансляция ввода: координаты мыши/тача из оконных → в координаты FBO
-      (обратный поворот + масштаб; отдельная функция `WindowToFBO(x,y)` используется
-      слоем SDL2-ввода до передачи в `MInput`).
+- [x] Экранный FBO (первый инкремент): `CRC_GLES3` рендерит все backbuffer-пассы
+      в offscreen FBO логического разрешения (color RGBA8 + depth24stencil8);
+      `PresentToWindow` (из `PageFlip`, до `SDL_GL_SwapWindow`) — fullscreen-quad
+      композит в окно с поворотом 0/90/180/270 (uRot в шейдере).
+- [x] `CDisplayContextSDL2` отдаёт движку размеры **из FBO** (`m_Width/m_Height`
+      логические; окно — `m_WinWidth/m_WinHeight`); при 90/270 логический размер =
+      окно со свапом сторон. Все Y-флипы (scissor/clear/viewport) — от высоты FBO.
+- [x] Конфиг: `-rotate 0|90|180|270`, `-winsize WxH` (окно), `-fbosize WxH`
+      (логическое разрешение движка; даёт масштабируемый рендер). Общий стейт —
+      `g_RiddickPresent` (`MSystem/Raster/MDisplayPresent.*`).
+- [x] Трансляция ввода: `RotateDelta` для относительных дельт мыши в
+      `CInputContext_SDL2` (обратный поворот); `WindowToFBO(x,y)` готова для
+      абсолютных координат/тача.
+- [ ] Раздельные `FBO_UI` (нативный DPI) и `FBO_3D` (масштабируемый) + композиция
+      3D→апскейл, UI→alpha blend поверх (`-res3d`, `-resui`) — поверх текущего каркаса.
 
 ### Фаза 6 — Платформы
 - [ ] x86_64 Linux — основная платформа разработки (GLES3 через Mesa/ANGLE или
@@ -189,8 +192,14 @@ cmake --build build
 
 ### Запуск
 ```bash
-./build/bin/openriddick -datapath /path/to/riddick/data [-rotate 90] [-res3d 960x540]
+./build/bin/openriddick -datapath /path/to/riddick/data \
+    [-rotate 0|90|180|270] [-winsize 1280x720] [-fbosize 720x1280]
 ```
+- `-rotate` — поворот картинки в окне по часовой; при 90/270 движок видит
+  разрешение окна со свапом сторон (портретный контент в ландшафтном окне);
+- `-winsize` — физический размер окна (по умолчанию 1280x720);
+- `-fbosize` — переопределение логического разрешения движка (рендер в FBO
+  этого размера + масштабирование при композиции в окно).
 `-datapath` — папка с игровыми ресурсами (файлы `.XTC/.XW/.XSA` и MegaFile-архивы
 PC-версии игры; уточнение структуры — на Фазе 3, когда заработает загрузка).
 
@@ -222,4 +231,6 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | Фаза 4 M1: `Attrib_Set/Attrib_SetAbsolute` → GL state (depth-test/write, blend + src/dst mapping, color/alpha mask, cull + winding, scissor + Y-flip, polygon-offset, stencil w/ front-only + op-таблица keep/zero/replace/incr/decr/invert/wrap); `Matrix_SetRender` → Model/Projection/Texture0..3 в CRC_GLES3; `BeginScene` → `glViewport` от `CRC_Viewport::GetViewArea()`. Помощники `GLES3_MapBlend`/`GLES3_MapCompare`. | Фаза 4 |
 | 2026-07-14 | Фаза 4 M2: on-demand текстурный аплоад — `Texture_Precache(TextureID)` тянет CImage через `m_pTC->GetTexture` и загружает GL-текстуру через `CGLES3TextureUploader::Upload2D`; кэш `TArray<GLuint>` индексируется движковым TextureID и растёт лениво; `Texture_Flush`/`Texture_MakeAllDirty` освобождают. `TextureID_EnsureUploaded` — точка входа для draw path M3. | Фаза 4 |
 | 2026-07-14 | Фаза 4 M3: реальный draw path — единый GLSL ES 3.00 UI-шейдер (pos+uv+col+uUseTexture+uTex), интерлив вершин `SUIVert{xyz uv col=RGBA-swapped-BGRA}` из `m_Geom`, стриминг в кольцевой VBO/IBO, `glDrawElements`; `Render_IndexedTriangles/Strip/Wires/Polygon/Primitives` реализованы; текущая текстура берётся из `m_pCurAttrib->m_TextureID[0]` и лениво аплоадится; MVP = Model*Proj + column-major upload. `Render_VertexBuffer(VBID)` пока no-op. Первые пиксели: белый квадрат в верхнем правом углу (все DXT-текстуры пока пропускаются). | Фаза 4 |
+| 2026-07-17 | Старт кампании: форс дефолтного профиля в Con_StartNewCampaign (m_bValidProfileLoaded без savegame-контекста); VBID-путь Render_VertexBuffer (VB_Get→CRC_BuildVertexBuffer, V3_F32/V2_F32/N4_COL, CRCPrimStreamIterator, DrawUserVerts) — куб/анимации фронтенда | Фазы 3-4 |
+| 2026-07-17 | Фаза 5 (инкремент 1): экранный FBO логического разрешения + композит в окно с поворотом 0/90/180/270 (`PresentToWindow`), `-rotate/-winsize/-fbosize`, g_RiddickPresent (MDisplayPresent.*), поворот дельт мыши в CInputContext_SDL2 | Фаза 5 |
 | 2026-07-14 | Фаза 4 M5-partial: CPU DXT1 + DXT5 декодер (`GLES3_DXT.*`) — на аплоаде S3TC-сжатой CImage дёргаем `LockCompressed()`, читаем 16-байт `CImage_CompressHeader_S3TC`, распаковываем блоки 4x4 → RGBA8, `glTexImage2D(GL_RGBA8)` + mipmaps. Wrap=REPEAT для нормалей/env. DXT3 добавим по мере встречаемости. | Фаза 4 |

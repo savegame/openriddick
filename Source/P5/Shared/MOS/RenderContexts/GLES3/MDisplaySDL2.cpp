@@ -14,6 +14,7 @@
 #include "../../MSystem/MSystem.h"
 #include "../../MSystem/MSystem_Core.h"
 #include "../../MSystem/Raster/MRCCore.h"
+#include "../../MSystem/Raster/MDisplayPresent.h"
 #include "../../MSystem/Raster/MTexture.h"
 #include "../../MSystem/Raster/MTextureContainers.h"
 
@@ -131,6 +132,35 @@ static GLenum GLES3_MapCompare(int _CRCCompare)
 	}
 }
 
+// Composite pass: fullscreen quad sampling the screen FBO with an
+// optional 90-degree-step rotation (uRot = rotation/90).
+static const char* kGLES3_CompVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec2 aPos;\n"
+	"uniform int uRot;\n"
+	"out vec2 vUV;\n"
+	"void main(){\n"
+	"  gl_Position = vec4(aPos, 0.0, 1.0);\n"
+	"  vec2 uv = aPos * 0.5 + 0.5;\n"
+	"  if      (uRot == 1) vUV = vec2(uv.y, 1.0 - uv.x);\n"
+	"  else if (uRot == 2) vUV = vec2(1.0 - uv.x, 1.0 - uv.y);\n"
+	"  else if (uRot == 3) vUV = vec2(1.0 - uv.y, uv.x);\n"
+	"  else                vUV = uv;\n"
+	"}\n";
+
+static const char* kGLES3_CompFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"uniform sampler2D uTex;\n"
+	"out vec4 oColor;\n"
+	"void main(){ oColor = vec4(texture(uTex, vUV).rgb, 1.0); }\n";
+
+// The active CRC_GLES3 instance (single renderer per process); lets
+// CDisplayContextSDL2::PageFlip run the composite pass without a typed
+// member (the class is nested below).
+static void* g_pGLES3RCInst = 0;
+
 class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
@@ -140,14 +170,46 @@ public:
 	CImage m_Image;
 	SDL_Window* m_pWindow;
 	SDL_GLContext m_GLContext;
+	// m_Width/m_Height is the LOGICAL (engine-visible, FBO) resolution;
+	// the physical window is m_WinWidth x m_WinHeight. They differ when
+	// -rotate 90/270 (swapped) or -fbosize is given.
 	int m_Width, m_Height;
+	int m_WinWidth, m_WinHeight;
+	int m_Rotate;
+
+	static bool ParseSizeArg(const char* _p, int& _W, int& _H)
+	{
+		if (!_p) return false;
+		int w = 0, h = 0;
+		if (sscanf(_p, "%dx%d", &w, &h) != 2 || w <= 0 || h <= 0) return false;
+		_W = w; _H = h;
+		return true;
+	}
 
 	CDisplayContextSDL2()
 	{
 		m_pWindow = NULL;
 		m_GLContext = NULL;
-		m_Width = 1280;
-		m_Height = 720;
+		m_WinWidth = 1280;
+		m_WinHeight = 720;
+		ParseSizeArg(getenv("RIDDICK_WINSIZE"), m_WinWidth, m_WinHeight);
+		m_Rotate = 0;
+		if (const char* r = getenv("RIDDICK_ROTATE"))
+		{
+			const int v = atoi(r);
+			if (v == 90 || v == 180 || v == 270) m_Rotate = v;
+		}
+		// Logical size defaults to the window size, swapped at 90/270.
+		if (m_Rotate == 90 || m_Rotate == 270)
+			{ m_Width = m_WinHeight; m_Height = m_WinWidth; }
+		else
+			{ m_Width = m_WinWidth; m_Height = m_WinHeight; }
+		ParseSizeArg(getenv("RIDDICK_FBOSIZE"), m_Width, m_Height);
+
+		g_RiddickPresent.m_Rotate = m_Rotate;
+		g_RiddickPresent.m_WinW = m_WinWidth;  g_RiddickPresent.m_WinH = m_WinHeight;
+		g_RiddickPresent.m_FBOW = m_Width;     g_RiddickPresent.m_FBOH = m_Height;
+
 		m_Image.Create(m_Width, m_Height, IMAGE_FORMAT_BGRA8, IMAGE_MEM_IMAGE);
 	}
 
@@ -177,7 +239,7 @@ public:
 		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 		m_pWindow = SDL_CreateWindow("OpenRiddick",
 			SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-			m_Width, m_Height, SDL_WINDOW_OPENGL);
+			m_WinWidth, m_WinHeight, SDL_WINDOW_OPENGL);
 		if (!m_pWindow)
 		{
 			ConOutL(CStrF("(CDisplayContextSDL2) SDL_CreateWindow failed: %s - running headless", SDL_GetError()));
@@ -193,6 +255,8 @@ public:
 		}
 		SDL_GL_SetSwapInterval(1);
 		ConOutL(CStrF("(CDisplayContextSDL2) GL_VERSION: %s", (const char*)glGetString(GL_VERSION)));
+		ConOutL(CStrF("(CDisplayContextSDL2) window %dx%d, logical (FBO) %dx%d, rotate %d",
+			m_WinWidth, m_WinHeight, m_Width, m_Height, m_Rotate));
 		return true;
 	}
 
@@ -209,6 +273,10 @@ public:
 			// SDL event pump lives in CInputContext_SDL2::Update now --
 			// draining SDL_PollEvent here too would split events
 			// between the two consumers.
+			// Composite the screen FBO into the window (with rotation)
+			// before swapping; see CRC_GLES3::PresentToWindow.
+			if (g_pGLES3RCInst)
+				((CRC_GLES3*)g_pGLES3RCInst)->PresentToWindow();
 			SDL_GL_SwapWindow(m_pWindow);
 			// The engine now drives its own clears via
 			// CRC_GLES3::RenderTarget_Clear; the bring-up glClear here
@@ -416,6 +484,140 @@ public:
 			}
 		}
 
+		// --- Phase 5: screen FBO + rotated composite ----------------
+		// The engine renders every "backbuffer" pass into this FBO at
+		// the logical resolution (display m_Width x m_Height); PageFlip
+		// composites it into the physical window with the configured
+		// rotation (g_RiddickPresent).
+		GLuint m_ScreenFBO, m_ScreenColorTex, m_ScreenDepthRbo;
+		int    m_ScreenW, m_ScreenH;
+		bool   m_bScreenFBOFailed;
+		CGLES3Shader m_CompShader;
+		int    m_CompRotLoc, m_CompTexLoc;
+		GLuint m_CompVBO;
+
+		// Logical target height for top-left -> bottom-left Y flips
+		// (scissor, clear rects, viewports). This is the FBO height,
+		// not the window height.
+		int ScreenH() const
+		{
+			return m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+		}
+
+		bool EnsureScreenFBO()
+		{
+			if (m_ScreenFBO) return true;
+			if (m_bScreenFBOFailed || !m_pDisplayContext) return false;
+			const int W = m_pDisplayContext->m_Width;
+			const int H = m_pDisplayContext->m_Height;
+			if (W <= 0 || H <= 0) return false;
+
+			glGenTextures(1, &m_ScreenColorTex);
+			glBindTexture(GL_TEXTURE_2D, m_ScreenColorTex);
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
+				GL_RGBA, GL_UNSIGNED_BYTE, 0);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
+
+			glGenRenderbuffers(1, &m_ScreenDepthRbo);
+			glBindRenderbuffer(GL_RENDERBUFFER, m_ScreenDepthRbo);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, W, H);
+			glBindRenderbuffer(GL_RENDERBUFFER, 0);
+
+			glGenFramebuffers(1, &m_ScreenFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFBO);
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_2D, m_ScreenColorTex, 0);
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
+				GL_RENDERBUFFER, m_ScreenDepthRbo);
+			const GLenum Status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			if (Status != GL_FRAMEBUFFER_COMPLETE)
+			{
+				fprintf(stderr, "[GLES3] screen FBO incomplete 0x%x (%dx%d) - rendering direct to window\n",
+					(unsigned)Status, W, H);
+				glDeleteFramebuffers(1, &m_ScreenFBO);      m_ScreenFBO = 0;
+				glDeleteRenderbuffers(1, &m_ScreenDepthRbo); m_ScreenDepthRbo = 0;
+				glDeleteTextures(1, &m_ScreenColorTex);     m_ScreenColorTex = 0;
+				m_bScreenFBOFailed = true;
+				return false;
+			}
+			m_ScreenW = W;
+			m_ScreenH = H;
+			fprintf(stderr, "[GLES3] screen FBO %dx%d ok (rotate %d)\n",
+				W, H, g_RiddickPresent.m_Rotate);
+			fflush(stderr);
+			return true;
+		}
+
+		void ReleaseScreenFBO()
+		{
+			if (m_ScreenFBO)      { glDeleteFramebuffers(1,  &m_ScreenFBO);      m_ScreenFBO = 0; }
+			if (m_ScreenDepthRbo) { glDeleteRenderbuffers(1, &m_ScreenDepthRbo); m_ScreenDepthRbo = 0; }
+			if (m_ScreenColorTex) { glDeleteTextures(1,      &m_ScreenColorTex); m_ScreenColorTex = 0; }
+			if (m_CompVBO)        { glDeleteBuffers(1,       &m_CompVBO);        m_CompVBO = 0; }
+		}
+
+		// Bind the engine's notion of "the backbuffer": the screen FBO
+		// when available, else the real window backbuffer.
+		bool m_bRTTActive;
+
+		void BindScreenTarget()
+		{
+			m_bRTTActive = false;
+			if (EnsureScreenFBO())
+			{
+				glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFBO);
+				glViewport(0, 0, m_ScreenW, m_ScreenH);
+				return;
+			}
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			if (m_pDisplayContext)
+				glViewport(0, 0, m_pDisplayContext->m_WinWidth, m_pDisplayContext->m_WinHeight);
+		}
+
+		// Called from CDisplayContextSDL2::PageFlip right before
+		// SDL_GL_SwapWindow: draw the screen FBO into the window with
+		// the configured rotation. Leaves the screen FBO bound again so
+		// any engine draws issued before the next SetRenderTarget still
+		// land in the right place.
+		void PresentToWindow()
+		{
+			if (!m_ScreenFBO || !m_pDisplayContext) return;
+			InitGLResources();
+			if (!m_CompShader.IsValid()) return;
+
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glViewport(0, 0, m_pDisplayContext->m_WinWidth, m_pDisplayContext->m_WinHeight);
+			glDisable(GL_DEPTH_TEST);
+			glDisable(GL_STENCIL_TEST);
+			glDisable(GL_SCISSOR_TEST);
+			glDisable(GL_BLEND);
+			glDisable(GL_CULL_FACE);
+			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+			m_CompShader.Use();
+			glUniform1i(m_CompRotLoc, (g_RiddickPresent.m_Rotate / 90) & 3);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, m_ScreenColorTex);
+			glUniform1i(m_CompTexLoc, 0);
+
+			glBindVertexArray(m_VAO);
+			glBindBuffer(GL_ARRAY_BUFFER, m_CompVBO);
+			glEnableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+			// Restore the engine's render target for the next frame.
+			glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFBO);
+			glViewport(0, 0, m_ScreenW, m_ScreenH);
+		}
+
 		// M3: GL resources for the draw path. Initialised lazily on
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
@@ -494,6 +696,13 @@ public:
 			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_UDbgModeLoc(-1),
 			  m_DbgShaderMode(0), m_PlaceholderTex(0), m_pCurAttrib(0)
 		{
+			m_ScreenFBO = m_ScreenColorTex = m_ScreenDepthRbo = 0;
+			m_ScreenW = m_ScreenH = 0;
+			m_bScreenFBOFailed = false;
+			m_CompRotLoc = m_CompTexLoc = -1;
+			m_CompVBO = 0;
+			m_bRTTActive = false;
+			g_pGLES3RCInst = this;
 			m_ProjMat.Unit();
 			m_ModelMat.Unit();
 			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
@@ -509,8 +718,10 @@ public:
 
 		~CRC_GLES3()
 		{
+			if (g_pGLES3RCInst == this) g_pGLES3RCInst = 0;
 			Texture_ReleaseAll();
 			ReleaseAllFBOs();
+			ReleaseScreenFBO();
 			if (m_PlaceholderTex) { glDeleteTextures(1, &m_PlaceholderTex); m_PlaceholderTex = 0; }
 			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
 		}
@@ -535,6 +746,16 @@ public:
 				m_UFogEndLoc    = m_UIShader.UniformLocation("uFogEnd");
 			}
 			glGenVertexArrays(1, &m_VAO);
+			if (m_CompShader.Build(kGLES3_CompVertSrc, kGLES3_CompFragSrc, "Composite"))
+			{
+				m_CompRotLoc = m_CompShader.UniformLocation("uRot");
+				m_CompTexLoc = m_CompShader.UniformLocation("uTex");
+			}
+			static const float sQuad[8] = { -1,-1,  1,-1,  -1,1,  1,1 };
+			glGenBuffers(1, &m_CompVBO);
+			glBindBuffer(GL_ARRAY_BUFFER, m_CompVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(sQuad), sQuad, GL_STATIC_DRAW);
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
 		}
 
 		// --- M2 texture path ---------------------------------------
@@ -705,14 +926,13 @@ public:
 				{
 					glBindFramebuffer(GL_FRAMEBUFFER, pSlot->m_FBO);
 					glViewport(0, 0, pSlot->m_Width, pSlot->m_Height);
+					m_bRTTActive = true;
 					return;
 				}
 				// Failed to build FBO -- fall through to backbuffer so
 				// something renders.
 			}
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
-			if (m_pDisplayContext)
-				glViewport(0, 0, m_pDisplayContext->m_Width, m_pDisplayContext->m_Height);
+			BindScreenTarget();
 		}
 
 		// Copy the current READ framebuffer's colour attachment into the
@@ -729,7 +949,7 @@ public:
 			// The engine's rect is top-left origin, GL is bottom-left.
 			// Flip Y so the copy pulls the correct region from the
 			// currently-bound framebuffer.
-			int SrcH = m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+			int SrcH = ScreenH();
 			int W = _SrcRect.p1.x - _SrcRect.p0.x;
 			int H = _SrcRect.p1.y - _SrcRect.p0.y;
 			if (W <= 0 || H <= 0) return;
@@ -785,7 +1005,7 @@ public:
 			{
 				glEnable(GL_SCISSOR_TEST);
 				// GLES scissor origin is bottom-left; engine rects are top-left.
-				const int y = m_pDisplayContext->m_Height - _ClearRect.p1.y;
+				const int y = ScreenH() - _ClearRect.p1.y;
 				glScissor(_ClearRect.p0.x, y, w, h);
 				glClear(Mask);
 				glDisable(GL_SCISSOR_TEST);
@@ -855,7 +1075,7 @@ public:
 			{
 				uint32 MinX, MinY, MaxX, MaxY;
 				_pAttrib->m_Scissor.GetRect(MinX, MinY, MaxX, MaxY);
-				const int H = m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+				const int H = ScreenH();
 				const int W = (int)(MaxX - MinX);
 				const int Hgt = (int)(MaxY - MinY);
 				if (W > 0 && Hgt > 0)
@@ -942,6 +1162,11 @@ public:
 		void BeginScene(CRC_Viewport* _pVP)
 		{
 			++m_DbgBeginScenes;
+			// Make sure "the backbuffer" means the screen FBO even if
+			// the engine never called SetRenderTarget this frame (the
+			// composite pass leaves fb0 bound only transiently).
+			if (!m_bRTTActive)
+				BindScreenTarget();
 			CRC_Core::BeginScene(_pVP);
 			// CRC_Core::BeginScene already calls Viewport_Set(_pVP)
 			// which invokes our overridden Viewport_Update below --
@@ -983,7 +1208,7 @@ public:
 
 			if (m_pDisplayContext && W > 0 && H > 0)
 			{
-				const int Y = m_pDisplayContext->m_Height - R.p1.y;
+				const int Y = ScreenH() - R.p1.y;
 				glViewport(R.p0.x, Y, W, H);
 			}
 		}

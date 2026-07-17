@@ -9,6 +9,7 @@
 */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -30,6 +31,30 @@ int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 				fprintf(stderr, "openriddick: -datapath: cannot chdir to '%s'\n", _argv[i + 1]);
 				return 1;
 			}
+			i++;
+			continue;
+		}
+		// Presentation options (consumed by CDisplayContextSDL2 via env,
+		// see MDisplayPresent.h):
+		//   -rotate 0|90|180|270   rotate the presented image clockwise
+		//   -winsize WxH           physical window size (default 1280x720)
+		//   -fbosize WxH           logical engine resolution override
+		//                          (default: window size, swapped at 90/270)
+		if (strcmp(_argv[i], "-rotate") == 0 && i + 1 < _argc)
+		{
+			setenv("RIDDICK_ROTATE", _argv[i + 1], 1);
+			i++;
+			continue;
+		}
+		if (strcmp(_argv[i], "-winsize") == 0 && i + 1 < _argc)
+		{
+			setenv("RIDDICK_WINSIZE", _argv[i + 1], 1);
+			i++;
+			continue;
+		}
+		if (strcmp(_argv[i], "-fbosize") == 0 && i + 1 < _argc)
+		{
+			setenv("RIDDICK_FBOSIZE", _argv[i + 1], 1);
 			i++;
 			continue;
 		}
