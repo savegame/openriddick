@@ -422,6 +422,7 @@ public:
 		CGLES3Shader      m_UIShader;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
+		int m_DbgVBIDSkipFmt = 0;
 		CGLES3VBOStreamer m_Streamer;
 		GLuint            m_VAO;
 		bool              m_bGLInited;
@@ -1221,12 +1222,147 @@ public:
 			DrawIndexed(GL_TRIANGLES, _pPrimStream, _StreamLen);
 		}
 
+		// Draw an already-built interleaved vertex array with explicit
+		// indices (used by the VBID path; DrawIndexed keeps its own
+		// m_Geom-based flow).
+		void DrawUserVerts(GLenum _GLPrim, const SUIVert* _pVerts, int _nVerts, const uint16* _pInd, int _nInd)
+		{
+			if (!_pVerts || _nVerts <= 0 || !_pInd || _nInd <= 0) return;
+			if (!m_bGLInited) InitGLResources();
+			if (!m_UIShader.IsValid()) return;
+			if (m_AttribChanged) Attrib_Update();
+			if (m_MatrixChanged) Matrix_Update();
+
+			glBindVertexArray(m_VAO);
+			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(_pVerts, _nVerts * (int)sizeof(SUIVert));
+			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
+			if (!vRes.Ok || !iRes.Ok) return;
+
+			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
+			glEnableVertexAttribArray(0);
+			glEnableVertexAttribArray(1);
+			glEnableVertexAttribArray(2);
+			const GLsizei S = (GLsizei)sizeof(SUIVert);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 0));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 12));
+			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(intptr_t)(vRes.ByteOffset + 20));
+
+			m_UIShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
+			m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&m_TexMat[0]);
+
+			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			{
+				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
+				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
+			}
+			else
+				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+			m_UIShader.SetInt(m_UFogEnableLoc, 0);
+
+			int UseTex = 0;
+			if (m_pCurAttrib)
+			{
+				int TexID = 0;
+				for (int c = 0; c < CRC_MAXTEXTURES; ++c)
+					if (m_pCurAttrib->m_TextureID[c]) { TexID = (int)m_pCurAttrib->m_TextureID[c]; break; }
+				if (TexID > 0)
+				{
+					GLuint T = TextureID_EnsureUploaded(TexID);
+					if (T)
+					{
+						glActiveTexture(GL_TEXTURE0);
+						glBindTexture(GL_TEXTURE_2D, T);
+						m_UIShader.SetInt(m_UTexLoc, 0);
+						UseTex = 1;
+						++m_DbgTexBound;
+					}
+					else
+						++m_DbgTexMissing;
+				}
+			}
+			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
+			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
+			m_DbgTotalVerts += _nVerts;
+			m_DbgTotalIdx   += _nInd;
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
+			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+
+			glDisableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+			glBindVertexArray(0);
+		}
+
+		// VBID path (precached geometry: frontend cube, models, BSP).
+		// No GPU-side cache yet: fetch the CPU data from the engine's
+		// VB context each draw and stream it. Supports the float
+		// formats (pos V3_F32, uv V2_F32, colour N4_COL); packed I16
+		// variants are counted and skipped until the geometry cache
+		// lands.
 		void Render_VertexBuffer(int _VBID)
 		{
 			++m_DbgDrawVBID;
-			// Pre-built VBIDs from Geometry_Precache are not yet
-			// supported in this backend; they arrive in M4 alongside
-			// the geometry cache. Silent no-op for now.
+			if (!m_pVBCtx) return;
+
+			CRC_BuildVertexBuffer VBB;
+			VBB.Clear();
+			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
+			const int nV = VBB.m_nV;
+			if (nV <= 0 || !VBB.m_piPrim || !VBB.m_nPrim) return;
+
+			if (VBB.m_Format.GetFormat(CRC_VREG_POS) != CRC_VREGFMT_V3_F32 || !VBB.m_lpVReg[CRC_VREG_POS])
+			{
+				++m_DbgVBIDSkipFmt;
+				return;
+			}
+
+			const CVec3Dfp32* pPos = (const CVec3Dfp32*)VBB.m_lpVReg[CRC_VREG_POS];
+			const fp32* pUV = 0;
+			if (VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD0) == CRC_VREGFMT_V2_F32)
+				pUV = (const fp32*)VBB.m_lpVReg[CRC_VREG_TEXCOORD0];
+			const uint32_t* pCol = 0;
+			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
+				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
+
+			SUIVert* pVerts = (SUIVert*)malloc(sizeof(SUIVert) * nV);
+			if (!pVerts) return;
+			for (int i = 0; i < nV; ++i)
+			{
+				pVerts[i].x = pPos[i].k[0];
+				pVerts[i].y = pPos[i].k[1];
+				pVerts[i].z = pPos[i].k[2];
+				pVerts[i].u = pUV ? pUV[i * 2 + 0] : 0.0f;
+				pVerts[i].v = pUV ? pUV[i * 2 + 1] : 0.0f;
+				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
+			}
+
+			// Walk the primitive stream: header word = index count,
+			// then indices; type from the stream iterator.
+			CRCPrimStreamIterator It(VBB.m_piPrim, VBB.m_nPrim);
+			if (It.IsValid())
+			{
+				do
+				{
+					const uint16* pPrim = It.GetCurrentPointer();
+					const int nInd = *pPrim;
+					GLenum Prim;
+					switch (It.GetCurrentType())
+					{
+					case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      break;
+					case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP; break;
+					case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;   break;
+					default:                Prim = 0;                 break;
+					}
+					if (Prim && nInd > 0)
+						DrawUserVerts(Prim, pVerts, nV, pPrim + 1, nInd);
+				}
+				while (It.Next());
+			}
+			free(pVerts);
 		}
 		void Render_Wire(const CVec3Dfp32& _v0, const CVec3Dfp32& _v1, CPixel32 _Color){}
 		void Render_WireStrip(const CVec3Dfp32* _pV, const uint16* _piV, int _nVertices, CPixel32 _Color){}
