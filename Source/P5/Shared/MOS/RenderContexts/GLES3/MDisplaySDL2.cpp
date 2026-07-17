@@ -34,11 +34,12 @@ static const char* kGLES3_UIVertSrc =
 	"layout(location=1) in vec2 aUV;\n"
 	"layout(location=2) in vec4 aCol;\n"
 	"uniform mat4 uMVP;\n"
+	"uniform mat4 uTexMat;\n"
 	"out vec2 vUV;\n"
 	"out vec4 vCol;\n"
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
-	"  vUV = aUV;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vCol = aCol;\n"
 	"}\n";
 
@@ -53,6 +54,9 @@ static const char* kGLES3_UIFragSrc =
 	// RGB (see quad UVs), 2=solid red (see quad positions),
 	// 3=vertex-color only (ignore texture).
 	"uniform int uDbgMode;\n"
+	// Alpha test: CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
 	"  if (uDbgMode == 1) { oColor = vec4(vUV.x, vUV.y, 0.5, 1.0); return; }\n"
@@ -60,6 +64,17 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 3) { oColor = vCol; return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (c.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (c.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (c.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (c.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (c.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (c.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
 	"  oColor = c;\n"
 	"}\n";
 
@@ -393,6 +408,7 @@ public:
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
 		CGLES3Shader      m_UIShader;
+		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		CGLES3VBOStreamer m_Streamer;
 		GLuint            m_VAO;
 		bool              m_bGLInited;
@@ -495,7 +511,10 @@ public:
 				m_UMVPLoc     = m_UIShader.UniformLocation("uMVP");
 				m_UUseTexLoc  = m_UIShader.UniformLocation("uUseTexture");
 				m_UTexLoc     = m_UIShader.UniformLocation("uTex");
-				m_UDbgModeLoc = m_UIShader.UniformLocation("uDbgMode");
+				m_UDbgModeLoc   = m_UIShader.UniformLocation("uDbgMode");
+				m_UTexMatLoc    = m_UIShader.UniformLocation("uTexMat");
+				m_UAlphaFuncLoc = m_UIShader.UniformLocation("uAlphaFunc");
+				m_UAlphaRefLoc  = m_UIShader.UniformLocation("uAlphaRef");
 			}
 			glGenVertexArrays(1, &m_VAO);
 		}
@@ -1057,6 +1076,18 @@ public:
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
+			m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&m_TexMat[0]);
+
+			// Alpha test (no fixed-function path in GLES3; done in shader)
+			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			{
+				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
+				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
+			}
+			else
+			{
+				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+			}
 
 			// Bind current texture (if any).
 			// Try channel 0 first; if empty, scan 1..CRC_MAXTEXTURES-1
