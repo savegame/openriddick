@@ -492,7 +492,7 @@ void CWObject_GameCore::ShowGameMsg(const char *_pSt, fp32 _Duration, bool _bFro
 {
 	if (!_pSt)
 	{
-		ConOutL("§cf8WARNING: Show game message with empty message!");
+		ConOutL("ï¿½cf8WARNING: Show game message with empty message!");
 		return;
 	}
 
@@ -925,27 +925,29 @@ void CWObject_GameCore::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			uint32 *pHash = lHash.GetBasePtr();
 			uint32 *piPos = liPos.GetBasePtr();
 
-			//Get hashed values
+			//Get hashed values. Write compacted: skipped (non-RAGDOLL)
+			//children must not leave uninitialized holes in pHash/piPos --
+			//the sort below would then shuffle garbage indices into piPos
+			//and GetChild(<garbage>) throws (seen on Pa1_Intro load).
 			uint i;
-			uint nLost = 0;
+			uint nValid = 0;
 			for(i = 0;i < nChildren;i++)
 			{
 				if( _pKey->GetChild(i)->GetThisNameHash() != MHASH2('RAGD','OLL') )
-				{
-					nLost++;
 					continue;
-				}
 
 				const CRegistry * pReg = _pKey->GetChild(i)->FindChild("name");
 				if( pReg )
-					pHash[i] = StringToHash(pReg->GetThisValue());
+					pHash[nValid] = StringToHash(pReg->GetThisValue());
 				else
-					pHash[i] = MHASH2('DEFA','ULT');
-				piPos[i] = i;
+					pHash[nValid] = MHASH2('DEFA','ULT');
+				piPos[nValid] = i;
+				nValid++;
 			}
-			nChildren -= nLost;
+			nChildren = nValid;
 
 			//Shakersort so we can use bisection when finding specific ragdoll
+			if (nChildren > 1)
 			{
 				bool bDone = false;
 #ifndef M_RTM
@@ -1564,7 +1566,7 @@ aint CWObject_GameCore::OnMessage(const CWObject_Message& _Msg)
 
 			const char* pLevel = (const char*)_Msg.m_pData;
 			if (m_pWServer->m_WorldName.CompareNoCase(pLevel) == 0)
-				ConOutL("§cf8WARNING: Sending level reset message to the currently played level will not work!");
+				ConOutL("ï¿½cf8WARNING: Sending level reset message to the currently played level will not work!");
 			pWServer->m_GameState.ResetSaveInfo(pLevel);
 			return 0;
 		}
@@ -1845,7 +1847,7 @@ void CWObject_GameCore::OnIncludeClass(CMapData *_pWData, CWorld_Server *_pWServ
 			{
 				CRegistry *pChild = pClasses->GetChild(c);
 				CStr st = pChild->GetThisName().LowerCase();
-				//				ConOutL("§C999Loading §C974" + st + "§C999...");
+				//				ConOutL("ï¿½C999Loading ï¿½C974" + st + "ï¿½C999...");
 				_pWData->GetResourceIndex_Class(pChild->GetThisName());
 			}
 		}
@@ -2200,7 +2202,7 @@ void CWObject_GameCore::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_C
 				lChoice[1] = Choice.GetStrSep(";");
 				lChoice[2] = Choice.GetStrSep(";");
 
-				int Width = pFont->GetWidth(pFont->GetOriginalSize(), CStrF("§Z%i", pNewestItem->m_SubtitleSize) + lChoice[1]) + 8 + 4;
+				int Width = pFont->GetWidth(pFont->GetOriginalSize(), CStrF("ï¿½Z%i", pNewestItem->m_SubtitleSize) + lChoice[1]) + 8 + 4;
 				DrawInfoRect(_pUtil2D, _pWClient, CRct(XStart - 3, YStart+ChoiceHeight-3, XStart + Width - 3, YStart+ChoiceHeight+22));
 				for(i = 0; i < 3; i++)
 				{
@@ -2214,7 +2216,7 @@ void CWObject_GameCore::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_C
 							Col = 0xff603030;
 						}
 
-						CStr Text = CStrF("§Z%i", pNewestItem->m_SubtitleSize) + St;
+						CStr Text = CStrF("ï¿½Z%i", pNewestItem->m_SubtitleSize) + St;
 						_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart + i * ChoiceHeight, 0, ShadowCol, ShadowCol, ShadowCol, Clip.GetWidth()-Border, Clip.GetHeight(), true);
 						_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart + i * ChoiceHeight, 0, Col, Col, ShadowCol, Clip.GetWidth()-Border, Clip.GetHeight(), false);
 					}
@@ -2233,10 +2235,10 @@ void CWObject_GameCore::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_C
 						Subtitle = (CFStr)pCD->m_CharName + ": " + Subtitle;
 				}*/
 
-				CStr Text = CStrF("§Z%i", pNewestItem->m_SubtitleSize) + Subtitle;
-				char moo = '§';	// GCC workaround
+				CStr Text = CStrF("ï¿½Z%i", pNewestItem->m_SubtitleSize) + Subtitle;
+				char moo = 'ï¿½';	// GCC workaround
 				if (pNewestItem->m_Subtitle.Ansi().Str()[0] == moo)
-					Text += CStrF("§p0%i§pq", NewestParam);
+					Text += CStrF("ï¿½p0%iï¿½pq", NewestParam);
 
 				_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart, WSTYLE_TEXT_WORDWRAP, ShadowCol, ShadowCol, ShadowCol, Clip.GetWidth(), Clip.GetHeight(), true, ExtraHeight);
 				_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart, WSTYLE_TEXT_WORDWRAP, Col, Col, ShadowCol, Clip.GetWidth(), Clip.GetHeight(), false, ExtraHeight);
@@ -2459,7 +2461,7 @@ spCXR_Anim_SequenceData CWObject_GameCore::GetAnimFromHandle(CWObject_CoreData *
 		if(pGame)
 			pName = pGame->m_Anim_ResourceMapperNames[Index].Str();
 
-		ConOutL(CStrF("§cf80WARNING: Could not get animation resource %i (Name %s  Handle 0x%x)", pCD->m_Anim_ResourceMapper[Index], pName, _Handle));
+		ConOutL(CStrF("ï¿½cf80WARNING: Could not get animation resource %i (Name %s  Handle 0x%x)", pCD->m_Anim_ResourceMapper[Index], pName, _Handle));
 #endif
 		return NULL;
 	}
@@ -2588,7 +2590,7 @@ CMat4Dfp32 CWObject_GameCore::GetSpawnPosition(int _Flags, const char *_pName, i
 	{
 		Pos.Unit();
 		*_pRetObj = 0;
-		ConOutL("§cf80WARNING: No player start positions on map.");
+		ConOutL("ï¿½cf80WARNING: No player start positions on map.");
 	}
 
 	return Pos;
@@ -2934,11 +2936,11 @@ void CWObject_GameCore::DrawFocusFrame(CRC_Util2D *_pUtil2D, CWorld_Client *_pWC
 		const char* pFocusUseText = Temp.Str();
 		// If the key doesn't exist, just return
 		{
-			char moo = '§';	// GCC workaround
+			char moo = 'ï¿½';	// GCC workaround
 			bool bHasLoc = (pFocusUseText && 
 				(pFocusUseText[0] == moo && pFocusUseText[1] == 'L'));
 			int i = (bHasLoc ? 2 : 0);
-			// Remove any extra '§' 
+			// Remove any extra 'ï¿½' 
 			while(pFocusUseText[i] != '\0')
 			{
 				if (pFocusUseText[i] == moo)
@@ -2958,7 +2960,7 @@ void CWObject_GameCore::DrawFocusFrame(CRC_Util2D *_pUtil2D, CWorld_Client *_pWC
 		pFocusUseText = Temp.Str();
 
 		wchar UseBuffer[1024];
-		UseBuffer[0] = 167;//(wchar)'§';
+		UseBuffer[0] = 167;//(wchar)'ï¿½';
 		UseBuffer[1] = 'Z';
 		UseBuffer[2] = '2';
 		UseBuffer[3] = '0';
@@ -2970,10 +2972,10 @@ void CWObject_GameCore::DrawFocusFrame(CRC_Util2D *_pUtil2D, CWorld_Client *_pWC
 		// Check if description text should be used
 		bool bFull = false; //(pFocusDescText[0] != '\0' && DescBuffer[0] != '\0');
 		{
-			char moo = '§';	// GCC workaround
+			char moo = 'ï¿½';	// GCC workaround
 			bool bHasLoc = (pFocusDescText && 
 				(pFocusDescText[0] == moo && pFocusDescText[1] == 'L'));
-			DescBuffer[0] = 167;//(wchar)'§';
+			DescBuffer[0] = 167;//(wchar)'ï¿½';
 			DescBuffer[1] = 'Z';
 			DescBuffer[2] = '1';
 			DescBuffer[3] = '5';
@@ -3191,7 +3193,7 @@ void CWObject_GameCore::DrawFocusFrame(CRC_Util2D *_pUtil2D, CWorld_Client *_pWC
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
     Function:	 Creates a ragdoll from blueprint
 
     Parameters:
