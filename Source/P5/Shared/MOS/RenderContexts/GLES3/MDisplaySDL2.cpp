@@ -37,9 +37,11 @@ static const char* kGLES3_UIVertSrc =
 	"uniform mat4 uTexMat;\n"
 	"out vec2 vUV;\n"
 	"out vec4 vCol;\n"
+	"out float vDepth;\n"
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vDepth = gl_Position.w;\n"
 	"  vCol = aCol;\n"
 	"}\n";
 
@@ -57,6 +59,12 @@ static const char* kGLES3_UIFragSrc =
 	// Alpha test: CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
 	"uniform int uAlphaFunc;\n"
 	"uniform float uAlphaRef;\n"
+	// Linear fog (CRC_FLAGS_FOG): mix to uFogColor by view depth
+	"uniform int uFogEnable;\n"
+	"uniform vec3 uFogColor;\n"
+	"uniform float uFogStart;\n"
+	"uniform float uFogEnd;\n"
+	"in float vDepth;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
 	"  if (uDbgMode == 1) { oColor = vec4(vUV.x, vUV.y, 0.5, 1.0); return; }\n"
@@ -74,6 +82,10 @@ static const char* kGLES3_UIFragSrc =
 	"    else if (uAlphaFunc == 6) pass = (c.a != uAlphaRef);\n"
 	"    else if (uAlphaFunc == 7) pass = (c.a >= uAlphaRef);\n"
 	"    if (!pass) discard;\n"
+	"  }\n"
+	"  if (uFogEnable != 0) {\n"
+	"    float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);\n"
+	"    c.rgb = mix(uFogColor, c.rgb, f);\n"
 	"  }\n"
 	"  oColor = c;\n"
 	"}\n";
@@ -409,6 +421,7 @@ public:
 		// context is current).
 		CGLES3Shader      m_UIShader;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
+		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		CGLES3VBOStreamer m_Streamer;
 		GLuint            m_VAO;
 		bool              m_bGLInited;
@@ -515,6 +528,10 @@ public:
 				m_UTexMatLoc    = m_UIShader.UniformLocation("uTexMat");
 				m_UAlphaFuncLoc = m_UIShader.UniformLocation("uAlphaFunc");
 				m_UAlphaRefLoc  = m_UIShader.UniformLocation("uAlphaRef");
+				m_UFogEnableLoc = m_UIShader.UniformLocation("uFogEnable");
+				m_UFogColorLoc  = m_UIShader.UniformLocation("uFogColor");
+				m_UFogStartLoc  = m_UIShader.UniformLocation("uFogStart");
+				m_UFogEndLoc    = m_UIShader.UniformLocation("uFogEnd");
 			}
 			glGenVertexArrays(1, &m_VAO);
 		}
@@ -1087,6 +1104,20 @@ public:
 			else
 			{
 				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+			}
+
+			if (m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
+			{
+				const CPixel32 FC = m_pCurAttrib->m_FogColor;
+				const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
+				m_UIShader.SetInt(m_UFogEnableLoc, 1);
+				glUniform3fv(m_UFogColorLoc, 1, Fog);
+				m_UIShader.SetFloat(m_UFogStartLoc, m_pCurAttrib->m_FogStart);
+				m_UIShader.SetFloat(m_UFogEndLoc, m_pCurAttrib->m_FogEnd);
+			}
+			else
+			{
+				m_UIShader.SetInt(m_UFogEnableLoc, 0);
 			}
 
 			// Bind current texture (if any).
