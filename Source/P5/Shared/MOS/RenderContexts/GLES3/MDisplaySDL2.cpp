@@ -964,23 +964,36 @@ public:
 			if (!pSlot) return;
 
 			// The engine's rect is top-left origin, GL is bottom-left.
-			// Flip Y so the copy pulls the correct region from the
-			// currently-bound framebuffer.
+			// Selecting the right band means flipping the rect
+			// (SrcH - p1.y), but a plain glCopyTexSubImage2D would then
+			// store the band bottom-row-first while the sampling
+			// convention (same as CImage uploads) expects the engine's
+			// TOP row at texel row 0. Use a Y-inverted blit so the
+			// texture ends up in engine orientation.
 			int SrcH = ScreenH();
 			int W = _SrcRect.p1.x - _SrcRect.p0.x;
 			int H = _SrcRect.p1.y - _SrcRect.p0.y;
 			if (W <= 0 || H <= 0) return;
-			int SrcY = SrcH - _SrcRect.p1.y;
 
-			// Save + restore currently-bound texture so we don't
-			// disturb the current drawcall's binding.
-			GLint PrevTex = 0;
-			glGetIntegerv(GL_TEXTURE_BINDING_2D, &PrevTex);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, pSlot->m_ColorTex);
-			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, _Dest.x, _Dest.y,
-				_SrcRect.p0.x, SrcY, W, H);
-			glBindTexture(GL_TEXTURE_2D, (GLuint)PrevTex);
+			GLint PrevDraw = 0, PrevRead = 0;
+			glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &PrevDraw);
+			glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &PrevRead);
+			const GLboolean bScissor = glIsEnabled(GL_SCISSOR_TEST);
+			if (bScissor) glDisable(GL_SCISSOR_TEST);
+
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevDraw);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pSlot->m_FBO);
+			// src: y0 = top edge (GL coords), y1 = bottom edge -> inverted
+			// range performs the vertical flip during the blit.
+			glBlitFramebuffer(
+				_SrcRect.p0.x, SrcH - _SrcRect.p0.y,
+				_SrcRect.p1.x, SrcH - _SrcRect.p1.y,
+				_Dest.x, _Dest.y, _Dest.x + W, _Dest.y + H,
+				GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+			glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevRead);
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)PrevDraw);
+			if (bScissor) glEnable(GL_SCISSOR_TEST);
 
 			if (m_DbgEnabled)
 			{

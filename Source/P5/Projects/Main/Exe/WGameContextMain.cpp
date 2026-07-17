@@ -706,11 +706,11 @@ void CGameContextMod::Render_Loading(CXR_Engine * _pEngine, CXR_VBManager* _pVBM
 					/*if (Loading)
 					{
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, "§LSTD_LOADING", (int)(640*0.15f/2+1), (int)(480-480*0.15f/2-25+1),
+							Clip, pFont, "ï¿½LSTD_LOADING", (int)(640*0.15f/2+1), (int)(480-480*0.15f/2-25+1),
 							StyleCenter, CPixel32(0,0,0, Intensity), 0, 0, (int)(640 * 0.85f), 20, false);
 
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, "§LSTD_LOADING", (int)(640*0.15f/2), (int)(480-480*0.15f/2-25),
+							Clip, pFont, "ï¿½LSTD_LOADING", (int)(640*0.15f/2), (int)(480-480*0.15f/2-25),
 							StyleCenter, CPixel32(95,90,70, Intensity), 0, 0, (int)(640*0.85f), 20, false);
 					}
 
@@ -718,7 +718,7 @@ void CGameContextMod::Render_Loading(CXR_Engine * _pEngine, CXR_VBManager* _pVBM
 					if(Loading && pFrontEnd->Cube_LoadingIsTakingToMuchTime())
 					{
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, CStrF("§LLOADING_TIP%d", Tip+1), (int)(640 * 0.15f/2), 480/2-100,
+							Clip, pFont, CStrF("ï¿½LLOADING_TIP%d", Tip+1), (int)(640 * 0.15f/2), 480/2-100,
 							StyleCenter, CPixel32(95,90,70, 0xff), 0, 0, (int)(640 * 0.85f), 20, false);
 					}*/
 
@@ -874,15 +874,15 @@ void CGameContextMod::Render_Corrupt(CXR_VBManager* _pVBM, CRenderContext* _pRC,
 				{
 #ifdef M_DEMO_XBOX
 					if (g_XboxDemoParams.m_bLaunchedFromDemoLauncher)
-						Msg = CStr("§Z22§LSTD_BADGAMEDISCCONTINUE");
+						Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISCCONTINUE");
 					else
-						Msg = CStr("§Z22§LSTD_BADGAMEDISC");
+						Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISC");
 #else
-					Msg = CStr("§Z22§LSTD_BADGAMEDISC");
+					Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISC");
 #endif
 				}
 				else
-					Msg = CStr("§Z22§LSTD_BADAPP");
+					Msg = CStr("ï¿½Z22ï¿½LSTD_BADAPP");
 
 				Util2D.Text_DrawFormatted(
 					Clip, pFont, 
@@ -1002,7 +1002,7 @@ CStr CGameContextMod::GetScriptLayerInfo(CStr _ScriptLayer)
 	}
 	else
 	{
-		ConOutL(CStrF("§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
+		ConOutL(CStrF("ï¿½cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
 		M_TRACEALWAYS("ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!\n", RegisterFile.Str());
 	}
 
@@ -1145,8 +1145,11 @@ void CGameContextMod::Con_StartNewCampaign(int _Mode)
 
 	Con_SetGameClass("campaign");
 	Con_SetGameKey("current_campaign", (_Mode == 1) ? "DA" : "EFBB");
-	Con_ChangeMap("0", 0);
-	M_TRACEALWAYS("(Con_StartNewCampaign) changemap '0' queued\n");
+	// The campaign bootstrap world is "campaign.xw" (see the commented
+	// Con_InitCampaign above: Command_ChangeMap("campaign", "0")) --
+	// NOT map index "0", which resolves to nonexistent "0.xw".
+	Con_ChangeMap("campaign", 0);
+	M_TRACEALWAYS("(Con_StartNewCampaign) changemap 'campaign' queued\n");
 }
 
 void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
@@ -1460,9 +1463,9 @@ void CGameContextMod::Con_ConfirmLaunchDashboard(CStr _What)
 		CWorld_Client *pC = GetCurrentClient();
 		if(pC)
 		{
-			pFrontEndMod->Chooser_Init("§LMENU_LOSE_UNSAVEDPROGRESS");
-			pFrontEndMod->Chooser_AddChoice("§LMENU_NO", "cg_prevmenu");
-			pFrontEndMod->Chooser_AddChoice("§LMENU_YES", "launchdashboard "+_What);
+			pFrontEndMod->Chooser_Init("ï¿½LMENU_LOSE_UNSAVEDPROGRESS");
+			pFrontEndMod->Chooser_AddChoice("ï¿½LMENU_NO", "cg_prevmenu");
+			pFrontEndMod->Chooser_AddChoice("ï¿½LMENU_YES", "launchdashboard "+_What);
 			pFrontEndMod->Chooser_Invoke();
 		}
 		else
