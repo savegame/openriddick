@@ -544,6 +544,8 @@ spCMWnd CWFrontEnd_Mod::CreateWindowFromName(const char *_pName)
 		return spWnd;
 
 	}
+	M_TRACEALWAYS("(CWFrontEnd_Mod::CreateWindowFromName) no GUI registry resource 'GUI\\%s' (window '%s')\n",
+		m_CubeWndName.Str(), _pName);
 	return NULL;
 }
 

@@ -173,7 +173,7 @@ void CWFrontEnd::DoWindowSwitch()
 			// failure.. switch back ffs!
 			if(m_iCurrentWindow >= 0)
 				SetWindow(m_aContextStack[m_iCurrentWindow]);
-			M_TRACEALWAYS("DoWindowSwitch():failure to set window\n");
+			M_TRACEALWAYS("DoWindowSwitch():failure to set window '%s' (mode %d)\n", WindowToSet.Str(), Mode);
 		}
 		else
 		{

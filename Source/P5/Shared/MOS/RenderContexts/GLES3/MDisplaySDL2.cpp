@@ -796,6 +796,28 @@ public:
 		// texture every frame.
 		TArray<uint8> m_lTexLogged;
 
+		// RIDDICK_DBG_GL census: log every distinct texture ID the
+		// engine ever puts in a draw attrib, once, with its name.
+		// Answers "does the engine even ask for this texture?".
+		TArray<uint8> m_lTexSeenDbg;
+
+		void DbgNoteTexID(int _TextureID, int _Channel)
+		{
+			if (!m_DbgEnabled || _TextureID <= 0) return;
+			if (_TextureID >= m_lTexSeenDbg.Len())
+			{
+				const int Old = m_lTexSeenDbg.Len();
+				m_lTexSeenDbg.SetLen(_TextureID + 1);
+				for (int i = Old; i < m_lTexSeenDbg.Len(); ++i)
+					m_lTexSeenDbg[i] = 0;
+			}
+			if (m_lTexSeenDbg[_TextureID]) return;
+			m_lTexSeenDbg[_TextureID] = 1;
+			fprintf(stderr, "[GL-TEXREQ] ch%d id=%d name='%s'\n", _Channel, _TextureID,
+				m_pTC ? (const char*)m_pTC->GetName(_TextureID) : "?");
+			fflush(stderr);
+		}
+
 		GLuint TextureID_EnsureUploaded(int _TextureID)
 		{
 			if (_TextureID < 0 || !m_pTC) return 0;
@@ -964,36 +986,26 @@ public:
 			if (!pSlot) return;
 
 			// The engine's rect is top-left origin, GL is bottom-left.
-			// Selecting the right band means flipping the rect
-			// (SrcH - p1.y), but a plain glCopyTexSubImage2D would then
-			// store the band bottom-row-first while the sampling
-			// convention (same as CImage uploads) expects the engine's
-			// TOP row at texel row 0. Use a Y-inverted blit so the
-			// texture ends up in engine orientation.
+			// Flip Y so the copy pulls the correct region from the
+			// currently-bound framebuffer. The rows land bottom-first in
+			// the texture (GL copy order) and the UI quads sample them
+			// with GL-style V -- verified correct on screen (a Y-inverted
+			// blit here renders the whole menu upside down).
 			int SrcH = ScreenH();
 			int W = _SrcRect.p1.x - _SrcRect.p0.x;
 			int H = _SrcRect.p1.y - _SrcRect.p0.y;
 			if (W <= 0 || H <= 0) return;
+			int SrcY = SrcH - _SrcRect.p1.y;
 
-			GLint PrevDraw = 0, PrevRead = 0;
-			glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &PrevDraw);
-			glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &PrevRead);
-			const GLboolean bScissor = glIsEnabled(GL_SCISSOR_TEST);
-			if (bScissor) glDisable(GL_SCISSOR_TEST);
-
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevDraw);
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pSlot->m_FBO);
-			// src: y0 = top edge (GL coords), y1 = bottom edge -> inverted
-			// range performs the vertical flip during the blit.
-			glBlitFramebuffer(
-				_SrcRect.p0.x, SrcH - _SrcRect.p0.y,
-				_SrcRect.p1.x, SrcH - _SrcRect.p1.y,
-				_Dest.x, _Dest.y, _Dest.x + W, _Dest.y + H,
-				GL_COLOR_BUFFER_BIT, GL_NEAREST);
-
-			glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevRead);
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)PrevDraw);
-			if (bScissor) glEnable(GL_SCISSOR_TEST);
+			// Save + restore currently-bound texture so we don't
+			// disturb the current drawcall's binding.
+			GLint PrevTex = 0;
+			glGetIntegerv(GL_TEXTURE_BINDING_2D, &PrevTex);
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, pSlot->m_ColorTex);
+			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, _Dest.x, _Dest.y,
+				_SrcRect.p0.x, SrcY, W, H);
+			glBindTexture(GL_TEXTURE_2D, (GLuint)PrevTex);
 
 			if (m_DbgEnabled)
 			{
@@ -1406,6 +1418,8 @@ public:
 					for (int c = 1; c < CRC_MAXTEXTURES; ++c)
 						if (m_pCurAttrib->m_TextureID[c]) { Tex0 = (int)m_pCurAttrib->m_TextureID[c]; break; }
 				}
+				DbgNoteTexID(Tex0, 0);
+				DbgNoteTexID(Tex1, 1);
 				if (Tex0 > 0)
 				{
 					GLuint T = TextureID_EnsureUploaded(Tex0);

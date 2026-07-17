@@ -1481,6 +1481,9 @@ void CSystemCore::SetCaption(CStr _Caption)
 void SYSTEMDLLEXPORT ConsoleWrite(CStr _s)
 {
 	MAUTOSTRIP(ConsoleWrite, MAUTOSTRIP_VOID);
+#ifdef PLATFORM_LINUX
+	fprintf(stderr, "[CON] %s\n", _s.Str());
+#endif
 	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
 	if (pCon)
 	{
@@ -1492,6 +1495,12 @@ void SYSTEMDLLEXPORT ConsoleWrite(CStr _s)
 void SYSTEMDLLEXPORT ConsoleWriteL(CStr _s)
 {
 	MAUTOSTRIP(ConsoleWriteL, MAUTOSTRIP_VOID);
+#ifdef PLATFORM_LINUX
+	// Bring-up: mirror the engine console to stderr -- the terminal IS
+	// our console, and messages like "World doesn't exist" are vital
+	// when debugging from run logs.
+	fprintf(stderr, "[CON] %s\n", _s.Str());
+#endif
 	LogFile(_s);
 	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
 	if (pCon)
