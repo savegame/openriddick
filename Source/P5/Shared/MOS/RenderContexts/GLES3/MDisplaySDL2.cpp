@@ -34,14 +34,18 @@ static const char* kGLES3_UIVertSrc =
 	"layout(location=0) in vec3 aPos;\n"
 	"layout(location=1) in vec2 aUV;\n"
 	"layout(location=2) in vec4 aCol;\n"
+	"layout(location=3) in vec2 aUV1;\n"
 	"uniform mat4 uMVP;\n"
 	"uniform mat4 uTexMat;\n"
+	"uniform mat4 uTexMat1;\n"
 	"out vec2 vUV;\n"
+	"out vec2 vUV1;\n"
 	"out vec4 vCol;\n"
 	"out float vDepth;\n"
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
 	"  vCol = aCol;\n"
 	"}\n";
@@ -50,9 +54,13 @@ static const char* kGLES3_UIFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
 	"in vec2 vUV;\n"
+	"in vec2 vUV1;\n"
 	"in vec4 vCol;\n"
 	"uniform sampler2D uTex;\n"
 	"uniform int uUseTexture;\n"
+	// Secondary texture (channel 1: lightmaps etc.) -- modulates RGB.
+	"uniform sampler2D uTex1;\n"
+	"uniform int uUseTexture1;\n"
 	// Debug modes for RIDDICK_DBG_SHADER: 0=normal, 1=UV as
 	// RGB (see quad UVs), 2=solid red (see quad positions),
 	// 3=vertex-color only (ignore texture).
@@ -73,6 +81,7 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 3) { oColor = vCol; return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
+	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
 	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
 	"    bool pass = true;\n"
 	"    if      (uAlphaFunc == 1) pass = false;\n"
@@ -610,6 +619,7 @@ public:
 			glEnableVertexAttribArray(0);
 			glDisableVertexAttribArray(1);
 			glDisableVertexAttribArray(2);
+			glDisableVertexAttribArray(3);
 			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
@@ -622,6 +632,7 @@ public:
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
 		CGLES3Shader      m_UIShader;
+		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_DbgVBIDSkipFmt = 0;
@@ -738,6 +749,9 @@ public:
 				m_UTexLoc     = m_UIShader.UniformLocation("uTex");
 				m_UDbgModeLoc   = m_UIShader.UniformLocation("uDbgMode");
 				m_UTexMatLoc    = m_UIShader.UniformLocation("uTexMat");
+				m_UTexMat1Loc   = m_UIShader.UniformLocation("uTexMat1");
+				m_UTex1Loc      = m_UIShader.UniformLocation("uTex1");
+				m_UUseTex1Loc   = m_UIShader.UniformLocation("uUseTexture1");
 				m_UAlphaFuncLoc = m_UIShader.UniformLocation("uAlphaFunc");
 				m_UAlphaRefLoc  = m_UIShader.UniformLocation("uAlphaRef");
 				m_UFogEnableLoc = m_UIShader.UniformLocation("uFogEnable");
@@ -1109,12 +1123,8 @@ public:
 			{
 				glEnable(GL_STENCIL_TEST);
 				glStencilMask(_pAttrib->m_StencilWriteMask);
-				// FrontFunc is stored 1..8 in CRC_COMPARE_*; op codes stored
-				// as small ints too. For now use the front pair for both
-				// faces -- separate-stencil arrives in M4.
-				glStencilFunc(GLES3_MapCompare(_pAttrib->m_StencilFrontFunc),
-					_pAttrib->m_StencilRef, _pAttrib->m_StencilFuncAnd);
-				// Op mapping: 0..5 keep/zero/replace/incr/decr/invert.
+				// Op mapping: 0..7 keep/zero/replace/incr/decr/invert/
+				// incr_wrap/decr_wrap; funcs stored 1..8 in CRC_COMPARE_*.
 				static const GLenum sOpTbl[] = {
 					GL_KEEP, GL_ZERO, GL_REPLACE, GL_INCR, GL_DECR, GL_INVERT,
 					GL_INCR_WRAP, GL_DECR_WRAP,
@@ -1122,7 +1132,26 @@ public:
 				const int F0 = _pAttrib->m_StencilFrontOpFail   & 7;
 				const int F1 = _pAttrib->m_StencilFrontOpZFail  & 7;
 				const int F2 = _pAttrib->m_StencilFrontOpZPass  & 7;
-				glStencilOp(sOpTbl[F0], sOpTbl[F1], sOpTbl[F2]);
+				if (F & CRC_FLAGS_SEPARATESTENCIL)
+				{
+					// Two-sided stencil (engine shadow volumes: incr on
+					// front faces, decr on back faces in a single pass).
+					const int B0 = _pAttrib->m_StencilBackOpFail   & 7;
+					const int B1 = _pAttrib->m_StencilBackOpZFail  & 7;
+					const int B2 = _pAttrib->m_StencilBackOpZPass  & 7;
+					glStencilFuncSeparate(GL_FRONT, GLES3_MapCompare(_pAttrib->m_StencilFrontFunc),
+						_pAttrib->m_StencilRef, _pAttrib->m_StencilFuncAnd);
+					glStencilFuncSeparate(GL_BACK, GLES3_MapCompare(_pAttrib->m_StencilBackFunc),
+						_pAttrib->m_StencilRef, _pAttrib->m_StencilFuncAnd);
+					glStencilOpSeparate(GL_FRONT, sOpTbl[F0], sOpTbl[F1], sOpTbl[F2]);
+					glStencilOpSeparate(GL_BACK,  sOpTbl[B0], sOpTbl[B1], sOpTbl[B2]);
+				}
+				else
+				{
+					glStencilFunc(GLES3_MapCompare(_pAttrib->m_StencilFrontFunc),
+						_pAttrib->m_StencilRef, _pAttrib->m_StencilFuncAnd);
+					glStencilOp(sOpTbl[F0], sOpTbl[F1], sOpTbl[F2]);
+				}
 			}
 			else
 			{
@@ -1219,9 +1248,9 @@ public:
 		virtual int Geometry_GetVBSize(int _VBID) {return 0;}
 
 		// --- M3 draw path ------------------------------------------
-		// Interleaved vertex: pos.xyz (3f) + uv.xy (2f) + colour BGRA
-		// packed as uint32. 24 bytes.
-		struct SUIVert { float x,y,z, u,v; uint32_t col; };
+		// Interleaved vertex: pos.xyz (3f) + uv0.xy (2f) + uv1.xy (2f,
+		// channel 1: lightmaps) + colour BGRA packed as uint32. 32 bytes.
+		struct SUIVert { float x,y,z, u,v, u1,v1; uint32_t col; };
 
 		// Pack CPixel32 (BGRA byte order per MImage.h) to RGBA-word for
 		// the shader (glVertexAttribPointer normalized ubyte4 reads in
@@ -1247,6 +1276,8 @@ public:
 			const CVec3Dfp32* pV   = m_Geom.m_pV;
 			const fp32*       pTV0 = m_Geom.m_pTV[0];
 			const int         nUV  = m_Geom.m_nTVComp[0]; // 0/2/3/4
+			const fp32*       pTV1 = m_Geom.m_pTV[1];
+			const int         nUV1 = m_Geom.m_nTVComp[1];
 			const CPixel32*   pCol = m_Geom.m_pCol;
 			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
 
@@ -1264,6 +1295,15 @@ public:
 				{
 					p[i].u = 0.0f; p[i].v = 0.0f;
 				}
+				if (pTV1 && nUV1 >= 2)
+				{
+					p[i].u1 = pTV1[i * nUV1 + 0];
+					p[i].v1 = pTV1[i * nUV1 + 1];
+				}
+				else
+				{
+					p[i].u1 = 0.0f; p[i].v1 = 0.0f;
+				}
 				p[i].col = pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol;
 			}
 			_pOut = p;
@@ -1275,6 +1315,114 @@ public:
 		{
 			static SUIVert sMarker;  (void)sMarker;
 			if (_nV > 16384) free(_p);
+		}
+
+		// Vertex layout for SUIVert at byte offset _Base inside the
+		// currently-bound VBO.
+		void SetVertexAttribPointers(intptr_t _Base)
+		{
+			const GLsizei S = (GLsizei)sizeof(SUIVert);
+			glEnableVertexAttribArray(0);
+			glEnableVertexAttribArray(1);
+			glEnableVertexAttribArray(2);
+			glEnableVertexAttribArray(3);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 0));
+			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 12));
+			glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 20));
+			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(_Base + 28));
+		}
+
+		void DisableVertexAttribPointers()
+		{
+			glDisableVertexAttribArray(0);
+			glDisableVertexAttribArray(1);
+			glDisableVertexAttribArray(2);
+			glDisableVertexAttribArray(3);
+		}
+
+		// Shared uniform + texture setup for the UI shader: MVP,
+		// texture matrices, alpha test, fog (optional), textures from
+		// the current attrib (channel 0 = base, channel 1 = secondary
+		// modulate -- lightmaps).
+		void SetupCommonUniforms(bool _bAllowFog)
+		{
+			m_UIShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
+			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
+			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
+
+			// Alpha test (no fixed-function path in GLES3; done in shader)
+			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			{
+				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
+				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
+			}
+			else
+				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+
+			if (_bAllowFog && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
+			{
+				const CPixel32 FC = m_pCurAttrib->m_FogColor;
+				const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
+				m_UIShader.SetInt(m_UFogEnableLoc, 1);
+				glUniform3fv(m_UFogColorLoc, 1, Fog);
+				m_UIShader.SetFloat(m_UFogStartLoc, m_pCurAttrib->m_FogStart);
+				m_UIShader.SetFloat(m_UFogEndLoc, m_pCurAttrib->m_FogEnd);
+			}
+			else
+				m_UIShader.SetInt(m_UFogEnableLoc, 0);
+
+			// Textures. Base = channel 0; if channel 0 is empty scan
+			// 1..N for the first non-zero (shader-driven UI surfaces
+			// sometimes park the main texture in a higher slot) -- in
+			// that case there is no secondary. Channel 1 on top of a
+			// channel-0 base = multitexture (lightmap modulate).
+			int UseTex = 0, UseTex1 = 0;
+			if (m_pCurAttrib)
+			{
+				int Tex0 = (int)m_pCurAttrib->m_TextureID[0];
+				int Tex1 = (int)m_pCurAttrib->m_TextureID[1];
+				if (!Tex0)
+				{
+					Tex1 = 0;
+					for (int c = 1; c < CRC_MAXTEXTURES; ++c)
+						if (m_pCurAttrib->m_TextureID[c]) { Tex0 = (int)m_pCurAttrib->m_TextureID[c]; break; }
+				}
+				if (Tex0 > 0)
+				{
+					GLuint T = TextureID_EnsureUploaded(Tex0);
+					if (T)
+					{
+						glActiveTexture(GL_TEXTURE0);
+						glBindTexture(GL_TEXTURE_2D, T);
+						m_UIShader.SetInt(m_UTexLoc, 0);
+						UseTex = 1;
+						++m_DbgTexBound;
+					}
+					else
+						++m_DbgTexMissing;
+				}
+				if (UseTex && Tex1 > 0)
+				{
+					GLuint T1 = TextureID_EnsureUploaded(Tex1);
+					if (T1)
+					{
+						glActiveTexture(GL_TEXTURE1);
+						glBindTexture(GL_TEXTURE_2D, T1);
+						m_UIShader.SetInt(m_UTex1Loc, 1);
+						UseTex1 = 1;
+						++m_DbgTexBound;
+					}
+					else
+						++m_DbgTexMissing;
+					glActiveTexture(GL_TEXTURE0);
+				}
+			}
+			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
+			m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
+			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
 		}
 
 		// Common draw: submits _nInd 16-bit indices with GL primitive
@@ -1306,92 +1454,16 @@ public:
 
 			// Attribs (VBO already bound by PushVertices).
 			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
-			glEnableVertexAttribArray(0);
-			glEnableVertexAttribArray(1);
-			glEnableVertexAttribArray(2);
-			const GLsizei S = (GLsizei)sizeof(SUIVert);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 0));
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 12));
-			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(intptr_t)(vRes.ByteOffset + 20));
+			SetVertexAttribPointers((intptr_t)vRes.ByteOffset);
 
-			// Shader + uniforms.
-			m_UIShader.Use();
-			CMat4Dfp32 MVP;
-			m_ModelMat.Multiply(m_ProjMat, MVP);
-			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
-			m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&m_TexMat[0]);
-
-			// Alpha test (no fixed-function path in GLES3; done in shader)
-			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
-			{
-				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
-				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
-			}
-			else
-			{
-				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
-			}
-
-			if (m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
-			{
-				const CPixel32 FC = m_pCurAttrib->m_FogColor;
-				const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
-				m_UIShader.SetInt(m_UFogEnableLoc, 1);
-				glUniform3fv(m_UFogColorLoc, 1, Fog);
-				m_UIShader.SetFloat(m_UFogStartLoc, m_pCurAttrib->m_FogStart);
-				m_UIShader.SetFloat(m_UFogEndLoc, m_pCurAttrib->m_FogEnd);
-			}
-			else
-			{
-				m_UIShader.SetInt(m_UFogEnableLoc, 0);
-			}
-
-			// Bind current texture (if any).
-			// Try channel 0 first; if empty, scan 1..CRC_MAXTEXTURES-1
-			// (engine's multitexture path may put the main tex in a
-			// slot > 0 for shader-driven UI surfaces).
-			int UseTex = 0;
-			if (m_pCurAttrib)
-			{
-				int TexID = 0;
-				for (int c = 0; c < CRC_MAXTEXTURES; ++c)
-				{
-					if (m_pCurAttrib->m_TextureID[c])
-					{
-						TexID = (int)m_pCurAttrib->m_TextureID[c];
-						break;
-					}
-				}
-				// Multitexture path: confirmed unused (only channel 0
-				// ever non-zero). Attrib channel dump removed.
-				if (TexID > 0)
-				{
-					GLuint T = TextureID_EnsureUploaded(TexID);
-					if (T)
-					{
-						glActiveTexture(GL_TEXTURE0);
-						glBindTexture(GL_TEXTURE_2D, T);
-						m_UIShader.SetInt(m_UTexLoc, 0);
-						UseTex = 1;
-						++m_DbgTexBound;
-					}
-					else
-					{
-						++m_DbgTexMissing;
-					}
-				}
-			}
-			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
-			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
+			SetupCommonUniforms(true);
 			m_DbgTotalVerts += nVerts;
 			m_DbgTotalIdx   += _nInd;
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 
-			glDisableVertexAttribArray(0);
-			glDisableVertexAttribArray(1);
-			glDisableVertexAttribArray(2);
+			DisableVertexAttribPointers();
 			glBindVertexArray(0);
 		}
 
@@ -1464,61 +1536,16 @@ public:
 			if (!vRes.Ok || !iRes.Ok) return;
 
 			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
-			glEnableVertexAttribArray(0);
-			glEnableVertexAttribArray(1);
-			glEnableVertexAttribArray(2);
-			const GLsizei S = (GLsizei)sizeof(SUIVert);
-			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 0));
-			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)(vRes.ByteOffset + 12));
-			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(intptr_t)(vRes.ByteOffset + 20));
+			SetVertexAttribPointers((intptr_t)vRes.ByteOffset);
 
-			m_UIShader.Use();
-			CMat4Dfp32 MVP;
-			m_ModelMat.Multiply(m_ProjMat, MVP);
-			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
-			m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&m_TexMat[0]);
-
-			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
-			{
-				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
-				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
-			}
-			else
-				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
-			m_UIShader.SetInt(m_UFogEnableLoc, 0);
-
-			int UseTex = 0;
-			if (m_pCurAttrib)
-			{
-				int TexID = 0;
-				for (int c = 0; c < CRC_MAXTEXTURES; ++c)
-					if (m_pCurAttrib->m_TextureID[c]) { TexID = (int)m_pCurAttrib->m_TextureID[c]; break; }
-				if (TexID > 0)
-				{
-					GLuint T = TextureID_EnsureUploaded(TexID);
-					if (T)
-					{
-						glActiveTexture(GL_TEXTURE0);
-						glBindTexture(GL_TEXTURE_2D, T);
-						m_UIShader.SetInt(m_UTexLoc, 0);
-						UseTex = 1;
-						++m_DbgTexBound;
-					}
-					else
-						++m_DbgTexMissing;
-				}
-			}
-			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
-			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
+			SetupCommonUniforms(false);
 			m_DbgTotalVerts += _nVerts;
 			m_DbgTotalIdx   += _nInd;
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 
-			glDisableVertexAttribArray(0);
-			glDisableVertexAttribArray(1);
-			glDisableVertexAttribArray(2);
+			DisableVertexAttribPointers();
 			glBindVertexArray(0);
 		}
 
@@ -1549,6 +1576,9 @@ public:
 			const fp32* pUV = 0;
 			if (VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD0) == CRC_VREGFMT_V2_F32)
 				pUV = (const fp32*)VBB.m_lpVReg[CRC_VREG_TEXCOORD0];
+			const fp32* pUV1 = 0;
+			if (VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD1) == CRC_VREGFMT_V2_F32)
+				pUV1 = (const fp32*)VBB.m_lpVReg[CRC_VREG_TEXCOORD1];
 			const uint32_t* pCol = 0;
 			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
@@ -1562,6 +1592,8 @@ public:
 				pVerts[i].z = pPos[i].k[2];
 				pVerts[i].u = pUV ? pUV[i * 2 + 0] : 0.0f;
 				pVerts[i].v = pUV ? pUV[i * 2 + 1] : 0.0f;
+				pVerts[i].u1 = pUV1 ? pUV1[i * 2 + 0] : 0.0f;
+				pVerts[i].v1 = pUV1 ? pUV1[i * 2 + 1] : 0.0f;
 				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
 			}
 
