@@ -216,6 +216,33 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
 
+	// Single/dual channel formats: reconstruct the classic GL semantics
+	// via texture swizzle (GLES 3.0 core). Without this a GL_R8 font
+	// texture samples as (a,0,0,1) - opaque red text.
+	switch (_pImage->GetFormat())
+	{
+	case IMAGE_FORMAT_A8:		// GL_ALPHA: (1,1,1,a)
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ONE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_ONE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_ONE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+		break;
+	case IMAGE_FORMAT_I8:		// GL_INTENSITY: (i,i,i,i)
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+		break;
+	case IMAGE_FORMAT_I8A8:		// GL_LUMINANCE_ALPHA: (i,i,i,a)
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
+		break;
+	default:
+		break;
+	}
+
 	if (pTmp) free(pTmp);
 	return Tex;
 }

@@ -6891,8 +6891,8 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 	// includes cg_rootmenu('remove_efbb_wait') and cg_dowindowswitch)
 	// runs -- at least the menu transitions. Actual world loading
 	// will need real impls of these.
-	_RegContext.RegFunction("startnewcampaign",     &DummyInt);
-	_RegContext.RegFunction("setdifficultycampaign",&DummyDifficulty);
+	// startnewcampaign / setdifficultycampaign are now real handlers in
+	// CGameContextMod::Register (WGameContextMain.cpp).
 	_RegContext.RegFunction("doprecache",           &DummyVoid);
 	// NB: `look(dx, dy)` intentionally NOT stubbed here. That's a real
 	// gameplay function registered by CGameClient when the player

@@ -1120,6 +1120,22 @@ void CGameContextMod::Con_InitCampaign(int _Mode)
 	}
 }*/
 
+// Dark Athena frontend: startnewcampaign(2) = Butcher Bay, (1) = Dark
+// Athena. Follows the (commented-out) Con_InitCampaign flow: switch the
+// game class to "campaign" and load the campaign's first map (index 0).
+void CGameContextMod::Con_StartNewCampaign(int _Mode)
+{
+	ConOutL(CStrF("(Con_StartNewCampaign) mode %d", _Mode));
+	Con_SetGameClass("campaign");
+	Con_SetGameKey("current_campaign", (_Mode == 1) ? "DA" : "EFBB");
+	Con_ChangeMap("0", 0);
+}
+
+void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
+{
+	Con_SetGameKey("difficulty", _Difficulty);
+}
+
 void CGameContextMod::UpdateControllerStatus()
 {
 #if 0
@@ -1780,6 +1796,8 @@ void CGameContextMod::Register(CScriptRegisterContext & _RegContext)
 	_RegContext.RegFunction("mp_setgamemode", this, &CGameContextMod::Con_mpSetGameMode);
 
 	_RegContext.RegFunction("campaignmap", this, &CGameContextMod::Con_CampaignMap);
+	_RegContext.RegFunction("startnewcampaign", this, &CGameContextMod::Con_StartNewCampaign);
+	_RegContext.RegFunction("setdifficultycampaign", this, &CGameContextMod::Con_SetDifficultyCampaign);
 	_RegContext.RegFunction("scriptlayer", this, &CGameContextMod::Con_ScriptLayer);
 }
 
