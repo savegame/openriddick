@@ -7,8 +7,11 @@
 //   * buttons   -> DownKey/UpKey(SKEY_MOUSE1..8, ...)
 //   * wheel     -> DownKey(SKEY_MOUSEWHEELUP/DOWN, ...)
 //   * SDL_QUIT  -> exit(0) (game has no clean shutdown path yet)
-//
-// Gamepad support is a later phase.
+//   * gamepad   -> SDL_GameController, mirroring the PS3 pad layout:
+//     axes 0..3 = LX / LY(inverted) / RX / RY as SKEY_JOY_AXISnn_POS/NEG
+//     pairs (value 0..255 after deadzone+power curve), buttons
+//     0=A(cross) 1=B(circle) 2=X(square) 3=Y(triangle) 4=start 5=back
+//     6=L3 7=R3 8=LB 9=RB 10=LT 11=RT, dpad = SKEY_JOY_POV00..03.
 
 #include "PCH.h"
 #include "MInputCore.h"
@@ -117,13 +120,136 @@ static void BuildSDLKeyTable()
 	gSDLKeyToSKEY[SDL_SCANCODE_CAPSLOCK] = SKEY_CAPSLOCK;
 }
 
+// Same response curve as the PS3 pad backend (MInput_PS3.cpp):
+// 10% deadzone, ^1.5 power, scaled to 0..255.
+static int PadTranslateAxis(int _Data0to65535)
+{
+	float fAxis = ((float)_Data0to65535 / 65535.0f) * 2.0f - 1.0f;
+	const float SignV = (fAxis < 0.0f) ? -1.0f : 1.0f;
+	fAxis = fabsf(fAxis);
+	fAxis = (fAxis > 0.10f) ? (fAxis - 0.10f) / 0.90f : 0.0f;
+	if (fAxis > 0.0f) fAxis = expf(logf(fAxis) * 1.5f);
+	const float v = fAxis * SignV * 255.0f;
+	return (int)(v < 0.0f ? v - 0.5f : v + 0.5f);
+}
+
 class CInputContext_SDL2 : public CInputContextCore
 {
 	MRTC_DECLARE;
 public:
+	SDL_GameController* m_pPad;
+	SDL_JoystickID m_PadID;
+
+	CInputContext_SDL2()
+	{
+		m_pPad = NULL;
+		m_PadID = -1;
+	}
+
+	~CInputContext_SDL2()
+	{
+		PadClose();
+	}
+
+	void PadClose()
+	{
+		if (m_pPad)
+		{
+			SDL_GameControllerClose(m_pPad);
+			m_pPad = NULL;
+			m_PadID = -1;
+		}
+	}
+
+	void PadOpen(int _DeviceIndex)
+	{
+		if (m_pPad) return;
+		SDL_GameController* p = SDL_GameControllerOpen(_DeviceIndex);
+		if (!p) return;
+		m_pPad = p;
+		m_PadID = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(p));
+		ConOutL(CStrF("(CInputContext_SDL2) gamepad: %s", SDL_GameControllerName(p)));
+	}
+
+	// One engine axis: POS scancode at base+i*2, NEG at base+i*2+1,
+	// exactly the PS3 OnAxisData event pattern.
+	void PadFeedAxis(int _iAxis, int _Data0to65535)
+	{
+		int Vec = PadTranslateAxis(_Data0to65535);
+		const int ScanPos = SKEY_JOY_START + _iAxis * 2;
+		const int ScanNeg = ScanPos + 1;
+		if (Vec < 0)
+		{
+			UpKey(ScanPos, 0, 0, 0, 0);
+			Vec = -Vec;
+			if (Vec > 128)
+				DownKey(ScanNeg, 0, 0, 1, Vec, 0, 0);
+			else
+				UpKey(ScanNeg, 0, Vec, 0, 0);
+		}
+		else
+		{
+			UpKey(ScanNeg, 0, 0, 0, 0);
+			if (Vec > 128)
+				DownKey(ScanPos, 0, 0, 1, Vec, 0, 0);
+			else
+				UpKey(ScanPos, 0, Vec, 0, 0);
+		}
+	}
+
+	void PadFeedButton(int _iButton, int _Data0to255)
+	{
+		if (_Data0to255 >= 128)
+			DownKey(SKEY_JOY_BUTTON00 + _iButton, 0, 0, 1, _Data0to255, 0, 0);
+		else
+			UpKey(SKEY_JOY_BUTTON00 + _iButton, 0, _Data0to255, 0, 0);
+	}
+
+	void PadFeedPOV(int _iDir, bool _bDown)
+	{
+		if (_bDown)
+			DownKey(SKEY_JOY_POV00 + _iDir, 0, 0, 1, 255, 0, 0);
+		else
+			UpKey(SKEY_JOY_POV00 + _iDir, 0, 0, 0, 0);
+	}
+
+	// SDL controller button -> engine button index (PS3 layout; see
+	// the Lookup table in MInput_PS3.cpp OnButtonData). -1 = ignore,
+	// -2..-5 = dpad (POV 0..3).
+	static int PadMapButton(Uint8 _SDLButton)
+	{
+		switch (_SDLButton)
+		{
+		case SDL_CONTROLLER_BUTTON_A:             return 0;  // cross
+		case SDL_CONTROLLER_BUTTON_B:             return 1;  // circle
+		case SDL_CONTROLLER_BUTTON_X:             return 2;  // square
+		case SDL_CONTROLLER_BUTTON_Y:             return 3;  // triangle
+		case SDL_CONTROLLER_BUTTON_START:         return 4;
+		case SDL_CONTROLLER_BUTTON_BACK:          return 5;  // select
+		case SDL_CONTROLLER_BUTTON_LEFTSTICK:     return 6;  // L3
+		case SDL_CONTROLLER_BUTTON_RIGHTSTICK:    return 7;  // R3
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:  return 8;  // L1
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return 9;  // R1
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:       return -2;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:    return -3;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:     return -4;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:     return -5;
+		default:                                  return -1;
+		}
+	}
+
 	virtual void Create(const char* _pParams)
 	{
 		BuildSDLKeyTable();
+		if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) == 0)
+		{
+			for (int i = 0; i < SDL_NumJoysticks(); ++i)
+				if (SDL_IsGameController(i))
+				{
+					PadOpen(i);
+					break;
+				}
+		}
 		CInputContextCore::Create(_pParams);
 	}
 
@@ -205,6 +331,49 @@ public:
 					if      (e.wheel.y > 0) sk = SKEY_MOUSEWHEELUP;
 					else if (e.wheel.y < 0) sk = SKEY_MOUSEWHEELDOWN;
 					if (sk) DownKey(sk, 0, 0.0, 1, 0, 0, 0);
+				}
+				break;
+
+			case SDL_CONTROLLERDEVICEADDED:
+				PadOpen(e.cdevice.which);
+				break;
+
+			case SDL_CONTROLLERDEVICEREMOVED:
+				if (e.cdevice.which == m_PadID)
+					PadClose();
+				break;
+
+			case SDL_CONTROLLERAXISMOTION:
+				if (e.caxis.which == m_PadID)
+				{
+					const int Raw = (int)e.caxis.value + 32768; // 0..65535
+					switch (e.caxis.axis)
+					{
+					case SDL_CONTROLLER_AXIS_LEFTX:  PadFeedAxis(0, Raw); break;
+					// PS3 backend inverts left Y (65535 - y); mirror it so
+					// the profile's axis bindings behave identically.
+					case SDL_CONTROLLER_AXIS_LEFTY:  PadFeedAxis(1, 65535 - Raw); break;
+					case SDL_CONTROLLER_AXIS_RIGHTX: PadFeedAxis(2, Raw); break;
+					case SDL_CONTROLLER_AXIS_RIGHTY: PadFeedAxis(3, Raw); break;
+					// Triggers are analogue buttons 10/11 on PS3 (L2/R2).
+					case SDL_CONTROLLER_AXIS_TRIGGERLEFT:
+						PadFeedButton(10, (int)e.caxis.value * 255 / 32767); break;
+					case SDL_CONTROLLER_AXIS_TRIGGERRIGHT:
+						PadFeedButton(11, (int)e.caxis.value * 255 / 32767); break;
+					}
+				}
+				break;
+
+			case SDL_CONTROLLERBUTTONDOWN:
+			case SDL_CONTROLLERBUTTONUP:
+				if (e.cbutton.which == m_PadID)
+				{
+					const bool bDown = (e.type == SDL_CONTROLLERBUTTONDOWN);
+					const int Map = PadMapButton(e.cbutton.button);
+					if (Map >= 0)
+						PadFeedButton(Map, bDown ? 255 : 0);
+					else if (Map <= -2)
+						PadFeedPOV(-Map - 2, bDown);
 				}
 				break;
 
