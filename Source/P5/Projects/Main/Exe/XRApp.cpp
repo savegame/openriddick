@@ -6795,6 +6795,17 @@ static void DummyVoid()                                {}
 static void DummyInt(int)                              {}
 static void DummyIntInt(int, int)                      {}
 static void DummyFloat(fp32)                           {}
+static void DummyStr(const ch8*)                       {}
+// checkprofile("cmd") -- like issignedin, expects to run the cmd if
+// the current profile is valid. On PC we treat every profile as OK.
+static void DummyCheckProfile(const ch8* _pCmd)
+{
+	fprintf(stderr, "[STUB] checkprofile(\"%s\")\n", _pCmd ? _pCmd : "<null>");
+	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
+	if (pCon && _pCmd && *_pCmd)
+		pCon->ExecuteString(_pCmd);
+	fflush(stderr);
+}
 // issignedin("cmd_yes", "cmd_no") -- called via cachecommand to
 // route on profile-signed-in state. On PC we have no profile
 // system yet; fire the "yes" branch so menu progresses to
@@ -6851,6 +6862,20 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 	// Console-only helpers used by the frontend menu scripts.
 	_RegContext.RegFunction("checkbrokendc",      &DummyVoid);
 	_RegContext.RegFunction("issignedin",         &DummySignedIn);
+	// autosave_info menu spams trysignin() every frame waiting for a
+	// platform sign-in retry callback (Xbox Live / PSN). We're always
+	// "signed in" on PC -- no-op.
+	_RegContext.RegFunction("trysignin",          &DummyVoid);
+	// checkprofile("cmd") -- routes the passed script through if the
+	// profile is valid. Same pattern as issignedin: fire always.
+	_RegContext.RegFunction("checkprofile",       &DummyCheckProfile);
+	// richpresence(iPreset) -- Xbox Live rich presence update.
+	_RegContext.RegFunction("richpresence",       &DummyInt);
+	// Save-list menu asks the platform to clear the "NEW" marker on a
+	// save slot when the user visits it. No save subsystem yet.
+	// Takes a string (e.g. 'begin_loadtransform') identifying which
+	// slot -- ignore.
+	_RegContext.RegFunction("cg_savefileremovenewrootmenu", &DummyStr);
 	// NB: `look(dx, dy)` intentionally NOT stubbed here. That's a real
 	// gameplay function registered by CGameClient when the player
 	// enters a session. The parse-error at keybind-compile time is a
