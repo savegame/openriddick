@@ -1145,11 +1145,29 @@ void CGameContextMod::Con_StartNewCampaign(int _Mode)
 
 	Con_SetGameClass("campaign");
 	Con_SetGameKey("current_campaign", (_Mode == 1) ? "DA" : "EFBB");
-	// The campaign bootstrap world is "campaign.xw" (see the commented
-	// Con_InitCampaign above: Command_ChangeMap("campaign", "0")) --
-	// NOT map index "0", which resolves to nonexistent "0.xw".
-	Con_ChangeMap("campaign", 0);
-	M_TRACEALWAYS("(Con_StartNewCampaign) changemap 'campaign' queued\n");
+
+	// Resolve the campaign start world against the actual content set:
+	// some editions ship a "campaign.xw" bootstrap world, the EFBB
+	// content set starts straight at Pa1_Intro. Probe candidates and
+	// load the first one that exists.
+	static const char* sEFBB[] = { "campaign", "Pa1_Intro", 0 };
+	static const char* sDA[]   = { "campaign", "da1_intro", "BBR_01", 0 };
+	const char** ppMap = (_Mode == 1) ? sDA : sEFBB;
+	CStr Map = ppMap[0];
+	if (m_spWData)
+	{
+		for (int i = 0; ppMap[i]; ++i)
+		{
+			CStr FileName = m_spWData->ResolveFileName(CStrF("worlds\\%s.xw", ppMap[i]));
+			if (CDiskUtil::FileExists(FileName))
+			{
+				Map = ppMap[i];
+				break;
+			}
+		}
+	}
+	M_TRACEALWAYS("(Con_StartNewCampaign) changemap '%s' queued\n", Map.Str());
+	Con_ChangeMap(Map, 0);
 }
 
 void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
