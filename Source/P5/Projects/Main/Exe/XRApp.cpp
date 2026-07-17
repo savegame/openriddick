@@ -6796,6 +6796,11 @@ static void DummyInt(int)                              {}
 static void DummyIntInt(int, int)                      {}
 static void DummyFloat(fp32)                           {}
 static void DummyStr(const ch8*)                       {}
+static void DummyDifficulty(const ch8* _pDiff, int _iCampaign)
+{
+	fprintf(stderr, "[STUB] setdifficultycampaign(\"%s\", %d) -- gameplay module not ported\n",
+		_pDiff ? _pDiff : "<null>", _iCampaign);
+}
 // checkprofile("cmd") -- like issignedin, expects to run the cmd if
 // the current profile is valid. On PC we treat every profile as OK.
 static void DummyCheckProfile(const ch8* _pCmd)
@@ -6876,6 +6881,19 @@ void CXRealityApp::Register(CScriptRegisterContext & _RegContext)
 	// Takes a string (e.g. 'begin_loadtransform') identifying which
 	// slot -- ignore.
 	_RegContext.RegFunction("cg_savefileremovenewrootmenu", &DummyStr);
+
+	// The following gameplay-side functions are declared by menu
+	// scripts in Dark Athena but the implementations live in a game
+	// module that isn't part of the open PS3 snapshot we're porting.
+	// Without stubs the whole "start campaign" script line drops on
+	// parse error and the game never even attempts to load. With
+	// no-op stubs the parse succeeds and the REST of the line (which
+	// includes cg_rootmenu('remove_efbb_wait') and cg_dowindowswitch)
+	// runs -- at least the menu transitions. Actual world loading
+	// will need real impls of these.
+	_RegContext.RegFunction("startnewcampaign",     &DummyInt);
+	_RegContext.RegFunction("setdifficultycampaign",&DummyDifficulty);
+	_RegContext.RegFunction("doprecache",           &DummyVoid);
 	// NB: `look(dx, dy)` intentionally NOT stubbed here. That's a real
 	// gameplay function registered by CGameClient when the player
 	// enters a session. The parse-error at keybind-compile time is a
