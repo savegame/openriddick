@@ -154,7 +154,9 @@ little-endian. Загрузчики файлов движка историчес
       `g_RiddickPresent` (`MSystem/Raster/MDisplayPresent.*`).
 - [x] Трансляция ввода: `RotateDelta` для относительных дельт мыши в
       `CInputContext_SDL2` (обратный поворот); `WindowToFBO(x,y)` готова для
-      абсолютных координат/тача.
+      абсолютных координат/тача. Геймпад: SDL_GameController в
+      `CInputContext_SDL2` (PS3-раскладка кнопок/осей, deadzone/power как в
+      MInput_PS3, hot-plug).
 - [ ] Раздельные `FBO_UI` (нативный DPI) и `FBO_3D` (масштабируемый) + композиция
       3D→апскейл, UI→alpha blend поверх (`-res3d`, `-resui`) — поверх текущего каркаса.
 
@@ -233,4 +235,7 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-14 | Фаза 4 M3: реальный draw path — единый GLSL ES 3.00 UI-шейдер (pos+uv+col+uUseTexture+uTex), интерлив вершин `SUIVert{xyz uv col=RGBA-swapped-BGRA}` из `m_Geom`, стриминг в кольцевой VBO/IBO, `glDrawElements`; `Render_IndexedTriangles/Strip/Wires/Polygon/Primitives` реализованы; текущая текстура берётся из `m_pCurAttrib->m_TextureID[0]` и лениво аплоадится; MVP = Model*Proj + column-major upload. `Render_VertexBuffer(VBID)` пока no-op. Первые пиксели: белый квадрат в верхнем правом углу (все DXT-текстуры пока пропускаются). | Фаза 4 |
 | 2026-07-17 | Старт кампании: форс дефолтного профиля в Con_StartNewCampaign (m_bValidProfileLoaded без savegame-контекста); VBID-путь Render_VertexBuffer (VB_Get→CRC_BuildVertexBuffer, V3_F32/V2_F32/N4_COL, CRCPrimStreamIterator, DrawUserVerts) — куб/анимации фронтенда | Фазы 3-4 |
 | 2026-07-17 | Фаза 5 (инкремент 1): экранный FBO логического разрешения + композит в окно с поворотом 0/90/180/270 (`PresentToWindow`), `-rotate/-winsize/-fbosize`, g_RiddickPresent (MDisplayPresent.*), поворот дельт мыши в CInputContext_SDL2 | Фаза 5 |
+| 2026-07-17 | Ввод: геймпад SDL_GameController (оси POS/NEG-сканы с PS3-кривыми, кнопки в PS3-нумерации, dpad→POV, hot-plug) | Фаза 3 |
+| 2026-07-17 | GLES3: мультитекстура канал 1 (uv1 в вершине, uTex1 modulate — лайтмапы BSP), общий сетап юниформ вынесен в SetupCommonUniforms; separate stencil (CRC_FLAGS_SEPARATESTENCIL → glStencilFunc/OpSeparate) | Фаза 4 |
+| 2026-07-17 | GLES3: packed-форматы вершин VBID-пути (VRegFetch: I16/U16 raw, NS/NU нормализованные) для позиций и UV; диагностика lastFmt пропусков | Фаза 4 |
 | 2026-07-14 | Фаза 4 M5-partial: CPU DXT1 + DXT5 декодер (`GLES3_DXT.*`) — на аплоаде S3TC-сжатой CImage дёргаем `LockCompressed()`, читаем 16-байт `CImage_CompressHeader_S3TC`, распаковываем блоки 4x4 → RGBA8, `glTexImage2D(GL_RGBA8)` + mipmaps. Wrap=REPEAT для нормалей/env. DXT3 добавим по мере встречаемости. | Фаза 4 |
