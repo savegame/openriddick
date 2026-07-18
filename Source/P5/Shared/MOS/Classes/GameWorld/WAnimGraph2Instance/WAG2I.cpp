@@ -2303,7 +2303,15 @@ void CWAG2I::MoveGraphBlock(const CWAG2I_Context* _pContext, CAG2AnimGraphID _iA
 	}
 	//M_ASSERT(pAnimGraph,"Invalid animgraph");
 	const CXRAG2_MoveToken* pMoveToken = pAnimGraph->GetMoveToken(_iMoveToken);
-	M_ASSERT(pMoveToken,"INVALID MOVETOKEN");
+	if (!pMoveToken)
+	{
+		// Same graceful handling as the broken-animgraph case above --
+		// PC content can reference move tokens this graph snapshot
+		// doesn't resolve; skip instead of dying (retail builds
+		// compiled the old M_ASSERT out and read garbage here).
+		ConOut(CStrF("CWAG2I::MoveGraphBlock - INVALID MOVETOKEN Token: %d, iMT: %d iAG: %d", _ActionTokenID, _iMoveToken, _iAnimGraph));
+		return;
+	}
 	if (pMoveToken->m_iTargetState == AG2_STATEINDEX_STARTAG)
 	{
 		MoveGraphBlock(_pContext,0,0,0);

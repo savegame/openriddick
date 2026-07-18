@@ -623,7 +623,21 @@ void MRTC_SystemInfo::OS_Assert(const char* _pMsg, const char* _pFile, int _Line
 {
 	fprintf(stderr, "ASSERT: %s (%s:%d)\n", _pMsg ? _pMsg : "", _pFile ? _pFile : "?", _Line);
 	fflush(stderr);
-	M_BREAKPOINT;
+	// Retail builds (M_RTM) compile M_ASSERT out entirely -- the game
+	// shipped without these checks running. Log-and-continue mirrors
+	// that; RIDDICK_ASSERT_FATAL=1 restores the hard stop under gdb.
+	// Sites that would dereference NULL right after still crash, but
+	// then with a precise SIGSEGV backtrace at the real fault.
+	static int sFatal = -1;
+	if (sFatal < 0)
+	{
+		const char* e = getenv("RIDDICK_ASSERT_FATAL");
+		sFatal = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (sFatal)
+	{
+		M_BREAKPOINT;
+	}
 }
 
 void M_ARGLISTCALL MRTC_SystemInfo::OS_Trace(const char *_pStr, ...)
