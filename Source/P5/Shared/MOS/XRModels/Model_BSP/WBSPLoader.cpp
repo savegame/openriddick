@@ -1984,14 +1984,12 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 		CBSP_Node* pN = m_lNodes.GetBasePtr();
 		if (Ver == XW_NODE_VERSION && XWVersion >= 0x0124)
 		{
-			// PC (Dark Athena remaster) node records: same 24 bytes and
-			// version tag as the console files, but the fields are six
-			// little-endian uint32 in a different order, with the plane
-			// LAST (reverse-engineered from Pa1_Intro.XW; validated over
-			// all 52970 nodes of the main model with 0 inconsistencies):
+			// PC (Dark Athena remaster) node records: raw CBSP2_Node
+			// dumps (see XW2Common.h) also used for the BSP1 sub-models:
 			//   [0] iNodeFront / nFaces     [1] iNodeBack / iMedium
-			//   [2] iNodeParent             [3] iiFaces / bound pair
-			//   [4] iPlane (0 = leaf)       [5] flags | (iPortalLeaf<<16)
+			//   [2] iNodeParent             [3] iiFaces:24 | Flags:8
+			//   [4] iPlane (0 = leaf)       [5] iPortalLeaf (u16)
+			// Convert to this loader's CBSP_Node (u16 links, plane first).
 			M_ASSERT((mint)nNodes * 24 == _pDFile->GetEntrySize(), "!");
 			for (int iNode=0; iNode < nNodes; iNode++)
 			{
@@ -2010,9 +2008,9 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 					N.m_iMedium = (uint16)W[1];
 				}
 				N.m_iNodeParent = (uint16)W[2];
-				N.m_iiFaces     = W[3];
-				N.m_Flags       = (uint16)(W[5] & 0xffff);
-				N.m_iPortalLeaf = (uint16)(W[5] >> 16);
+				N.m_iiFaces     = W[3] & 0x00ffffff;
+				N.m_Flags       = (uint16)(W[3] >> 24);
+				N.m_iPortalLeaf = (uint16)(W[5] & 0xffff);
 				N.m_Padding0    = 0;
 			}
 		}
