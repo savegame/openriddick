@@ -12,11 +12,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
+#include <execinfo.h>
+
+// Fatal-signal handler: print a backtrace to stderr before dying, so
+// run logs pinpoint silent crashes (SIGSEGV etc.) without gdb.
+static void Linux_FatalSignal(int _Sig)
+{
+	// Re-raise default on recursion
+	signal(_Sig, SIG_DFL);
+	fprintf(stderr, "\n[FATAL] signal %d (%s), backtrace:\n", _Sig, strsignal(_Sig));
+	void* lBT[64];
+	int n = backtrace(lBT, 64);
+	backtrace_symbols_fd(lBT, n, 2);
+	fflush(stderr);
+	raise(_Sig);
+}
+
+static void Linux_InstallCrashHandler()
+{
+	signal(SIGSEGV, Linux_FatalSignal);
+	signal(SIGBUS,  Linux_FatalSignal);
+	signal(SIGFPE,  Linux_FatalSignal);
+	signal(SIGILL,  Linux_FatalSignal);
+	signal(SIGABRT, Linux_FatalSignal);
+}
 
 #define MOSMain_ShowError(Err) fprintf(stderr, "%s\n", (const char*)(Err))
 
 int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 {
+	Linux_InstallCrashHandler();
 	// -datapath <dir>: run the engine from the game-resource directory
 	// (the engine loads everything relative to the working directory,
 	// e.g. Content\, Environment.cfg, Sbz1/...)
