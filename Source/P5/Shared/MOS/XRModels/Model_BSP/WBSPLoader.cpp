@@ -1980,9 +1980,43 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 
 		int nNodes = _pDFile->GetUserData();
 		int Ver = _pDFile->GetUserData2();
-		m_lNodes.SetLen(nNodes); 
+		m_lNodes.SetLen(nNodes);
 		CBSP_Node* pN = m_lNodes.GetBasePtr();
-		if (Ver == XW_NODE_VERSION)
+		if (Ver == XW_NODE_VERSION && XWVersion >= 0x0124)
+		{
+			// PC (Dark Athena remaster) node records: same 24 bytes and
+			// version tag as the console files, but the fields are six
+			// little-endian uint32 in a different order, with the plane
+			// LAST (reverse-engineered from Pa1_Intro.XW; validated over
+			// all 52970 nodes of the main model with 0 inconsistencies):
+			//   [0] iNodeFront / nFaces     [1] iNodeBack / iMedium
+			//   [2] iNodeParent             [3] iiFaces / bound pair
+			//   [4] iPlane (0 = leaf)       [5] flags | (iPortalLeaf<<16)
+			M_ASSERT((mint)nNodes * 24 == _pDFile->GetEntrySize(), "!");
+			for (int iNode=0; iNode < nNodes; iNode++)
+			{
+				uint32 W[6];
+				pFile->ReadLE(W, 6);
+				CBSP_Node& N = pN[iNode];
+				N.m_iPlane = W[4];
+				if (W[4])
+				{
+					N.m_iNodeFront = (uint16)W[0];
+					N.m_iNodeBack  = (uint16)W[1];
+				}
+				else
+				{
+					N.m_nFaces  = (uint16)W[0];
+					N.m_iMedium = (uint16)W[1];
+				}
+				N.m_iNodeParent = (uint16)W[2];
+				N.m_iiFaces     = W[3];
+				N.m_Flags       = (uint16)(W[5] & 0xffff);
+				N.m_iPortalLeaf = (uint16)(W[5] >> 16);
+				N.m_Padding0    = 0;
+			}
+		}
+		else if (Ver == XW_NODE_VERSION)
 		{
 			// Fast path if the node version is the latest
 			M_ASSERT(m_lNodes.ListSize() == _pDFile->GetEntrySize(), "!");
