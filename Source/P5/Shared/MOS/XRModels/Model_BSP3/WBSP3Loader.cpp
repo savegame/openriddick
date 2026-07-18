@@ -1802,9 +1802,37 @@ void CXR_Model_BSP3::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, co
 
 		int nNodes = _pDFile->GetUserData();
 		int Ver = _pDFile->GetUserData2();
-		m_lNodes.SetLen(nNodes); 
+		m_lNodes.SetLen(nNodes);
 		CBSP3_Node* pN = m_lNodes.GetBasePtr();
-		if (Ver == XW_NODE_VERSION)
+		if (Ver == XW_NODE_VERSION && XWVersion >= 0x0124)
+		{
+			// PC (Dark Athena remaster) node records: raw CBSP2_Node
+			// dumps (see XW2Common.h / Docs/BSP_PC_Format.md). Convert
+			// to this loader's u16-field CBSP3_Node.
+			M_ASSERT((mint)nNodes * 24 == _pDFile->GetEntrySize(), "!");
+			for (int iNode=0; iNode < nNodes; iNode++)
+			{
+				uint32 W[6];
+				pFile->ReadLE(W, 6);
+				CBSP3_Node& N = pN[iNode];
+				N.m_iPlane = W[4];
+				if (W[4])
+				{
+					N.m_iNodeFront = (uint16)W[0];
+					N.m_iNodeBack  = (uint16)W[1];
+				}
+				else
+				{
+					N.m_nFaces  = (uint16)W[0];
+					N.m_iMedium = (uint16)W[1];
+				}
+				N.m_iNodeParent = (uint16)W[2];
+				N.m_iiFaces     = W[3] & 0x00ffffff;
+				N.m_Flags       = (uint16)(W[3] >> 24);
+				N.m_iPortalLeaf = (uint16)(W[5] & 0xffff);
+			}
+		}
+		else if (Ver == XW_NODE_VERSION)
 		{
 			// Fast path if the node version is the latest
 			M_ASSERT(m_lNodes.ListSize() == _pDFile->GetEntrySize(), "!");
