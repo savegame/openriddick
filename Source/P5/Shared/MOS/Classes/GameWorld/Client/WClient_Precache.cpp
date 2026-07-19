@@ -1045,7 +1045,9 @@ void CWorld_ClientCore::Precache_Perform(CRenderContext* _pRC, fp32 _dTime)
 					{
 						if(GetClientState() == WCLIENT_STATE_PRECACHE)
 						{
-#ifdef M_Profile
+						// Linux: profiling dumps disabled for bring-up (DumpGeometryUsage derefs NULL
+						// after OnResolveVariationProxy on PC content; retail compiles this out via M_RTM)
+#if defined(M_Profile) && !defined(PLATFORM_LINUX)
  #if defined(PLATFORM_XENON)
 							//CStr Path = "Cache:\\MemUsage\\";
 							CStr Path = m_spMapData->ResolvePath("MemUsage\\");

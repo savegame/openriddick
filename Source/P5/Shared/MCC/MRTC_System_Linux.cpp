@@ -780,7 +780,9 @@ bool MRTC_SystemInfo::OS_DirectoryChange(const char* _pPath)
 
 bool MRTC_SystemInfo::OS_DirectoryCreate(const char* _pPath)
 {
-	return mkdir(_pPath, 0755) == 0 || errno == EEXIST;
+	char Path[2048];
+	Linux_ResolvePath(_pPath, Path, sizeof(Path));
+	return mkdir(Path, 0755) == 0 || errno == EEXIST;
 }
 
 bool MRTC_SystemInfo::OS_DirectoryRemove(const char* _pPath)
