@@ -440,6 +440,11 @@ CAG2GraphBlockIndex CXRAG2::GetMatchingGraphBlock(CXRAG2_Impulse _Impulse) const
 	// Search through blocks to see if we can find a match
 	int32 iBlockStart = 0;
 	int32 NumBlocks = GetNumGraphBlocks();
+	// Empty/unloaded graph (PC content with unresolved animgraph data):
+	// nothing can match; the search below would index element 0 of an
+	// empty array.
+	if (NumBlocks <= 0)
+		return AG2_GRAPHBLOCKINDEX_NULL;
 	int32 iSearchStart = iBlockStart;
 	int32 iSearchEnd = iSearchStart + NumBlocks - 1;
 	bool bFoundMatch = false;

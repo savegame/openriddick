@@ -167,7 +167,13 @@ little-endian. Загрузчики файлов движка историчес
       математики (сначала `MMath_Vec128_Emu`, оптимизация потом).
 
 ### Фаза 7 — Звук
-- [ ] SDL2-аудиобэкенд для `MSound_Core` (callback → микшер движка).
+- [ ] SDL2-аудиобэкенд поверх `CSoundContext_Mixer` — детальный план в
+      `Docs/Sound_SDL2.md` (этапы M0–M4, образец — MSound_PS3).
+
+### Видео
+- Ролики PC — WMV9; варианты декодирования разобраны в
+  `Docs/Video_Playback.md` (рекомендация: libtheora + офлайн-конвертация,
+  штатный плеер CTextureContainer_Video_Theora уже в дереве).
 
 ### Фаза 8 — imGui (отладочный оверлей, в самом конце)
 - [ ] Добавить исходники Dear ImGui (`Source/ThirdParty/imgui/`), бэкенды
