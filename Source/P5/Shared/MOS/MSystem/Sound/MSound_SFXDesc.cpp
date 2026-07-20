@@ -1048,7 +1048,7 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 
 		if (bHasName)
 		{
-			// One descriptor for all matching waves (random wave at playback)
+			// Grouped desc under the explicit *Name (random-pick playback)
 			CSC_SFXDesc Desc;
 			ClearDescDatas(Desc);
 			Desc.SetMode(CSC_SFXDesc::ENORMAL);
@@ -1060,20 +1060,54 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 				lWaves[i] = liWaves[i];
 			StoreDesc(pWC, Desc);
 			nDescs++;
+
+			// Also register per-variant descs — scripts sometimes ask
+			// for the raw wave name in addition to the *Name alias
+			for(int i = 0; i < liWaves.Len(); i++)
+			{
+				const char *pWaveName = pWC->GetName(liWaves[i]);
+				if (Name.CompareNoCase(pWaveName) == 0)
+					continue;
+				CSC_SFXDesc DescV;
+				ClearDescDatas(DescV);
+				DescV.SetMode(CSC_SFXDesc::ENORMAL);
+				DescV.m_SoundName = pWaveName;
+				SetAttributes(DescV, _Node, _FileCategory);
+				DescV.GetNormalParams()->m_lWaves.SetLen(1);
+				DescV.GetNormalParams()->m_lWaves[0] = liWaves[i];
+				StoreDesc(pWC, DescV);
+				nDescs++;
+			}
 		}
 		else
 		{
-			// No explicit *Name: group waves by base name (trailing "_NN"
-			// stripped). gui_select_01/gui_select_02/... -> single descriptor
-			// "gui_select" with the variants as random-pick waves. Scripts
-			// request "GUI_Select"; without grouping we produced one desc
-			// per variant named after the raw wave and every SND:GUI_Select
-			// lookup returned Undefined sound (silent menus, silent dialog).
+			// No explicit *Name. Game scripts query BOTH forms — the
+			// base name ("SND:GUI_Select") and the exact variant name
+			// ("SND:GUI_Select_01") — so register both:
+			//   1) one per-variant desc named after the raw wave (single
+			//      wave, exact playback),
+			//   2) plus one grouped desc per base name (trailing "_NN"
+			//      stripped) with all variants as random-pick waves.
+			// GetSFXDescIndex is CompareNoCase exact-match, no fallback,
+			// hence the duplication.
 			TArray<CStr> lBases;
 			TArray<TArray<int16> > lGroups;
 			for(int i = 0; i < liWaves.Len(); i++)
 			{
-				CStr Base = StripVariantSuffix(pWC->GetName(liWaves[i]));
+				// (1) per-variant desc named after the wave itself
+				const char *pWaveName = pWC->GetName(liWaves[i]);
+				CSC_SFXDesc DescV;
+				ClearDescDatas(DescV);
+				DescV.SetMode(CSC_SFXDesc::ENORMAL);
+				DescV.m_SoundName = pWaveName;
+				SetAttributes(DescV, _Node, _FileCategory);
+				DescV.GetNormalParams()->m_lWaves.SetLen(1);
+				DescV.GetNormalParams()->m_lWaves[0] = liWaves[i];
+				StoreDesc(pWC, DescV);
+				nDescs++;
+
+				// bucket by base name for (2)
+				CStr Base = StripVariantSuffix(pWaveName);
 				int iGroup = -1;
 				for(int j = 0; j < lBases.Len(); j++)
 					if (lBases[j].CompareNoCase(Base) == 0) { iGroup = j; break; }
@@ -1087,8 +1121,16 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 				lGroups[iGroup].Add(liWaves[i]);
 			}
 
+			// (2) grouped desc per base — skip if base equals the raw
+			// wave name (single-wave group; already registered by (1))
 			for(int g = 0; g < lBases.Len(); g++)
 			{
+				if (lGroups[g].Len() == 1)
+				{
+					const char *pWaveName = pWC->GetName(lGroups[g][0]);
+					if (lBases[g].CompareNoCase(pWaveName) == 0)
+						continue;
+				}
 				CSC_SFXDesc Desc;
 				ClearDescDatas(Desc);
 				Desc.SetMode(CSC_SFXDesc::ENORMAL);

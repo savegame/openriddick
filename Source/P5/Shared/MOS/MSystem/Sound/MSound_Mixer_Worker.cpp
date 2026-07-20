@@ -240,7 +240,16 @@ void CSC_Mixer_WorkerContext::ProcessDSPInstance(CDSPChainInstanceInternal *_pCh
 
 	// [RIDDICK-DBG] dump processing of voice chains only (the idle
 	// SilenceGen/Master chains drown the log), to diagnose broken voice
-	// chains (NULL param blocks) on the CPU mixer path
+	// chains (NULL param blocks) on the CPU mixer path.
+	// Off by default (was drowning run.log with thousands of lines per
+	// frame) — RIDDICK_DBG_SND=1 to enable when investigating a voice.
+	static int s_DbgSnd = -1;
+	if (s_DbgSnd < 0)
+	{
+		const char *pEnv = getenv("RIDDICK_DBG_SND");
+		s_DbgSnd = (pEnv && pEnv[0] == '1') ? 1 : 0;
+	}
+	if (s_DbgSnd)
 	{
 		static void *s_pLastVoiceChain = NULL;
 		static bint s_bLastIsVoice = false;

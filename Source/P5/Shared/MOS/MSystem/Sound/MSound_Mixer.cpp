@@ -1044,7 +1044,15 @@ bint CSC_Mixer_WorkerContext::CDSPChainInstanceInternal::SetDSPChain(CDSPChainIn
 {
 	m_pChain = _pChain;
 	mint nInstances = _pChain->m_nDSPInstances;
-	// [RIDDICK-DBG] dump chain layout of the first created instances
+	// [RIDDICK-DBG] dump chain layout of the first created instances,
+	// gated by RIDDICK_DBG_SND=1 (was spamming even the healthy runs)
+	static int s_DbgSnd = -1;
+	if (s_DbgSnd < 0)
+	{
+		const char *pEnv = getenv("RIDDICK_DBG_SND");
+		s_DbgSnd = (pEnv && pEnv[0] == '1') ? 1 : 0;
+	}
+	if (s_DbgSnd)
 	{
 		static int s_DbgChains = 0;
 		if (s_DbgChains < 30)
