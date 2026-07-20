@@ -216,6 +216,28 @@ void M_CDECL operator delete(void* p)
 }
 
 
+// Sized deallocation (GCC/Clang default since C++14): without these the
+// compiler-generated operator delete(void*, size_t) / delete[](void*)
+// calls fall through to libstdc++ and glibc free() gets pointers inside
+// the MRTC arena -> heap corruption (valgrind: 130+ invalid frees).
+void M_CDECL operator delete(void* p, size_t)
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+
+#ifndef PLATFORM_PS3
+void M_CDECL operator delete[](void* p) throw()
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+#endif
+
+void M_CDECL operator delete[](void* p, size_t)
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+
+
 #ifdef PLATFORM_PS3
 void* M_CDECL operator new(mint _nSize, const std::nothrow_t&)
 {

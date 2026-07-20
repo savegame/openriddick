@@ -45,7 +45,7 @@
   движок включал occlusion-query-отсечение (наши заглушки отвечают «не
   видно» -> мир отсекается целиком) и FP20-шейдерные слои; теперь caps
   честные (HWAPI|ARBITRARY_TEXTURE_SIZE|SEPARATESTENCIL, 2 текстурных юнита).
-- Латентная порча кучи (`munmap_chunk` в разных местах: radeonsi, OS_FileAsyncClose) — в последних прогонах не воспроизводится; при рецидиве — valgrind-прогон (команда зафиксирована в переписке 2026-07-19).
+- Латентная порча кучи (`munmap_chunk` в разных местах: radeonsi, OS_FileAsyncClose) и детерминированный крэш Pa1_Arrival — первопричины найдены и зафиксированы (2026-07-20): (1) **`mint` на Linux — `unsigned long`** (`Target_Linux_SDL2.h:166`), поэтому в large-block ветви `CDA_MemoryManager::AllocImp` (`MMemMgrHeap.cpp`) при точном попадании блока `PreBlockSize = -16` проходил как unsigned-huge: карв отрицательного pre-block → `GetFreeSizeClass(-16)` → fragments-дерево с unsigned-ключом возвращало этот класс на большой запрос → блок выдавался дважды → крэш в `SDA_DefraggableFreeLink::Remove`. Фикс: знаковые сравнения через `aint` + блок при точном попадании используется целиком; плюс трипвайры `[HEAP-TRIPWIRE]` в `GetFreeSizeClass`/`GetSizeClass`. ВНИМАНИЕ: любые сравнения размеров в MCC на знак — только через `aint`/`smint`. (2) Отсутствовали sized `operator delete(void*,size_t)` / `operator delete[]` — GCC (-fsized-deallocation) слал их в glibc `free()` на указателях внутри MRTC-арены (фикс — `Mrtc.cpp`). При рецидивах — снова valgrind/gdb.
 - Ветка `kimi_fixes` — устаревший срез (откат caps/texture-правок), полезного не содержит.
 
 ## Архитектурные решения, стабы и обходы (полная карта для агентов)
