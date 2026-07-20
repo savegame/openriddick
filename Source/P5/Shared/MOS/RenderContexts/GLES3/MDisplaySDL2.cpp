@@ -346,7 +346,9 @@ public:
 	public:
 
 		CDisplayContextSDL2 *m_pDisplayContext;
-		
+		int m_iTC = -1;
+		int m_iVBCtxRC = -1;
+
 
 		void Internal_RenderPolygon(int _nV, const CVec3Dfp32* _pV, const CVec3Dfp32* _pN, const CVec4Dfp32* _pCol = NULL, const CVec4Dfp32* _pSpec = NULL, /*const fp32* _pFog = NULL,*/
 									const CVec4Dfp32* _pTV0 = NULL, const CVec4Dfp32* _pTV1 = NULL, const CVec4Dfp32* _pTV2 = NULL, const CVec4Dfp32* _pTV3 = NULL, int _Color = 0xffffffff)
@@ -925,11 +927,30 @@ public:
 			m_Caps_ZFormats = -1;
 			m_Caps_StencilDepth = 8;
 			m_Caps_AlphaDepth = 8;
-			m_Caps_Flags = -1;
+			// Honest caps: the engine picks its render path from these.
+			// Claiming everything (-1) routed the world through paths our
+			// backend cannot execute: OCCLUSIONQUERY culling (our query
+			// stubs report "0 pixels visible" -> whole world culled) and
+			// FRAGMENTPROGRAM20/30 shader layers (XRShader.cpp:1268).
+			// With a minimal set the engine falls back to the fixed-
+			// function/texenv multipass path, which maps onto our
+			// attrib-based GLES3 drawing.
+			m_Caps_Flags = CRC_CAPS_FLAGS_HWAPI
+			             | CRC_CAPS_FLAGS_ARBITRARY_TEXTURE_SIZE
+			             | CRC_CAPS_FLAGS_SEPARATESTENCIL;
 
-			m_Caps_nMultiTexture = 16;
-			m_Caps_nMultiTextureCoords = 8;
-			m_Caps_nMultiTextureEnv = 8;
+			// 2 texture units = the engine's most compatible multipass
+			// path (base + lightmap per pass) -- exactly what the shader
+			// in this backend implements (uTex/uTex1).
+			m_Caps_nMultiTexture = 2;
+			m_Caps_nMultiTextureCoords = 2;
+			m_Caps_nMultiTextureEnv = 2;
+
+			// Register with the texture/VB contexts (the PS3 backend does
+			// this in its Create; CRC_Core::Create does not) so they can
+			// track per-RC state and dirty-notify us.
+			m_iTC = m_pTC->AddRenderContext(this);
+			m_iVBCtxRC = m_pVBCtx->AddRenderContext(this);
 
 		}
 
