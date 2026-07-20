@@ -96,7 +96,13 @@ void CSoundContext_SDL2::Platform_Init(uint32 _MaxMixerVoices)
 	Want.freq = (int)m_PlatformInfo.m_SampleRate;
 	Want.format = AUDIO_F32SYS;			// mixer outputs fp32
 	Want.channels = (Uint8)m_PlatformInfo.m_nChannels;
-	Want.samples = 512;					// two 256-sample mixer frames
+	// One SDL callback == one mixer frame (256 samples ~ 5.33 ms @ 48 kHz).
+	// StartNewFrame publishes one frame per signal into a single atomic slot;
+	// asking SDL for 512 samples per callback meant every callback drained
+	// the slot on the first 256 and then hit a NULL slot for the next 256
+	// (the mixer had no time to produce the second frame yet) - producing
+	// a systematic 50%-silence chop tone at every callback.
+	Want.samples = (Uint16)m_PlatformInfo.m_FrameLength;
 	Want.callback = &CSoundContext_SDL2::AudioCallback;
 	Want.userdata = this;
 
@@ -115,6 +121,17 @@ void CSoundContext_SDL2::Platform_Init(uint32 _MaxMixerVoices)
 		fprintf(stderr, "[SND-SDL2] unsupported device format, output will be silence\n");
 
 	m_bMixerReady = true;
+
+	// Pre-warm the mixer: kick it a couple of times so the finished-frame
+	// slot is populated before SDL fires the first callback. Otherwise the
+	// first callback always underruns (silence for the first 5-10 ms).
+	// StartNewFrame() only signals the mixer, so give it a moment to actually
+	// produce a frame and land it in m_FinishedOutputFrame.
+	m_Mixer.StartNewFrame();
+	SDL_Delay(2);
+	m_Mixer.StartNewFrame();
+	SDL_Delay(2);
+
 	SDL_PauseAudioDevice(m_AudioDevice, 0);
 }
 
