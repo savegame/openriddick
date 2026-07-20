@@ -16,6 +16,7 @@
   - `RIDDICK_COPYTEX_FLIP=0` — вернуть старую (неперевёрнутую) ориентацию CopyToTexture; дефолт теперь перевёрнутый блит (подтверждено визуально 2026-07-20);
   - `RIDDICK_DBG_SURF=1` — отладочный вывод по поверхностям/рендеру;
   - `RIDDICK_DBG_GL=1` — ценз текстур (`[GL-TEXREQ]`), RT-переключения (`[GLES3-RT]`);
+  - `RIDDICK_DBG_RTT=1` — оверлей: все живые RTT-таргеты (FBO из `[GLES3-RTT]`) сеткой квадов в левой четверти экрана; раскладка ячеек печатается в stderr как `[GLES3-RTT-OVL]` (класс `CGLES3RTTOverlay`, GLES3_RTTOverlay.cpp);
   - `RIDDICK_ASSERT_FATAL=1` — вернуть жёсткий останов на M_ASSERT (по умолчанию ассерты log-and-continue, как в retail M_RTM).
   - `RIDDICK_STARTMAP=<имя>` — стартовый мир кампании вместо Pa1_Intro (имя без пути/расширения, напр. `Pa1_Arrival`, `i1_pigsville`); резолв пути делает Command_ChangeMap.
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.

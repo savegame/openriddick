@@ -21,6 +21,7 @@
 #include "GLES3_Texture.h"
 #include "GLES3_Shader.h"
 #include "GLES3_VBOStreamer.h"
+#include "GLES3_RTTOverlay.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -506,6 +507,7 @@ public:
 		CGLES3Shader m_CompShader;
 		int    m_CompRotLoc, m_CompTexLoc;
 		GLuint m_CompVBO;
+		CGLES3RTTOverlay m_RTTOverlay;
 
 		// Logical target height for top-left -> bottom-left Y flips
 		// (scissor, clear rects, viewports). This is the FBO height,
@@ -625,6 +627,25 @@ public:
 			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), 0);
 			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
+			// Debug: draw every live RTT target as a grid on top
+			// (RIDDICK_DBG_RTT=1). Window framebuffer is still bound.
+			if (m_RTTOverlay.Enabled())
+			{
+				CGLES3RTTOverlay::SEntry Entries[CGLES3RTTOverlay::MAX_ENTRIES];
+				int nEntries = 0;
+				for (int i = 0; i < m_lFBO.Len() && nEntries < CGLES3RTTOverlay::MAX_ENTRIES; ++i)
+				{
+					if (!m_lFBO[i].m_FBO) continue;
+					Entries[nEntries].m_Tex   = m_lFBO[i].m_ColorTex;
+					Entries[nEntries].m_TexID = i;
+					Entries[nEntries].m_W     = m_lFBO[i].m_Width;
+					Entries[nEntries].m_H     = m_lFBO[i].m_Height;
+					++nEntries;
+				}
+				m_RTTOverlay.Render(m_pDisplayContext->m_WinWidth,
+					m_pDisplayContext->m_WinHeight, Entries, nEntries);
+			}
+
 			// Restore the engine's render target for the next frame.
 			glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFBO);
 			glViewport(0, 0, m_ScreenW, m_ScreenH);
@@ -723,6 +744,7 @@ public:
 			m_ModelMat.Unit();
 			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
 			DbgInit();
+			m_RTTOverlay.InitFromEnv();
 			const char* e = getenv("RIDDICK_DBG_SHADER");
 			if (e)
 			{
@@ -735,6 +757,7 @@ public:
 		~CRC_GLES3()
 		{
 			if (g_pGLES3RCInst == this) g_pGLES3RCInst = 0;
+			m_RTTOverlay.Destroy();
 			Texture_ReleaseAll();
 			ReleaseAllFBOs();
 			ReleaseScreenFBO();
