@@ -12,6 +12,8 @@
 // AnimGraph versions and history.
 #define XR_ANIMGRAPH2_VERSION3 0x0003 // Created
 #define XR_ANIMGRAPH2_VERSION 0x0004 // Created
+#define XR_ANIMGRAPH2_VERSION5 0x0005 // PC: AnimLayer stores Opacity, AnimFlags shrunk to u8
+#define XR_ANIMGRAPH2_VERSION6 0x0006 // PC: GraphBlock +u32 name hash; NAME entry is Readln-based
 
 #define M_AGINLINE M_INLINE
 //--------------------------------------------------------------------------------

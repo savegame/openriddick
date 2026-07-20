@@ -28,6 +28,8 @@ void CXRAG2_Reaction::Read(CCFile* _pFile, int _Ver)
 	{
 		case XR_ANIMGRAPH2_VERSION3:
 		case XR_ANIMGRAPH2_VERSION:
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
 		{
 			m_Impulse.Read(_pFile);
 

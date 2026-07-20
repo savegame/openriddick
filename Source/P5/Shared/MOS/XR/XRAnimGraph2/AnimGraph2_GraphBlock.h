@@ -97,6 +97,9 @@ public:
 	uint16 m_iStateConstantStart;
 	uint16 m_StateConstantLen;
 
+	// v6 (PC): extra u32 in GRAPHBLOCKS v6 entries (likely exported-name hash)
+	uint32 m_NameHash;
+
 public:
 	CXRAG2_GraphBlock();
 
@@ -111,6 +114,7 @@ public:
 		m_ReactionFullLen = 0;
 		m_iStateConstantStart = 0;
 		m_StateConstantLen = 0;
+		m_NameHash = 0;
 	}
 
 	// IO

@@ -25,6 +25,8 @@ void CXRAG2_MoveToken::Read(CCFile* _pFile, int _Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION3:
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_AnimTimeOffset);
 			_pFile->ReadLE(m_AnimBlendDuration);
@@ -81,6 +83,8 @@ void CXRAG2_MoveAnimGraph::Read(CCFile* _pFile, int _Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION3:
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_AnimBlendDuration);
 			_pFile->ReadLE(m_AnimBlendDelay);
@@ -135,6 +139,8 @@ void CXRAG2_Action::Read(CCFile* _pFile, int _Ver)
 	{
 		case XR_ANIMGRAPH2_VERSION3:
 		case XR_ANIMGRAPH2_VERSION:
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_iBaseEffectInstance);
 			_pFile->ReadLE(m_iBaseMoveToken);
