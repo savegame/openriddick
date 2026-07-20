@@ -13,6 +13,7 @@
 - CMake, build-директория `build/desktop-x86_64/`, бинарь `build/desktop-x86_64/bin/openriddick`.
 - Запуск (из корня репо): `./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick` — PC-ресурсы Riddick (XDF-архивы, миры Pa1_Intro и пр.).
 - Полезные env-переменные порта:
+  - `RIDDICK_COPYTEX_FLIP=0` — вернуть старую (неперевёрнутую) ориентацию CopyToTexture; дефолт теперь перевёрнутый блит (подтверждено визуально 2026-07-20);
   - `RIDDICK_DBG_SURF=1` — отладочный вывод по поверхностям/рендеру;
   - `RIDDICK_DBG_GL=1` — ценз текстур (`[GL-TEXREQ]`), RT-переключения (`[GLES3-RT]`);
   - `RIDDICK_ASSERT_FATAL=1` — вернуть жёсткий останов на M_ASSERT (по умолчанию ассерты log-and-continue, как в retail M_RTM).

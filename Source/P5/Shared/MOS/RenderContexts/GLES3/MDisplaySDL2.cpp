@@ -1030,11 +1030,14 @@ public:
 			int H = _SrcRect.p1.y - _SrcRect.p0.y;
 			if (W <= 0 || H <= 0) return;
 
+			// Default = flipped blit: confirmed correct on screen
+			// 2026-07-20 (menu orientation AND row positions right).
+			// RIDDICK_COPYTEX_FLIP=0 switches back to the plain copy.
 			static int sFlip = -1;
 			if (sFlip < 0)
 			{
 				const char* e = getenv("RIDDICK_COPYTEX_FLIP");
-				sFlip = (e && *e && *e != '0') ? 1 : 0;
+				sFlip = (e && *e == '0') ? 0 : 1;
 			}
 
 			if (sFlip)
