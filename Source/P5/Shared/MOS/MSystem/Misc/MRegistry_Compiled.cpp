@@ -3866,10 +3866,17 @@ NormalBranch:
 				// Some PC EFBB worlds (e.g. Pa1_TheDream) compile bigger than 64K
 				// slots per data block. Continuing would silently truncate every
 				// child offset and crash later dereferencing a corrupt registry
-				// pointer (SEGV in TPtrBase::Assign). Fail cleanly instead —
-				// TODO widen the packed layout to a 32-bit ChildNodeStart.
-				fprintf(stderr, "[REG-CMP] compiled registry block %d/%d needs %d slots (>64K), refusing to load\n", i, (int)nData, NeededSize);
-				Error("Read", "Compiled registry block exceeds 64K slot addressing limit");
+				// pointer. Bail out with an empty registry (GetRoot() returns
+				// an empty tree; the caller keeps a valid, degraded resource).
+				// M_EXCEPTIONS=0 on Linux, so Error()/M_TRY are no-ops - we can't
+				// throw. TODO: widen the packed layout to a 32-bit ChildNodeStart.
+				fprintf(stderr, "[REG-CMP] compiled registry block %d/%d needs %d slots (>64K), skipping (returning empty root)\n", i, (int)nData, NeededSize);
+				m_RootNodeChildren = 0;
+				// Zero out already-populated block sizes so ~destructor / later
+				// accesses see a consistent empty state.
+				for (int j = 0; j <= i; ++j)
+					m_CompiledData[j].m_lRegistryNodes.SetLen(0);
+				return;
 			}
 			M_ASSERT(NeededSize <= 1 << 16, "Overflow");
 			m_CompiledData[i].m_lRegistryNodes.SetLen(NeededSize);
