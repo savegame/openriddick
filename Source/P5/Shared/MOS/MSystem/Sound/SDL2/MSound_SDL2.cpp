@@ -4,15 +4,21 @@
 // M0: context stub - Platform_* no-ops, all voices silent.
 // M1: SDL audio device + master output. The SDL callback pulls finished
 //     mixer frames via CSC_Mixer::StartNewFrame() and copies interleaved
-//     stereo fp32 to the SDL stream. Voice streaming arrives in M2, so
-//     the output is mixer silence for now.
+//     stereo fp32 to the SDL stream.
+// M2: voice streaming inherited from CSoundContext_Vorbis (generic CPU
+//     implementation, previously Win32-only - now built on Linux too):
+//     Wave_Precache decodes static waves on a worker thread, short SFX
+//     play from one circular packet, longer/streamed waves run through
+//     the decode thread with 3 x 100 ms packets, looping is handled by
+//     CSCC_Codec::GetData(_bLooping). This file only adds the SDL output
+//     device and Platform_GetInfo.
 
 #include "PCH.h"
 #include "MSound_SDL2.h"
 
 #ifdef PLATFORM_LINUX
 
-MRTC_IMPLEMENT_DYNAMIC(CSoundContext_SDL2, CSoundContext_Mixer);
+MRTC_IMPLEMENT_DYNAMIC(CSoundContext_SDL2, CSoundContext_Vorbis);
 
 CSoundContext_SDL2::CSoundContext_SDL2()
 {
@@ -75,6 +81,9 @@ void CSoundContext_SDL2::Platform_Init(uint32 _MaxMixerVoices)
 	fprintf(stderr, "[SND-SDL2] Platform_Init: %u mixer voices, %d channels, %.0f Hz\n",
 		_MaxMixerVoices, m_PlatformInfo.m_nChannels, m_PlatformInfo.m_SampleRate);
 
+	// Start the voice streaming worker threads (precache/decode)
+	CSuper::Platform_Init(_MaxMixerVoices);
+
 	if (!m_bSDLInit)
 		return;
 
@@ -107,6 +116,32 @@ void CSoundContext_SDL2::Platform_Init(uint32 _MaxMixerVoices)
 
 	m_bMixerReady = true;
 	SDL_PauseAudioDevice(m_AudioDevice, 0);
+}
+
+void CSoundContext_SDL2::Platform_StartStreamingToMixer(uint32 _MixerVoice, CVoice *_pVoice, uint32 _WaveID, fp32 _SampleRate)
+{
+	static uint32 s_nStarts = 0;
+	if (s_nStarts < 200) // Cap the spam, footsteps and such repeat forever
+	{
+		++s_nStarts;
+		CWaveData Data;
+		m_spWaveContext->GetWaveLoadedData(_WaveID, Data);
+		fprintf(stderr, "[SND-SDL2] start voice %u wave %d '%s' rate %.0f ch %d len %d loop %d\n",
+			_MixerVoice, _WaveID, m_spWaveContext->GetWaveName(_WaveID).Str(),
+			_SampleRate, Data.GetChannels(), Data.GetNumSamples(), _pVoice->m_bLooping ? 1 : 0);
+	}
+	CSuper::Platform_StartStreamingToMixer(_MixerVoice, _pVoice, _WaveID, _SampleRate);
+}
+
+void CSoundContext_SDL2::Platform_StopStreamingToMixer(uint32 _MixerVoice)
+{
+	static uint32 s_nStops = 0;
+	if (s_nStops < 200)
+	{
+		++s_nStops;
+		fprintf(stderr, "[SND-SDL2] stop voice %u\n", _MixerVoice);
+	}
+	CSuper::Platform_StopStreamingToMixer(_MixerVoice);
 }
 
 void SDLCALL CSoundContext_SDL2::AudioCallback(void *_pUserData, Uint8 *_pStream, int _Len)
@@ -166,22 +201,6 @@ void CSoundContext_SDL2::AudioCallbackImpl(Uint8 *_pStream, int _Len)
 	// Sparse diagnostics: first 3 callbacks, then every 3000th (~32 s)
 	if (m_CbCount <= 3 || (m_CbCount % 3000) == 0)
 		fprintf(stderr, "[SND-SDL2] cb #%u len=%d underruns=%u\n", m_CbCount, _Len, m_CbUnderruns);
-}
-
-void CSoundContext_SDL2::Platform_StartStreamingToMixer(uint32 _MixerVoice, CVoice *_pVoice, uint32 _WaveID, fp32 _SampleRate)
-{
-	// M1: no wave data is submitted, the voice stays paused on
-	// EPauseSlot_Delayed and produces silence. (M2)
-}
-
-void CSoundContext_SDL2::Platform_StopStreamingToMixer(uint32 _MixerVoice)
-{
-	// M1: nothing was started
-}
-
-void CSoundContext_SDL2::Refresh()
-{
-	// M1: no worker threads to pump
 }
 
 #endif // PLATFORM_LINUX

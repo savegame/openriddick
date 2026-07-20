@@ -181,6 +181,7 @@ public:
 	};
 	void ScanWaveContainers_r(int _iContentDirectory, CStr _Path, TArray<CContainerPath> &_lContainers);
 	void ScanWaveContainers(CStr _Path);
+	void ScanSfxDescs_r(int _iContentDirectory, CStr _Path, TArray<CContainerPath> &_lContainers);
 	void ScanTextureContainers(CStr _Path);
 	void ScanVideos(CStr _Path, CTextureContainer_Video* _pTCVideo, CStr _Ext);
 

@@ -110,6 +110,7 @@ add_library(p5_msystem STATIC
     Sound/MSound_Waveform.cpp
     Sound/SCMixer/MSound_SCMixer.cpp
     Sound/SDL2/MSound_SDL2.cpp
+    Sound/Codecs/MSound_Codec_Vorbis.cpp
     Sound/Vorbis/MSound_Vorbis.cpp
     Sound/LipSync/LipSync.cpp
     Sound/MSound_CoreDualStream.cpp

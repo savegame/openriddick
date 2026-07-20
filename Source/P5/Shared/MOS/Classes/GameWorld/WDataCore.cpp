@@ -358,6 +358,48 @@ void CWorldDataCore::ScanWaveContainers_r(int _iContentDirectory, CStr _Path, TA
 	}
 }
 		
+void CWorldDataCore::ScanSfxDescs_r(int _iContentDirectory, CStr _Path, TArray<CContainerPath> &_lContainers)
+{
+	MAUTOSTRIP(CWorldDataCore_ScanSfxDescs_r, MAUTOSTRIP_VOID);
+
+	CDirectoryNode Dir;
+	Dir.ReadDirectory(m_lWorldPathes[_iContentDirectory] + _Path + "*");
+
+	int nFiles = Dir.GetFileCount();
+	for(int i = 0; i < nFiles; i++)
+	{
+		CDir_FileRec* pRec  = Dir.GetFileRec(i);
+		if (pRec->IsDirectory())
+		{
+			if (pRec->m_Name.Copy(0,1) != ".")
+				ScanSfxDescs_r(_iContentDirectory, _Path + pRec->m_Name + "\\", _lContainers);
+		}
+		else
+		{
+			if (pRec->m_Ext.CompareNoCase("XSFXC") == 0)
+			{
+				// Full path needed to override a file, just like the wave containers
+				CStr Path = _Path + pRec->m_Name;
+				int f = 0;
+				for(; f < _lContainers.Len(); f++)
+					if(_lContainers[f].m_Path.CompareNoCase(Path) == 0)
+					{
+						_lContainers[f].m_iContentDirectory = _iContentDirectory;
+						break;
+					}
+
+				if(f == _lContainers.Len())
+				{
+					CContainerPath ConPath;
+					ConPath.m_Path = Path;
+					ConPath.m_iContentDirectory = _iContentDirectory;
+					_lContainers.Add(ConPath);
+				}
+			}
+		}
+	}
+}
+
 void CWorldDataCore::ScanWaveContainers(CStr _Path)
 {
 	MAUTOSTRIP(CWorldDataCore_ScanWaveContainers, MAUTOSTRIP_VOID);
@@ -868,6 +910,41 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 //			ScanWaveContainers("");
 		ConOutL(CStrF("        %d wave containers loaded.", m_lspWC.Len()));
 		M_TRACE("        %d wave containers loaded.\n", m_lspWC.Len());
+
+		// The PC wave containers have no binary SFXDESC sections, the sound
+		// descriptors live in text scripts (Content/SfxDesc/*.xsfxc). Load
+		// them like the Win32 CWaveContext::ReadSfxDesc did.
+		ConOutL("(CWorldDataCore::Create) ScanSfxDescs...");
+		M_TRACE("(CWorldDataCore::Create) ScanSfxDescs...\n");
+		{
+			TArray<CContainerPath> lSfxDescFiles;
+			lSfxDescFiles.SetGrow(50);
+			for(int32 p = 0; p < m_lWorldPathes.Len(); p++)
+				ScanSfxDescs_r(p, "SfxDesc\\", lSfxDescFiles);
+
+			int nSfxDescs = 0;
+			for(int i = 0; i < lSfxDescFiles.Len(); i++)
+			{
+				CStr FileName = m_lWorldPathes[lSfxDescFiles[i].m_iContentDirectory] + lSfxDescFiles[i].m_Path;
+				M_TRY
+				{
+					nSfxDescs += MSound_LoadSFXDescScript(FileName, m_lspWC);
+				}
+				M_CATCH(
+				catch(CCExceptionFile)
+				{
+					ConOutL("§cf80WARNING: Failure reading sfxdesc script: " + FileName);
+				}
+				)
+			}
+
+			// The search index built by AddXWC is stale now, rebuild it
+			for(int i = 0; i < m_lspWC.Len(); i++)
+				m_lspWC[i]->SortSFXDescs();
+
+			ConOutL(CStrF("        %d sfxdescs loaded (%d files).", nSfxDescs, lSfxDescFiles.Len()));
+			M_TRACE("        %d sfxdescs loaded (%d files).\n", nSfxDescs, lSfxDescFiles.Len());
+		}
 
 		// Figure out how many waves we scanned in a pretty ugly way.
 		MACRO_GetRegisterObject(CWaveContext, pWC, "SYSTEM.WAVECONTEXT");

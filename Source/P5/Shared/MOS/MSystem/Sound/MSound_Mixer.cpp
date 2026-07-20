@@ -1042,6 +1042,22 @@ bint CSC_Mixer_WorkerContext::CDSPChainInstanceInternal::SetDSPChain(CDSPChainIn
 {
 	m_pChain = _pChain;
 	mint nInstances = _pChain->m_nDSPInstances;
+	// [RIDDICK-DBG] dump chain layout of the first created instances
+	{
+		static int s_DbgChains = 0;
+		if (s_DbgChains < 30)
+		{
+			++s_DbgChains;
+			fprintf(stderr, "[SND-CHAIN] inst %p chain %p nDSP %d:", (void *)this, (void *)_pChain, (int)nInstances);
+			CDSPInstanceInternalIterator DbgIter = _pChain->m_DSPInstances;
+			while (DbgIter)
+			{
+				fprintf(stderr, " [%d]=DSPID %u", (int)DbgIter->m_iChainDSP, (uint32)DbgIter->m_DSPID);
+				++DbgIter;
+			}
+			fprintf(stderr, "\n");
+		}
+	}
 	if (!AllocIndices(nInstances))
 		return false;
 	{

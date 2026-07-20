@@ -2,9 +2,9 @@
 #ifndef DInc_MSound_SDL2_h
 #define DInc_MSound_SDL2_h
 
-#include "../MSound.h"
-#include "../MSound_Mixer.h"
-#include "../SCMixer/MSound_SCMixer.h"
+// MSound_SCMixer.h has no include guard - include it only once,
+// via MSound_Vorbis.h (pulls MSound.h + MSound_Mixer.h too)
+#include "../Vorbis/MSound_Vorbis.h"
 
 #ifdef PLATFORM_LINUX
 #include <SDL.h>
@@ -16,11 +16,15 @@
 // M1: SDL audio device + master output. The SDL callback pulls finished
 //     mixer frames via CSC_Mixer::StartNewFrame() (lock-free, same as the
 //     PS3 audio thread does) and copies interleaved stereo fp32 to the
-//     SDL stream. No voice streaming yet - output is mixer silence.
+//     SDL stream.
+// M2: voice streaming inherited from CSoundContext_Vorbis (the generic
+//     CPU implementation: precache/decode worker threads, static voices,
+//     looped streaming via CSCC_Codec::GetData). SDL2 only adds the
+//     platform output device and Platform_GetInfo.
 //     See Docs/Sound_SDL2.md.
-class CSoundContext_SDL2 : public CSoundContext_Mixer
+class CSoundContext_SDL2 : public CSoundContext_Vorbis
 {
-	typedef CSoundContext_Mixer CSuper;
+	typedef CSoundContext_Vorbis CSuper;
 
 	MRTC_DECLARE;
 
@@ -55,10 +59,10 @@ public:
 	// Platform interface (CSoundContext_Mixer)
 	virtual void Platform_GetInfo(CPlatformInfo &_Info);
 	virtual void Platform_Init(uint32 _MaxMixerVoices);
+
+	// Diagnostics wrappers (streaming itself is CSoundContext_Vorbis)
 	virtual void Platform_StartStreamingToMixer(uint32 _MixerVoice, CVoice *_pVoice, uint32 _WaveID, fp32 _SampleRate);
 	virtual void Platform_StopStreamingToMixer(uint32 _MixerVoice);
-
-	virtual void Refresh();
 };
 
 typedef TPtr<CSoundContext_SDL2> spCSoundContext_SDL2;

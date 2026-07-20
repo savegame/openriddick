@@ -78,7 +78,8 @@
 #define IMAGE_IO_NOPCX
 #define IMAGE_IO_NOGIF
 #define	IMAGE_IO_NOS3TC
-#define IMAGE_IO_NOVORBIS
+// IMAGE_IO_NOVORBIS removed: the Vorbis wave codec (CMSound_Codec_VORB)
+// is required for sound playback (SDL2 sound backend, phase 7 M2)
 #define SOUND_IO_NOCOMPRESS
 #define	SOUND_IO_NODECOMPRESS
 #define IMAGE_IO_PNG

@@ -1,4 +1,5 @@
 
+#include <stdio.h>
 #define M_COMPILING_ON_VPU
 #define USE_SPU_PRINTF
 
@@ -237,8 +238,55 @@ void CSC_Mixer_WorkerContext::ProcessDSPInstance(CDSPChainInstanceInternal *_pCh
 	if (ProcessingInfo.m_pContainerOut)
 		ProcessingInfo.m_pDataOut = ContainersPtrs[nContainers++].m_pPtr;
 
+	// [RIDDICK-DBG] dump processing of voice chains only (the idle
+	// SilenceGen/Master chains drown the log), to diagnose broken voice
+	// chains (NULL param blocks) on the CPU mixer path
+	{
+		static void *s_pLastVoiceChain = NULL;
+		static bint s_bLastIsVoice = false;
+		void *pChain = (void *)_pChainInstance->m_pChain;
+		if (pChain != s_pLastVoiceChain)
+		{
+			s_pLastVoiceChain = pChain;
+			s_bLastIsVoice = false;
+			CDSPInstanceInternalIterator DbgIter = _pChainInstance->m_pChain->m_DSPInstances;
+			while (DbgIter)
+			{
+				if (DbgIter->m_DSPID == ESC_Mixer_DSP_Voice)
+				{
+					s_bLastIsVoice = true;
+					break;
+				}
+				++DbgIter;
+			}
+		}
+		if (s_bLastIsVoice)
+		{
+			void *pInt = _pChainInstance->GetInternalPtr(iDSP);
+			void *pPar = _pChainInstance->GetParamPtr(iDSP);
+			void *pLPar = _pChainInstance->GetLastParamPtr(iDSP);
+			fprintf(stderr, "[SND-DSP] inst %p chain %p DSPID %u iDSP %u data %p int %p par %p lpar %p in %p out %p nch %u\n",
+				(void *)_pDSPInstance, (void *)_pChainInstance, DSPID, iDSP,
+				(void *)_pChainInstance->m_Data.GetBasePtr(), pInt, pPar, pLPar,
+				(void *)ProcessingInfo.m_pDataIn, (void *)ProcessingInfo.m_pDataOut, ProcessingInfo.m_nChannels);
+			if (DSPID == ESC_Mixer_DSP_VolumeMatrix && pPar)
+			{
+				CSC_Mixer_DSP_VolumeMatrix::CParams *pVM = (CSC_Mixer_DSP_VolumeMatrix::CParams *)pPar;
+				fprintf(stderr, "[SND-DSP]   VolumeMatrix: src %u dst %u matrix %p\n",
+					(uint32)pVM->m_nSourceChannels, (uint32)pVM->m_nDestChannels, (void *)pVM->m_pVolumeMatrix);
+			}
+			if (!pPar || !pLPar)
+				fprintf(stderr, "[SND-DSP] WARNING: NULL param block, DSP skipped\n");
+		}
+	}
 	if (CSC_Mixer_WorkerContext::ms_DSP_Func_ProcessFrame[DSPID])
-		CSC_Mixer_WorkerContext::ms_DSP_Func_ProcessFrame[DSPID](&ProcessingInfo, _pChainInstance->GetInternalPtr(iDSP), _pChainInstance->GetParamPtr(iDSP), _pChainInstance->GetLastParamPtr(iDSP));
+	{
+		void *pPar = _pChainInstance->GetParamPtr(iDSP);
+		void *pLPar = _pChainInstance->GetLastParamPtr(iDSP);
+		if (!pPar || !pLPar)
+			return; // Broken instance (see [SND-DSP] dump), stay silent instead of crashing
+		CSC_Mixer_WorkerContext::ms_DSP_Func_ProcessFrame[DSPID](&ProcessingInfo, _pChainInstance->GetInternalPtr(iDSP), pPar, pLPar);
+	}
 
 	TCDynamicPtr<CSC_Mixer_WorkerContext::CCustomPtrHolder, CSC_Mixer_WorkerContext::CMixBinContainer> pProcessContainer;
 	pProcessContainer = NULL;

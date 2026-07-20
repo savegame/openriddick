@@ -915,6 +915,8 @@ public:
 	uint32 GetWaveNameID(int _iLocal);
 
 	void AddSFXDesc(CSC_SFXDesc &_SFXDesc);
+	// Rebuilds the sorted SFXDesc search index (AddSFXDesc does not do it)
+	void SortSFXDescs();
 
 	const char *GetContainerSortName() {return m_Path.Str();}
 
@@ -979,6 +981,10 @@ public:
 };
 
 typedef TPtr<CWaveContainer_Plain> spCWaveContainer_Plain;
+
+// Loads PC text SFX descriptors (Content/SfxDesc/*.xsfxc) into the given wave
+// containers. Returns the number of descriptors created.
+int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plain>& _lspWC);
 
 // -------------------------------------------------------------------
 //

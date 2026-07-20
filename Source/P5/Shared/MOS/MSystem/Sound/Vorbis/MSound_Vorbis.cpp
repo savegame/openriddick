@@ -2,6 +2,15 @@
 #include "PCH.h"
 
 #ifdef PLATFORM_WIN_PC
+#define MSOUND_VORBIS_CONTEXT_ENABLED
+#endif
+#ifdef PLATFORM_LINUX
+// Linux/SDL2 port: reuse this complete CPU mixer-feeding implementation
+// (CSoundContext_SDL2 derives from CSoundContext_Vorbis, see Sound/SDL2).
+#define MSOUND_VORBIS_CONTEXT_ENABLED
+#endif
+
+#ifdef MSOUND_VORBIS_CONTEXT_ENABLED
 
 //#pragma optimize("", off)
 //#pragma inline_depth(0)
@@ -1118,4 +1127,4 @@ void CStaticVoice_Vorbis::LoadVoice(spCSCC_CodecStream _spStream)
 
 #endif // #if 0
 
-#endif // PLATFORM_WIN_PC
+#endif // MSOUND_VORBIS_CONTEXT_ENABLED

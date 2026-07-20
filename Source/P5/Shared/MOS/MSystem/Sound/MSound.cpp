@@ -21,6 +21,8 @@ SYSTEMDLLEXPORT spCSoundContext MCreateSoundContext(CStr _ClassName, int _MaxVoi
 	// archive so its MRTC_IMPLEMENT_DYNAMIC static registrar runs and
 	// "CSoundContext_SDL2" is known to the object factory below.
 	MRTC_REFERENCE(CSoundContext_SDL2);
+	// Same for the Vorbis wave codec (created by name in CWaveContext::OpenStream)
+	MRTC_REFERENCE(CMSound_Codec_VORB);
 	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject(_ClassName);
 #else
 	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject(_ClassName);

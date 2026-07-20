@@ -96,11 +96,14 @@
   TERMINATE/STARTAG (WAG2I_Resources.cpp).
 
 ### Стабы подсистем
-- **Звук**: M0+M1 сделаны (2026-07-20) — контекст `CSoundContext_SDL2`
-  (`MSystem/Sound/SDL2/MSound_SDL2.*`, SND_CLASS=SDL2) создаётся,
-  SDL-устройство открыто (48k/F32/стерео), AudioCallback выводит мастер
-  микшера через `m_Mixer.StartNewFrame()`; голоса НЕ подаются (тишина) —
-  это M2 по плану `Docs/Sound_SDL2.md`. Диагностика `[SND-SDL2]`.
+- **Звук**: M0–M2 сделаны (2026-07-20) — `CSoundContext_SDL2`
+  (`MSystem/Sound/SDL2/MSound_SDL2.*`, SND_CLASS=SDL2) наследует
+  `CSoundContext_Vorbis` (MSound_Vorbis.*, теперь собирается и на Linux):
+  прекэш/декод волн воркер-потоками, лупы, честный IsPlaying; SDL-устройство
+  48k/F32/стерео, callback выводит мастер микшера через `StartNewFrame()`.
+  Кодек `CMSound_Codec_VORB` собран (IMAGE_IO_NOVORBIS снят). Осталось:
+  M3 — dual-stream (музыка/VO), M4 — тюнинг. План — `Docs/Sound_SDL2.md`.
+  Диагностика `[SND-SDL2]` (start/stop voice, кап 200).
 - **Видео**: WMV9-ролики не декодируются; Theora-плеер в дереве есть, нет
   libtheora. Варианты — `Docs/Video_Playback.md`.
 - **Сеть**: BSD-сокеты точечно в MRTC_Task/WGameMultiplayerHandler,

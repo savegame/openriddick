@@ -1244,34 +1244,7 @@ void CWaveContainer_Plain::AddXWC(CStr _Filename, bool _bDynamic)
 		else
 			LogFile("No sound-fx descriptions in file.");
 
-#ifdef USE_HASHED_SFXDESC
-
-		{
-			int Len = m_lSFXDesc.Len();
-			m_lSFXDescOrder.SetLen(Len);
-			for (int i = 0; i < Len; ++i)
-			{
-				m_lSFXDescOrder[i] = i;
-			}
-			TAP_RCNRTM<CSC_SFXDesc> Tap(m_lSFXDesc);
-			m_lSFXDescOrder.QSort<CSortWCHashed>(&Tap);
-		}
-#else
-		{
-			int Len = m_lSFXDesc.Len();
-			m_lSFXDescOrder.SetLen(Len);
-			for (int i = 0; i < Len; ++i)
-			{
-				m_lSFXDescOrder[i] = i;
-			}
-			TAP_RCNRTM<CSC_SFXDesc> Tap(m_lSFXDesc);
-			m_lSFXDescOrder.QSort<CSortWCNonHashed>(&Tap);
-//			for (int i = 0; i < Len; ++i)
-//			{
-//				M_TRACEALWAYS("%s\n", m_lSFXDesc[m_lSFXDescOrder[i]].m_SoundName.Str());
-//			}
-		}
-#endif
+		SortSFXDescs();
 
 		
 
@@ -1844,6 +1817,44 @@ CSC_SFXDesc *CWaveContainer_Plain::GetSFXDesc(int _iSound)
 void CWaveContainer_Plain::AddSFXDesc(CSC_SFXDesc &_SFXDesc)
 {
 	m_lSFXDesc.Add(_SFXDesc);
+}
+
+// Rebuilds the sorted SFXDesc search index (m_lSFXDescOrder). GetSFXDescIndex
+// uses binary search over it, so it must be rebuilt after descriptors have
+// been added outside AddXWC (e.g. from .xsfxc scripts).
+void CWaveContainer_Plain::SortSFXDescs()
+{
+	// TArray growth copies elements with operator= which intentionally
+	// keeps the destination container pointer (the XWC builder copies one
+	// descriptor into several containers), so after bulk adds every
+	// descriptor's m_pWaveContainer may be reset - restore it here.
+	for (int i = 0; i < m_lSFXDesc.Len(); i++)
+		m_lSFXDesc[i].SetWaveContatiner(this);
+
+	MAUTOSTRIP( CWaveContainer_Plain_SortSFXDescs, MAUTOSTRIP_VOID );
+#ifdef USE_HASHED_SFXDESC
+	{
+		int Len = m_lSFXDesc.Len();
+		m_lSFXDescOrder.SetLen(Len);
+		for (int i = 0; i < Len; ++i)
+		{
+			m_lSFXDescOrder[i] = i;
+		}
+		TAP_RCNRTM<CSC_SFXDesc> Tap(m_lSFXDesc);
+		m_lSFXDescOrder.QSort<CSortWCHashed>(&Tap);
+	}
+#else
+	{
+		int Len = m_lSFXDesc.Len();
+		m_lSFXDescOrder.SetLen(Len);
+		for (int i = 0; i < Len; ++i)
+		{
+			m_lSFXDescOrder[i] = i;
+		}
+		TAP_RCNRTM<CSC_SFXDesc> Tap(m_lSFXDesc);
+		m_lSFXDescOrder.QSort<CSortWCNonHashed>(&Tap);
+	}
+#endif
 }
 
 
