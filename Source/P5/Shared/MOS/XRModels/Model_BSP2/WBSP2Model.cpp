@@ -3314,7 +3314,11 @@ void CXR_Model_BSP2::RenderShaderQueue(CBSP2_RenderParams* _pRenderParams)
 			Params.Create(_pRenderParams->m_pVBMatrixM2W, _pRenderParams->m_pVBMatrixW2V, pShader);
 			Params.m_nVB = nSQBatch;
 
-			M_PRECACHE128(0, &lShaderQueueVBChain[iSQBatch]);
+			// iSQBatch may be == Len here (batch loop ran the array to the
+			// end); the bounds-checked TAP_RCD operator[] throws on the
+			// one-past-end prefetch. Prefetch is a hint -- skip it.
+			if (iSQBatch < (uint)lShaderQueueVBChain.Len())
+				M_PRECACHE128(0, &lShaderQueueVBChain[iSQBatch]);
 
 			if(!(_pRenderParams->m_pCurrentEngine->m_DebugFlags & M_Bit(19)))
 				pShader->RenderShading(*pSGI->GetLight(iLight), lBatchGeom, &Params, lpBatchSSP);

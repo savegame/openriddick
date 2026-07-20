@@ -169,6 +169,7 @@ little-endian. Загрузчики файлов движка историчес
 ### Фаза 7 — Звук
 - [ ] SDL2-аудиобэкенд поверх `CSoundContext_Mixer` — детальный план в
       `Docs/Sound_SDL2.md` (этапы M0–M4, образец — MSound_PS3).
+      M0 (контекст-заглушка CSoundContext_SDL2) сделан 2026-07-20.
 
 ### Видео
 - Ролики PC — WMV9; варианты декодирования разобраны в
@@ -248,3 +249,4 @@ PC-версии игры; уточнение структуры — на Фаз�
 | 2026-07-17 | GLES3: мультитекстура канал 1 (uv1 в вершине, uTex1 modulate — лайтмапы BSP), общий сетап юниформ вынесен в SetupCommonUniforms; separate stencil (CRC_FLAGS_SEPARATESTENCIL → glStencilFunc/OpSeparate) | Фаза 4 |
 | 2026-07-17 | GLES3: packed-форматы вершин VBID-пути (VRegFetch: I16/U16 raw, NS/NU нормализованные) для позиций и UV; диагностика lastFmt пропусков | Фаза 4 |
 | 2026-07-14 | Фаза 4 M5-partial: CPU DXT1 + DXT5 декодер (`GLES3_DXT.*`) — на аплоаде S3TC-сжатой CImage дёргаем `LockCompressed()`, читаем 16-байт `CImage_CompressHeader_S3TC`, распаковываем блоки 4x4 → RGBA8, `glTexImage2D(GL_RGBA8)` + mipmaps. Wrap=REPEAT для нормалей/env. DXT3 добавим по мере встречаемости. | Фаза 4 |
+| 2026-07-20 | Фаза 7 M0: звуковой контекст-заглушка `CSoundContext_SDL2` (`Sound/SDL2/MSound_SDL2.*`) — наследник `CSoundContext_Mixer`, Platform_* no-op (вывода звука нет, голоса молчат), `Platform_GetInfo` отдаёт 48 кГц/стерео/фрейм 256. SND_CLASS=SDL2 под PLATFORM_LINUX (XRApp.cpp), класс вытаскивается из libp5_msystem.a через MRTC_REFERENCE в MCreateSoundContext (MSound.cpp). Диагностика `[SND-SDL2]` в Create/Platform_Init. | Фаза 7 |

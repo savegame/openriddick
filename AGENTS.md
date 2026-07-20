@@ -96,9 +96,11 @@
   TERMINATE/STARTAG (WAG2I_Resources.cpp).
 
 ### Стабы подсистем
-- **Звук**: контекста НЕТ (SND_CLASS=DSound2 не создаётся, ловится
-  исключением — «Failed to initialize sound»). План реализации —
-  `Docs/Sound_SDL2.md`.
+- **Звук**: M0 сделан (2026-07-20) — контекст `CSoundContext_SDL2`
+  (`MSystem/Sound/SDL2/MSound_SDL2.*`, SND_CLASS=SDL2) создаётся,
+  «Failed to initialize sound» ушло; Platform_* — заглушки, вывода
+  звука пока НЕТ (голоса молчат). Дальше по плану `Docs/Sound_SDL2.md`
+  (M1 — SDL-устройство + StartNewFrame-цикл).
 - **Видео**: WMV9-ролики не декодируются; Theora-плеер в дереве есть, нет
   libtheora. Варианты — `Docs/Video_Playback.md`.
 - **Сеть**: BSD-сокеты точечно в MRTC_Task/WGameMultiplayerHandler,

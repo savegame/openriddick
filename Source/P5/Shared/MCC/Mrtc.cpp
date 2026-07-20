@@ -226,6 +226,15 @@ void M_CDECL operator delete(void* p, size_t)
 }
 
 #ifndef PLATFORM_PS3
+// MRTC.h declares global operator new[] for COMPILER_GNU, but Mrtc.cpp
+// used to define it for PS3 only -- on Linux new[] fell through to
+// libstdc++ while delete[] (above) routed to the MRTC arena. Mismatched
+// pair = heap corruption (P_ItemBox.xw load crash). Define the pair.
+void* M_CDECL operator new[](mint _nSize)
+{
+	return M_ALLOC(_nSize);
+}
+
 void M_CDECL operator delete[](void* p) throw()
 {
 	return MRTC_GetMemoryManager()->Free(p);
