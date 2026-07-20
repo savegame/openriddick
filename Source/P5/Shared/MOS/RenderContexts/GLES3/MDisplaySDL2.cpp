@@ -844,26 +844,38 @@ public:
 			// to sample after rendering to it.
 			if (SFBOSlot* pSlot = GetFBOSlot(_TextureID))
 				return pSlot->m_ColorTex;
-			if (m_lTexLogged[_TextureID])
-				return GetPlaceholderTex(); // already attempted, placeholder
+
+			// Page the texel data in: file-backed containers
+			// (VirtualXTC) only load pixels inside
+			// GetTextureMap(bForceLoaded=true) -> Load(iLocal, 0);
+			// GetTexture() alone hands back a virtual descriptor whose
+			// Lock()/LockCompressed() return NULL. This is why level
+			// textures failed while memory-resident fonts worked.
+			{
+				CTextureContainer* pCont = m_pTC->GetTextureContainer(_TextureID);
+				if (pCont)
+					pCont->GetTextureMap(m_pTC->GetLocal(_TextureID), -1, true);
+			}
 
 			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
 			if (!pImg)
 			{
-				m_lTexLogged[_TextureID] = 1;
-				fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture()==NULL -> placeholder\n",
-					_TextureID, (const char*)m_pTC->GetName(_TextureID));
-				fflush(stderr);
-				// Return shared magenta placeholder each time. Do NOT
-				// store it into m_lGLTex -- the release path would then
-				// double-free the shared GLuint. m_lTexLogged=1 stops
-				// the "return early on cached-fail" branch, so we come
-				// back here on every draw (cheap: this branch is on
-				// same-ID re-request, no allocation).
+				if (!m_lTexLogged[_TextureID])
+				{
+					m_lTexLogged[_TextureID] = 1;
+					fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture()==NULL -> placeholder\n",
+						_TextureID, (const char*)m_pTC->GetName(_TextureID));
+					fflush(stderr);
+				}
+				// Shared magenta placeholder; NOT stored into m_lGLTex
+				// (release path would double-free the shared GLuint).
+				// No fail-latching: data may arrive later (async
+				// loaders), so retry on the next request.
 				return GetPlaceholderTex();
 			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
+			const bool bLogged = m_lTexLogged[_TextureID] != 0;
 			m_lTexLogged[_TextureID] = 1;
 			if (T)
 			{
@@ -873,7 +885,7 @@ public:
 					(unsigned)pImg->GetFormat(), (unsigned)pImg->GetMemModel());
 				fflush(stderr);
 			}
-			if (!T)
+			if (!T && !bLogged)
 			{
 				const int Fmt = pImg->GetFormat();
 				const int Mem = pImg->GetMemModel();

@@ -94,7 +94,10 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		if (!pRaw) return 0;
 		const CImage_CompressHeader_S3TC& Hdr =
 			*(const CImage_CompressHeader_S3TC*)pRaw;
-		unsigned char* pPayload = pRaw + sizeof(CImage_CompressHeader_S3TC);
+		// Payload offset comes from the header (PS3 backend does the
+		// same: pHeader->getOffsetData()); it is not necessarily
+		// sizeof(header).
+		unsigned char* pPayload = pRaw + Hdr.getOffsetData();
 		pDecoded = (unsigned char*)malloc((size_t)W * H * 4);
 		if (!pDecoded) return 0;
 		const uint32 Sub = Hdr.getCompressType();
