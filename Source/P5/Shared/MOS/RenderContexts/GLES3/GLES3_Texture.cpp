@@ -168,6 +168,20 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		return Tex;
 	}
 
+	// Other compression types (3DC/BC5 normal maps, JPG, ...): use the
+	// engine's own decompressor into a plain image, then upload that.
+	if (_pImage->IsCompressed())
+	{
+		CImage Tmp;
+		_pImage->Decompress(&Tmp);
+		if (Tmp.GetWidth() > 0 && !Tmp.IsCompressed())
+			return Upload2D(&Tmp, _bGenerateMipmaps);
+		fprintf(stderr, "[GLES3] Upload2D: Decompress failed (mem=0x%x fmt=0x%x %dx%d)\n",
+			(unsigned)_pImage->GetMemModel(), (unsigned)_pImage->GetFormat(), W, H);
+		++g_GLES3_UploadFail;
+		return 0;
+	}
+
 	SGLES3Format F = MapFormat(_pImage->GetFormat());
 	if (!F.Supported)
 	{

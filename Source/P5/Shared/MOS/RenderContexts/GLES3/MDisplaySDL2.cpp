@@ -845,6 +845,14 @@ public:
 			if (SFBOSlot* pSlot = GetFBOSlot(_TextureID))
 				return pSlot->m_ColorTex;
 
+			// Uploads need the GL context, which is current only on the
+			// render thread; world precache calls us from loader threads
+			// (glGenTextures returns 0 with glGetError==0 there). Defer:
+			// the draw path retries on the GL thread. Confirmed by the
+			// 2026-07-20 run log (~500 textures failed exactly this way).
+			if (!SDL_GL_GetCurrentContext())
+				return 0;
+
 			// Note: file-backed containers (VirtualXTC) page the texel
 			// data in inside GetTexture itself (Load(iLocal, iMip)), so
 			// no extra force-load call is needed here.
@@ -1011,25 +1019,55 @@ public:
 
 			// The engine's rect is top-left origin, GL is bottom-left.
 			// Flip Y so the copy pulls the correct region from the
-			// currently-bound framebuffer. The rows land bottom-first in
-			// the texture (GL copy order) and the UI quads sample them
-			// with GL-style V -- verified correct on screen (a Y-inverted
-			// blit here renders the whole menu upside down).
+			// currently-bound framebuffer. Row ORDER inside the copied
+			// band is ambiguous (depends on the GUI path the engine
+			// picked, which shifted with the caps change) -- so it is
+			// runtime-switchable: RIDDICK_COPYTEX_FLIP=1 flips rows via
+			// a Y-inverted blit, default is plain copy. A/B test without
+			// rebuilding.
 			int SrcH = ScreenH();
 			int W = _SrcRect.p1.x - _SrcRect.p0.x;
 			int H = _SrcRect.p1.y - _SrcRect.p0.y;
 			if (W <= 0 || H <= 0) return;
-			int SrcY = SrcH - _SrcRect.p1.y;
 
-			// Save + restore currently-bound texture so we don't
-			// disturb the current drawcall's binding.
-			GLint PrevTex = 0;
-			glGetIntegerv(GL_TEXTURE_BINDING_2D, &PrevTex);
-			glActiveTexture(GL_TEXTURE0);
-			glBindTexture(GL_TEXTURE_2D, pSlot->m_ColorTex);
-			glCopyTexSubImage2D(GL_TEXTURE_2D, 0, _Dest.x, _Dest.y,
-				_SrcRect.p0.x, SrcY, W, H);
-			glBindTexture(GL_TEXTURE_2D, (GLuint)PrevTex);
+			static int sFlip = -1;
+			if (sFlip < 0)
+			{
+				const char* e = getenv("RIDDICK_COPYTEX_FLIP");
+				sFlip = (e && *e && *e != '0') ? 1 : 0;
+			}
+
+			if (sFlip)
+			{
+				GLint PrevDraw = 0, PrevRead = 0;
+				glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &PrevDraw);
+				glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &PrevRead);
+				const GLboolean bScissor = glIsEnabled(GL_SCISSOR_TEST);
+				if (bScissor) glDisable(GL_SCISSOR_TEST);
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevDraw);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, pSlot->m_FBO);
+				glBlitFramebuffer(
+					_SrcRect.p0.x, SrcH - _SrcRect.p0.y,
+					_SrcRect.p1.x, SrcH - _SrcRect.p1.y,
+					_Dest.x, _Dest.y, _Dest.x + W, _Dest.y + H,
+					GL_COLOR_BUFFER_BIT, GL_NEAREST);
+				glBindFramebuffer(GL_READ_FRAMEBUFFER, (GLuint)PrevRead);
+				glBindFramebuffer(GL_DRAW_FRAMEBUFFER, (GLuint)PrevDraw);
+				if (bScissor) glEnable(GL_SCISSOR_TEST);
+			}
+			else
+			{
+				int SrcY = SrcH - _SrcRect.p1.y;
+				// Save + restore currently-bound texture so we don't
+				// disturb the current drawcall's binding.
+				GLint PrevTex = 0;
+				glGetIntegerv(GL_TEXTURE_BINDING_2D, &PrevTex);
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, pSlot->m_ColorTex);
+				glCopyTexSubImage2D(GL_TEXTURE_2D, 0, _Dest.x, _Dest.y,
+					_SrcRect.p0.x, SrcY, W, H);
+				glBindTexture(GL_TEXTURE_2D, (GLuint)PrevTex);
+			}
 
 			if (m_DbgEnabled)
 			{
