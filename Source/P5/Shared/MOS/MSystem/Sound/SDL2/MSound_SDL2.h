@@ -6,17 +6,44 @@
 #include "../MSound_Mixer.h"
 #include "../SCMixer/MSound_SCMixer.h"
 
+#ifdef PLATFORM_LINUX
+#include <SDL.h>
+#endif
+
 // -------------------------------------------------------------------
-// SDL2 sound context for the Linux port - milestone M0 (context stub).
-// The class exists so MCreateSoundContext("CSoundContext_SDL2") succeeds
-// and game code stops taking NULL sound-context branches. All Platform_*
-// methods are no-ops: no SDL audio device is opened and no voice data is
-// streamed, so every voice stays silent. See Docs/Sound_SDL2.md.
+// SDL2 sound context for the Linux port.
+// M0: context stub, all Platform_* no-ops.
+// M1: SDL audio device + master output. The SDL callback pulls finished
+//     mixer frames via CSC_Mixer::StartNewFrame() (lock-free, same as the
+//     PS3 audio thread does) and copies interleaved stereo fp32 to the
+//     SDL stream. No voice streaming yet - output is mixer silence.
+//     See Docs/Sound_SDL2.md.
 class CSoundContext_SDL2 : public CSoundContext_Mixer
 {
 	typedef CSoundContext_Mixer CSuper;
 
 	MRTC_DECLARE;
+
+#ifdef PLATFORM_LINUX
+	SDL_AudioDeviceID m_AudioDevice;	// 0 = no device
+	bint m_bSDLInit;
+	bint m_bMixerReady;		// set at the end of Platform_Init, gates the callback
+	bint m_bFormatOK;		// SDL gave us AUDIO_F32SYS stereo
+
+	// Remainder of the current mixer output frame between callbacks.
+	// Frame data is fp32, channels packed into vec128 per sample:
+	// stride = ((nChannels + 3) >> 2) * 4 floats, L at [0], R at [1].
+	const fp32 *m_pFrameRead;
+	uint32 m_FrameSamplesLeft;
+	uint32 m_FrameStride;
+
+	// Diagnostics
+	uint32 m_CbCount;
+	uint32 m_CbUnderruns;
+
+	static void SDLCALL AudioCallback(void *_pUserData, Uint8 *_pStream, int _Len);
+	void AudioCallbackImpl(Uint8 *_pStream, int _Len);
+#endif
 
 public:
 
