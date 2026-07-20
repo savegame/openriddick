@@ -845,18 +845,9 @@ public:
 			if (SFBOSlot* pSlot = GetFBOSlot(_TextureID))
 				return pSlot->m_ColorTex;
 
-			// Page the texel data in: file-backed containers
-			// (VirtualXTC) only load pixels inside
-			// GetTextureMap(bForceLoaded=true) -> Load(iLocal, 0);
-			// GetTexture() alone hands back a virtual descriptor whose
-			// Lock()/LockCompressed() return NULL. This is why level
-			// textures failed while memory-resident fonts worked.
-			{
-				CTextureContainer* pCont = m_pTC->GetTextureContainer(_TextureID);
-				if (pCont)
-					pCont->GetTextureMap(m_pTC->GetLocal(_TextureID), -1, true);
-			}
-
+			// Note: file-backed containers (VirtualXTC) page the texel
+			// data in inside GetTexture itself (Load(iLocal, iMip)), so
+			// no extra force-load call is needed here.
 			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
 			if (!pImg)
 			{

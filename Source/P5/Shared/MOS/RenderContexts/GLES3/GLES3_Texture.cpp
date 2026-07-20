@@ -91,7 +91,13 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	    (_pImage->GetMemModel() & IMAGE_MEM_COMPRESSTYPE_S3TC))
 	{
 		unsigned char* pRaw = (unsigned char*)_pImage->LockCompressed();
-		if (!pRaw) return 0;
+		if (!pRaw)
+		{
+			fprintf(stderr, "[GLES3] Upload2D: LockCompressed()==NULL (%dx%d fmt=0x%x mem=0x%x)\n",
+				W, H, (unsigned)_pImage->GetFormat(), (unsigned)_pImage->GetMemModel());
+			++g_GLES3_UploadFail;
+			return 0;
+		}
 		const CImage_CompressHeader_S3TC& Hdr =
 			*(const CImage_CompressHeader_S3TC*)pRaw;
 		// Payload offset comes from the header (PS3 backend does the
@@ -132,7 +138,16 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		// (already RGBA8 order from the decoders).
 		GLuint Tex = 0;
 		glGenTextures(1, &Tex);
-		if (!Tex) { free(pDecoded); return 0; }
+		if (!Tex)
+		{
+			// glGenTextures returning 0 means GL errored -- typically no
+			// GL context is current on THIS thread (loader thread?).
+			fprintf(stderr, "[GLES3] Upload2D: glGenTextures failed, glGetError=0x%x (no ctx on this thread?)\n",
+				(unsigned)glGetError());
+			++g_GLES3_UploadFail;
+			free(pDecoded);
+			return 0;
+		}
 		glBindTexture(GL_TEXTURE_2D, Tex);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
@@ -163,7 +178,13 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	}
 
 	void* pLocked = _pImage->Lock();
-	if (!pLocked) { ++g_GLES3_UploadFail; return 0; }
+	if (!pLocked)
+	{
+		fprintf(stderr, "[GLES3] Upload2D: Lock()==NULL (%dx%d fmt=0x%x mem=0x%x)\n",
+			W, H, (unsigned)_pImage->GetFormat(), (unsigned)_pImage->GetMemModel());
+		++g_GLES3_UploadFail;
+		return 0;
+	}
 	++g_GLES3_UploadRGBA;
 
 	// If BGR(A) input on core GLES: copy + swizzle. For BGRX8 alpha byte
@@ -200,7 +221,14 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 
 	GLuint Tex = 0;
 	glGenTextures(1, &Tex);
-	if (!Tex) { if (pTmp) free(pTmp); return 0; }
+	if (!Tex)
+	{
+		fprintf(stderr, "[GLES3] Upload2D: glGenTextures failed, glGetError=0x%x (no ctx on this thread?)\n",
+			(unsigned)glGetError());
+		++g_GLES3_UploadFail;
+		if (pTmp) free(pTmp);
+		return 0;
+	}
 
 	glBindTexture(GL_TEXTURE_2D, Tex);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);

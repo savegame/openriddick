@@ -25,11 +25,109 @@
 - `MOVETOKENS_calls.txt` — выборка Ghidra-функций вокруг MOVETOKENS/GRAPHBLOCKS (CXRAG2 = анимации персонажей, графы анимаций).
 - `Docs/` — заметки по форматам (BSP_PC_Format.md и др.).
 
-## Состояние порта (на 2026-07-19)
+## Состояние порта (на 2026-07-20)
 - Движок стартует и работает **без падений**: доходит до рут-меню (`cg_rootmenu('legal'/'kiosk'/'esrb')`), мир Pa1_Intro грузится до конца (прекэш, Simulate_Resume).
 - Загрузка AG2 v6 (PC-графы анимаций) реализована в `Source/P5/Shared/MOS/XR/XRAnimGraph2/` — версии 3/4/5/6; guard'ы от спецзначений target-state (TERMINATE/STARTAG) в `WAG2I_Resources.cpp`.
-- **Игровой графики на экране нет (чёрный экран)** — текущая активная задача. Шрифты и 12 текстур аплоадятся (`[GLES3-TEX-OK]`), ~500 текстур уровня — нет (`[GLES3-TEX-FAIL]`): форматы 0x40/0x800/0x20000 и S3TC sub=0/4 (DXT0/DXT4) не поддержаны в `GLES3_Texture.cpp` — placeholder.
+- **Игровой графики на экране нет (чёрный экран)** — текущая активная задача.
+  Уточнение по текстурам: `s3tcSub=0/4` — это **DXT1/DXT5** (enum
+  `IMAGE_COMPRESSTYPE_S3TC_DXT1 = 0`), и они, как и форматы
+  0x40/0x800/0x20000 (BGRX8/BGRA8/I8A8), ПОДДЕРЖАНЫ аплоадером
+  (`GLES3_Texture.cpp: MapFormat` + DXT-декодеры). Фейлы происходят в
+  молчаливых ветках (`Lock()/LockCompressed()==NULL` или `glGenTextures==0`
+  — возможно, вызов не из GL-потока при прекэше) — в эти ветки добавлены
+  диагностические принты, следующий прогон назовёт точную причину.
+  Также снят вечный латч на placeholder: неудачный аплоад ретраится при
+  каждом запросе (лог — один раз).
+  Вторая ветвь гипотезы (закоммичено, e70ec34): caps рендерера были -1 —
+  движок включал occlusion-query-отсечение (наши заглушки отвечают «не
+  видно» -> мир отсекается целиком) и FP20-шейдерные слои; теперь caps
+  честные (HWAPI|ARBITRARY_TEXTURE_SIZE|SEPARATESTENCIL, 2 текстурных юнита).
 - Латентная порча кучи (`munmap_chunk` в разных местах: radeonsi, OS_FileAsyncClose) — в последних прогонах не воспроизводится; при рецидиве — valgrind-прогон (команда зафиксирована в переписке 2026-07-19).
+- Ветка `kimi_fixes` — устаревший срез (откат caps/texture-правок), полезного не содержит.
+
+## Архитектурные решения, стабы и обходы (полная карта для агентов)
+
+### Политика ошибок
+- **M_ASSERT = log-and-continue** (`MRTC_System_Linux.cpp: OS_Assert`):
+  печатает `ASSERT: ...` в stderr и продолжает — поведение retail-сборок
+  (M_RTM вычеркивал ассерты; игра шипилась с данными, на которых они
+  срабатывают). `RIDDICK_ASSERT_FATAL=1` возвращает жёсткий стоп для gdb.
+  Следствие: после пропущенного ассерта возможен SIGSEGV в точном месте —
+  это осознанно (bt точнее).
+- Фатальные сигналы (SEGV/BUS/FPE/ILL/ABRT) печатают backtrace в stderr
+  (`MMain_Linux.cpp: Linux_FatalSignal`, exe слинкован с `-rdynamic`).
+  ВАЖНО: при переполнении стека хэндлер не сработает (sigaltstack не
+  ставится — было отклонено, см. git log 42e4916^..42e4916 в истории) —
+  тогда тихая смерть, брать bt из gdb.
+- Движковые исключения (`Error_static`/CCException) работают штатно,
+  печатаются как `Exception! Location: ...`.
+
+### Консоль и логи (маркеры в stderr)
+- `[CON] ...` — зеркало движковой консоли (ConOut/ConOutL) в stderr
+  (`MSystem_Core.cpp`), иначе `World doesn't exist` и пр. не видны в run.log.
+- `[GLES3-TEX-OK/FAIL]` — аплоад текстур; `[GL-TEXREQ]` — разовый ценз
+  каждого texture ID из атрибутов draw-вызовов (RIDDICK_DBG_GL=1);
+  `[GL-DBG]` — счётчики draw/verts/texB каждые 60 кадров (RIDDICK_DBG_GL=1);
+  `[GLES3-RT]` — SetRenderTarget/CopyToTexture (RIDDICK_DBG_GL=1);
+  `[GLES3-RTT]` — создание FBO для RTT-текстур; `[SURF]` — первые 120
+  вызовов CXR_Util::Render_Surface с TextureID слоёв (RIDDICK_DBG_SURF=1);
+  `[REG-ERR]` — backtrace при Index-out-of-range в CRegistry_Dynamic::GetChild;
+  `(Command_ChangeMap)` — резолв путей мира; `(Con_StartNewCampaign)` — старт кампании.
+
+### Игровые обходы (bring-up, потом пересмотреть)
+- **Профиль форсируется** в `Con_StartNewCampaign` (WGameContextMain.cpp):
+  savegame-контекста на Linux нет, `m_bValidProfileLoaded` ставится в true c
+  дефолтными настройками — иначе Con_ChangeMap молча отказывает. Сейвов НЕТ.
+- **Стартовый мир кампании** ищется по кандидатам (campaign -> Pa1_Intro)
+  через FileExists — в PC-наборе EFBB нет bootstrap-мира campaign.xw.
+- `setdifficultycampaign` дополнительно пишет числовую опцию GAME_DIFFICULTY.
+- `startnewcampaign`/`setdifficultycampaign` реализованы в
+  CGameContextMod (были DummyInt-стабами в XRApp.cpp); `checkinvite`/
+  `issignedin` и пр. Live-функции — стабы/отсутствуют (Parse error в логе —
+  безвреден).
+- GUI-окна, отсутствующие в EFBB-ресурсах (`remove_efbb_wait` и пр.) —
+  DoWindowSwitch логирует и живёт дальше; это НЕ OS-окна, а страницы меню.
+- Guard'ы против PC-данных: RAGDOLLS (компактная запись вместо дыр,
+  WObj_GameCore.cpp), пустой анимграф (GetMatchingGraphBlock -> NULL),
+  INVALID MOVETOKEN (MoveGraphBlock -> ConOut+return), target-state
+  TERMINATE/STARTAG (WAG2I_Resources.cpp).
+
+### Стабы подсистем
+- **Звук**: контекста НЕТ (SND_CLASS=DSound2 не создаётся, ловится
+  исключением — «Failed to initialize sound»). План реализации —
+  `Docs/Sound_SDL2.md`.
+- **Видео**: WMV9-ролики не декодируются; Theora-плеер в дереве есть, нет
+  libtheora. Варианты — `Docs/Video_Playback.md`.
+- **Сеть**: BSD-сокеты точечно в MRTC_Task/WGameMultiplayerHandler,
+  остальное заглушки.
+- **VPU/SPU**: CPU-путь, VPUManager застаблен; `VPU/VPUWorkers.cpp`
+  исключён из сборки (32-битный SPU ABI).
+- **Occlusion queries**: заглушки CRC_Core (поэтому caps-флаг снят — см. выше).
+
+### Файловый слой (MRTC_System_Linux.cpp)
+- Case-insensitive разрешение путей + `\`->`/` (Linux_ResolvePath);
+  find-хэндлы — таблица слотов (MFile_Misc хранит хэндл в int);
+  DEFAULTGAMEPATH нормализуется (завершающие `\` у компонентов) в
+  MSystem_Core.cpp; async-IO синхронный; OS_Alloc зануляет память
+  (семантика VirtualAlloc — на этом уже ловили «работало случайно»).
+
+### Рендер (GLES3, Shared/MOS/RenderContexts/GLES3/)
+- `M_STATIC_RENDERER` ВЫКЛЮЧЕН (виртуальный CRenderContext).
+- Весь «backbuffer» рендерится в экранный FBO логического разрешения;
+  `PresentToWindow` (из PageFlip) композитит в окно с поворотом
+  0/90/180/270 (`-rotate/-winsize/-fbosize`, общий стейт g_RiddickPresent,
+  поворот дельт мыши в MInput_SDL2). Раздельные UI/3D FBO — не сделаны.
+- Один GLSL-шейдер (pos+uv0+uv1+color): текстура канала 0 + модуляция
+  каналом 1 (лайтмапы), альфа-тест, туман, uTexMat; separate stencil есть.
+  Шейдер-генератора по attrib-комбинациям НЕТ (M4 не сделан).
+- UI Dark Athena рисуется через RenderTarget_CopyToTexture (~30 копий/кадр,
+  glCopyTexSubImage2D в GL-ориентации — НЕ флипать, проверено).
+- `Render_VertexBuffer(VBID)`: без GPU-кэша — VB_Get(BUILD) на каждый draw,
+  поддержаны форматы F32/I16/U16/NS/NU (VRegFetch).
+- Texture ID, привязанный к RTT-FBO, резолвится в его color-текстуру
+  (EnsureUploaded -> GetFBOSlot).
+- Caps честные (см. выше); RC регистрируется в CTextureContext/CXR_VBContext
+  (AddRenderContext, как PS3).
 
 ## Журнал
 - `CLAUDE.md` — ведётся журнал портирования (§4) и TODO; обновлять при смене этапа.
