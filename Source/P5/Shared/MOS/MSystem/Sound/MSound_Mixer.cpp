@@ -50,7 +50,9 @@ CSC_Mixer::CSC_Mixer()
 	m_FinishedOutputFrame.Construct(0);
 	m_StartNewFrame.Construct(0);
 //	Thread_Create(NULL, 16384, MRTC_THREAD_PRIO_TIMECRITICAL);
-	Thread_Create(NULL, 65536, MRTC_THREAD_PRIO_TIMECRITICAL); // More stack when opts are disabled
+	// NOTE(Linux): -O0 frame CSC_Mixer_DSP_VolumeMatrix::ProcessFrame ~110 KB
+	// (all vec128 temps of every case get own stack slots), 64 KB was not enough.
+	Thread_Create(NULL, 1024*1024, MRTC_THREAD_PRIO_TIMECRITICAL); // More stack when opts are disabled
 
 	m_WorkContextBlockManagerMemory.SetLen(64*1024); // Only 64 KB Allowed
 	m_WorkContextBlockManagerMemoryVPU.SetLen(64*1024);
