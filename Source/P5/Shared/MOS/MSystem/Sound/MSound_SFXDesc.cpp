@@ -459,7 +459,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 				int32 iTemp = (iLocalWave >= 0) ? _pWaveContainer->GetWaveID(iLocalWave) : -1;
 				
 				if(iTemp < 0)
-					ConOutL(CStr("§cf80WARNING: Sound references undefined waveform ."));
+					ConOutL(CStr("ï¿½cf80WARNING: Sound references undefined waveform ."));
 				else
 					GetNormalParams()->m_lWaves[Count++] = iLocalWave;
 			}
@@ -499,7 +499,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 					int32 iTemp = (iLocalWave >= 0) ? _pWaveContainer->GetWaveID(iLocalWave) : -1;
 					
 					if(iTemp < 0)
-						ConOutL(CStr("§cf80WARNING: Sound references undefined waveform."));
+						ConOutL(CStr("ï¿½cf80WARNING: Sound references undefined waveform."));
 					else
 						pHolder->AddWave(iLocalWave);
 				}
@@ -584,7 +584,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 					int32 iTemp = (m_iLocalWave >= 0) ? _pWaveContainer->GetWaveID(m_iLocalWave) : -1;
 					
 					if(iTemp < 0)
-						ConOutL(CStrF("§cf80WARNING: Sound references undefined waveform '%s'.", TempStr.Str()));
+						ConOutL(CStrF("ï¿½cf80WARNING: Sound references undefined waveform '%s'.", TempStr.Str()));
 					else
 						GetNormalParams()->m_lWaves[Count++] = m_iLocalWave;
 				}
@@ -663,7 +663,7 @@ void CSC_SFXDesc::Write(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContai
 			#ifdef USE_HASHED_WAVENAME
 				int16 id = GetNormalParams()->m_lWaves[i];
 				if(id == -1)
-					ConOutL(CStrF("§cf80WARNING: Waveform with no good id.", id));
+					ConOutL(CStrF("ï¿½cf80WARNING: Waveform with no good id.", id));
 
 				uint32 nameid = _pWaveContainer->GetNameID(id);
 				_pFile->WriteLE(nameid);
@@ -905,6 +905,21 @@ static bool WildcardMatch(const char *_pPattern, const char *_pStr)
 	return *_pStr == 0;
 }
 
+// Strip trailing "_NN"/"_NNN" numeric suffix so gui_select_01/gui_select_02
+// group into a single SFX descriptor "gui_select" (retail CSfxContainer_Plain
+// does the same; scripts request the base name "GUI_Select" without suffix).
+static CStr StripVariantSuffix(const char *_pName)
+{
+	CStr Full(_pName);
+	int Len = Full.Len();
+	int i = Len;
+	while (i > 0 && Full[i-1] >= '0' && Full[i-1] <= '9')
+		--i;
+	if (i < Len && i > 0 && Full[i-1] == '_')
+		return Full.Left(i-1);
+	return Full;
+}
+
 // Splits a ';'-separated wave list, trims whitespace
 static void SplitWaveList(const char *_pValue, TArray<CStr> &_lNames)
 {
@@ -958,10 +973,13 @@ static void SetAttributes(CSC_SFXDesc &_Desc, const CNode &_Node, int _FileCateg
 		_Desc.SetVolume((fp32)NStr::StrToFloat(Value.Str(), 1.0f));
 	if (_Node.GetValue("VOLUMERANDAMP", Value))
 		_Desc.SetVolumeRandAmp((fp32)NStr::StrToFloat(Value.Str(), 0.0f));
+	// PC xsfxc encodes *Pitch/*PitchRandAmp as percent (100.0 == 1.0x);
+	// SetPitch expects the ratio, and stored as int(v*32) in a uint8 so
+	// a raw 100 wraps to pitch 4.0 (audible as chipmunk voices / no dialog).
 	if (_Node.GetValue("PITCH", Value))
-		_Desc.SetPitch((fp32)NStr::StrToFloat(Value.Str(), 1.0f));
+		_Desc.SetPitch((fp32)NStr::StrToFloat(Value.Str(), 100.0f) * 0.01f);
 	if (_Node.GetValue("PITCHRANDAMP", Value))
-		_Desc.SetPitchRandAmp((fp32)NStr::StrToFloat(Value.Str(), 0.0f));
+		_Desc.SetPitchRandAmp((fp32)NStr::StrToFloat(Value.Str(), 0.0f) * 0.01f);
 	if (_Node.GetValue("PRIORITY", Value))
 		_Desc.SetPriority(NStr::StrToInt(Value.Str(), 0));
 	if (_Node.GetValue("MINDIST", Value))
@@ -1045,16 +1063,41 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 		}
 		else
 		{
-			// One descriptor per matching wave, named after the wave
+			// No explicit *Name: group waves by base name (trailing "_NN"
+			// stripped). gui_select_01/gui_select_02/... -> single descriptor
+			// "gui_select" with the variants as random-pick waves. Scripts
+			// request "GUI_Select"; without grouping we produced one desc
+			// per variant named after the raw wave and every SND:GUI_Select
+			// lookup returned Undefined sound (silent menus, silent dialog).
+			TArray<CStr> lBases;
+			TArray<TArray<int16> > lGroups;
 			for(int i = 0; i < liWaves.Len(); i++)
+			{
+				CStr Base = StripVariantSuffix(pWC->GetName(liWaves[i]));
+				int iGroup = -1;
+				for(int j = 0; j < lBases.Len(); j++)
+					if (lBases[j].CompareNoCase(Base) == 0) { iGroup = j; break; }
+				if (iGroup < 0)
+				{
+					iGroup = lBases.Len();
+					lBases.SetLen(iGroup + 1);
+					lBases[iGroup] = Base;
+					lGroups.SetLen(iGroup + 1);
+				}
+				lGroups[iGroup].Add(liWaves[i]);
+			}
+
+			for(int g = 0; g < lBases.Len(); g++)
 			{
 				CSC_SFXDesc Desc;
 				ClearDescDatas(Desc);
 				Desc.SetMode(CSC_SFXDesc::ENORMAL);
-				Desc.m_SoundName = pWC->GetName(liWaves[i]);
+				Desc.m_SoundName = lBases[g];
 				SetAttributes(Desc, _Node, _FileCategory);
-				Desc.GetNormalParams()->m_lWaves.SetLen(1);
-				Desc.GetNormalParams()->m_lWaves[0] = liWaves[i];
+				TThinArray<int16> &lWaves = Desc.GetNormalParams()->m_lWaves;
+				lWaves.SetLen(lGroups[g].Len());
+				for(int i = 0; i < lGroups[g].Len(); i++)
+					lWaves[i] = lGroups[g][i];
 				StoreDesc(pWC, Desc);
 				nDescs++;
 			}
