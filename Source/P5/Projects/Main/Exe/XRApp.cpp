@@ -3768,6 +3768,8 @@ void CXRealityApp::Create()
 			CStr SoundContext = m_pSystem->GetEnvironment()->GetValue("SND_CLASS", "Dolphin", 0);
 #elif defined(PLATFORM_PS2)
 			CStr SoundContext = m_pSystem->GetEnvironment()->GetValue("SND_CLASS", "PS2", 0);
+#elif defined(PLATFORM_LINUX)
+			CStr SoundContext = m_pSystem->GetEnvironment()->GetValue("SND_CLASS", "SDL2", 0);
 #else
 //			CStr SoundContext = m_pSystem->GetEnvironment()->GetValue("SND_CLASS", "DSound", 0);
 			CStr SoundContext = m_pSystem->GetEnvironment()->GetValue("SND_CLASS", "DSound2", 0);
