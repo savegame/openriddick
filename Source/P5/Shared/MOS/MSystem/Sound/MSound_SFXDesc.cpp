@@ -934,6 +934,15 @@ static void SplitWaveList(const char *_pValue, TArray<CStr> &_lNames)
 	}
 }
 
+// The CSC_SFXDesc constructor only inits m_Mode/m_Category; the binary
+// container readers fill every m_Datas field, but this script loader sets
+// only the keys present in the xsfxc. Zero the rest or the rand-amps (etc.)
+// stay stack garbage -> wild pitch multiplier -> garbled playback.
+static void ClearDescDatas(CSC_SFXDesc &_Desc)
+{
+	memset(&_Desc.m_Datas, 0, sizeof(_Desc.m_Datas));
+}
+
 static void SetAttributes(CSC_SFXDesc &_Desc, const CNode &_Node, int _FileCategory)
 {
 	CStr Value;
@@ -1023,6 +1032,7 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 		{
 			// One descriptor for all matching waves (random wave at playback)
 			CSC_SFXDesc Desc;
+			ClearDescDatas(Desc);
 			Desc.SetMode(CSC_SFXDesc::ENORMAL);
 			Desc.m_SoundName = Name;
 			SetAttributes(Desc, _Node, _FileCategory);
@@ -1039,6 +1049,7 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 			for(int i = 0; i < liWaves.Len(); i++)
 			{
 				CSC_SFXDesc Desc;
+				ClearDescDatas(Desc);
 				Desc.SetMode(CSC_SFXDesc::ENORMAL);
 				Desc.m_SoundName = pWC->GetName(liWaves[i]);
 				SetAttributes(Desc, _Node, _FileCategory);
@@ -1069,6 +1080,7 @@ static int BuildMaterialDesc(const CNode &_Node, int _FileCategory, TArray<spCWa
 			continue;
 
 		CSC_SFXDesc Desc;
+		ClearDescDatas(Desc);
 		Desc.SetMode(CSC_SFXDesc::EMATERIAL);
 		Desc.m_SoundName = Name;
 		SetAttributes(Desc, _Node, _FileCategory);
