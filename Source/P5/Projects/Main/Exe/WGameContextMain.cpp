@@ -1150,11 +1150,16 @@ void CGameContextMod::Con_StartNewCampaign(int _Mode)
 	// some editions ship a "campaign.xw" bootstrap world, the EFBB
 	// content set starts straight at Pa1_Intro. Probe candidates and
 	// load the first one that exists.
+	// Bring-up: RIDDICK_STARTMAP overrides the start world (skip intro
+	// cinematics while debugging world rendering).
 	static const char* sEFBB[] = { "campaign", "Pa1_Intro", 0 };
 	static const char* sDA[]   = { "campaign", "da1_intro", "BBR_01", 0 };
 	const char** ppMap = (_Mode == 1) ? sDA : sEFBB;
 	CStr Map = ppMap[0];
-	if (m_spWData)
+	const char* pStartMap = getenv("RIDDICK_STARTMAP");
+	if (pStartMap && pStartMap[0])
+		Map = pStartMap; // Command_ChangeMap resolves worlds\<name>.xw itself
+	else if (m_spWData)
 	{
 		for (int i = 0; ppMap[i]; ++i)
 		{
