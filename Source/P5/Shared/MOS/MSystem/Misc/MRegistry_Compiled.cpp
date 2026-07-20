@@ -3860,6 +3860,17 @@ NormalBranch:
 			NeededSize += pHelper[i].m_nNodesSmall * ConstSize;
 			NeededSize += pHelper[i].m_nHashEntries * sizeof(uint32);
 			NeededSize /= sizeof(uint32);
+			if (NeededSize > (1 << 16))
+			{
+				// The internal ChildNodeStart is packed in 16 bits (see line ~144).
+				// Some PC EFBB worlds (e.g. Pa1_TheDream) compile bigger than 64K
+				// slots per data block. Continuing would silently truncate every
+				// child offset and crash later dereferencing a corrupt registry
+				// pointer (SEGV in TPtrBase::Assign). Fail cleanly instead —
+				// TODO widen the packed layout to a 32-bit ChildNodeStart.
+				fprintf(stderr, "[REG-CMP] compiled registry block %d/%d needs %d slots (>64K), refusing to load\n", i, (int)nData, NeededSize);
+				Error("Read", "Compiled registry block exceeds 64K slot addressing limit");
+			}
 			M_ASSERT(NeededSize <= 1 << 16, "Overflow");
 			m_CompiledData[i].m_lRegistryNodes.SetLen(NeededSize);
 		}
