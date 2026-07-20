@@ -55,6 +55,24 @@ void CXRAG2_AnimLayer::Read(CCFile* _pFile, int _Ver)
 			}
 		break;
 
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
+			{
+				// v5/v6 (PC): Opacity is stored, AnimFlags is a single byte
+				_pFile->ReadLE(m_TimeOffset);
+				_pFile->ReadLE(m_TimeScale);
+				_pFile->ReadLE(m_Opacity);
+
+				_pFile->ReadLE(m_iAnim);
+				uint8 AnimFlags;
+				_pFile->ReadLE(AnimFlags);
+				m_AnimFlags = AnimFlags;
+				_pFile->ReadLE(m_iBaseJoint);
+				_pFile->ReadLE(m_iMergeOperator);
+				_pFile->ReadLE(m_iTimeControlProperty);
+			}
+		break;
+
 		default:
 			Error_static("CXRAG2_StateAnim::Read", CStrF("Unsupported version %.4x", _Ver));
 	}
