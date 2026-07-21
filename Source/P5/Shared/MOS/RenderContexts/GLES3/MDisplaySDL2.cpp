@@ -1635,6 +1635,19 @@ public:
 
 			const int nV = (int)m_Geom.m_nV;
 			if (nV <= 0 || !m_Geom.m_pV) { _pOut = 0; _nOut = 0; return false; }
+			// Same skip-skinned rule for the m_Geom (CRC_VertexBuffer) path.
+			{
+				static int sSkipSk = -1;
+				if (sSkipSk < 0)
+				{
+					const char* e = getenv("RIDDICK_SKIP_SKINNED");
+					sSkipSk = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (sSkipSk && (m_Geom.m_pMI || m_Geom.m_pMW || m_Geom.m_nMWComp))
+				{
+					_pOut = 0; _nOut = 0; return false;
+				}
+			}
 			static SUIVert sScratch[16384];
 			SUIVert* p = (nV <= 16384) ? sScratch : (SUIVert*)malloc(sizeof(SUIVert) * nV);
 			if (!p) return false;
@@ -2030,7 +2043,11 @@ public:
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
 			// World meshes have nV > 200 typically; UI/particles are small.
-			if (sMtxLog < 10 && nVerts >= 200 && !bModelId && getenv("RIDDICK_DBG_MTX"))
+			// UI in this engine uses a distinctive proj: m[15]==0 (no w
+			// translation) with m[11]==1 — filter that out for world logs.
+			const float* mpChk = (const float*)&m_ProjMat;
+			const bool bUIProj = (mpChk[15] == 0.0f && mpChk[11] == 1.0f);
+			if (sMtxLog < 10 && nVerts >= 200 && !bModelId && !bUIProj && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2305,7 +2322,9 @@ public:
 				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
-			if (sUvLog < 10 && _nVerts >= 200 && !bModelId2 && getenv("RIDDICK_DBG_MTX"))
+			const float* mpChk2 = (const float*)&m_ProjMat;
+			const bool bUIProj2 = (mpChk2[15] == 0.0f && mpChk2[11] == 1.0f);
+			if (sUvLog < 10 && _nVerts >= 200 && !bModelId2 && !bUIProj2 && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2423,6 +2442,27 @@ public:
 			_nV_out = 0;
 			const int nV = VBB.m_nV;
 			if (nV <= 0) return NULL;
+
+			// RIDDICK_SKIP_SKINNED=1: skip meshes with matrix-palette
+			// skinning attribs. Our BuildInterleavedVerts feeds raw
+			// bone-space positions to GL without applying palette, so
+			// character meshes come out as scattered spikes on-screen.
+			// Hiding them lets the world (BSP2, static props) show up
+			// cleanly for verification. Skinning support = separate task.
+			static int sSkipSkinned = -1;
+			if (sSkipSkinned < 0)
+			{
+				const char* e = getenv("RIDDICK_SKIP_SKINNED");
+				sSkipSkinned = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sSkipSkinned)
+			{
+				if (VBB.m_lpVReg[CRC_VREG_MI0] || VBB.m_lpVReg[CRC_VREG_MW0] ||
+				    VBB.m_lpVReg[CRC_VREG_MI1] || VBB.m_lpVReg[CRC_VREG_MW1])
+				{
+					return NULL;
+				}
+			}
 
 			const void* pPos = VBB.m_lpVReg[CRC_VREG_POS];
 			const int PosFmt = VBB.m_Format.GetFormat(CRC_VREG_POS);
