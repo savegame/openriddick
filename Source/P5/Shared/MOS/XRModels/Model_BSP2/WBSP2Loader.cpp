@@ -1210,6 +1210,71 @@ void CXR_Model_BSP2::Create_PostRead()
 {
 	MAUTOSTRIP(CXR_Model_BSP_Create_PostRead, MAUTOSTRIP_VOID);
 	MSCOPE(Create_PostRead, XR_BSPMODEL);
+
+	// Load-time OBJ dump. Enable with RIDDICK_DUMP_BSP=<dir>. Writes
+	// raw loader-side geometry BEFORE any render conversion, so it
+	// isolates loader correctness from render pipeline. Compare in
+	// Blender against reference BSP data. Only fires once per process,
+	// on the FIRST BSP2 model to reach post-read — usually the world.
+	{
+		static int s_Done = 0;
+		const char* dir = getenv("RIDDICK_DUMP_BSP");
+		if (dir && *dir && !s_Done && m_lVertices.Len() > 0 && m_lFaces.Len() > 0)
+		{
+			s_Done = 1;
+			char cmd[512];
+			snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", dir);
+			if (system(cmd) == -1) { /* best-effort */ }
+			char path[512];
+			snprintf(path, sizeof(path), "%s/bsp_load.obj", dir);
+			FILE* f = fopen(path, "w");
+			if (f)
+			{
+				const int nV = m_lVertices.Len();
+				const int nF = m_lFaces.Len();
+				fprintf(stderr,
+					"[BSP-DUMP] %s: %d vertices, %d faces, %d flat-indices\n",
+					path, nV, nF, m_liVertices.Len());
+				fprintf(f,
+					"# CXR_Model_BSP2 post-read dump\n"
+					"# vertices=%d faces=%d flat-indices=%d\n",
+					nV, nF, m_liVertices.Len());
+				for (int i = 0; i < nV; ++i)
+				{
+					const CVec3Dfp32& v = m_lVertices[i];
+					fprintf(f, "v %.6f %.6f %.6f\n", v.k[0], v.k[1], v.k[2]);
+				}
+				// One group per face so Blender lets us pick a face.
+				const uint32* piV = m_liVertices.GetBasePtr();
+				for (int fi = 0; fi < nF; ++fi)
+				{
+					const CBSP2_Face& F = m_lFaces[fi];
+					const uint32 base = F.m_iiVertices;
+					const uint32 n    = F.m_nVertices;
+					if (n < 3) continue;
+					if (base + n > (uint32)m_liVertices.Len()) continue;
+					fprintf(f, "g face_%d_surf_%u\n", fi, (unsigned)F.m_iSurface);
+					// Triangulate polygon as a fan.
+					for (uint32 k = 1; k + 1 < n; ++k)
+					{
+						const uint32 a = piV[base + 0] + 1;
+						const uint32 b = piV[base + k] + 1;
+						const uint32 c = piV[base + k + 1] + 1;
+						if (a > (uint32)nV || b > (uint32)nV || c > (uint32)nV) continue;
+						fprintf(f, "f %u %u %u\n", a, b, c);
+					}
+				}
+				fclose(f);
+				fprintf(stderr, "[BSP-DUMP] done -> %s\n", path);
+				fflush(stderr);
+			}
+			else
+			{
+				fprintf(stderr, "[BSP-DUMP] failed to open %s\n", path);
+			}
+		}
+	}
+
 #ifdef MODEL_BSP_CHECKTREE
 	if (m_lPortalLeaves.Len())
 		if (!CheckTree_r(1))
