@@ -1873,16 +1873,22 @@ public:
 			// draws, our pipeline (shader/attribs/streamer/blend) is fine,
 			// so the bug must be in engine → SUIVert conversion or MVP.
 			// If nothing (or garbage) shows — pipeline itself is broken.
+			// TEST_TRI=1: identity MVP + RGB triangle (proves pipeline).
+			// TEST_TRI=2: keep engine MVP + RGB triangle (proves whether
+			// engine MVP places geometry in a sane on-screen location).
 			static int sTestTri = -1;
 			if (sTestTri < 0)
 			{
 				const char* e = getenv("RIDDICK_TEST_TRI");
-				sTestTri = (e && *e && *e != '0') ? 1 : 0;
+				sTestTri = (e && *e) ? atoi(e) : 0;
 			}
+			// A world-scale triangle (units ≈ 1 meter engine scale) so
+			// that when engine's world-view MVP is applied the tri lands
+			// somewhere sensible in a real map.
 			static SUIVert sTri[3] = {
-				{ -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0xff0000ffu },  // red
-				{  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0xff00ff00u },  // green
-				{  0.0f,  0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 0xffff0000u },  // blue
+				{ -1.0f, -1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0xff0000ffu },
+				{  1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0xff00ff00u },
+				{  0.0f,  1.0f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 0xffff0000u },
 			};
 			static uint16 sTriIdx[3] = { 0, 1, 2 };
 			if (sTestTri)
@@ -1890,8 +1896,14 @@ public:
 				FreeScratch(pVerts, nVerts, bMalloced);
 				pVerts = sTri; nVerts = 3; bMalloced = false;
 				_pInd = sTriIdx; _nInd = 3;
-				m_ModelMat.Unit();
-				m_ProjMat.Unit();
+				if (sTestTri == 1)
+				{
+					m_ModelMat.Unit();
+					m_ProjMat.Unit();
+				}
+				// mode 2: leave m_ModelMat / m_ProjMat untouched → uses
+				// engine's per-drawable MVP. Every drawcall becomes a
+				// tiny 2m triangle at that drawable's world position.
 			}
 
 			glBindVertexArray(m_VAO);
