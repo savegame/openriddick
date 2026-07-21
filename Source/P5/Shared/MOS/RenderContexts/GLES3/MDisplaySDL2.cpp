@@ -498,7 +498,7 @@ public:
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 			glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)PrevDraw);
 			if (bScissor) glEnable(GL_SCISSOR_TEST);
-			fprintf(stderr, "[GLES3-RTT] id=%d FBO ok %dx%d  colorTex=%u fbo=%u\n",
+			fprintf(stderr, "[GLES3-RTT] id=%d FBO ok %dx%d  colorTex=%u fbo=%u  CLEARED-TO-BLACK\n",
 				_TextureID, W, H, S.m_ColorTex, S.m_FBO);
 			fflush(stderr);
 			return &S;
