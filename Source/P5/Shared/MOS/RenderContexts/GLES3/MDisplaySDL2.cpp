@@ -1773,21 +1773,43 @@ public:
 			for (int i = 0; i < m_DumpObjSeen.Len(); ++i)
 				if (m_DumpObjSeen[i] == h) return;
 			m_DumpObjSeen.Add(h);
+			static int sApplyMVP = -1;
+			if (sApplyMVP < 0)
+			{
+				const char* e = getenv("RIDDICK_OBJ_APPLY_MVP");
+				sApplyMVP = (e && *e && *e != '0') ? 1 : 0;
+			}
 			char path[512];
-			snprintf(path, sizeof(path), "%s/geom_%04d_%s_v%d_i%d.obj",
-				m_DumpObjDir, m_DumpObjCount, _Tag, _nV, _nI);
+			snprintf(path, sizeof(path), "%s/geom_%04d_%s_v%d_i%d%s.obj",
+				m_DumpObjDir, m_DumpObjCount, _Tag, _nV, _nI,
+				sApplyMVP ? "_mvp" : "");
 			FILE* f = fopen(path, "w");
 			if (!f) return;
 			int Tex0 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[0] : 0;
-			fprintf(f, "# openriddick GLES3 geom dump #%d  tag=%s  Tex0=%d\n",
-				m_DumpObjCount, _Tag, Tex0);
+			fprintf(f, "# openriddick GLES3 geom dump #%d  tag=%s  Tex0=%d  applyMVP=%d\n",
+				m_DumpObjCount, _Tag, Tex0, sApplyMVP);
 			fprintf(f, "# nV=%d nI=%d prim=0x%04x\n", _nV, _nI, (unsigned)_Prim);
 			const float* m = (const float*)&MVP;
 			fprintf(f, "# MVP: %g %g %g %g / %g %g %g %g / %g %g %g %g / %g %g %g %g\n",
 				m[0],m[1],m[2],m[3], m[4],m[5],m[6],m[7],
 				m[8],m[9],m[10],m[11], m[12],m[13],m[14],m[15]);
 			for (int i = 0; i < _nV; ++i)
-				fprintf(f, "v %.6f %.6f %.6f\n", _pV[i].x, _pV[i].y, _pV[i].z);
+			{
+				float x = _pV[i].x, y = _pV[i].y, z = _pV[i].z;
+				if (sApplyMVP)
+				{
+					// Engine is row-vector: clip = v_row * MVP (same numeric
+					// layout as GL's column-major M * v_col).
+					const float w1 = 1.0f;
+					const float cx = x*m[0] + y*m[4] + z*m[8]  + w1*m[12];
+					const float cy = x*m[1] + y*m[5] + z*m[9]  + w1*m[13];
+					const float cz = x*m[2] + y*m[6] + z*m[10] + w1*m[14];
+					const float cw = x*m[3] + y*m[7] + z*m[11] + w1*m[15];
+					const float iw = (cw != 0.0f) ? (1.0f / cw) : 1.0f;
+					x = cx * iw; y = cy * iw; z = cz * iw;
+				}
+				fprintf(f, "v %.6f %.6f %.6f\n", x, y, z);
+			}
 			for (int i = 0; i < _nV; ++i)
 				fprintf(f, "vt %.6f %.6f\n", _pV[i].u, _pV[i].v);
 			if (_Prim == GL_TRIANGLES)
