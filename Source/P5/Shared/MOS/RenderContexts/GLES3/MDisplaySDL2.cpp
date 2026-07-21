@@ -748,6 +748,21 @@ public:
 		void DbgDumpTick()
 		{
 			++m_DbgTotalFrames;
+			// F9 → arm dump for the NEXT frame (this frame's drawcalls
+			// already happened). Edge-detect so a long press only fires
+			// once. Keyboard state is populated by SDL_PumpEvents which
+			// CInputContext_SDL2 does every frame.
+			static int s_PrevF9 = 0;
+			int NumKeys = 0;
+			const Uint8* pState = SDL_GetKeyboardState(&NumKeys);
+			int F9 = (pState && NumKeys > SDL_SCANCODE_F9) ? pState[SDL_SCANCODE_F9] : 0;
+			if (F9 && !s_PrevF9 && !m_DbgDumpActive && m_DbgDumpFrameTarget == 0)
+			{
+				m_DbgDumpFrameTarget = m_DbgTotalFrames + 1;
+				fprintf(stderr, "[GL-DBG] F9: dump armed for frame %d\n",
+					m_DbgDumpFrameTarget);
+			}
+			s_PrevF9 = F9;
 			if (m_DbgDumpActive)
 			{
 				// Finish: close and never open again.
