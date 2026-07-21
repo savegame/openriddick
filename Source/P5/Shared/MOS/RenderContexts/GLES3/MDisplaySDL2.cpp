@@ -1235,6 +1235,18 @@ public:
 
 		void RenderTarget_Clear(CRct _ClearRect, int _WhatToClear, CPixel32 _Color, fp32 _ZBufferValue, int _StecilValue)
 		{
+			static int sLogged = 0;
+			if (sLogged < 20)
+			{
+				GLint CurFBO = 0;
+				glGetIntegerv(GL_FRAMEBUFFER_BINDING, &CurFBO);
+				fprintf(stderr, "[GLES3-CLEAR] FBO=%d what=0x%x rgba=(%u,%u,%u,%u) rect=(%d,%d..%d,%d)\n",
+					(int)CurFBO, _WhatToClear,
+					_Color.GetR(), _Color.GetG(), _Color.GetB(), _Color.GetA(),
+					_ClearRect.p0.x, _ClearRect.p0.y, _ClearRect.p1.x, _ClearRect.p1.y);
+				fflush(stderr);
+				++sLogged;
+			}
 			GLbitfield Mask = 0;
 			if (_WhatToClear & CDC_CLEAR_COLOR)
 			{
