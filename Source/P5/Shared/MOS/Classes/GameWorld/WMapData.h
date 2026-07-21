@@ -225,6 +225,28 @@ public:
 
 		CXR_Model* pModel = pRCModel->GetModel();
 
+		// Defensive sanity on the returned pointer. On our Linux port some
+		// CWRes_Model_XW instances come back with an m_spModel field that
+		// contains a wild address (partially-precached resource whose model
+		// buffer got reclaimed; the wild ptr typically lands inside a heap
+		// string buffer such as the resource's own m_Name storage — see the
+		// Pa1_TheDream crash where *pModel == ASCII "mBox.xw:" from
+		// "Phys\\P_ItemBox.xw:2"). Any virtual call through this pointer
+		// segfaults. Reject anything that isn't a canonical userspace VA
+		// (aligned, low 48 bits on x86-64, non-tiny).
+		if (pModel)
+		{
+			uintptr_t p = (uintptr_t)pModel;
+			if ((p & 0x7) != 0 || p < 0x1000 || (p >> 47) != 0)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' looks like a wild pointer, returning NULL\n",
+					        _iModel, (void*)pModel, pRc->GetName().Str());
+				return NULL;
+			}
+		}
+
 		return pModel;
 	}
 
