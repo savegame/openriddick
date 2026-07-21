@@ -1381,13 +1381,39 @@ public:
 		// Build interleaved buffer from the CRC_Core-accumulated
 		// m_Geom + m_GeomColor. tex-channel 0 is enough for UI; higher
 		// channels arrive in M4 shader generator.
-		bool BuildInterleavedVerts(SUIVert*& _pOut, int& _nOut)
+		bool BuildInterleavedVerts(SUIVert*& _pOut, int& _nOut, bool& _bMalloced)
 		{
+			_bMalloced = false;
+			// BSP2 solid-world path: engine called Geometry_VertexBuffer(VBID)
+			// (setter that just stores VBID in m_GeomVBID — see MRender.cpp:4127)
+			// then Render_IndexedTriangles(piPrim, nPrim). m_Geom stays stale
+			// from a previous UI draw; we must fetch the real vertices from
+			// the VBID here. VBB uses packed formats (I16/NS/NU) that
+			// BuildVertsFromVBB (which VRegFetch decodes) already handles.
+			// Without this override, retail-Win32 GL delegated to CRC_Core
+			// which had a full-VBB fetch built in; our old code was reading
+			// stale m_Geom, hence "stretched polygons across the whole
+			// screen" symptom in Pa1_TheDream.
+			if (m_GeomVBID != 0 && m_pVBCtx)
+			{
+				CRC_BuildVertexBuffer VBB;
+				VBB.Clear();
+				m_pVBCtx->VB_Get((int)m_GeomVBID, VBB, VB_GETFLAGS_BUILD);
+				int nV = 0;
+				SUIVert* p = BuildVertsFromVBB(VBB, nV);
+				if (!p) { _pOut = 0; _nOut = 0; return false; }
+				_pOut = p;
+				_nOut = nV;
+				_bMalloced = true;
+				return true;
+			}
+
 			const int nV = (int)m_Geom.m_nV;
 			if (nV <= 0 || !m_Geom.m_pV) { _pOut = 0; _nOut = 0; return false; }
 			static SUIVert sScratch[16384];
 			SUIVert* p = (nV <= 16384) ? sScratch : (SUIVert*)malloc(sizeof(SUIVert) * nV);
 			if (!p) return false;
+			_bMalloced = (nV > 16384);
 
 			const CVec3Dfp32* pV   = m_Geom.m_pV;
 			const fp32*       pTV0 = m_Geom.m_pTV[0];
@@ -1427,10 +1453,12 @@ public:
 			return true;
 		}
 
-		void FreeScratch(SUIVert* _p, int _nV)
+		void FreeScratch(SUIVert* _p, int _nV, bool _bMalloced)
 		{
-			static SUIVert sMarker;  (void)sMarker;
-			if (_nV > 16384) free(_p);
+			// _bMalloced set by BuildInterleavedVerts when the buffer came
+			// from malloc (VBID path always, or fallback path when nV>16384).
+			if (_bMalloced) free(_p);
+			(void)_nV;
 		}
 
 		// Vertex layout for SUIVert at byte offset _Base inside the
@@ -1561,13 +1589,13 @@ public:
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 
-			SUIVert* pVerts = 0; int nVerts = 0;
-			if (!BuildInterleavedVerts(pVerts, nVerts)) return;
+			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
+			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
 
 			glBindVertexArray(m_VAO);
 			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
 			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
-			FreeScratch(pVerts, nVerts);
+			FreeScratch(pVerts, nVerts, bMalloced);
 			if (!vRes.Ok || !iRes.Ok) return;
 
 			// Attribs (VBO already bound by PushVertices).
