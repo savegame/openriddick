@@ -849,6 +849,11 @@ public:
 				m_DbgDumpFrameTarget = m_DbgTotalFrames + 1;
 				fprintf(stderr, "[GL-DBG] F9: dump armed for frame %d\n",
 					m_DbgDumpFrameTarget);
+				// Also re-arm MTX/UV world-log windows so RIDDICK_DBG_MTX
+				// captures the next 10 non-UI world draws around the dump.
+				m_MtxLog = 0;
+				m_UvLog = 0;
+				fprintf(stderr, "[GL-DBG] F9: MTX log rearmed (next 10 world draws)\n");
 			}
 			s_PrevF9 = F9;
 			if (m_DbgDumpActive)
@@ -1900,6 +1905,10 @@ public:
 		int    m_DbgLastUseTex   = 0;
 		int    m_DbgLastUseTex1  = 0;
 		GLuint m_DbgLastBind0    = 0;
+		// F9-resettable MTX log counters (class members instead of
+		// function-local statics so DbgDumpTick can zero them on demand).
+		int    m_MtxLog          = 0;
+		int    m_UvLog           = 0;
 
 		// Geometry dumper: on RIDDICK_DUMP_OBJ=<dir>, writes each unique
 		// drawn mesh to <dir>/geom_XXXX.obj. Keyed by nV + first-vertex
@@ -2033,7 +2042,7 @@ public:
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
 			// first 5 drawcalls of the first frame after startmap load.
 			// Diagnoses which matrix mangles vertices.
-			static int sMtxLog = 0;
+			int sMtxLog = m_MtxLog; // kept for legacy references below
 			// Only fire for draws with non-identity Model (i.e. real
 			// world geometry, not UI). UI keeps Model=Unit.
 			const float* mmChk = (const float*)&m_ModelMat;
@@ -2047,7 +2056,8 @@ public:
 			// translation) with m[11]==1 — filter that out for world logs.
 			const float* mpChk = (const float*)&m_ProjMat;
 			const bool bUIProj = (mpChk[15] == 0.0f && mpChk[11] == 1.0f);
-			if (sMtxLog < 10 && nVerts >= 200 && !bModelId && !bUIProj && getenv("RIDDICK_DBG_MTX"))
+			(void)sMtxLog;
+			if (m_MtxLog < 10 && nVerts >= 200 && !bModelId && !bUIProj && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2062,7 +2072,7 @@ public:
 					"  Model rows: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
 					"  Proj  rows: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
 					"  clip=(%g,%g,%g,%g) NDC=(%g,%g,%g)\n",
-					sMtxLog, nVerts, x, y, z,
+					m_MtxLog, nVerts, x, y, z,
 					mm[0],mm[1],mm[2],mm[3], mm[4],mm[5],mm[6],mm[7],
 					mm[8],mm[9],mm[10],mm[11], mm[12],mm[13],mm[14],mm[15],
 					mp[0],mp[1],mp[2],mp[3], mp[4],mp[5],mp[6],mp[7],
@@ -2070,7 +2080,7 @@ public:
 					cx, cy, cz, cw,
 					cw != 0 ? cx/cw : 0, cw != 0 ? cy/cw : 0, cw != 0 ? cz/cw : 0);
 				fflush(stderr);
-				++sMtxLog;
+				++m_MtxLog;
 			}
 
 			// Bisect diagnostic: RIDDICK_TEST_TRI=1 → replace vertex data
@@ -2315,7 +2325,7 @@ public:
 			// Diagnostic: world BSP2 draws come through here via
 			// Render_VertexBuffer_IndexBufferTriangles. Log 10 world-ish
 			// draws to see actual MVP + vertex → NDC path once the map is up.
-			static int sUvLog = 0;
+			int sUvLog = m_UvLog; // kept for legacy references below
 			const float* mmChk = (const float*)&m_ModelMat;
 			const bool bModelId2 = (mmChk[0]==1 && mmChk[5]==1 && mmChk[10]==1 && mmChk[15]==1
 				&& mmChk[1]==0 && mmChk[2]==0 && mmChk[3]==0
@@ -2324,7 +2334,8 @@ public:
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
 			const float* mpChk2 = (const float*)&m_ProjMat;
 			const bool bUIProj2 = (mpChk2[15] == 0.0f && mpChk2[11] == 1.0f);
-			if (sUvLog < 10 && _nVerts >= 200 && !bModelId2 && !bUIProj2 && getenv("RIDDICK_DBG_MTX"))
+			(void)sUvLog;
+			if (m_UvLog < 10 && _nVerts >= 200 && !bModelId2 && !bUIProj2 && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2339,14 +2350,14 @@ public:
 					"  Model: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
 					"  Proj : [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
 					"  clip=(%g,%g,%g,%g) NDC=(%g,%g,%g)\n",
-					sUvLog, _nVerts, (unsigned)_GLPrim, v.x, v.y, v.z,
+					m_UvLog, _nVerts, (unsigned)_GLPrim, v.x, v.y, v.z,
 					mm[0],mm[1],mm[2],mm[3], mm[4],mm[5],mm[6],mm[7],
 					mm[8],mm[9],mm[10],mm[11], mm[12],mm[13],mm[14],mm[15],
 					mp[0],mp[1],mp[2],mp[3], mp[4],mp[5],mp[6],mp[7],
 					mp[8],mp[9],mp[10],mp[11], mp[12],mp[13],mp[14],mp[15],
 					cx,cy,cz,cw, cw!=0?cx/cw:0, cw!=0?cy/cw:0, cw!=0?cz/cw:0);
 				fflush(stderr);
-				++sUvLog;
+				++m_UvLog;
 			}
 
 			glBindVertexArray(m_VAO);
