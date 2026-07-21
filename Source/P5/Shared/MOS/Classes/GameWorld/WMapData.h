@@ -252,8 +252,16 @@ public:
 		// string buffer such as the resource's own m_Name storage — see the
 		// Pa1_TheDream crash where *pModel == ASCII "mBox.xw:" from
 		// "Phys\\P_ItemBox.xw:2"). Any virtual call through this pointer
-		// segfaults. Reject anything that isn't a canonical userspace VA
-		// (aligned, low 48 bits on x86-64, non-tiny).
+		// segfaults. Two-step check:
+		//  1) pModel itself is a canonical userspace VA.
+		//  2) The vtable pointer at *pModel is also a canonical VA (in the
+		//     code/rodata range). If pModel points at a heap string buffer
+		//     the first 8 bytes are ASCII, which is NOT a canonical VA
+		//     (high 17 bits are non-zero), so this catches the actual bug.
+		//  Step 2 does one extra deref — if pModel is unmapped this
+		//  segfaults, but that's no worse than the current crash and the
+		//  observed case shows pModel is always in mapped heap memory,
+		//  just with garbage content.
 		if (pModel)
 		{
 			uintptr_t p = (uintptr_t)pModel;
@@ -261,8 +269,18 @@ public:
 			{
 				static int s_nWarn = 0;
 				if (s_nWarn++ < 20)
-					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' looks like a wild pointer, returning NULL\n",
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' not canonical, returning NULL\n",
 					        _iModel, (void*)pModel, pRc->GetName().Str());
+				return NULL;
+			}
+			// Step 2: check vtable pointer at *pModel
+			uintptr_t vtable = *(uintptr_t *)pModel;
+			if ((vtable & 0x7) != 0 || vtable < 0x1000 || (vtable >> 47) != 0)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' has bogus vtable=0x%lx (likely reused heap buffer), returning NULL\n",
+					        _iModel, (void*)pModel, pRc->GetName().Str(), (unsigned long)vtable);
 				return NULL;
 			}
 		}
