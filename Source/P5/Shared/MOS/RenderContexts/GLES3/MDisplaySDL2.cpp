@@ -494,8 +494,18 @@ public:
 			const GLboolean bScissor = glIsEnabled(GL_SCISSOR_TEST);
 			if (bScissor) glDisable(GL_SCISSOR_TEST);
 			glBindFramebuffer(GL_FRAMEBUFFER, S.m_FBO);
-			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			// Force clear: bright green so we notice if it's WHAT gets
+			// sampled by subsequent draws (screen turns green instead
+			// of white). If we see WHITE the FBO isn't actually the
+			// texture the shader samples.
+			glClearColor(0.0f, 1.0f, 0.0f, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+			unsigned char Px[4] = { 0xaa, 0xaa, 0xaa, 0xaa };
+			glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, Px);
+			GLenum Err = glGetError();
+			fprintf(stderr,
+				"[GLES3-RTT-VERIFY] id=%d after-clear px=(%u,%u,%u,%u) glErr=0x%x\n",
+				_TextureID, Px[0], Px[1], Px[2], Px[3], (unsigned)Err);
 			glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)PrevDraw);
 			if (bScissor) glEnable(GL_SCISSOR_TEST);
 			fprintf(stderr, "[GLES3-RTT] id=%d FBO ok %dx%d  colorTex=%u fbo=%u  CLEARED-TO-BLACK\n",
