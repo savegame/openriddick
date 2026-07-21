@@ -1867,6 +1867,33 @@ public:
 			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
 			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
 
+			// Bisect diagnostic: RIDDICK_TEST_TRI=1 → replace vertex data
+			// and MVP with a known-good triangle at identity MVP. If a
+			// centered white triangle appears where the game normally
+			// draws, our pipeline (shader/attribs/streamer/blend) is fine,
+			// so the bug must be in engine → SUIVert conversion or MVP.
+			// If nothing (or garbage) shows — pipeline itself is broken.
+			static int sTestTri = -1;
+			if (sTestTri < 0)
+			{
+				const char* e = getenv("RIDDICK_TEST_TRI");
+				sTestTri = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static SUIVert sTri[3] = {
+				{ -0.5f, -0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0xff0000ffu },  // red
+				{  0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0xff00ff00u },  // green
+				{  0.0f,  0.5f, 0.0f, 0.5f, 1.0f, 0.0f, 0.0f, 0xffff0000u },  // blue
+			};
+			static uint16 sTriIdx[3] = { 0, 1, 2 };
+			if (sTestTri)
+			{
+				FreeScratch(pVerts, nVerts, bMalloced);
+				pVerts = sTri; nVerts = 3; bMalloced = false;
+				_pInd = sTriIdx; _nInd = 3;
+				m_ModelMat.Unit();
+				m_ProjMat.Unit();
+			}
+
 			glBindVertexArray(m_VAO);
 			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
 			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
