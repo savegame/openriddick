@@ -1729,16 +1729,15 @@ public:
 		// VB context each draw, convert to SUIVert and stream it.
 		// Positions/UVs accept the F32 and packed I16/U16/NSx/NUx
 		// formats; anything else bumps m_DbgVBIDSkipFmt.
-		void Render_VertexBuffer(int _VBID)
+		// Convert VBID vertex-register data into our interleaved SUIVert
+		// buffer. Returns malloc'd buffer (caller frees) or NULL on failure.
+		// Extracted so both Render_VertexBuffer and
+		// Render_VertexBuffer_IndexBufferTriangles share it.
+		SUIVert* BuildVertsFromVBB(CRC_BuildVertexBuffer& VBB, int& _nV_out)
 		{
-			++m_DbgDrawVBID;
-			if (!m_pVBCtx) return;
-
-			CRC_BuildVertexBuffer VBB;
-			VBB.Clear();
-			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
+			_nV_out = 0;
 			const int nV = VBB.m_nV;
-			if (nV <= 0 || !VBB.m_piPrim || !VBB.m_nPrim) return;
+			if (nV <= 0) return NULL;
 
 			const void* pPos = VBB.m_lpVReg[CRC_VREG_POS];
 			const int PosFmt = VBB.m_Format.GetFormat(CRC_VREG_POS);
@@ -1748,7 +1747,7 @@ public:
 				{
 					++m_DbgVBIDSkipFmt;
 					m_DbgVBIDLastSkip = PosFmt;
-					return;
+					return NULL;
 				}
 			}
 
@@ -1761,7 +1760,7 @@ public:
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
 
 			SUIVert* pVerts = (SUIVert*)malloc(sizeof(SUIVert) * nV);
-			if (!pVerts) return;
+			if (!pVerts) return NULL;
 			for (int i = 0; i < nV; ++i)
 			{
 				VRegFetch(pPos, PosFmt, i, 0, pVerts[i].x);
@@ -1781,6 +1780,23 @@ public:
 				}
 				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
 			}
+			_nV_out = nV;
+			return pVerts;
+		}
+
+		void Render_VertexBuffer(int _VBID)
+		{
+			++m_DbgDrawVBID;
+			if (!m_pVBCtx) return;
+
+			CRC_BuildVertexBuffer VBB;
+			VBB.Clear();
+			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
+			if (VBB.m_nV <= 0 || !VBB.m_piPrim || !VBB.m_nPrim) return;
+
+			int nV = 0;
+			SUIVert* pVerts = BuildVertsFromVBB(VBB, nV);
+			if (!pVerts) return;
 
 			// Walk the primitive stream: header word = index count,
 			// then indices; type from the stream iterator.
@@ -1804,6 +1820,45 @@ public:
 				}
 				while (It.Next());
 			}
+			free(pVerts);
+		}
+
+		// BSP2 solid-world path. VBID delivers positions/UV/UV1/color;
+		// IBID delivers the shared index pool (its m_piPrim). _PrimOffset
+		// is a 16-bit index count into that pool, _nTriangles*3 indices
+		// starting there form the triangle list. Mirrors PS3
+		// CRCPS3GCM::Render_VertexBuffer_IndexBufferTriangles
+		// (MRenderPS3_Render.cpp:245-267). Without this override, the
+		// base CRC_Core stub (MRender.cpp:6031) silently drops every
+		// SLC-cluster mesh submitted from CXR_Model_BSP2, so the entire
+		// world stays invisible while shadow-volumes (which use the
+		// separate Render_VertexBuffer path with almost-black colour)
+		// come through faintly — matched Pa1_TheDream symptom exactly.
+		void Render_VertexBuffer_IndexBufferTriangles(uint _VBID, uint _IBID,
+		                                              uint _nTriangles, uint _PrimOffset)
+		{
+			++m_DbgDrawVBID;
+			if (!m_pVBCtx || _nTriangles == 0) return;
+
+			CRC_BuildVertexBuffer VBB;
+			VBB.Clear();
+			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
+			int nV = 0;
+			SUIVert* pVerts = BuildVertsFromVBB(VBB, nV);
+			if (!pVerts) return;
+
+			// Fetch the IB (usually a separate VB whose m_piPrim is the
+			// shared index pool). May be the same as _VBID.
+			const uint16* pIdx = VBB.m_piPrim;
+			CRC_BuildVertexBuffer IBB;
+			if (_IBID != _VBID)
+			{
+				IBB.Clear();
+				m_pVBCtx->VB_Get(_IBID, IBB, VB_GETFLAGS_BUILD);
+				pIdx = IBB.m_piPrim;
+			}
+			if (pIdx)
+				DrawUserVerts(GL_TRIANGLES, pVerts, nV, pIdx + _PrimOffset, _nTriangles * 3);
 			free(pVerts);
 		}
 		void Render_Wire(const CVec3Dfp32& _v0, const CVec3Dfp32& _v1, CPixel32 _Color){}
