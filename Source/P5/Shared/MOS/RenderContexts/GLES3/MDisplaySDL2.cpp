@@ -30,25 +30,37 @@
 // One shared shader for M3 UI/frontend drawing. Attributes: aPos
 // (vec3 world), aUV (vec2), aCol (vec4, unpacked from CPixel32 BGRA).
 // Uniforms: uMVP (mat4), uUseTexture (bool), uTex (sampler2D).
+// Max simultaneous per-vertex Lambert lights. CRC_MAXLIGHTS in the
+// engine is 8; we mirror that. Each light needs 3 vec4s: pos+range,
+// color+ambient scalar, direction+type (unused for POINT).
+#define GLES3_MAX_LIGHTS 8
+
 static const char* kGLES3_UIVertSrc =
 	"#version 300 es\n"
 	"layout(location=0) in vec3 aPos;\n"
 	"layout(location=1) in vec2 aUV;\n"
 	"layout(location=2) in vec4 aCol;\n"
 	"layout(location=3) in vec2 aUV1;\n"
+	"layout(location=4) in vec3 aNormal;\n"
 	"uniform mat4 uMVP;\n"
+	"uniform mat4 uModel;\n"
 	"uniform mat4 uTexMat;\n"
 	"uniform mat4 uTexMat1;\n"
 	"out vec2 vUV;\n"
 	"out vec2 vUV1;\n"
 	"out vec4 vCol;\n"
 	"out float vDepth;\n"
+	"out vec3 vWorldPos;\n"
+	"out vec3 vWorldNrm;\n"
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
 	"  vCol = aCol;\n"
+	// Row-vector convention: worldPos = v * Model. Same layout for GL.
+	"  vWorldPos = (uModel * vec4(aPos, 1.0)).xyz;\n"
+	"  vWorldNrm = normalize(mat3(uModel) * aNormal);\n"
 	"}\n";
 
 static const char* kGLES3_UIFragSrc =
@@ -57,6 +69,8 @@ static const char* kGLES3_UIFragSrc =
 	"in vec2 vUV;\n"
 	"in vec2 vUV1;\n"
 	"in vec4 vCol;\n"
+	"in vec3 vWorldPos;\n"
+	"in vec3 vWorldNrm;\n"
 	"uniform sampler2D uTex;\n"
 	"uniform int uUseTexture;\n"
 	// Secondary texture (channel 1: lightmaps etc.) -- modulates RGB.
@@ -74,6 +88,15 @@ static const char* kGLES3_UIFragSrc =
 	"uniform vec3 uFogColor;\n"
 	"uniform float uFogStart;\n"
 	"uniform float uFogEnd;\n"
+	// Dynamic-light (Phase A: per-fragment Lambert; base-pass modulation).
+	// uLightingMode: 0=off (UI/no-normal path). 1=modulate (base pass —
+	// c.rgb *= ambient + sum(diffuse)). 2=additive (light-only pass —
+	// c.rgb  = sum(diffuse); alpha unchanged, expected to be ONE/ONE-blended).
+	"uniform int uLightingMode;\n"
+	"uniform vec3 uAmbient;\n"
+	"uniform int uNumLights;\n"
+	"uniform vec4 uLightPos[8];\n"     // xyz + range
+	"uniform vec4 uLightColor[8];\n"   // rgb + ambient scale
 	"in float vDepth;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
@@ -83,6 +106,22 @@ static const char* kGLES3_UIFragSrc =
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
+	"  if (uLightingMode != 0) {\n"
+	"    vec3 N = normalize(vWorldNrm);\n"
+	"    vec3 lit = (uLightingMode == 1) ? uAmbient : vec3(0.0);\n"
+	"    for (int i = 0; i < 8; ++i) {\n"
+	"      if (i >= uNumLights) break;\n"
+	"      vec3 D = uLightPos[i].xyz - vWorldPos;\n"
+	"      float R = max(uLightPos[i].w, 1.0);\n"
+	"      float d = length(D);\n"
+	"      float a = clamp(1.0 - d / R, 0.0, 1.0);\n"
+	"      a *= a;\n"                                  // quadratic falloff
+	"      float NdL = max(dot(N, D / max(d, 1e-4)), 0.0);\n"
+	"      lit += uLightColor[i].rgb * (NdL * a);\n"
+	"    }\n"
+	"    if (uLightingMode == 1) c.rgb *= lit;\n"
+	"    else                    c.rgb  = lit;\n"      // additive pass
+	"  }\n"
 	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
 	"    bool pass = true;\n"
 	"    if      (uAlphaFunc == 1) pass = false;\n"
@@ -687,6 +726,13 @@ public:
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
+		int m_UModelLoc = -1;
+		int m_ULightingModeLoc = -1, m_UAmbientLoc = -1, m_UNumLightsLoc = -1;
+		int m_ULightPosLoc = -1, m_ULightColorLoc = -1;
+		// Latest light state from Attrib_Lights (engine holds the array,
+		// we just cache pointer + count until next Attrib_Set overrides).
+		const CRC_Light* m_pRCLights = 0;
+		int              m_nRCLights = 0;
 		int m_DbgVBIDSkipFmt = 0;
 		int m_DbgVBIDLastSkip = -1;
 		CGLES3VBOStreamer m_Streamer;
@@ -920,6 +966,12 @@ public:
 				m_UFogColorLoc  = m_UIShader.UniformLocation("uFogColor");
 				m_UFogStartLoc  = m_UIShader.UniformLocation("uFogStart");
 				m_UFogEndLoc    = m_UIShader.UniformLocation("uFogEnd");
+				m_UModelLoc     = m_UIShader.UniformLocation("uModel");
+				m_ULightingModeLoc = m_UIShader.UniformLocation("uLightingMode");
+				m_UAmbientLoc      = m_UIShader.UniformLocation("uAmbient");
+				m_UNumLightsLoc    = m_UIShader.UniformLocation("uNumLights");
+				m_ULightPosLoc     = m_UIShader.UniformLocation("uLightPos[0]");
+				m_ULightColorLoc   = m_UIShader.UniformLocation("uLightColor[0]");
 			}
 			glGenVertexArrays(1, &m_VAO);
 			if (m_CompShader.Build(kGLES3_CompVertSrc, kGLES3_CompFragSrc, "Composite"))
@@ -1436,6 +1488,17 @@ public:
 
 		void Attrib_Set(CRC_Attributes* _pAttrib)         { ++m_DbgAttribSets; ApplyAttribs(_pAttrib); }
 		void Attrib_SetAbsolute(CRC_Attributes* _pAttrib) { ++m_DbgAttribSets; ApplyAttribs(_pAttrib); }
+		// Cache current light array for shader upload. Engine calls this
+		// per drawable when lighting changes; the pointer stays valid
+		// until the next call (per MRender.h:176). Base CRC_Core just
+		// stores the pointer too — we mirror that AND read it in
+		// PushLightUniforms.
+		void Attrib_Lights(const CRC_Light* _pLights, int _nLights)
+		{
+			m_pRCLights = _pLights;
+			m_nRCLights = _nLights;
+			CRC_Core::Attrib_Lights(_pLights, _nLights);
+		}
 
 		void Matrix_SetRender(int _iMode, const CMat4Dfp32* _pMatrix)
 		{
@@ -1523,9 +1586,12 @@ public:
 		virtual int Geometry_GetVBSize(int _VBID) {return 0;}
 
 		// --- M3 draw path ------------------------------------------
-		// Interleaved vertex: pos.xyz (3f) + uv0.xy (2f) + uv1.xy (2f,
-		// channel 1: lightmaps) + colour BGRA packed as uint32. 32 bytes.
-		struct SUIVert { float x,y,z, u,v, u1,v1; uint32_t col; };
+		// Interleaved 44-byte vertex: pos.xyz + uv0.xy + uv1.xy
+		// (lightmap ch1) + colour BGRA packed as uint32 + normal.xyz
+		// (object/world space, unit length after unpack). Normal is
+		// consumed by Lambert light path (Phase A); UI/base draws
+		// leave it (0,0,1) which the shader treats as no-light.
+		struct SUIVert { float x,y,z, u,v, u1,v1; uint32_t col; float nx,ny,nz; };
 
 		// Pack CPixel32 (BGRA byte order per MImage.h) to RGBA-word for
 		// the shader (glVertexAttribPointer normalized ubyte4 reads in
@@ -1580,6 +1646,7 @@ public:
 			const fp32*       pTV1 = m_Geom.m_pTV[1];
 			const int         nUV1 = m_Geom.m_nTVComp[1];
 			const CPixel32*   pCol = m_Geom.m_pCol;
+			const CVec3Dfp32* pN   = m_Geom.m_pN;
 			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
 
 			for (int i = 0; i < nV; ++i)
@@ -1606,6 +1673,8 @@ public:
 					p[i].u1 = 0.0f; p[i].v1 = 0.0f;
 				}
 				p[i].col = pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol;
+				if (pN) { p[i].nx = pN[i].k[0]; p[i].ny = pN[i].k[1]; p[i].nz = pN[i].k[2]; }
+				else    { p[i].nx = 0; p[i].ny = 0; p[i].nz = 1; }
 			}
 			_pOut = p;
 			_nOut = nV;
@@ -1629,10 +1698,12 @@ public:
 			glEnableVertexAttribArray(1);
 			glEnableVertexAttribArray(2);
 			glEnableVertexAttribArray(3);
+			glEnableVertexAttribArray(4);
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 0));
 			glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 12));
 			glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 20));
 			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(_Base + 28));
+			glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 32));
 		}
 
 		void DisableVertexAttribPointers()
@@ -1641,20 +1712,99 @@ public:
 			glDisableVertexAttribArray(1);
 			glDisableVertexAttribArray(2);
 			glDisableVertexAttribArray(3);
+			glDisableVertexAttribArray(4);
 		}
 
 		// Shared uniform + texture setup for the UI shader: MVP,
 		// texture matrices, alpha test, fog (optional), textures from
 		// the current attrib (channel 0 = base, channel 1 = secondary
 		// modulate -- lightmaps).
+		// Determine per-drawcall lighting mode from CRC_Attributes +
+		// cached Attrib_Lights, then push all light uniforms.
+		//   0 = off (UI, or no lights supplied)
+		//   1 = modulate (base pass; c.rgb *= ambient + Σ diffuse)
+		//   2 = additive (light-only; expected ONE/ONE blend from engine)
+		void PushLightUniforms(bool /*_bAllowFog*/)
+		{
+			int Mode = 0;
+			// Engine sets CRC_FLAGS_LIGHTING when a vertex-lit pass is
+			// wanted. Additional heuristic: any pass whose blend is ONE/ONE
+			// (CRC_RASTERMODE_ADD) with lights supplied is a light-add pass.
+			const bool bHaveLights = (m_pRCLights && m_nRCLights > 0);
+			if (bHaveLights && m_pCurAttrib)
+			{
+				const uint32 F = m_pCurAttrib->m_Flags;
+				if (F & CRC_FLAGS_LIGHTING) Mode = 1;
+				else if (F & CRC_FLAGS_BLEND)
+				{
+					const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
+					const uint8 Src = SD & 0xff;
+					const uint8 Dst = (SD >> 8) & 0xff;
+					if (Src == CRC_BLEND_ONE && Dst == CRC_BLEND_ONE) Mode = 2;
+				}
+			}
+			m_UIShader.SetInt(m_ULightingModeLoc, Mode);
+			if (Mode == 0)
+			{
+				m_UIShader.SetInt(m_UNumLightsLoc, 0);
+				return;
+			}
+			// Ambient: sum m_Ambient of point/point-like + baseline AMBIENT
+			// light entries so scene has a visible floor.
+			float ambR = 0, ambG = 0, ambB = 0;
+			int nOut = 0;
+			float lightPos[GLES3_MAX_LIGHTS * 4]   = {0};
+			float lightColor[GLES3_MAX_LIGHTS * 4] = {0};
+			const float inv255 = 1.0f / 255.0f;
+			for (int i = 0; i < m_nRCLights && nOut < GLES3_MAX_LIGHTS; ++i)
+			{
+				const CRC_Light& L = m_pRCLights[i];
+				const float aR = L.m_Ambient.GetR() * inv255;
+				const float aG = L.m_Ambient.GetG() * inv255;
+				const float aB = L.m_Ambient.GetB() * inv255;
+				ambR += aR; ambG += aG; ambB += aB;
+				if (L.m_Type == CRC_LIGHTTYPE_AMBIENT) continue;
+				// Range folded into attenuation[1] per report; fallback 1000.
+				float range = L.m_Attenuation[1] > 0 ? L.m_Attenuation[1] : 1000.0f;
+				lightPos[nOut*4+0] = L.m_Pos.k[0];
+				lightPos[nOut*4+1] = L.m_Pos.k[1];
+				lightPos[nOut*4+2] = L.m_Pos.k[2];
+				lightPos[nOut*4+3] = range;
+				lightColor[nOut*4+0] = L.m_Color.GetR() * inv255;
+				lightColor[nOut*4+1] = L.m_Color.GetG() * inv255;
+				lightColor[nOut*4+2] = L.m_Color.GetB() * inv255;
+				lightColor[nOut*4+3] = 1.0f;
+				++nOut;
+			}
+			// Base-pass path: give it a small ambient floor even if all
+			// engine ambients are 0, so texture is visible instead of black.
+			if (Mode == 1 && ambR + ambG + ambB < 0.05f)
+			{
+				ambR = ambG = ambB = 0.2f;
+			}
+			if (m_UAmbientLoc >= 0)
+			{
+				const float a[3] = { ambR, ambG, ambB };
+				glUniform3fv(m_UAmbientLoc, 1, a);
+			}
+			m_UIShader.SetInt(m_UNumLightsLoc, nOut);
+			if (nOut > 0)
+			{
+				if (m_ULightPosLoc   >= 0) glUniform4fv(m_ULightPosLoc,   nOut, lightPos);
+				if (m_ULightColorLoc >= 0) glUniform4fv(m_ULightColorLoc, nOut, lightColor);
+			}
+		}
+
 		void SetupCommonUniforms(bool _bAllowFog)
 		{
 			m_UIShader.Use();
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
+			m_UIShader.SetMat4(m_UModelLoc, (const float*)&m_ModelMat);
 			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
 			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
+			PushLightUniforms(_bAllowFog);
 
 			// Alpha test (no fixed-function path in GLES3; done in shader)
 			if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
@@ -2257,6 +2407,8 @@ public:
 			const uint32_t* pCol = 0;
 			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
+			const void* pNrm  = VBB.m_lpVReg[CRC_VREG_NORMAL];
+			const int   NrmFmt = VBB.m_Format.GetFormat(CRC_VREG_NORMAL);
 
 			// Per-register scale+offset (packed formats hold values as
 			// raw*Scale+Offset; without applying we get "spikes" as the
@@ -2304,6 +2456,17 @@ public:
 					}
 				}
 				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
+				pVerts[i].nx = 0; pVerts[i].ny = 0; pVerts[i].nz = 1;
+				if (pNrm)
+				{
+					float nx=0, ny=0, nz=1;
+					if (VRegFetch(pNrm, NrmFmt, i, 0, nx) &&
+					    VRegFetch(pNrm, NrmFmt, i, 1, ny) &&
+					    VRegFetch(pNrm, NrmFmt, i, 2, nz))
+					{
+						pVerts[i].nx = nx; pVerts[i].ny = ny; pVerts[i].nz = nz;
+					}
+				}
 			}
 			_nV_out = nV;
 			return pVerts;
