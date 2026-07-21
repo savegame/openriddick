@@ -2051,13 +2051,10 @@ public:
 				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
-			// World meshes have nV > 200 typically; UI/particles are small.
-			// UI in this engine uses a distinctive proj: m[15]==0 (no w
-			// translation) with m[11]==1 — filter that out for world logs.
-			const float* mpChk = (const float*)&m_ProjMat;
-			const bool bUIProj = (mpChk[15] == 0.0f && mpChk[11] == 1.0f);
+			// Log next 10 non-UI drawcalls (world meshes have non-identity
+			// Model). F9 resets m_MtxLog to 0 to re-arm.
 			(void)sMtxLog;
-			if (m_MtxLog < 10 && nVerts >= 200 && !bModelId && !bUIProj && getenv("RIDDICK_DBG_MTX"))
+			if (m_MtxLog < 10 && nVerts >= 16 && !bModelId && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2332,10 +2329,8 @@ public:
 				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
-			const float* mpChk2 = (const float*)&m_ProjMat;
-			const bool bUIProj2 = (mpChk2[15] == 0.0f && mpChk2[11] == 1.0f);
 			(void)sUvLog;
-			if (m_UvLog < 10 && _nVerts >= 200 && !bModelId2 && !bUIProj2 && getenv("RIDDICK_DBG_MTX"))
+			if (m_UvLog < 10 && _nVerts >= 16 && !bModelId2 && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
