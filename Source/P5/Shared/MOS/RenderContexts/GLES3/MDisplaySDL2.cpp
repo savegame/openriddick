@@ -2029,7 +2029,8 @@ public:
 				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
-			if (sMtxLog < 30 && nVerts > 0 && !bModelId && getenv("RIDDICK_DBG_MTX"))
+			// World meshes have nV > 200 typically; UI/particles are small.
+			if (sMtxLog < 10 && nVerts >= 200 && !bModelId && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2293,6 +2294,41 @@ public:
 			if (!m_UIShader.IsValid()) return;
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
+
+			// Diagnostic: world BSP2 draws come through here via
+			// Render_VertexBuffer_IndexBufferTriangles. Log 10 world-ish
+			// draws to see actual MVP + vertex → NDC path once the map is up.
+			static int sUvLog = 0;
+			const float* mmChk = (const float*)&m_ModelMat;
+			const bool bModelId2 = (mmChk[0]==1 && mmChk[5]==1 && mmChk[10]==1 && mmChk[15]==1
+				&& mmChk[1]==0 && mmChk[2]==0 && mmChk[3]==0
+				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
+				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
+				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
+			if (sUvLog < 10 && _nVerts >= 200 && !bModelId2 && getenv("RIDDICK_DBG_MTX"))
+			{
+				const float* mm = (const float*)&m_ModelMat;
+				const float* mp = (const float*)&m_ProjMat;
+				CMat4Dfp32 MVP; m_ModelMat.Multiply(m_ProjMat, MVP);
+				const float* mv = (const float*)&MVP;
+				const SUIVert& v = _pVerts[0];
+				const float cx = v.x*mv[0]+v.y*mv[4]+v.z*mv[8] +mv[12];
+				const float cy = v.x*mv[1]+v.y*mv[5]+v.z*mv[9] +mv[13];
+				const float cz = v.x*mv[2]+v.y*mv[6]+v.z*mv[10]+mv[14];
+				const float cw = v.x*mv[3]+v.y*mv[7]+v.z*mv[11]+mv[15];
+				fprintf(stderr, "[UV-MTX #%d] nV=%d prim=0x%04x v0=(%.2f,%.2f,%.2f)\n"
+					"  Model: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
+					"  Proj : [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
+					"  clip=(%g,%g,%g,%g) NDC=(%g,%g,%g)\n",
+					sUvLog, _nVerts, (unsigned)_GLPrim, v.x, v.y, v.z,
+					mm[0],mm[1],mm[2],mm[3], mm[4],mm[5],mm[6],mm[7],
+					mm[8],mm[9],mm[10],mm[11], mm[12],mm[13],mm[14],mm[15],
+					mp[0],mp[1],mp[2],mp[3], mp[4],mp[5],mp[6],mp[7],
+					mp[8],mp[9],mp[10],mp[11], mp[12],mp[13],mp[14],mp[15],
+					cx,cy,cz,cw, cw!=0?cx/cw:0, cw!=0?cy/cw:0, cw!=0?cz/cw:0);
+				fflush(stderr);
+				++sUvLog;
+			}
 
 			glBindVertexArray(m_VAO);
 			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(_pVerts, _nVerts * (int)sizeof(SUIVert));
