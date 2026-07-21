@@ -1879,7 +1879,7 @@ public:
 				&& mmChk[4]==0 && mmChk[6]==0 && mmChk[7]==0
 				&& mmChk[8]==0 && mmChk[9]==0 && mmChk[11]==0
 				&& mmChk[12]==0 && mmChk[13]==0 && mmChk[14]==0);
-			if (sMtxLog < 5 && nVerts > 0 && !bModelId && getenv("RIDDICK_DBG_MTX"))
+			if (sMtxLog < 30 && nVerts > 0 && !bModelId && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
