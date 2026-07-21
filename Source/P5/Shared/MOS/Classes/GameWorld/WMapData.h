@@ -221,6 +221,25 @@ public:
 		CWRes_Model* pRCModel = TDynamicCast<CWRes_Model>(pRc);
 		if (!pRCModel) return NULL;
 
+		// If OnLoad hasn't run, m_spModel inside the resource may be an
+		// uninitialised TPtr (raw p uninitialised) - reading it back
+		// returns garbage that looks like a valid pointer but really
+		// points into unrelated heap memory (e.g. the resource's own
+		// m_Name storage, as seen with 'Phys\\P_ItemBox.xw:2' where the
+		// resource exists but never got its sub-model loaded because
+		// ReadAllModels never matched ModelNr==2 in the .xw file).
+		// Retail's GetResource used to sync-load on demand (commented-out
+		// code in WMapData.cpp:463-472); we skip instead of loading here
+		// because we're on the game thread during World_DoOnSpawnWorld.
+		if (!pRc->IsLoaded())
+		{
+			static int s_nWarn = 0;
+			if (s_nWarn++ < 20)
+				fprintf(stderr, "[WMAP] GetResource_Model(%d): '%s' not loaded yet, returning NULL\n",
+				        _iModel, pRc->GetName().Str());
+			return NULL;
+		}
+
 		pRc->m_TouchTime = m_spWData->m_TouchTime;
 
 		CXR_Model* pModel = pRCModel->GetModel();
