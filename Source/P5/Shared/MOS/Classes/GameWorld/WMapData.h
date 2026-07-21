@@ -22,6 +22,7 @@
 #include "WDataRes_Sound.h"
 #include "WDataRes_Anim.h"
 #include <cstdio>	// fprintf for GetResource_Model diagnostic
+#include <cstdint>	// uintptr_t for canonical-VA pModel sanity check
 
 /*************************************************************************************************\
 |��������������������������������������������������������������������������������������������������
