@@ -1867,6 +1867,36 @@ public:
 			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
 			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
 
+			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
+			// first 5 drawcalls of the first frame after startmap load.
+			// Diagnoses which matrix mangles vertices.
+			static int sMtxLog = 0;
+			if (sMtxLog < 5 && nVerts > 0 && getenv("RIDDICK_DBG_MTX"))
+			{
+				const float* mm = (const float*)&m_ModelMat;
+				const float* mp = (const float*)&m_ProjMat;
+				CMat4Dfp32 MVP; m_ModelMat.Multiply(m_ProjMat, MVP);
+				const float* mv = (const float*)&MVP;
+				const float x = pVerts[0].x, y = pVerts[0].y, z = pVerts[0].z;
+				const float cx = x*mv[0] + y*mv[4] + z*mv[8]  + mv[12];
+				const float cy = x*mv[1] + y*mv[5] + z*mv[9]  + mv[13];
+				const float cz = x*mv[2] + y*mv[6] + z*mv[10] + mv[14];
+				const float cw = x*mv[3] + y*mv[7] + z*mv[11] + mv[15];
+				fprintf(stderr, "[MTX #%d] nV=%d v0=(%.2f,%.2f,%.2f)\n"
+					"  Model rows: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
+					"  Proj  rows: [%g %g %g %g][%g %g %g %g][%g %g %g %g][%g %g %g %g]\n"
+					"  clip=(%g,%g,%g,%g) NDC=(%g,%g,%g)\n",
+					sMtxLog, nVerts, x, y, z,
+					mm[0],mm[1],mm[2],mm[3], mm[4],mm[5],mm[6],mm[7],
+					mm[8],mm[9],mm[10],mm[11], mm[12],mm[13],mm[14],mm[15],
+					mp[0],mp[1],mp[2],mp[3], mp[4],mp[5],mp[6],mp[7],
+					mp[8],mp[9],mp[10],mp[11], mp[12],mp[13],mp[14],mp[15],
+					cx, cy, cz, cw,
+					cw != 0 ? cx/cw : 0, cw != 0 ? cy/cw : 0, cw != 0 ? cz/cw : 0);
+				fflush(stderr);
+				++sMtxLog;
+			}
+
 			// Bisect diagnostic: RIDDICK_TEST_TRI=1 → replace vertex data
 			// and MVP with a known-good triangle at identity MVP. If a
 			// centered white triangle appears where the game normally
