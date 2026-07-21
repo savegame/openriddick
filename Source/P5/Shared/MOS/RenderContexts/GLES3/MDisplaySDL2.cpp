@@ -670,6 +670,20 @@ public:
 		int               m_DbgShaderMode; // 0=off, 1=uv, 2=pos, 3=no_tex
 		CRC_Attributes*   m_pCurAttrib;
 
+		// Debug overrides via env vars (see DbgInit / SetupDbgOverrides).
+		int  m_DbgNoDepth;   // RIDDICK_NO_DEPTH=1
+		int  m_DbgNoCull;    // RIDDICK_NO_CULL=1
+		int  m_DbgNoBlend;   // RIDDICK_NO_BLEND=1
+		int  m_DbgNoAlpha;   // RIDDICK_NO_ALPHA=1  (disable alpha test in shader)
+		int  m_DbgForceWire; // RIDDICK_FORCE_WIRE=1 (swap prim to GL_LINE_STRIP)
+
+		// Frame dumper: on frame == m_DbgDumpFrameTarget (env RIDDICK_DUMP_FRAME=N)
+		// write per-drawcall info to /tmp/openriddick_frame.txt then never again.
+		int  m_DbgDumpFrameTarget;
+		int  m_DbgDumpActive;    // 1 during the target frame
+		int  m_DbgDumpDrawIdx;
+		FILE* m_DbgDumpFp;
+
 		// Diagnostic per-frame counters. Enable with RIDDICK_DBG_GL=1;
 		// prints one line every DBG_INTERVAL frames.
 		enum { DBG_INTERVAL = 60 };
@@ -682,8 +696,36 @@ public:
 		int m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes;
 		int m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail;
 
+		static int DbgEnvFlag(const char* _Name)
+		{
+			const char* e = getenv(_Name);
+			return (e && *e && *e != '0') ? 1 : 0;
+		}
 		void DbgInit()
 		{
+			m_DbgNoDepth   = DbgEnvFlag("RIDDICK_NO_DEPTH");
+			m_DbgNoCull    = DbgEnvFlag("RIDDICK_NO_CULL");
+			m_DbgNoBlend   = DbgEnvFlag("RIDDICK_NO_BLEND");
+			m_DbgNoAlpha   = DbgEnvFlag("RIDDICK_NO_ALPHA");
+			m_DbgForceWire = DbgEnvFlag("RIDDICK_FORCE_WIRE");
+			m_DbgDumpFrameTarget = 0;
+			if (const char* d = getenv("RIDDICK_DUMP_FRAME"))
+			{
+				int n = atoi(d);
+				if (n > 0) m_DbgDumpFrameTarget = n;
+			}
+			m_DbgDumpActive = 0;
+			m_DbgDumpDrawIdx = 0;
+			m_DbgDumpFp = 0;
+			m_DbgTotalFrames = 0;
+			if (m_DbgNoDepth || m_DbgNoCull || m_DbgNoBlend || m_DbgNoAlpha ||
+				m_DbgForceWire || m_DbgDumpFrameTarget > 0)
+			{
+				fprintf(stderr, "[GL-DBG] overrides: NoDepth=%d NoCull=%d NoBlend=%d "
+					"NoAlpha=%d ForceWire=%d DumpFrame=%d\n",
+					m_DbgNoDepth, m_DbgNoCull, m_DbgNoBlend, m_DbgNoAlpha,
+					m_DbgForceWire, m_DbgDumpFrameTarget);
+			}
 			const char* e = getenv("RIDDICK_DBG_GL");
 			m_DbgEnabled = (e && *e && *e != '0') ? 1 : 0;
 			// One-shot: dump the first 30 draw-call attrib channel
@@ -702,8 +744,43 @@ public:
 			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
 			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT3 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
 		}
+		int m_DbgTotalFrames;
+		void DbgDumpTick()
+		{
+			++m_DbgTotalFrames;
+			if (m_DbgDumpActive)
+			{
+				// Finish: close and never open again.
+				if (m_DbgDumpFp)
+				{
+					fprintf(m_DbgDumpFp, "-- end frame %d, %d drawcalls --\n",
+						m_DbgTotalFrames - 1, m_DbgDumpDrawIdx);
+					fclose(m_DbgDumpFp);
+					m_DbgDumpFp = 0;
+				}
+				m_DbgDumpActive = 0;
+				m_DbgDumpFrameTarget = 0;
+				fprintf(stderr, "[GL-DBG] frame dump written to /tmp/openriddick_frame.txt\n");
+			}
+			else if (m_DbgDumpFrameTarget > 0 && m_DbgTotalFrames == m_DbgDumpFrameTarget)
+			{
+				m_DbgDumpFp = fopen("/tmp/openriddick_frame.txt", "w");
+				if (m_DbgDumpFp)
+				{
+					fprintf(m_DbgDumpFp, "-- frame %d dump --\n", m_DbgTotalFrames);
+					m_DbgDumpActive = 1;
+					m_DbgDumpDrawIdx = 0;
+				}
+				else
+				{
+					fprintf(stderr, "[GL-DBG] failed to open /tmp/openriddick_frame.txt\n");
+					m_DbgDumpFrameTarget = 0;
+				}
+			}
+		}
 		void DbgFramePrint()
 		{
+			DbgDumpTick();
 			if (!m_DbgEnabled) return;
 			++m_DbgFrames;
 			if (m_DbgFrames < DBG_INTERVAL) return;
@@ -1188,7 +1265,7 @@ public:
 			glColorMask(CW, CW, CW, AW);
 
 			// Culling
-			if (F & CRC_FLAGS_CULL)
+			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
 				// Engine winding is CW when CULLCW; GLES default front = CCW.
@@ -1199,6 +1276,10 @@ public:
 			{
 				glDisable(GL_CULL_FACE);
 			}
+
+			// Debug overrides (final say).
+			if (m_DbgNoDepth) { glDisable(GL_DEPTH_TEST); glDepthMask(GL_FALSE); }
+			if (m_DbgNoBlend) { glDisable(GL_BLEND); }
 
 			// Scissor
 			if (F & CRC_FLAGS_SCISSOR)
@@ -1498,7 +1579,7 @@ public:
 			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
 
 			// Alpha test (no fixed-function path in GLES3; done in shader)
-			if (m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
 			{
 				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
 				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
@@ -1595,8 +1676,7 @@ public:
 			glBindVertexArray(m_VAO);
 			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
 			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
-			FreeScratch(pVerts, nVerts, bMalloced);
-			if (!vRes.Ok || !iRes.Ok) return;
+			if (!vRes.Ok || !iRes.Ok) { FreeScratch(pVerts, nVerts, bMalloced); return; }
 
 			// Attribs (VBO already bound by PushVertices).
 			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
@@ -1607,10 +1687,79 @@ public:
 			m_DbgTotalIdx   += _nInd;
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
-			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
+			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+
+			DbgDumpDraw("DrawIndexed", DrawPrim, pVerts, nVerts, _pInd, _nInd);
+			FreeScratch(pVerts, nVerts, bMalloced);
 
 			DisableVertexAttribPointers();
 			glBindVertexArray(0);
+		}
+
+		// Frame-dumper: writes one line + first-vertex sample per drawcall
+		// during the target frame, to /tmp/openriddick_frame.txt. Called
+		// from DrawIndexed and DrawUserVerts. pVerts may be NULL if the
+		// caller freed it already; then only counts + MVP are dumped.
+		void DbgDumpDraw(const char* _Tag, GLenum _GLPrim,
+		                 const SUIVert* _pVerts, int _nVerts,
+		                 const uint16* _pInd, int _nInd)
+		{
+			if (!m_DbgDumpActive || !m_DbgDumpFp) return;
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			int Tex0 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[0] : 0;
+			int Tex1 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[1] : 0;
+			uint32 F = m_pCurAttrib ? m_pCurAttrib->m_Flags : 0;
+			fprintf(m_DbgDumpFp,
+				"[#%d] %s prim=0x%04x nV=%d nI=%d Tex0=%d Tex1=%d "
+				"flags=0x%08x ZTest=%d ZWrite=%d Cull=%d Blend=%d AlphaCmp=%d\n",
+				m_DbgDumpDrawIdx, _Tag, (unsigned)_GLPrim, _nVerts, _nInd,
+				Tex0, Tex1, F,
+				(F & CRC_FLAGS_ZCOMPARE) ? 1 : 0,
+				(F & CRC_FLAGS_ZWRITE)   ? 1 : 0,
+				(F & CRC_FLAGS_CULL)     ? 1 : 0,
+				(F & CRC_FLAGS_BLEND)    ? 1 : 0,
+				m_pCurAttrib ? (int)m_pCurAttrib->m_AlphaCompare : -1);
+			const float* m = (const float*)&MVP;
+			fprintf(m_DbgDumpFp,
+				"  MVP: [%8.3f %8.3f %8.3f %8.3f]\n"
+				"       [%8.3f %8.3f %8.3f %8.3f]\n"
+				"       [%8.3f %8.3f %8.3f %8.3f]\n"
+				"       [%8.3f %8.3f %8.3f %8.3f]\n",
+				m[0],m[1],m[2],m[3], m[4],m[5],m[6],m[7],
+				m[8],m[9],m[10],m[11], m[12],m[13],m[14],m[15]);
+			if (_pVerts && _nVerts > 0)
+			{
+				float mnx=_pVerts[0].x,mny=_pVerts[0].y,mnz=_pVerts[0].z;
+				float mxx=mnx,mxy=mny,mxz=mnz;
+				for (int i=1;i<_nVerts;++i)
+				{
+					const SUIVert& v = _pVerts[i];
+					if (v.x<mnx)mnx=v.x; if (v.x>mxx)mxx=v.x;
+					if (v.y<mny)mny=v.y; if (v.y>mxy)mxy=v.y;
+					if (v.z<mnz)mnz=v.z; if (v.z>mxz)mxz=v.z;
+				}
+				fprintf(m_DbgDumpFp,
+					"  Vert bbox: [%.3f..%.3f, %.3f..%.3f, %.3f..%.3f]\n",
+					mnx,mxx,mny,mxy,mnz,mxz);
+				int nShow = _nVerts < 3 ? _nVerts : 3;
+				for (int i = 0; i < nShow; ++i)
+				{
+					const SUIVert& v = _pVerts[i];
+					fprintf(m_DbgDumpFp,
+						"    V[%d] pos=(%.3f,%.3f,%.3f) uv=(%.3f,%.3f) col=0x%08x\n",
+						i, v.x, v.y, v.z, v.u, v.v, v.col);
+				}
+			}
+			if (_pInd && _nInd > 0)
+			{
+				int nShow = _nInd < 9 ? _nInd : 9;
+				fprintf(m_DbgDumpFp, "  Idx[0..%d]:", nShow-1);
+				for (int i = 0; i < nShow; ++i) fprintf(m_DbgDumpFp, " %u", (unsigned)_pInd[i]);
+				fprintf(m_DbgDumpFp, "\n");
+			}
+			++m_DbgDumpDrawIdx;
 		}
 
 		void Render_IndexedTriangles(uint16* _pTriVertIndices, int _nTriangles)
@@ -1702,7 +1851,9 @@ public:
 			m_DbgTotalIdx   += _nInd;
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
-			glDrawElements(_GLPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
+			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+			DbgDumpDraw("DrawUserVerts", DrawPrim, _pVerts, _nVerts, _pInd, _nInd);
 
 			DisableVertexAttribPointers();
 			glBindVertexArray(0);
