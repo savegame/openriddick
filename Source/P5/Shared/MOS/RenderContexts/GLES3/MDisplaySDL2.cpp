@@ -2159,6 +2159,16 @@ public:
 			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
 
+			// Per-register scale+offset (packed formats hold values as
+			// raw*Scale+Offset; without applying we get "spikes" as the
+			// user observed with the OBJ dumper).
+			const bool bPosTx = (VBB.m_TransformEnable & (1u << CRC_VREG_POS)) != 0;
+			const CRC_VRegTransform& PosTx = VBB.m_lTransform[CRC_VREG_POS];
+			const bool bUVTx  = pUV && (VBB.m_TransformEnable & (1u << CRC_VREG_TEXCOORD0)) != 0;
+			const CRC_VRegTransform& UVTx  = VBB.m_lTransform[CRC_VREG_TEXCOORD0];
+			const bool bUV1Tx = pUV1 && (VBB.m_TransformEnable & (1u << CRC_VREG_TEXCOORD1)) != 0;
+			const CRC_VRegTransform& UV1Tx = VBB.m_lTransform[CRC_VREG_TEXCOORD1];
+
 			SUIVert* pVerts = (SUIVert*)malloc(sizeof(SUIVert) * nV);
 			if (!pVerts) return NULL;
 			for (int i = 0; i < nV; ++i)
@@ -2166,17 +2176,33 @@ public:
 				VRegFetch(pPos, PosFmt, i, 0, pVerts[i].x);
 				VRegFetch(pPos, PosFmt, i, 1, pVerts[i].y);
 				VRegFetch(pPos, PosFmt, i, 2, pVerts[i].z);
+				if (bPosTx)
+				{
+					pVerts[i].x = pVerts[i].x * PosTx.m_Scale.k[0] + PosTx.m_Offset.k[0];
+					pVerts[i].y = pVerts[i].y * PosTx.m_Scale.k[1] + PosTx.m_Offset.k[1];
+					pVerts[i].z = pVerts[i].z * PosTx.m_Scale.k[2] + PosTx.m_Offset.k[2];
+				}
 				pVerts[i].u = pVerts[i].v = 0.0f;
 				if (pUV)
 				{
 					if (!VRegFetch(pUV, UVFmt, i, 0, pVerts[i].u)) pVerts[i].u = 0.0f;
 					if (!VRegFetch(pUV, UVFmt, i, 1, pVerts[i].v)) pVerts[i].v = 0.0f;
+					if (bUVTx)
+					{
+						pVerts[i].u = pVerts[i].u * UVTx.m_Scale.k[0] + UVTx.m_Offset.k[0];
+						pVerts[i].v = pVerts[i].v * UVTx.m_Scale.k[1] + UVTx.m_Offset.k[1];
+					}
 				}
 				pVerts[i].u1 = pVerts[i].v1 = 0.0f;
 				if (pUV1)
 				{
 					if (!VRegFetch(pUV1, UV1Fmt, i, 0, pVerts[i].u1)) pVerts[i].u1 = 0.0f;
 					if (!VRegFetch(pUV1, UV1Fmt, i, 1, pVerts[i].v1)) pVerts[i].v1 = 0.0f;
+					if (bUV1Tx)
+					{
+						pVerts[i].u1 = pVerts[i].u1 * UV1Tx.m_Scale.k[0] + UV1Tx.m_Offset.k[0];
+						pVerts[i].v1 = pVerts[i].v1 * UV1Tx.m_Scale.k[1] + UV1Tx.m_Offset.k[1];
+					}
 				}
 				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
 			}
