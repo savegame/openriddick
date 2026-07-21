@@ -1096,6 +1096,15 @@ public:
 					break;
 				}
 			}
+			if (m_DbgDumpActive && m_DbgDumpFp)
+			{
+				fprintf(m_DbgDumpFp,
+					"---- RenderTarget_SetRenderTarget ids=[%u,%u,%u,%u] target=%d ----\n",
+					(unsigned)_RenderTarget.m_lColorTextureID[0],
+					(unsigned)_RenderTarget.m_lColorTextureID[1],
+					(unsigned)_RenderTarget.m_lColorTextureID[2],
+					(unsigned)_RenderTarget.m_lColorTextureID[3], TargetID);
+			}
 			if (m_DbgEnabled)
 			{
 				fprintf(stderr, "[GLES3-RT] SetRenderTarget ids=[%u,%u,%u,%u] -> %s\n",
@@ -1723,19 +1732,39 @@ public:
 			if (!m_DbgDumpActive || !m_DbgDumpFp) return;
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
-			int Tex0 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[0] : 0;
-			int Tex1 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[1] : 0;
 			uint32 F = m_pCurAttrib ? m_pCurAttrib->m_Flags : 0;
+			GLint CurFBO = 0;
+			glGetIntegerv(GL_FRAMEBUFFER_BINDING, &CurFBO);
+			int BlendSrc = -1, BlendDst = -1;
+			if (m_pCurAttrib && (F & CRC_FLAGS_BLEND))
+			{
+				const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
+				BlendSrc = SD & 0xff; BlendDst = (SD >> 8) & 0xff;
+			}
 			fprintf(m_DbgDumpFp,
-				"[#%d] %s prim=0x%04x nV=%d nI=%d Tex0=%d Tex1=%d "
-				"flags=0x%08x ZTest=%d ZWrite=%d Cull=%d Blend=%d AlphaCmp=%d\n",
+				"[#%d] %s prim=0x%04x nV=%d nI=%d "
+				"flags=0x%08x ZTest=%d ZWrite=%d Cull=%d Blend=%d(%d/%d) "
+				"Stencil=%d AlphaCmp=%d FBO=%d RTT=%d\n",
 				m_DbgDumpDrawIdx, _Tag, (unsigned)_GLPrim, _nVerts, _nInd,
-				Tex0, Tex1, F,
+				F,
 				(F & CRC_FLAGS_ZCOMPARE) ? 1 : 0,
 				(F & CRC_FLAGS_ZWRITE)   ? 1 : 0,
 				(F & CRC_FLAGS_CULL)     ? 1 : 0,
-				(F & CRC_FLAGS_BLEND)    ? 1 : 0,
-				m_pCurAttrib ? (int)m_pCurAttrib->m_AlphaCompare : -1);
+				(F & CRC_FLAGS_BLEND)    ? 1 : 0, BlendSrc, BlendDst,
+				(F & CRC_FLAGS_STENCIL)  ? 1 : 0,
+				m_pCurAttrib ? (int)m_pCurAttrib->m_AlphaCompare : -1,
+				(int)CurFBO, m_bRTTActive ? 1 : 0);
+			// All texture slots + whether the engine's TextureID has an
+			// uploaded GL name in our cache.
+			fprintf(m_DbgDumpFp, "  Tex:");
+			for (int s = 0; s < 4 && m_pCurAttrib; ++s)
+			{
+				int Tid = (int)m_pCurAttrib->m_TextureID[s];
+				GLuint GLTex = 0;
+				if (Tid > 0 && Tid < (int)m_lGLTex.Len()) GLTex = m_lGLTex[Tid];
+				fprintf(m_DbgDumpFp, " [%d]=%d(gl=%u)", s, Tid, (unsigned)GLTex);
+			}
+			fprintf(m_DbgDumpFp, "\n");
 			const float* m = (const float*)&MVP;
 			fprintf(m_DbgDumpFp,
 				"  MVP: [%8.3f %8.3f %8.3f %8.3f]\n"
