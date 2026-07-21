@@ -481,6 +481,23 @@ public:
 			}
 			S.m_Width  = W;
 			S.m_Height = H;
+			// Zero-clear the color: fresh RTT contents are undefined per
+			// spec (Mesa observed to return WHITE on Intel iGPU), and the
+			// engine samples these textures BEFORE writing them (for the
+			// menu-cube envmap: first draw = full-screen quad textured by
+			// the capture, then CopyToTexture updates the capture). An
+			// uninitialised white capture floods the whole backbuffer with
+			// white on the first frame -- root cause of the "white cube"
+			// menu bug 2026-07-21.
+			GLint PrevDraw = 0;
+			glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &PrevDraw);
+			const GLboolean bScissor = glIsEnabled(GL_SCISSOR_TEST);
+			if (bScissor) glDisable(GL_SCISSOR_TEST);
+			glBindFramebuffer(GL_FRAMEBUFFER, S.m_FBO);
+			glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+			glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)PrevDraw);
+			if (bScissor) glEnable(GL_SCISSOR_TEST);
 			fprintf(stderr, "[GLES3-RTT] id=%d FBO ok %dx%d  colorTex=%u fbo=%u\n",
 				_TextureID, W, H, S.m_ColorTex, S.m_FBO);
 			fflush(stderr);
