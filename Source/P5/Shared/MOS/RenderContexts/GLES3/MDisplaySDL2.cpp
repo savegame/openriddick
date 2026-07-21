@@ -1850,13 +1850,41 @@ public:
 			// Fetch the IB (usually a separate VB whose m_piPrim is the
 			// shared index pool). May be the same as _VBID.
 			const uint16* pIdx = VBB.m_piPrim;
+			int nPrimIB = VBB.m_nPrim;
 			CRC_BuildVertexBuffer IBB;
 			if (_IBID != _VBID)
 			{
 				IBB.Clear();
 				m_pVBCtx->VB_Get(_IBID, IBB, VB_GETFLAGS_BUILD);
 				pIdx = IBB.m_piPrim;
+				nPrimIB = IBB.m_nPrim;
 			}
+
+			// Diagnostic (RIDDICK_DBG_GL=1, first ~20 calls): print resolved
+			// VB/IB details and a sample of indices so we can see whether the
+			// shared index pool addresses vertices beyond nV (would cause
+			// stretched garbage triangles).
+			static int s_nDbg = 0;
+			if (m_DbgEnabled && s_nDbg < 20 && pIdx)
+			{
+				const uint16* pFirst = pIdx + _PrimOffset;
+				const int nIdxDraw = (int)(_nTriangles * 3);
+				uint16 imin = 0xffff, imax = 0;
+				const int nSample = Min(nIdxDraw, 12);
+				for (int k = 0; k < nSample; ++k)
+				{
+					uint16 v = pFirst[k];
+					if (v < imin) imin = v;
+					if (v > imax) imax = v;
+				}
+				fprintf(stderr, "[GLES3-VBIT] VBID=%u IBID=%u nV=%d nPrimIB=%d off=%u nTri=%u  first idx=[%u,%u,%u,%u,%u,%u]  range=%u..%u\n",
+					_VBID, _IBID, nV, nPrimIB, _PrimOffset, _nTriangles,
+					(unsigned)pFirst[0], (unsigned)pFirst[1], (unsigned)pFirst[2],
+					(unsigned)pFirst[3], (unsigned)pFirst[4], (unsigned)pFirst[5],
+					(unsigned)imin, (unsigned)imax);
+				++s_nDbg;
+			}
+
 			if (pIdx)
 				DrawUserVerts(GL_TRIANGLES, pVerts, nV, pIdx + _PrimOffset, _nTriangles * 3);
 			free(pVerts);
