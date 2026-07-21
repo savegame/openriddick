@@ -1646,6 +1646,7 @@ public:
 				if (Tex0 > 0)
 				{
 					GLuint T = TextureID_EnsureUploaded(Tex0);
+					m_DbgLastBind0 = T;
 					if (T)
 					{
 						glActiveTexture(GL_TEXTURE0);
@@ -1657,6 +1658,8 @@ public:
 					else
 						++m_DbgTexMissing;
 				}
+				else
+					m_DbgLastBind0 = 0;
 				if (UseTex && Tex1 > 0)
 				{
 					GLuint T1 = TextureID_EnsureUploaded(Tex1);
@@ -1676,7 +1679,12 @@ public:
 			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
 			m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
 			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
+			m_DbgLastUseTex = UseTex;
+			m_DbgLastUseTex1 = UseTex1;
 		}
+		int    m_DbgLastUseTex   = 0;
+		int    m_DbgLastUseTex1  = 0;
+		GLuint m_DbgLastBind0    = 0;
 
 		// Common draw: submits _nInd 16-bit indices with GL primitive
 		// _GLPrim, using the currently-set geometry (m_Geom) + attrib
@@ -1732,6 +1740,14 @@ public:
 		                 const uint16* _pInd, int _nInd)
 		{
 			if (!m_DbgDumpActive || !m_DbgDumpFp) return;
+			if (m_DbgDumpDrawIdx == 0)
+			{
+				fprintf(m_DbgDumpFp,
+					"UNIFORM LOCATIONS: uMVP=%d uUseTex=%d uUseTex1=%d "
+					"uTex=%d uTex1=%d uDbgMode=%d uAlphaFunc=%d\n",
+					m_UMVPLoc, m_UUseTexLoc, m_UUseTex1Loc,
+					m_UTexLoc, m_UTex1Loc, m_UDbgModeLoc, m_UAlphaFuncLoc);
+			}
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			uint32 F = m_pCurAttrib ? m_pCurAttrib->m_Flags : 0;
@@ -1771,6 +1787,8 @@ public:
 					(unsigned)GLTex, (unsigned)LiveTex);
 			}
 			fprintf(m_DbgDumpFp, " placeholder=%u\n", (unsigned)m_PlaceholderTex);
+			fprintf(m_DbgDumpFp, "  SHADER: UseTex=%d UseTex1=%d BoundGL0=%u\n",
+				m_DbgLastUseTex, m_DbgLastUseTex1, (unsigned)m_DbgLastBind0);
 			const float* m = (const float*)&MVP;
 			fprintf(m_DbgDumpFp,
 				"  MVP: [%8.3f %8.3f %8.3f %8.3f]\n"
