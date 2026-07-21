@@ -1,10 +1,10 @@
 #ifndef __WMAPDATA_H
 #define __WMAPDATA_H
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 	File:			Resource index mapper
 
-	Author:			Magnus Högdahl
+	Author:			Magnus Hï¿½gdahl
 
 	Maintainer:		Jens Andersson
 
@@ -21,9 +21,10 @@
 #include "WDataRes_Core.h"
 #include "WDataRes_Sound.h"
 #include "WDataRes_Anim.h"
+#include <cstdio>	// fprintf for GetResource_Model diagnostic
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CMapData
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -187,6 +188,35 @@ public:
 	{
 		CWResource* pRc = GetResource(_iModel);
 		if (!pRc) return NULL;
+
+		// Guard against wrong-class resources landing at model-model indices.
+		// On PC EFBB some phys-model lookups (e.g. m_iPhysModel=1658 inside
+		// CWObject_Item::CreatePhys for Pa1_TheDream) return a CWResource
+		// whose real class is NOT a model (RTTI/type-confusion under our
+		// Linux port). Prior code did just TDynamicCast<CWRes_Model>, which
+		// then let a non-model through; GetModel() virtual-dispatched via
+		// the wrong vtable and returned a raw pointer into a heap string
+		// buffer ("Phys\\P_ItemBox.xw:..."), crashing on the next call.
+		// Reject up-front by comparing the resource's m_iRcClass against the
+		// known-model class IDs (see WDataRes_Core.h).
+		{
+			int cls = pRc->GetClass();
+			if (cls != WRESOURCE_CLASS_MODEL_XW  &&
+			    cls != WRESOURCE_CLASS_MODEL_XW2 &&
+			    cls != WRESOURCE_CLASS_MODEL_XW3 &&
+			    cls != WRESOURCE_CLASS_MODEL_XW4 &&
+			    cls != WRESOURCE_CLASS_MODEL_XMD &&
+			    cls != WRESOURCE_CLASS_MODEL_CUSTOM &&
+			    cls != WRESOURCE_CLASS_MODEL_CUSTOM_FILE &&
+			    cls != WRESOURCE_CLASS_MODEL_GLASS)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): rc class %d ('%s') is not a model class, returning NULL\n",
+					        _iModel, cls, pRc->GetName().Str());
+				return NULL;
+			}
+		}
 
 		CWRes_Model* pRCModel = TDynamicCast<CWRes_Model>(pRc);
 		if (!pRCModel) return NULL;
