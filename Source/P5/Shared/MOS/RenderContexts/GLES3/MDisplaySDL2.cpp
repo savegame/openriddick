@@ -747,6 +747,19 @@ public:
 			m_DbgDumpDrawIdx = 0;
 			m_DbgDumpFp = 0;
 			m_DbgTotalFrames = 0;
+			if (const char* d = getenv("RIDDICK_DUMP_OBJ"))
+			{
+				if (*d)
+				{
+					char cmd[512];
+					snprintf(cmd, sizeof(cmd), "mkdir -p '%s'", d);
+					if (system(cmd) == -1) { /* best-effort */ }
+					m_DumpObjDir = d;
+					m_DumpObjMax = 500;
+					fprintf(stderr, "[GEOM-DUMP] enabled -> %s (cap %d files)\n",
+						d, m_DumpObjMax);
+				}
+			}
 			if (m_DbgNoDepth || m_DbgNoCull || m_DbgNoBlend || m_DbgNoAlpha ||
 				m_DbgForceWire || m_DbgDumpFrameTarget > 0)
 			{
@@ -1725,6 +1738,92 @@ public:
 		int    m_DbgLastUseTex1  = 0;
 		GLuint m_DbgLastBind0    = 0;
 
+		// Geometry dumper: on RIDDICK_DUMP_OBJ=<dir>, writes each unique
+		// drawn mesh to <dir>/geom_XXXX.obj. Keyed by nV + first-vertex
+		// hash so the same VB doesn't spam files every frame. Cap 500.
+		int         m_DumpObjMax     = 0;
+		int         m_DumpObjCount   = 0;
+		const char* m_DumpObjDir     = 0;
+		TArray<uint32> m_DumpObjSeen;
+		static uint32 HashVerts(const SUIVert* _p, int _n, int _mvpTag)
+		{
+			uint32 h = 2166136261u ^ (uint32)_n ^ (uint32)_mvpTag;
+			int nSample = _n < 8 ? _n : 8;
+			for (int i = 0; i < nSample; ++i)
+			{
+				uint32 x = *(const uint32*)&_p[i].x;
+				uint32 y = *(const uint32*)&_p[i].y;
+				uint32 z = *(const uint32*)&_p[i].z;
+				h = (h ^ x) * 16777619u;
+				h = (h ^ y) * 16777619u;
+				h = (h ^ z) * 16777619u;
+			}
+			return h;
+		}
+		void DumpGeomOBJ(const char* _Tag, const SUIVert* _pV, int _nV,
+		                 const uint16* _pI, int _nI, GLenum _Prim)
+		{
+			if (m_DumpObjMax <= 0 || m_DumpObjCount >= m_DumpObjMax) return;
+			if (!_pV || _nV <= 0 || !_pI || _nI <= 0) return;
+			if (_Prim != GL_TRIANGLES && _Prim != GL_TRIANGLE_STRIP && _Prim != GL_TRIANGLE_FAN)
+				return;
+			CMat4Dfp32 MVP; m_ModelMat.Multiply(m_ProjMat, MVP);
+			int mvpTag = (int)(((const uint32*)&MVP)[0] ^ ((const uint32*)&MVP)[5]);
+			uint32 h = HashVerts(_pV, _nV, mvpTag);
+			for (int i = 0; i < m_DumpObjSeen.Len(); ++i)
+				if (m_DumpObjSeen[i] == h) return;
+			m_DumpObjSeen.Add(h);
+			char path[512];
+			snprintf(path, sizeof(path), "%s/geom_%04d_%s_v%d_i%d.obj",
+				m_DumpObjDir, m_DumpObjCount, _Tag, _nV, _nI);
+			FILE* f = fopen(path, "w");
+			if (!f) return;
+			int Tex0 = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[0] : 0;
+			fprintf(f, "# openriddick GLES3 geom dump #%d  tag=%s  Tex0=%d\n",
+				m_DumpObjCount, _Tag, Tex0);
+			fprintf(f, "# nV=%d nI=%d prim=0x%04x\n", _nV, _nI, (unsigned)_Prim);
+			const float* m = (const float*)&MVP;
+			fprintf(f, "# MVP: %g %g %g %g / %g %g %g %g / %g %g %g %g / %g %g %g %g\n",
+				m[0],m[1],m[2],m[3], m[4],m[5],m[6],m[7],
+				m[8],m[9],m[10],m[11], m[12],m[13],m[14],m[15]);
+			for (int i = 0; i < _nV; ++i)
+				fprintf(f, "v %.6f %.6f %.6f\n", _pV[i].x, _pV[i].y, _pV[i].z);
+			for (int i = 0; i < _nV; ++i)
+				fprintf(f, "vt %.6f %.6f\n", _pV[i].u, _pV[i].v);
+			if (_Prim == GL_TRIANGLES)
+			{
+				for (int i = 0; i + 2 < _nI; i += 3)
+				{
+					int a = _pI[i] + 1, b = _pI[i+1] + 1, c = _pI[i+2] + 1;
+					fprintf(f, "f %d/%d %d/%d %d/%d\n", a,a, b,b, c,c);
+				}
+			}
+			else if (_Prim == GL_TRIANGLE_STRIP)
+			{
+				for (int i = 0; i + 2 < _nI; ++i)
+				{
+					int a = _pI[i] + 1, b = _pI[i+1] + 1, c = _pI[i+2] + 1;
+					if (i & 1) { int t = b; b = c; c = t; }
+					if (a==b || b==c || a==c) continue;
+					fprintf(f, "f %d/%d %d/%d %d/%d\n", a,a, b,b, c,c);
+				}
+			}
+			else
+			{
+				int a0 = _pI[0] + 1;
+				for (int i = 1; i + 1 < _nI; ++i)
+				{
+					int b = _pI[i] + 1, c = _pI[i+1] + 1;
+					fprintf(f, "f %d/%d %d/%d %d/%d\n", a0,a0, b,b, c,c);
+				}
+			}
+			fclose(f);
+			++m_DumpObjCount;
+			if (m_DumpObjCount == m_DumpObjMax)
+				fprintf(stderr, "[GEOM-DUMP] hit cap %d files in %s\n",
+					m_DumpObjMax, m_DumpObjDir);
+		}
+
 		// Common draw: submits _nInd 16-bit indices with GL primitive
 		// _GLPrim, using the currently-set geometry (m_Geom) + attrib
 		// (m_pCurAttrib) + captured matrices.
@@ -1764,6 +1863,7 @@ public:
 			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 
 			DbgDumpDraw("DrawIndexed", DrawPrim, pVerts, nVerts, _pInd, _nInd);
+			DumpGeomOBJ("DrawIndexed", pVerts, nVerts, _pInd, _nInd, _GLPrim);
 			FreeScratch(pVerts, nVerts, bMalloced);
 
 			DisableVertexAttribPointers();
@@ -1961,6 +2061,7 @@ public:
 			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
 			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 			DbgDumpDraw("DrawUserVerts", DrawPrim, _pVerts, _nVerts, _pInd, _nInd);
+			DumpGeomOBJ("DrawUserVerts", _pVerts, _nVerts, _pInd, _nInd, _GLPrim);
 
 			DisableVertexAttribPointers();
 			glBindVertexArray(0);
