@@ -1657,12 +1657,25 @@ public:
 		void Render_IndexedPrimitives(uint16* _pPrimStream, int _StreamLen)
 		{
 			++m_DbgDrawPrim;
-			// CRC_RIP_STREAM: sub-list-encoded stream. Feed through
-			// CRC_Core's helper that turns it into a plain triangle
-			// list, then draw that. Same trick PS3 uses (see
-			// Geometry_BuildTriangleListFromPrimitives).
-			// For M3 simplicity assume caller sends triangles only.
-			DrawIndexed(GL_TRIANGLES, _pPrimStream, _StreamLen);
+			if (!_pPrimStream || _StreamLen <= 0) return;
+			CRCPrimStreamIterator It(_pPrimStream, _StreamLen);
+			if (!It.IsValid()) return;
+			do
+			{
+				const uint16* pPrim = It.GetCurrentPointer();
+				int nInd = *pPrim;
+				GLenum Prim = 0;
+				switch (It.GetCurrentType())
+				{
+				case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      nInd *= 3; break;
+				case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP;            break;
+				case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;              break;
+				default: break;
+				}
+				if (Prim && nInd > 0)
+					DrawIndexed(Prim, (uint16*)(pPrim + 1), nInd);
+			}
+			while (It.Next());
 		}
 
 		// Draw an already-built interleaved vertex array with explicit
@@ -1834,14 +1847,14 @@ public:
 				do
 				{
 					const uint16* pPrim = It.GetCurrentPointer();
-					const int nInd = *pPrim;
+					int nInd = *pPrim;
 					GLenum Prim;
 					switch (It.GetCurrentType())
 					{
-					case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      break;
-					case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP; break;
-					case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;   break;
-					default:                Prim = 0;                 break;
+					case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      nInd *= 3; break;
+					case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP;            break;
+					case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;              break;
+					default:                Prim = 0;                            break;
 					}
 					if (Prim && nInd > 0)
 						DrawUserVerts(Prim, pVerts, nV, pPrim + 1, nInd);
