@@ -378,7 +378,9 @@ public:
 			if (m_PlaceholderTex) return m_PlaceholderTex;
 			glGenTextures(1, &m_PlaceholderTex);
 			glBindTexture(GL_TEXTURE_2D, m_PlaceholderTex);
-			const unsigned char Magenta[4] = { 255, 0, 255, 255 };
+			// RED, not magenta, so it visually distinguishes from
+			// "no texture bound at all" (which shows vCol=white/black).
+			const unsigned char Magenta[4] = { 255, 0, 0, 255 };
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0,
 				GL_RGBA, GL_UNSIGNED_BYTE, Magenta);
@@ -1762,9 +1764,13 @@ public:
 				int Tid = (int)m_pCurAttrib->m_TextureID[s];
 				GLuint GLTex = 0;
 				if (Tid > 0 && Tid < (int)m_lGLTex.Len()) GLTex = m_lGLTex[Tid];
-				fprintf(m_DbgDumpFp, " [%d]=%d(gl=%u)", s, Tid, (unsigned)GLTex);
+				// Also call the exact same path the draw uses right now,
+				// so we see what the shader actually got (placeholder etc.).
+				GLuint LiveTex = (Tid > 0) ? TextureID_EnsureUploaded(Tid) : 0;
+				fprintf(m_DbgDumpFp, " [%d]=%d(cache=%u live=%u)", s, Tid,
+					(unsigned)GLTex, (unsigned)LiveTex);
 			}
-			fprintf(m_DbgDumpFp, "\n");
+			fprintf(m_DbgDumpFp, " placeholder=%u\n", (unsigned)m_PlaceholderTex);
 			const float* m = (const float*)&MVP;
 			fprintf(m_DbgDumpFp,
 				"  MVP: [%8.3f %8.3f %8.3f %8.3f]\n"
