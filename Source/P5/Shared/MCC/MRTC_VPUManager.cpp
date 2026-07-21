@@ -159,7 +159,18 @@ uint16 MRTC_VPUManager::AddTask(const CVPU_JobDefinition& _JobDefinition,bool _A
 		uint16 JobIndex=Data.PutJob(_JobDefinition.m_Data,_LinkTaskId);
 		((MRTC_SpinLock*) Data.m_pLock)->Unlock();
 		if (JobIndex==InvalidVpuTask)
-			M_BREAKPOINT;
+		{
+			// Async queue full (2048 pending tasks - worker not draining fast
+			// enough, e.g. many shadow-volume jobs on a single frame). Retail
+			// M_BREAKPOINT dropped the task; on Linux M_BREAKPOINT=__builtin_trap
+			// = SIGILL. Fall back to synchronous execution on the caller thread
+			// so the task still runs (visible impact: brief hitch, no crash).
+			static int s_nWarn = 0;
+			if (s_nWarn++ < 20)
+				fprintf(stderr, "[VPU] AddTask: async queue full for context %d, running sync\n", (int)_ContextId);
+			VPU_Main(m_Contexts[_ContextId],(CVPU_JobDefData*)&(_JobDefinition.m_Data),false);
+			return InvalidVpuTask;
+		}
 		return JobIndex;
 	}
 	else
