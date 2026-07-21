@@ -104,12 +104,21 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		// same: pHeader->getOffsetData()); it is not necessarily
 		// sizeof(header).
 		unsigned char* pPayload = pRaw + Hdr.getOffsetData();
-		pDecoded = (unsigned char*)malloc((size_t)W * H * 4);
+		// DXT decoders always emit full 4x4 blocks — for W or H not
+		// aligned to 4 the last block writes past the WxH region. Allocate
+		// the padded (block-aligned) size so those writes stay in-buffer;
+		// GL upload uses GL_UNPACK_ROW_LENGTH to skip the padding columns.
+		// Root cause of Pa1_TheDream 'free(): invalid next size' abort on
+		// 'Special_DepthFogTable' (small W×1 LUT — decoder overran by
+		// 3 rows into next heap chunk metadata).
+		const int PadW = (W + 3) & ~3;
+		const int PadH = (H + 3) & ~3;
+		pDecoded = (unsigned char*)malloc((size_t)PadW * PadH * 4);
 		if (!pDecoded) return 0;
 		const uint32 Sub = Hdr.getCompressType();
 		if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT1)
 		{
-			GLES3_DecodeDXT1(pPayload, pDecoded, W, H);
+			GLES3_DecodeDXT1(pPayload, pDecoded, PadW, PadH);
 			++g_GLES3_UploadDXT1;
 		}
 		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT3 ||
@@ -118,12 +127,12 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 			// DXT2 differs from DXT3 only in "premultiplied alpha" hint;
 			// on-disk layout is identical, sampler-side interpretation
 			// is up to the caller. Decode the same way.
-			GLES3_DecodeDXT3(pPayload, pDecoded, W, H);
+			GLES3_DecodeDXT3(pPayload, pDecoded, PadW, PadH);
 			++g_GLES3_UploadDXT3;
 		}
 		else if (Sub == IMAGE_COMPRESSTYPE_S3TC_DXT5)
 		{
-			GLES3_DecodeDXT5(pPayload, pDecoded, W, H);
+			GLES3_DecodeDXT5(pPayload, pDecoded, PadW, PadH);
 			++g_GLES3_UploadDXT5;
 		}
 		else
@@ -150,8 +159,13 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		}
 		glBindTexture(GL_TEXTURE_2D, Tex);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		// Skip padding columns via GL_UNPACK_ROW_LENGTH (=padded row width
+		// in pixels). Reset to 0 (=default: tightly packed) after upload
+		// so subsequent glTexImage2D calls behave normally.
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, PadW);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
+		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		if (_bGenerateMipmaps)
 		{
 			glGenerateMipmap(GL_TEXTURE_2D);
