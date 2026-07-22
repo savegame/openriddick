@@ -1732,11 +1732,22 @@ public:
 			if (!p) return false;
 			_bMalloced = (nV > 16384);
 
+			// Same Attrib_TexCoordSet honoring as the VBID path (see
+			// BuildVertsFromVBB): channel k samples UV set
+			// m_iTexCoordSet[k], not necessarily TEXCOORDk.
+			int UVSet0 = 0, UVSet1 = 1;
+			if (m_pCurAttrib)
+			{
+				UVSet0 = m_pCurAttrib->m_iTexCoordSet[0];
+				UVSet1 = m_pCurAttrib->m_iTexCoordSet[1];
+				if (UVSet0 >= CRC_MAXTEXCOORDS) UVSet0 = 0;
+				if (UVSet1 >= CRC_MAXTEXCOORDS) UVSet1 = 1;
+			}
 			const CVec3Dfp32* pV   = m_Geom.m_pV;
-			const fp32*       pTV0 = m_Geom.m_pTV[0];
-			const int         nUV  = m_Geom.m_nTVComp[0]; // 0/2/3/4
-			const fp32*       pTV1 = m_Geom.m_pTV[1];
-			const int         nUV1 = m_Geom.m_nTVComp[1];
+			const fp32*       pTV0 = m_Geom.m_pTV[UVSet0];
+			const int         nUV  = m_Geom.m_nTVComp[UVSet0]; // 0/2/3/4
+			const fp32*       pTV1 = m_Geom.m_pTV[UVSet1];
+			const int         nUV1 = m_Geom.m_nTVComp[UVSet1];
 			const CPixel32*   pCol = m_Geom.m_pCol;
 			const CVec3Dfp32* pN   = m_Geom.m_pN;
 			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
@@ -2605,10 +2616,26 @@ public:
 				}
 			}
 
-			const void* pUV  = VBB.m_lpVReg[CRC_VREG_TEXCOORD0];
-			const int   UVFmt = VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD0);
-			const void* pUV1 = VBB.m_lpVReg[CRC_VREG_TEXCOORD1];
-			const int   UV1Fmt = VBB.m_Format.GetFormat(CRC_VREG_TEXCOORD1);
+			// UV-set selection honors the engine's Attrib_TexCoordSet
+			// (m_iTexCoordSet[channel] = which VB texcoord array feeds
+			// texture channel). BSP2 puts diffuse UV in TEXCOORD0 and
+			// LIGHTMAP UV in TEXCOORD3 (TEXCOORD1/2 are tangents!), so
+			// hardcoding channel k -> TEXCOORDk feeds garbage to the
+			// second sampler. Default (attrib cleared) is identity: i.
+			int UVSet0 = 0, UVSet1 = 1;
+			if (m_pCurAttrib)
+			{
+				UVSet0 = m_pCurAttrib->m_iTexCoordSet[0];
+				UVSet1 = m_pCurAttrib->m_iTexCoordSet[1];
+				if (UVSet0 >= CRC_MAXTEXCOORDS) UVSet0 = 0;
+				if (UVSet1 >= CRC_MAXTEXCOORDS) UVSet1 = 1;
+			}
+			const int iUVReg0 = CRC_VREG_TEXCOORD0 + UVSet0;
+			const int iUVReg1 = CRC_VREG_TEXCOORD0 + UVSet1;
+			const void* pUV  = VBB.m_lpVReg[iUVReg0];
+			const int   UVFmt = VBB.m_Format.GetFormat(iUVReg0);
+			const void* pUV1 = VBB.m_lpVReg[iUVReg1];
+			const int   UV1Fmt = VBB.m_Format.GetFormat(iUVReg1);
 			const uint32_t* pCol = 0;
 			if (VBB.m_Format.GetFormat(CRC_VREG_COLOR) == CRC_VREGFMT_N4_COL)
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
@@ -2620,10 +2647,10 @@ public:
 			// user observed with the OBJ dumper).
 			const bool bPosTx = (VBB.m_TransformEnable & (1u << CRC_VREG_POS)) != 0;
 			const CRC_VRegTransform& PosTx = VBB.m_lTransform[CRC_VREG_POS];
-			const bool bUVTx  = pUV && (VBB.m_TransformEnable & (1u << CRC_VREG_TEXCOORD0)) != 0;
-			const CRC_VRegTransform& UVTx  = VBB.m_lTransform[CRC_VREG_TEXCOORD0];
-			const bool bUV1Tx = pUV1 && (VBB.m_TransformEnable & (1u << CRC_VREG_TEXCOORD1)) != 0;
-			const CRC_VRegTransform& UV1Tx = VBB.m_lTransform[CRC_VREG_TEXCOORD1];
+			const bool bUVTx  = pUV && (VBB.m_TransformEnable & (1u << iUVReg0)) != 0;
+			const CRC_VRegTransform& UVTx  = VBB.m_lTransform[iUVReg0];
+			const bool bUV1Tx = pUV1 && (VBB.m_TransformEnable & (1u << iUVReg1)) != 0;
+			const CRC_VRegTransform& UV1Tx = VBB.m_lTransform[iUVReg1];
 
 			SUIVert* pVerts = (SUIVert*)malloc(sizeof(SUIVert) * nV);
 			if (!pVerts) return NULL;
