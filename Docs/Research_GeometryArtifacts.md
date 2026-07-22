@@ -41,9 +41,20 @@ In Pa1_TheDream:
 - `Source/P5/Shared/MOS/RenderContexts/PS3GCM/` — reference backend, complete,
   with real symbol names. This is our ground truth for "how a real backend
   should implement each virtual".
-- Ghidra decomps in repo root:
-  - `RndrGL_dll_decomp.c` — retail Windows OpenGL renderer.
-  - `MXR_dll_decomp.c`, `MSystem_dll_decomp.c` — engine.
+- Ghidra decomps in repo root — **PRIMARY GROUND TRUTH**, do not skip:
+  - `RndrGL_dll_decomp.c` — retail Windows OpenGL renderer. This is the
+    only complete GL backend we have. Every hypothesis you form should be
+    cross-checked against what RndrGL_dll_decomp.c actually does at the
+    equivalent call site (glDepthRange, glClearDepth, glFrontFace,
+    glClipControl, glDepthFunc, glStencilFunc, glDrawElements setup, etc).
+  - `MXR_dll_decomp.c`, `MSystem_dll_decomp.c` — engine side.
+
+**Convention for the report:** whenever you find a relevant retail function,
+map it to the current source. `FUN_10068200 (RndrGL:71400) → CRC_Core::Attrib_Set
+(MRender.cpp:XXXX)`. Even partial mappings help — they anchor future work.
+When a decomp function has no source-side twin, note that explicitly ("no
+mapping found — inspect this by hand"). Do not treat source alone as ground
+truth; retail may have quiet fixes the source snapshot pre-dates.
 
 ## Questions to answer
 

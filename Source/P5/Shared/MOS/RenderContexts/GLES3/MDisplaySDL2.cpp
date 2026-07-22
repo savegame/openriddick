@@ -2034,57 +2034,6 @@ public:
 			if (!m_bGLInited) InitGLResources();
 			if (!m_UIShader.IsValid()) return;
 
-			// RIDDICK_SKIP_ADDITIVE=1: drop draws with additive blend
-			// (SRC_ALPHA/ONE, ONE/ONE, DEST_COLOR/ONE, DEST_COLOR/*).
-			// Kills sprites/particles/additive light passes. If spikes
-			// disappear = they came from the particle/sprite billboarding
-			// path.
-			static int sSkipAdd = -1;
-			if (sSkipAdd < 0)
-			{
-				const char* e = getenv("RIDDICK_SKIP_ADDITIVE");
-				sSkipAdd = (e && *e && *e != '0') ? 1 : 0;
-			}
-			if (sSkipAdd && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_BLEND))
-			{
-				const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
-				const uint8  Src = (uint8)(SD & 0xff);
-				const uint8  Dst = (uint8)((SD >> 8) & 0xff);
-				const bool bAdditive =
-					(Dst == CRC_BLEND_ONE) &&
-					(Src == CRC_BLEND_ONE || Src == CRC_BLEND_SRCALPHA ||
-					 Src == CRC_BLEND_SRCCOLOR || Src == CRC_BLEND_SRCALPHASAT);
-				if (bAdditive) return;
-			}
-
-			// RIDDICK_SKIP_SHADOWVOL=1: drop draws that look like stencil
-			// shadow volumes — STENCIL enabled AND COLORWRITE disabled
-			// (they write only stencil, per WBSP2Light.cpp:1938). Regular
-			// world geometry uses STENCIL+COLORWRITE together (shadow-
-			// masked shading), those we keep.
-			static int sSkipSV = -1;
-			if (sSkipSV < 0)
-			{
-				const char* e = getenv("RIDDICK_SKIP_SHADOWVOL");
-				sSkipSV = (e && *e && *e != '0') ? 1 : 0;
-			}
-			if (sSkipSV && m_pCurAttrib)
-			{
-				const uint32 F = m_pCurAttrib->m_Flags;
-				if ((F & CRC_FLAGS_STENCIL) && !(F & CRC_FLAGS_COLORWRITE))
-					return;
-			}
-			// RIDDICK_SKIP_STENCIL=1: aggressive — drop ANY stencil draw.
-			// Kills shadow-mask world too, only for isolation testing.
-			static int sSkipStencil = -1;
-			if (sSkipStencil < 0)
-			{
-				const char* e = getenv("RIDDICK_SKIP_STENCIL");
-				sSkipStencil = (e && *e && *e != '0') ? 1 : 0;
-			}
-			if (sSkipStencil && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_STENCIL))
-				return;
-
 			// Flush deferred attrib/matrix state (mirrors the PS3
 			// backend: engine mutates its own stack, then expects
 			// the backend to reify GL state at draw time). Without
@@ -2096,6 +2045,22 @@ public:
 
 			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
 			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
+
+			// RIDDICK_ONLY_BSP=1: whitelist only BSP2 world-cluster draws.
+			// World clusters are large (nV>=500); UI/particles/tiny meshes
+			// are small. This is a positive filter — one flag instead of
+			// combining multiple SKIP_* flags.
+			static int sOnlyBSP = -1;
+			if (sOnlyBSP < 0)
+			{
+				const char* e = getenv("RIDDICK_ONLY_BSP");
+				sOnlyBSP = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sOnlyBSP && nVerts < 500)
+			{
+				FreeScratch(pVerts, nVerts, bMalloced);
+				return;
+			}
 
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
 			// first 5 drawcalls of the first frame after startmap load.
@@ -2374,6 +2339,8 @@ public:
 			if (!_pVerts || _nVerts <= 0 || !_pInd || _nInd <= 0) return;
 			if (!m_bGLInited) InitGLResources();
 			if (!m_UIShader.IsValid()) return;
+			// ONLY_BSP filter (same threshold as DrawIndexed).
+			if (getenv("RIDDICK_ONLY_BSP") && _nVerts < 500) return;
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 
