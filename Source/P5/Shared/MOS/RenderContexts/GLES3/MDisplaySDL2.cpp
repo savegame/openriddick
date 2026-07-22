@@ -2050,6 +2050,20 @@ public:
 				if (bAdditive) return;
 			}
 
+			// RIDDICK_SKIP_STENCIL=1: drop draws with CRC_FLAGS_STENCIL.
+			// These are stencil ops (shadow volumes, silhouettes). Should
+			// write only stencil (colormask=0), but if flags mismatch or
+			// our colormask handling has a gap they'd leak visible extruded
+			// geometry — the classic "polygons dancing on the sides" pattern.
+			static int sSkipStencil = -1;
+			if (sSkipStencil < 0)
+			{
+				const char* e = getenv("RIDDICK_SKIP_STENCIL");
+				sSkipStencil = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sSkipStencil && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_STENCIL))
+				return;
+
 			// Flush deferred attrib/matrix state (mirrors the PS3
 			// backend: engine mutates its own stack, then expects
 			// the backend to reify GL state at draw time). Without
