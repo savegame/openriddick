@@ -69,6 +69,17 @@
   Character-меши не рендерятся т.к. skinning pipeline не реализован.
   → **надо реализовать skinning** и удалить.
 
+- **HACK** `RIDDICK_SKIP_CHARS=1`, `RIDDICK_SKIP_PROPS=1`,
+  `RIDDICK_SKIP_SPRITES=1`, `RIDDICK_SKIP_SPOTVOL=1` (`XREngine.cpp:RenderModel`) —
+  выключают классы моделей на уровне engine (через TDynamicCast).
+  Изоляционная диагностика для сужения источника артефактов.
+  → удалить когда все классы рендерятся правильно.
+
+- **HACK** `RIDDICK_SKIP_SKY=1` (`XREngine.cpp:Engine_RVC_RenderSky`) —
+  выключает skybox render.
+- **HACK** `RIDDICK_SKIP_PARTICLES=1` (`XRPContainer.cpp`) —
+  гейтит `CXR_ParticleContainer::OnRender`.
+
 - **HACK** `RIDDICK_ONLY_BSP=1` (`DrawIndexed`, `DrawUserVerts`) — рисует
   только draws с nV >= 100 (BSP2 world clusters). Всё остальное режется.
   Изоляционная диагностика.
@@ -116,10 +127,13 @@
   (`kGLES3_UIVertSrc`, `~57`) — компенсация engine [0..1] NDC.z vs
   GL [-1..+1]. **Оставить** — правильный фикс.
 
-### Winding fix
+### Winding fix (final, повторно проверен пользователем)
 
-- **KEEP** `glFrontFace(GL_CCW); glCullFace(CULLCW ? GL_FRONT : GL_BACK)`
-  (`~1440-1442`) — матчит retail RndrGL и PS3.
+- **KEEP** `glFrontFace(GL_CCW); glCullFace(CULLCW ? GL_BACK : GL_FRONT)`
+  (`~1440-1442`) — правильный retail-mapping (c9d6e2d). Мой предыдущий
+  вариант (`CULLCW ? GL_FRONT : GL_BACK`) был поведенческий no-op
+  относительно оригинала — резал те же треугольники. Пользователь сверил
+  вручную по RndrGL:77659-77666 и подтвердил обратный mapping.
   Оставить.
 
 ### VBB transform
@@ -140,6 +154,23 @@
 - **DBG** `DbgDumpDraw` (`~2115`), `DumpGeomOBJ` (`~2170`),
   `DbgDumpTick` (`~880`) — вся инфраструктура F9 frame-dump'а +
   RTT-verify логи. Оставить пока рендер нестабилен, потом удалить.
+
+### Mouse pitch — убрана PS3-негация Y
+
+- **KEEP** `WClientMod.cpp` — на не-Win ветке убрана автоматическая
+  инверсия Y-mouse. Теперь инверсия только под `CONTROLLER_INVERTYAXIS=1`,
+  как в PC-retail (c9d6e2d).
+
+### Guard в WClient_Core
+
+- **KEEP** `WClient_Core.cpp` — проверка pObj != 0 после iterator
+  advance, потому что объект может удалить сам себя в OnClientRefresh
+  (SIGSEGV на Pa1_Pit) (c9d6e2d).
+
+### BSP2 PVS диагностика
+
+- **DBG** `WBSP2Loader.cpp` — разовый log `[BSP2] PVS entries: N`. Если
+  N=0, движок рисует ВСЕ листы (тормоза при вращении камеры).
 
 ### VPU sync fallback
 
