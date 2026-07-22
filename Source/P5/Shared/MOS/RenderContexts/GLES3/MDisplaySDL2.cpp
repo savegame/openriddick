@@ -2091,10 +2091,25 @@ public:
 				return;
 			}
 
-			// (was: DIRECT_RENDER effect-skip — removed. World BSP2 base
-			// shading uses stencil-mask, filtering stencil killed even the
-			// world. DIRECT_RENDER now only bypasses RTT plumbing; effect
-			// isolation is achieved by fixing the underlying bugs.)
+			// DIRECT_RENDER effect-skip: drop drawcalls whose Tex0 samples
+			// one of our RTT slots (ResolveScreen, DeferredNormal/Diffuse/
+			// Specular, MotionMap, ShadowMask, Depth*, etc — engine
+			// snapshots backbuffer to these, then re-draws fullscreen with
+			// the snapshot as a texture; XREngine.cpp:3019, 3092, 3862+).
+			// Under DIRECT_RENDER those slots are never populated → sample
+			// returns placeholder = magenta screen. Skip = show raw world.
+			if (getenv("RIDDICK_DIRECT_RENDER") && m_pCurAttrib)
+			{
+				for (int s = 0; s < 4; ++s)
+				{
+					const int Tid = (int)m_pCurAttrib->m_TextureID[s];
+					if (Tid > 0 && Tid < (int)m_lFBO.Len() && m_lFBO[Tid].m_FBO)
+					{
+						FreeScratch(pVerts, nVerts, bMalloced);
+						return;
+					}
+				}
+			}
 
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
 			// first 5 drawcalls of the first frame after startmap load.
