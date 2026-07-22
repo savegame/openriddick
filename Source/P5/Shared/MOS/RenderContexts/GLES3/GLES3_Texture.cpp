@@ -272,8 +272,15 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	}
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_CLAMP_TO_EDGE);
+	// GL_REPEAT: world/prop tiling textures use UV outside [0..1] to
+	// tile (e.g. wall Aguerra06_0004_C uses V ≈ 7.5). CLAMP_TO_EDGE
+	// clamps them to the edge row = uniform darkish stripe on every
+	// wall. Compressed-DXT upload path (line ~179) already uses REPEAT
+	// — this uncompressed path was inconsistent. Lightmaps and font
+	// atlases don't tile: they'd break under REPEAT if sampled off-edge,
+	// but engine UV for them stays in [0..1] so REPEAT is safe there too.
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
 
 	// Single/dual channel formats: reconstruct the classic GL semantics
 	// via texture swizzle (GLES 3.0 core). Without this a GL_R8 font

@@ -136,6 +136,14 @@
   вручную по RndrGL:77659-77666 и подтвердил обратный mapping.
   Оставить.
 
+### Wrap mode = REPEAT для всех текстур
+
+- **KEEP** `GLES3_Texture.cpp:275-276` — GL_REPEAT (было CLAMP_TO_EDGE)
+  для uncompressed upload path. Мировые wall textures используют UV
+  вне [0..1] для тайлинга (Aguerra06 V ≈ 7.5); CLAMP давал плоскую
+  edge-row вместо тайла. Compressed-DXT путь (:179) уже юзал REPEAT.
+  Согласовано.
+
 ### VBB transform
 
 - **KEEP** `CRC_VRegTransform` scale+offset (`BuildVertsFromVBB`, `~2290+`)
