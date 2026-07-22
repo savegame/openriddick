@@ -54,6 +54,13 @@ static const char* kGLES3_UIVertSrc =
 	"out vec3 vWorldNrm;\n"
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Engine's projection puts NDC.z into [0..1] (D3D convention); GL
+	// wants [-1..+1]. Remap: NDC.z_gl = 2*NDC.z_engine - 1, which in
+	// clip space is clip.z_gl = 2*clip.z - clip.w. Without this the
+	// entire depth range is compressed into [0.5..1] → nasty Z-fighting
+	// on any surfaces at similar distance. UI/2D uses the same shader
+	// but has z ≈ w so remap keeps it near far clip — no regression.
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
