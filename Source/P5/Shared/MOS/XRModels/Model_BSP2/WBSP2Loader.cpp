@@ -2554,6 +2554,20 @@ void CXR_Model_BSP2::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, co
 		}
 		_pDFile->PopPosition();
 
+		// Linux port diag: the PVS chunk is optional; without it the scene
+		// graph reports every leaf visible (InPVS -> true) and the whole
+		// level renders every frame. Log once so perf mysteries are
+		// attributable.
+		{
+			static int sPVSLogged = 0;
+			if (!sPVSLogged)
+			{
+				sPVSLogged = 1;
+				fprintf(stderr, "[BSP2] PVS entries: %d%s\n", (int)m_lPVS.Len(),
+					m_lPVS.Len() ? "" : "  <-- NO PVS DATA, ALL LEAVES VISIBLE");
+			}
+		}
+
 		// Fog-Portals
 		if (_pDFile->GetNext("FOGPORTALS"))
 		{

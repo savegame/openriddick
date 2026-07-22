@@ -13,6 +13,8 @@
 #include "XREngineVar.h"
 #include "../Classes/Render/MWireContainer.h"
 #include "../XRModels/Model_Sky/WSky.h"
+#include "../XRModels/Model_MultiTriMesh/WModel_MultiTriMesh.h"
+#include "../XRModels/Model_Flare/WModel_Flare.h"
 
 #ifdef PLATFORM_PS2
 #include "MDispPS2.h"
@@ -1561,6 +1563,31 @@ void CXR_EngineImpl::RenderModel(CXR_VCModelInstance* _pObjInfo, CXR_ViewClipInt
 	MSCOPESHORT(CXR_EngineImpl::RenderModel); //AR-SCOPE
 
 	if (!_pObjInfo->m_pModel) return;
+
+	// Linux port debug: granular geometry-class kill switches for hunting
+	// "garbage polygon" sources. Each env flag early-outs one model class.
+	{
+		static int sSkipChars = -1, sSkipProps = -1, sSkipSprites = -1, sSkipSpotVol = -1;
+		if (sSkipChars < 0)
+		{
+			const char* eC = getenv("RIDDICK_SKIP_CHARS");
+			const char* eP = getenv("RIDDICK_SKIP_PROPS");
+			const char* eS = getenv("RIDDICK_SKIP_SPRITES");
+			const char* eV = getenv("RIDDICK_SKIP_SPOTVOL");
+			sSkipChars   = (eC && *eC && *eC != '0') ? 1 : 0;
+			sSkipProps   = (eP && *eP && *eP != '0') ? 1 : 0;
+			sSkipSprites = (eS && *eS && *eS != '0') ? 1 : 0;
+			sSkipSpotVol = (eV && *eV && *eV != '0') ? 1 : 0;
+		}
+		CXR_Model* pM = _pObjInfo->m_pModel;
+		if (sSkipProps && pM->GetModelClass() == CXR_MODEL_CLASS_TRIMESH) return;
+		// NB: TDynamicCast (NULL-probe), NOT safe_cast -- safe_cast throws
+		// "Invalid safe_cast" on mismatch, and on render worker threads
+		// that exception escapes -> SIGILL (run.log 2026-07-21, Pa1_Pit).
+		if (sSkipChars && TDynamicCast<CXR_Model_MultiTriMesh>(pM)) return;
+		if (sSkipSpotVol && TDynamicCast<CXR_Model_SpotLightVolume>(pM)) return;
+		if (sSkipSprites && TDynamicCast<CXR_Model_Sprite>(pM)) return;
+	}
 	CXR_ViewContextImpl* pVC = m_lspVC[m_iCurrentVC];
 #ifdef M_Profile
 	if (m_ShowTiming)
@@ -2657,6 +2684,14 @@ void CXR_EngineImpl::Engine_SetCurrentVC(int _iVC)
 
 void CXR_EngineImpl::Engine_RVC_RenderSky(CXR_ViewContextImpl* _pVC)
 {
+	// RIDDICK_SKIP_SKY=1: debug skip of the sky model.
+	static int sSkipSky = -1;
+	if (sSkipSky < 0)
+	{
+		const char* e = getenv("RIDDICK_SKIP_SKY");
+		sSkipSky = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (sSkipSky) return;
 	if (m_bSky && _pVC->GetSky())
 	{
 		MSCOPE(Sky, XR_ENGINE);

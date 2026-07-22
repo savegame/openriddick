@@ -210,13 +210,11 @@ void CWClient_Mod::UpdateControllerSettings()
 		fp32 SensMod = 0.2f+pow(pSys->GetOptions()->GetValuef("CONTROLLER_SENSITIVTY", 0.5f), 1.0f)*4.0f;
 		m_Sensitivity[0] = SensMod * 1.2f;
 		m_Sensitivity[1] = SensMod;
-	#ifdef PLATFORM_WIN
+		// Linux port: match PC-retail semantics (the old #else branch
+		// inverted pitch when the option was 0 -- PS3 legacy; the mouse
+		// felt Y-inverted by default).
 		if(pSys->GetOptions()->GetValuei("CONTROLLER_INVERTYAXIS") == 1)
 			m_Sensitivity[1] = -m_Sensitivity[1];
-	#else
-		if(pSys->GetOptions()->GetValuei("CONTROLLER_INVERTYAXIS") == 0)
-			m_Sensitivity[1] = -m_Sensitivity[1];
-	#endif
 		m_DeadZone = pSys->GetOptions()->GetValuef("CONTROLLER_DEADZONE",CONTROLLER_DEFAULT_DEADZONE);
 		m_LookAcceleration[0] = pSys->GetOptions()->GetValuef("CONTROLLER_ACCELERATIONLX",CONTROLLER_DEFAULT_ACCELERATIONX);
 		m_LookAcceleration[1] = pSys->GetOptions()->GetValuef("CONTROLLER_ACCELERATIONLY",CONTROLLER_DEFAULT_ACCELERATIONY);
@@ -446,6 +444,8 @@ void CWClient_Mod::SetInventoryWindow(const CStr& _ID)
 	}
 }
 
+void CWClient_Mod::EngineClient_EnumerateView(CXR_Engine* _pEngine, int _iVC, int _EnumViewType)
+{
 	// RIDDICK_DIRECT_RENDER=1: skip camera-effect models (darkness
 	// vision, radial blur, otherworld, retina dots). They draw
 	// fullscreen quads sampling capture textures that direct render
@@ -456,8 +456,6 @@ void CWClient_Mod::SetInventoryWindow(const CStr& _ID)
 		const char* e = getenv("RIDDICK_DIRECT_RENDER");
 		sDirectRender = (e && *e && *e != '0') ? 1 : 0;
 	}
-void CWClient_Mod::EngineClient_EnumerateView(CXR_Engine* _pEngine, int _iVC, int _EnumViewType)
-{
 	CWorld_ClientCore::EngineClient_EnumerateView(_pEngine, _iVC, _EnumViewType);
 
 	int CamFXMode = m_CamFXMode;

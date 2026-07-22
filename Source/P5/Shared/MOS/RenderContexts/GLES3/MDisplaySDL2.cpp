@@ -1459,16 +1459,18 @@ public:
 
 			// Culling. Matches retail RndrGL exactly (RndrGL:38438 =
 			// glFrontFace(GL_CCW) set once at init, :77659-77666 = CULLCW
-			// selects glCullFace(GL_FRONT) else glCullFace(GL_BACK)). PS3
-			// backend does the same (MRenderPS3_Attrib.cpp:288-294).
-			// Our previous mapping (front=CW when CULLCW, always cull back)
-			// was inverted vs both retail and PS3 — root cause of the
-			// "dancing polygons" symptom per Research_GeometryArtifacts.
+			// selects glCullFace(GL_BACK) else glCullFace(GL_FRONT)).
+			// Verified against the decomp by hand: flag 0x1000 set ->
+			// 0x405 (GL_BACK), unset -> 0x404 (GL_FRONT). PS3 backend
+			// agrees (MRenderPS3_Attrib.cpp:288-294). Both previous
+			// mappings culled the opposite faces (the 7f247c7 "fix" was
+			// a behavioural no-op) -> world rendered inside-out: dancing
+			// polygons AND the inverted-camera hollow-mask feel.
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
 				glFrontFace(GL_CCW);
-				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_FRONT : GL_BACK);
+				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
 			}
 			else
 			{

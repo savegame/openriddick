@@ -22,7 +22,9 @@
   - `RIDDICK_DIRECT_RENDER=1` — прямой рендер в окно (fb0): screen FBO не создаётся, `PresentToWindow` — no-op, все SetRenderTarget биндят fb0, CopyToTexture — no-op; на движке гейтятся `Engine_PostProcess` (XREngine.cpp) и CamFX-модель (WClientMod.cpp). Кадр = чистая геометрия + BSP-лайтпайплайн. Предполагает ROTATE=0 и FBOSIZE==WINSIZE (дефолт). Меню при этом частично деградирует (его blur-капчи пустые). Хелпер `GLES3_DirectRender()` (MDisplaySDL2.cpp) — единая точка чтения флага в бэкенде.
   - `RIDDICK_ONLY_BSP=1` — позитивный фильтр в DrawIndexed: пропускать только крупные дрои (nVerts>=100, BSP-кластеры), всё мелкое (UI/партиклы) скипается.
   - `RIDDICK_SKIP_SKINNED=1` — скип скиннед-геометрии в обоих путях фетча вершин.
-  - Движковые XR-флаги (registry/env, движок, не порт): `XR_WORLDONLY=1` (только world-модели: скип персонажей/пропсов/партиклов/CamFX, XREngine.cpp:1378), `XR_FLARES=0` (XREngine.cpp:1352), `XR_STENCILSHADOWS` (XREngine.cpp:1367; учтите: BSP2-тени живут в своём пути и без них свет течёт сквозь стены).
+  - Гранулярные skip-флаги по классам геометрии (охота за «мусорными полигонами», choke-точка `CXR_EngineImpl::RenderModel`, XREngine.cpp): `RIDDICK_SKIP_CHARS=1` (MultiTriMesh, персонажи), `RIDDICK_SKIP_PROPS=1` (TriMesh-пропсы), `RIDDICK_SKIP_SPRITES=1` (Sprite/SphereSprite/ConcaveSprite), `RIDDICK_SKIP_SPOTVOL=1` (объёмные конусы прожекторов); отдельно `RIDDICK_SKIP_SKY=1` (Engine_RVC_RenderSky) и `RIDDICK_SKIP_PARTICLES=1` (CXR_ParticleContainer::OnRender, XRPContainer.cpp).
+  - Движковые XR-флаги (registry/env, движок, не порт): `XR_WORLDONLY=1` (только world-модели: скип персонажей/пропсов/партиклов/CamFX, XREngine.cpp:1378), `XR_FLARES=0` (XREngine.cpp:1352), `XR_WALLMARKS=0` (декали на BSP, XREngine.cpp:1355), `XR_DLIGHT=0` (все динамические источники — A/B-тест тормозов, XREngine.cpp:1353), `XR_STENCILSHADOWS` (XREngine.cpp:1367; учтите: BSP2-тени живут в своём пути и без них свет течёт сквозь стены).
+  - Диагностика `[BSP2] PVS entries: N` (WBSP2Loader.cpp): если N=0 — в уровне НЕТ PVS-чанка, движок молча рисует ВСЕ листы (InPVS->true), отсюда тормоза при вращении камеры.
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.
 
 ## Реверс-ресурсы (декомпиляции Ghidra, корень репо)
@@ -134,6 +136,15 @@
 - Один GLSL-шейдер (pos+uv0+uv1+color): текстура канала 0 + модуляция
   каналом 1 (лайтмапы), альфа-тест, туман, uTexMat; separate stencil есть.
   Шейдер-генератора по attrib-комбинациям НЕТ (M4 не сделан).
+- Cull-маппинг приведён к retail (2026-07-21): `glFrontFace(GL_CCW)` +
+  `glCullFace(CULLCW ? GL_BACK : GL_FRONT)` — сверено с декомпайлом
+  RndrGL (:38438, :77659-77666) и PS3-исходником. Оба прежних варианта
+  отсекали противоположные грани → мир «наизнанку», пляшущие полигоны и
+  ощущение инвертированной камеры (hollow-mask эффект). Матричная цепочка
+  при этом доказуемо корректна (поэлементно = PS3 и RndrGL), ввод тоже.
+- Pitch-мыши: не-Win ветка в WClientMod.cpp инвертировала Y при дефолтной
+  опции (PS3-наследие) — выпрямлено под семантику PC-retail (инверсия
+  только при CONTROLLER_INVERTYAXIS=1).
 - UI Dark Athena рисуется через RenderTarget_CopyToTexture (~30 копий/кадр,
   glCopyTexSubImage2D в GL-ориентации — НЕ флипать, проверено).
 - `Render_VertexBuffer(VBID)`: без GPU-кэша — VB_Get(BUILD) на каждый draw,
