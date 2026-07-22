@@ -2027,6 +2027,29 @@ public:
 			if (!m_bGLInited) InitGLResources();
 			if (!m_UIShader.IsValid()) return;
 
+			// RIDDICK_SKIP_ADDITIVE=1: drop draws with additive blend
+			// (SRC_ALPHA/ONE, ONE/ONE, DEST_COLOR/ONE, DEST_COLOR/*).
+			// Kills sprites/particles/additive light passes. If spikes
+			// disappear = they came from the particle/sprite billboarding
+			// path.
+			static int sSkipAdd = -1;
+			if (sSkipAdd < 0)
+			{
+				const char* e = getenv("RIDDICK_SKIP_ADDITIVE");
+				sSkipAdd = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sSkipAdd && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_BLEND))
+			{
+				const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
+				const uint8  Src = (uint8)(SD & 0xff);
+				const uint8  Dst = (uint8)((SD >> 8) & 0xff);
+				const bool bAdditive =
+					(Dst == CRC_BLEND_ONE) &&
+					(Src == CRC_BLEND_ONE || Src == CRC_BLEND_SRCALPHA ||
+					 Src == CRC_BLEND_SRCCOLOR || Src == CRC_BLEND_SRCALPHASAT);
+				if (bAdditive) return;
+			}
+
 			// Flush deferred attrib/matrix state (mirrors the PS3
 			// backend: engine mutates its own stack, then expects
 			// the backend to reify GL state at draw time). Without
