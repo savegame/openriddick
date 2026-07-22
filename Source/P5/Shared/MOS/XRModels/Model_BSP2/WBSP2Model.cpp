@@ -1402,7 +1402,7 @@ bool CXR_Model_BSP2::RenderTesselate(const uint32* _piFaces, int _nFaces, int _T
 
 	if (_TessFlags & 3)
 	{
-		ConOut(CStrF("§cf80WARNING: (CXR_Model_BSP2::RenderTesselate) TessFlags %d", _TessFlags));
+		ConOut(CStrF("ï¿½cf80WARNING: (CXR_Model_BSP2::RenderTesselate) TessFlags %d", _TessFlags));
 	}
 
 	if (_TessFlags & 4)
@@ -2331,6 +2331,16 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 			//		pA->Attrib_AlphaCompare(pLayers->m_AlphaFunc, pLayers->m_AlphaRef);
 					pA->Attrib_TextureID(0, pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]);
 					pA->Attrib_AlphaCompare(pSSP->m_AlphaFunc, pSSP->m_AlphaRef);
+					// bNoShaderPipeline fallback: pZAttr is Z-prepass base with
+					// COLORWRITE disabled (m_RenderZBuffer, :300). Without the
+					// override the diffuse texture binds but the draw writes
+					// only depth+stencil, no color -> BSP world stays untextured
+					// grey. Enable color/alpha write for the fallback path;
+					// retail USEZEQUAL path keeps color off (it's a real Z-prepass).
+					if (bNoShaderPipeline)
+					{
+						pA->Attrib_Enable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
+					}
 					pVB->m_pAttrib = pA;
 
 					pVB->Matrix_Set(_pRenderParams->m_pVBMatrixM2V);
@@ -4755,7 +4765,7 @@ void CXR_Model_BSP2::RenderWire(CBSP2_RenderParams* _pRenderParams, CPixel32 _Co
 
 #ifdef M_Profile
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Counts Non-dynamic lights per face
 Parameters:
 	_pRenderParams:	Render parameters
@@ -4800,7 +4810,7 @@ void CXR_Model_BSP2::LightCountSLC(CBSP2_RenderParams * _pRenderParams)
 	}
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Render a collection of faces with a color key
 Parameters:
 	_pRenderParams:	Render parameters
@@ -4838,7 +4848,7 @@ void CXR_Model_BSP2::RenderLightColorKeyFaceList(CBSP2_RenderParams * _pRenderPa
 	pVBM->AddVB(pVB);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Render Color-keyed lightcount information
 Parameters:
 	_pRenderParams:	Render parameters
@@ -5166,7 +5176,7 @@ void CXR_Model_BSP2::OnRender2(CXR_Engine* _pEngine, CRenderContext* _pRender, C
 				// check if something strage is going on (can crash if this check isn't here)
 				if(m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len())
 				{
-					ConOutL("§cf80WARNING: (CXR_Model_BSP2::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
+					ConOutL("ï¿½cf80WARNING: (CXR_Model_BSP2::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
 					return;
 				}
 
