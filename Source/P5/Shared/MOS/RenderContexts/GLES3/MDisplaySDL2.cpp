@@ -426,7 +426,10 @@ public:
 			glBindTexture(GL_TEXTURE_2D, m_PlaceholderTex);
 			// RED, not magenta, so it visually distinguishes from
 			// "no texture bound at all" (which shows vCol=white/black).
-			const unsigned char Magenta[4] = { 255, 0, 0, 255 };
+			// Bright MAGENTA (not red) so it doesn't blend into game
+			// palette. Any full-screen magenta on screen = an RTT/texture
+			// that our uploader failed on.
+			const unsigned char Magenta[4] = { 255, 0, 255, 255 };
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0,
 				GL_RGBA, GL_UNSIGNED_BYTE, Magenta);
@@ -2088,33 +2091,10 @@ public:
 				return;
 			}
 
-			// Under DIRECT_RENDER: skip anything that isn't opaque base
-			// geometry. Kills all effect passes (stencil shadow prep,
-			// additive lights, transparent decals, sprites, particles).
-			// Leaves the textured base pass — that's what "just geometry"
-			// looks like without post-processing.
-			if (getenv("RIDDICK_DIRECT_RENDER") && m_pCurAttrib)
-			{
-				const uint32 F = m_pCurAttrib->m_Flags;
-				const bool bStencil = (F & CRC_FLAGS_STENCIL) != 0;
-				const bool bBlend   = (F & CRC_FLAGS_BLEND)   != 0;
-				bool bAdditive = false;
-				if (bBlend)
-				{
-					const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
-					const uint8  Src = (uint8)(SD & 0xff);
-					const uint8  Dst = (uint8)((SD >> 8) & 0xff);
-					bAdditive =
-						(Dst == CRC_BLEND_ONE) &&
-						(Src == CRC_BLEND_ONE || Src == CRC_BLEND_SRCALPHA ||
-						 Src == CRC_BLEND_SRCCOLOR || Src == CRC_BLEND_SRCALPHASAT);
-				}
-				if (bStencil || bAdditive)
-				{
-					FreeScratch(pVerts, nVerts, bMalloced);
-					return;
-				}
-			}
+			// (was: DIRECT_RENDER effect-skip — removed. World BSP2 base
+			// shading uses stencil-mask, filtering stencil killed even the
+			// world. DIRECT_RENDER now only bypasses RTT plumbing; effect
+			// isolation is achieved by fixing the underlying bugs.)
 
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
 			// first 5 drawcalls of the first frame after startmap load.
