@@ -56,11 +56,16 @@
   рисует RGB-тестовый треугольник. Mode 1 = identity MVP, mode 2 = engine
   MVP. Bisect диагностика: pipeline vs data.
 
-- **DBG** `RIDDICK_MIRROR_X=1` (`kGLES3_UIVertSrc`, `SetupCommonUniforms`) —
-  негативирует `gl_Position.x` в vertex shader. Диагностика L/R инверсии
-  сцены. Если экран становится корректным — engine кормит X-flipped
-  projection которую мы не компенсируем; permanent fix в Viewport_Update
-  или composite pass. → удалить после нахождения корня.
+- **DBG** `RIDDICK_MIRROR_X=0|1|2` (`MirrorXThisDraw`, `ApplyAttribs`,
+  `SetupCommonUniforms`) — негативирует `gl_Position.x` в vertex shader.
+  Диагностика L/R инверсии сцены. 1 = флип всего (включая UI), 2 = флип
+  только 3D-дроев: дискриминатор — структура МОДЕЛЬНОЙ матрицы (UI едет
+  через Get2DMatrix → диагональная 3×3, `k[2][2]=1`; 3D несёт camera-view
+  с произвольным вращением). Отдельной ortho-проекции для UI в движке НЕТ
+  (`CRC_Viewport::Update` всегда строит perspective, MRender.cpp:441),
+  поэтому дискриминация по m_ProjMat невозможна (откаченный 01e6b04,
+  `Proj.k[0][0]<0`, был no-op). Winding компенсируется в ApplyAttribs
+  (`glFrontFace(GL_CW)` для флипнутых). → удалить после нахождения корня.
 
 ### Skip-фильтры (для изоляции проблем)
 

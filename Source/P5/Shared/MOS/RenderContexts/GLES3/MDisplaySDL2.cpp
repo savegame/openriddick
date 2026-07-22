@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 
 // One shared shader for M3 UI/frontend drawing. Attributes: aPos
 // (vec3 world), aUV (vec2), aCol (vec4, unpacked from CPixel32 BGRA).
@@ -62,11 +63,12 @@ static const char* kGLES3_UIVertSrc =
 	// on any surfaces at similar distance. UI/2D uses the same shader
 	// but has z ≈ w so remap keeps it near far clip — no regression.
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
-	// Diagnostic: RIDDICK_MIRROR_X sends -1 as uMirrorX to flip clip.x.
-	// User reports LEFT/RIGHT inverted vs original (OBJ dump correct).
-	// If this env fixes it, the engine emits an X-flipped projection
-	// that our winding/composite doesn't compensate; permanent fix will
-	// be in Viewport_Update or the composite pass.
+	// X-mirror diagnostic: uMirrorX flips clip.x. RIDDICK_MIRROR_X=1
+	// flips everything (UI included); =2 flips only draws whose model
+	// matrix is not a 2D pixel matrix (see MirrorXThisDraw) -> world
+	// corrected, UI untouched. Winding needs NO compensation: the flip
+	// restores the data-correct winding (mirror and inverted winding
+	// share one root cause).
 	"  gl_Position.x *= uMirrorX;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
@@ -1425,6 +1427,41 @@ public:
 			}
 		}
 
+		// RIDDICK_MIRROR_X: 0 = off, 1 = flip clip.x on ALL draws (UI
+		// included), 2 = flip only 3D draws. There is no separate ortho
+		// projection for UI in this engine: CRC_Viewport::Update always
+		// builds a perspective matrix (MRender.cpp:441), and 2D content
+		// rides it via CRC_Viewport::Get2DMatrix MODEL matrices (diagonal
+		// 3x3, z row/column untouched, k[2][2]=1). So the projection
+		// matrix cannot discriminate UI from 3D (the reverted 01e6b04
+		// attempt, Proj.k[0][0]<0, was a no-op) -- but the model matrix
+		// can: 3D draws carry the camera view matrix with an arbitrary
+		// rotation, 2D draws don't.
+		static int MirrorXMode()
+		{
+			static int sMode = -1;
+			if (sMode < 0)
+			{
+				const char* e = getenv("RIDDICK_MIRROR_X");
+				sMode = e ? atoi(e) : 0;
+			}
+			return sMode;
+		}
+		static bool Is2DModelMat(const CMat4Dfp32& M)
+		{
+			const fp32 e = 1e-5f;
+			return fabsf(M.k[0][2]) < e && fabsf(M.k[1][2]) < e
+				&& fabsf(M.k[2][0]) < e && fabsf(M.k[2][1]) < e
+				&& fabsf(M.k[2][2] - 1.0f) < 1e-3f;
+		}
+		bool MirrorXThisDraw() const
+		{
+			const int m = MirrorXMode();
+			if (m == 1) return true;
+			if (m == 2) return !Is2DModelMat(m_ModelMat);
+			return false;
+		}
+
 		// Full-set translation of a CRC_Attributes bundle to GL state.
 		// Called by both Attrib_Set (delta) and Attrib_SetAbsolute
 		// (reset). We ignore the delta hint for M1 and re-apply
@@ -1478,6 +1515,13 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
+				// NOTE: no front-face swap for RIDDICK_MIRROR_X. The
+				// X-mirror in the pipeline and the inverted winding are
+				// the SAME defect (det<0 through the transform chain);
+				// flipping clip.x restores the data-correct winding
+				// (OBJ dump proves data is sane), so cull must keep the
+				// retail mapping. Swapping front face here re-inverted
+				// it -> interior faces visible (verified 2026-07-22).
 				glFrontFace(GL_CCW);
 				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
 			}
@@ -1905,15 +1949,9 @@ public:
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
 			m_UIShader.SetMat4(m_UModelLoc, (const float*)&m_ModelMat);
-			{
-				static int sMirrorX = -1;
-				if (sMirrorX < 0)
-				{
-					const char* e = getenv("RIDDICK_MIRROR_X");
-					sMirrorX = (e && *e && *e != '0') ? 1 : 0;
-				}
-				m_UIShader.SetFloat(m_UMirrorXLoc, sMirrorX ? -1.0f : 1.0f);
-			}
+			// Per-draw X-mirror (see MirrorXThisDraw): mode 2 flips only
+			// 3D draws, UI keeps uMirrorX=1.
+			m_UIShader.SetFloat(m_UMirrorXLoc, MirrorXThisDraw() ? -1.0f : 1.0f);
 			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
 			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
 			PushLightUniforms(_bAllowFog);
