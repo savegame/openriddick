@@ -1427,13 +1427,18 @@ public:
 			const GLboolean AW = (F & CRC_FLAGS_ALPHAWRITE) ? GL_TRUE : GL_FALSE;
 			glColorMask(CW, CW, CW, AW);
 
-			// Culling
+			// Culling. Matches retail RndrGL exactly (RndrGL:38438 =
+			// glFrontFace(GL_CCW) set once at init, :77659-77666 = CULLCW
+			// selects glCullFace(GL_FRONT) else glCullFace(GL_BACK)). PS3
+			// backend does the same (MRenderPS3_Attrib.cpp:288-294).
+			// Our previous mapping (front=CW when CULLCW, always cull back)
+			// was inverted vs both retail and PS3 — root cause of the
+			// "dancing polygons" symptom per Research_GeometryArtifacts.
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// Engine winding is CW when CULLCW; GLES default front = CCW.
-				glFrontFace((F & CRC_FLAGS_CULLCW) ? GL_CW : GL_CCW);
-				glCullFace(GL_BACK);
+				glFrontFace(GL_CCW);
+				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_FRONT : GL_BACK);
 			}
 			else
 			{
@@ -2081,6 +2086,34 @@ public:
 			{
 				FreeScratch(pVerts, nVerts, bMalloced);
 				return;
+			}
+
+			// Under DIRECT_RENDER: skip anything that isn't opaque base
+			// geometry. Kills all effect passes (stencil shadow prep,
+			// additive lights, transparent decals, sprites, particles).
+			// Leaves the textured base pass — that's what "just geometry"
+			// looks like without post-processing.
+			if (getenv("RIDDICK_DIRECT_RENDER") && m_pCurAttrib)
+			{
+				const uint32 F = m_pCurAttrib->m_Flags;
+				const bool bStencil = (F & CRC_FLAGS_STENCIL) != 0;
+				const bool bBlend   = (F & CRC_FLAGS_BLEND)   != 0;
+				bool bAdditive = false;
+				if (bBlend)
+				{
+					const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
+					const uint8  Src = (uint8)(SD & 0xff);
+					const uint8  Dst = (uint8)((SD >> 8) & 0xff);
+					bAdditive =
+						(Dst == CRC_BLEND_ONE) &&
+						(Src == CRC_BLEND_ONE || Src == CRC_BLEND_SRCALPHA ||
+						 Src == CRC_BLEND_SRCCOLOR || Src == CRC_BLEND_SRCALPHASAT);
+				}
+				if (bStencil || bAdditive)
+				{
+					FreeScratch(pVerts, nVerts, bMalloced);
+					return;
+				}
 			}
 
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
