@@ -4338,6 +4338,19 @@ static M_FORCEINLINE CRect2Duint16 ShiftRect(const CRect2Duint16& _Rect, int _Sh
 
 void CXR_EngineImpl::Engine_PostProcess(CXR_VBManager* _pVBM, CRC_Viewport& _3DVP, const CXR_Engine_PostProcessParams *M_RESTRICT _pParams)
 {
+	// RIDDICK_DIRECT_RENDER=1: skip the whole post-process chain (screen
+	// captures, motion blur, exposure histogram, glow, colour correction,
+	// final fullscreen quad). Under direct render the capture textures are
+	// never populated, so these passes just flood the target with
+	// placeholder colour. Raw BSP+light pipeline only.
+	static int sDirectRender = -1;
+	if (sDirectRender < 0)
+	{
+		const char* e = getenv("RIDDICK_DIRECT_RENDER");
+		sDirectRender = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (sDirectRender)
+		return;
 	CXR_VBManager* pVBM = _pVBM;
 	CXR_Engine* pEngine = this;
 

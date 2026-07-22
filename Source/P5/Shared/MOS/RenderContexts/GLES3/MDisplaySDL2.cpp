@@ -217,6 +217,25 @@ static const char* kGLES3_CompFragSrc =
 // member (the class is nested below).
 static void* g_pGLES3RCInst = 0;
 
+// RIDDICK_DIRECT_RENDER=1 -- true direct mode: every engine pass draws
+// straight into the window framebuffer (fb0). The screen FBO is never
+// created and the PresentToWindow composite is skipped, so nothing
+// stands between the geometry and the window. Engine-side the
+// post-process chain (XREngine.cpp) and camera effects (WClientMod.cpp)
+// are gated on the same flag, so the frame is: world+UI geometry ->
+// fb0 -> SDL_GL_SwapWindow. Assumes RIDDICK_ROTATE=0 and
+// RIDDICK_FBOSIZE == RIDDICK_WINSIZE (the defaults).
+static bool GLES3_DirectRender()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DIRECT_RENDER");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
@@ -589,10 +608,13 @@ public:
 
 		// Logical target height for top-left -> bottom-left Y flips
 		// (scissor, clear rects, viewports). This is the FBO height,
-		// not the window height.
+		// not the window height -- except in DIRECT_RENDER, where the
+		// bound target IS the window framebuffer.
 		int ScreenH() const
 		{
-			return m_pDisplayContext ? m_pDisplayContext->m_Height : 0;
+			if (!m_pDisplayContext) return 0;
+			return GLES3_DirectRender() ? m_pDisplayContext->m_WinHeight
+			                            : m_pDisplayContext->m_Height;
 		}
 
 		bool EnsureScreenFBO()
@@ -652,13 +674,21 @@ public:
 			if (m_CompVBO)        { glDeleteBuffers(1,       &m_CompVBO);        m_CompVBO = 0; }
 		}
 
-		// Bind the engine's notion of "the backbuffer": the screen FBO
-		// when available, else the real window backbuffer.
+		// Bind the engine's notion of "the backbuffer": in DIRECT_RENDER
+		// that is the real window framebuffer (fb0); otherwise the
+		// screen FBO when available, else fb0 as fallback.
 		bool m_bRTTActive;
 
 		void BindScreenTarget()
 		{
 			m_bRTTActive = false;
+			if (GLES3_DirectRender())
+			{
+				glBindFramebuffer(GL_FRAMEBUFFER, 0);
+				if (m_pDisplayContext)
+					glViewport(0, 0, m_pDisplayContext->m_WinWidth, m_pDisplayContext->m_WinHeight);
+				return;
+			}
 			if (EnsureScreenFBO())
 			{
 				glBindFramebuffer(GL_FRAMEBUFFER, m_ScreenFBO);
@@ -677,6 +707,9 @@ public:
 		// land in the right place.
 		void PresentToWindow()
 		{
+			// DIRECT_RENDER: geometry went straight to fb0 this frame --
+			// there is no screen FBO to composite, nothing to do.
+			if (GLES3_DirectRender()) return;
 			if (!m_ScreenFBO || !m_pDisplayContext) return;
 			InitGLResources();
 			if (!m_CompShader.IsValid()) return;
@@ -1224,17 +1257,11 @@ public:
 					TargetID ? "FBO" : "backbuffer");
 			}
 			// RIDDICK_DIRECT_RENDER=1: force ALL passes to draw straight
-			// into the screen FBO. Bypasses env-map RTTs, mirror captures,
-			// downsample pyramids, etc. Everything overlaps in one target,
-			// but if the screen finally shows the world, then the RTT
-			// pipeline was the source of "полигоны пляшут / всё пропало".
-			static int sDirectRender = -1;
-			if (sDirectRender < 0)
-			{
-				const char* e = getenv("RIDDICK_DIRECT_RENDER");
-				sDirectRender = (e && *e && *e != '0') ? 1 : 0;
-			}
-			if (sDirectRender)
+			// into the window framebuffer (BindScreenTarget handles the
+			// routing). Bypasses env-map RTTs, mirror captures,
+			// downsample pyramids, etc. Everything overlaps in one
+			// target -- that is the point: raw geometry, no RTT chain.
+			if (GLES3_DirectRender())
 			{
 				BindScreenTarget();
 				return;
@@ -1267,7 +1294,7 @@ public:
 			// no copy needed. Any downstream sample of _TextureID will
 			// get whatever placeholder we had; that's the price for
 			// isolating the pipeline.
-			if (getenv("RIDDICK_DIRECT_RENDER")) return;
+			if (GLES3_DirectRender()) return;
 			SFBOSlot* pSlot = EnsureFBOFor(_TextureID);
 			if (!pSlot) return;
 
@@ -2098,7 +2125,9 @@ public:
 			// the snapshot as a texture; XREngine.cpp:3019, 3092, 3862+).
 			// Under DIRECT_RENDER those slots are never populated → sample
 			// returns placeholder = magenta screen. Skip = show raw world.
-			if (getenv("RIDDICK_DIRECT_RENDER") && m_pCurAttrib)
+			// (Belt-and-braces: the engine-side gates in XREngine.cpp /
+			// WClientMod.cpp already remove the producers of such quads.)
+			if (GLES3_DirectRender() && m_pCurAttrib)
 			{
 				for (int s = 0; s < 4; ++s)
 				{

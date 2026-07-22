@@ -19,6 +19,10 @@
   - `RIDDICK_DBG_RTT=1` — оверлей: все живые RTT-таргеты (FBO из `[GLES3-RTT]`) сеткой квадов в левой четверти экрана; раскладка ячеек печатается в stderr как `[GLES3-RTT-OVL]` (класс `CGLES3RTTOverlay`, GLES3_RTTOverlay.cpp);
   - `RIDDICK_ASSERT_FATAL=1` — вернуть жёсткий останов на M_ASSERT (по умолчанию ассерты log-and-continue, как в retail M_RTM).
   - `RIDDICK_STARTMAP=<имя>` — стартовый мир кампании вместо Pa1_Intro (имя без пути/расширения, напр. `Pa1_Arrival`, `i1_pigsville`); резолв пути делает Command_ChangeMap.
+  - `RIDDICK_DIRECT_RENDER=1` — прямой рендер в окно (fb0): screen FBO не создаётся, `PresentToWindow` — no-op, все SetRenderTarget биндят fb0, CopyToTexture — no-op; на движке гейтятся `Engine_PostProcess` (XREngine.cpp) и CamFX-модель (WClientMod.cpp). Кадр = чистая геометрия + BSP-лайтпайплайн. Предполагает ROTATE=0 и FBOSIZE==WINSIZE (дефолт). Меню при этом частично деградирует (его blur-капчи пустые). Хелпер `GLES3_DirectRender()` (MDisplaySDL2.cpp) — единая точка чтения флага в бэкенде.
+  - `RIDDICK_ONLY_BSP=1` — позитивный фильтр в DrawIndexed: пропускать только крупные дрои (nVerts>=100, BSP-кластеры), всё мелкое (UI/партиклы) скипается.
+  - `RIDDICK_SKIP_SKINNED=1` — скип скиннед-геометрии в обоих путях фетча вершин.
+  - Движковые XR-флаги (registry/env, движок, не порт): `XR_WORLDONLY=1` (только world-модели: скип персонажей/пропсов/партиклов/CamFX, XREngine.cpp:1378), `XR_FLARES=0` (XREngine.cpp:1352), `XR_STENCILSHADOWS` (XREngine.cpp:1367; учтите: BSP2-тени живут в своём пути и без них свет течёт сквозь стены).
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.
 
 ## Реверс-ресурсы (декомпиляции Ghidra, корень репо)
@@ -125,6 +129,8 @@
   `PresentToWindow` (из PageFlip) композитит в окно с поворотом
   0/90/180/270 (`-rotate/-winsize/-fbosize`, общий стейт g_RiddickPresent,
   поворот дельт мыши в MInput_SDL2). Раздельные UI/3D FBO — не сделаны.
+  Альтернатива: `RIDDICK_DIRECT_RENDER=1` — рендер напрямую в fb0 окна,
+  FBO/композит/постпроцесс полностью обходятся (см. env-список выше).
 - Один GLSL-шейдер (pos+uv0+uv1+color): текстура канала 0 + модуляция
   каналом 1 (лайтмапы), альфа-тест, туман, uTexMat; separate stencil есть.
   Шейдер-генератора по attrib-комбинациям НЕТ (M4 не сделан).

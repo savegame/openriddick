@@ -446,6 +446,16 @@ void CWClient_Mod::SetInventoryWindow(const CStr& _ID)
 	}
 }
 
+	// RIDDICK_DIRECT_RENDER=1: skip camera-effect models (darkness
+	// vision, radial blur, otherworld, retina dots). They draw
+	// fullscreen quads sampling capture textures that direct render
+	// never populates.
+	static int sDirectRender = -1;
+	if (sDirectRender < 0)
+	{
+		const char* e = getenv("RIDDICK_DIRECT_RENDER");
+		sDirectRender = (e && *e && *e != '0') ? 1 : 0;
+	}
 void CWClient_Mod::EngineClient_EnumerateView(CXR_Engine* _pEngine, int _iVC, int _EnumViewType)
 {
 	CWorld_ClientCore::EngineClient_EnumerateView(_pEngine, _iVC, _EnumViewType);
@@ -539,7 +549,8 @@ void CWClient_Mod::EngineClient_EnumerateView(CXR_Engine* _pEngine, int _iVC, in
 			Anim.m_Data[2] = Data2;
 			Anim.m_Anim0 = CamFXMode;				// Flags for diffrent darkness vision modes
 			
-			_pEngine->Render_AddModel(&m_CamFX_Model, Pos, Anim, XR_MODEL_STANDARD);
+			if (!sDirectRender)
+				_pEngine->Render_AddModel(&m_CamFX_Model, Pos, Anim, XR_MODEL_STANDARD);
 		}
 		else if (_EnumViewType == CXR_ENGINE_EMUMVIEWTYPE_VIEWCLIP)
 		{
@@ -549,7 +560,8 @@ void CWClient_Mod::EngineClient_EnumerateView(CXR_Engine* _pEngine, int _iVC, in
 			Anim.m_Anim0 = 0;
 
 			m_CamFX_Model.PrepareSimple();
-			_pEngine->Render_AddModel(&m_CamFX_Model, Pos, Anim, XR_MODEL_STANDARD);
+			if (!sDirectRender)
+				_pEngine->Render_AddModel(&m_CamFX_Model, Pos, Anim, XR_MODEL_STANDARD);
 		}
 	}
 }
