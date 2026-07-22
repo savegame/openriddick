@@ -57,11 +57,10 @@
   MVP. Bisect диагностика: pipeline vs data.
 
 - **DBG** `RIDDICK_MIRROR_X=1` (`kGLES3_UIVertSrc`, `SetupCommonUniforms`) —
-  негативирует `gl_Position.x` в vertex shader (диагностика L/R). После
-  подтверждения (мир исправился, UI поломался) заменено на постоянный
-  фикс в Viewport_Update: негативирую X-column только для perspective
-  проекций (где engine дал `m[0][0] < 0`). UI (ortho) не трогается.
-  MIRROR_X оставлен как DBG-fallback, по умолчанию 1.0 (no-op).
+  негативирует `gl_Position.x` в vertex shader. Диагностика L/R инверсии
+  сцены. Если экран становится корректным — engine кормит X-flipped
+  projection которую мы не компенсируем; permanent fix в Viewport_Update
+  или composite pass. → удалить после нахождения корня.
 
 ### Skip-фильтры (для изоляции проблем)
 
@@ -127,15 +126,6 @@
 - **KEEP** `gl_Position.z = 2.0 * gl_Position.z - gl_Position.w`
   (`kGLES3_UIVertSrc`, `~57`) — компенсация engine [0..1] NDC.z vs
   GL [-1..+1]. **Оставить** — правильный фикс.
-
-### X-column negate для perspective (`Viewport_Update`)
-
-- **KEEP** `if (ProjMat.k[0][0] < 0) ProjMat.k[*][0] *= -1` —
-  engine's PERSPECTIVE projection имеет `m[0][0] < 0` (LH-view convention
-  или PS3-GCM-compat). Без компенсации мир зеркалится по X. UI-ortho
-  имеет `m[0][0] > 0`, не затрагивается. Точечный фикс, только для
-  perspective. Оставить, но проверить не осталось ли скрытой причины
-  в retail RndrGL.
 
 ### Winding fix (final, повторно проверен пользователем)
 

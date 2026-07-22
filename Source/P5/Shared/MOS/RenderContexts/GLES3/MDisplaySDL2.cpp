@@ -1650,20 +1650,6 @@ public:
 				ProjMat.k[0][1] *= ys; ProjMat.k[1][1] *= ys;
 				ProjMat.k[2][1] *= ys; ProjMat.k[3][1] *= ys;
 			}
-			// Engine's PERSPECTIVE projection has m[0][0] < 0 (LH-view
-			// convention or PS3-GCM-compat). Retail GL either compensates
-			// somewhere we haven't found or matches this quirk via
-			// something behind-the-scenes; in our port world came out
-			// mirrored on X. UI (orthographic) has m[0][0] > 0 already,
-			// don't touch. Negating the entire X-column keeps math
-			// consistent for translation components too.
-			if (ProjMat.k[0][0] < 0.0f)
-			{
-				ProjMat.k[0][0] = -ProjMat.k[0][0];
-				ProjMat.k[1][0] = -ProjMat.k[1][0];
-				ProjMat.k[2][0] = -ProjMat.k[2][0];
-				ProjMat.k[3][0] = -ProjMat.k[3][0];
-			}
 			m_ProjMat = ProjMat;
 
 			if (m_pDisplayContext && W > 0 && H > 0)
