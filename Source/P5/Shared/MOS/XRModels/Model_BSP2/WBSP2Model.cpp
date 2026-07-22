@@ -1967,6 +1967,20 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 
 	int bDeferredShading = pShader->m_ShaderModeTraits & XR_SHADERMODETRAIT_DEFERRED;
 
+	// GLES3 bring-up: no shading pipeline available (m_ShaderMode == -1).
+	// Route all shading-queue surfaces through the textured ZAlpha path below,
+	// so the world is drawn with diffuse textures (unlit) instead of plain ambience.
+	const int bNoShaderPipeline = ((int)pShader->m_ShaderMode < 0);
+	if (bNoShaderPipeline)
+	{
+		static bool s_bLoggedNoShaderPipeline = false;
+		if (!s_bLoggedNoShaderPipeline)
+		{
+			s_bLoggedNoShaderPipeline = true;
+			ConOut(CStrF("[BSP2] NoShaderPipeline fallback ACTIVE (m_ShaderMode=0x%x) - diffuse textures in Z-prepass", (uint)pShader->m_ShaderMode));
+		}
+	}
+
 
 	CXR_VBIDChain* pVBIDChainZbuffer = NULL;
 	CXR_VBIDChain* pVBIDChainFog = NULL;
@@ -2265,7 +2279,7 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 				// Z-prepass and fog
 				{
 					// Render vertex-buffer chain into z-buffer, no color/alpha write
-					if (pSSP->m_Flags & XR_SHADERFLAGS_USEZEQUAL)
+					if ((pSSP->m_Flags & XR_SHADERFLAGS_USEZEQUAL) || bNoShaderPipeline)
 					{
 						liZAlphaQueue[nZAlphaQueue++] = iQueue;
 					}
@@ -2309,7 +2323,7 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 
 					CXR_VertexBuffer*M_RESTRICT pVB = pZAlphaVBs+iInner;
 					pVBChain->SetToVB(pVB);
-					pVB->Geometry_Color(Ambience);
+					pVB->Geometry_Color(bNoShaderPipeline ? 0xffffffff : Ambience);
 
 			//		CXW_SurfaceLayer* pLayers = pSurf->GetBaseFrame()->m_lTextures.GetBasePtr();
 					CRC_Attributes*M_RESTRICT pA = pZAlphaAttr + iInner;
