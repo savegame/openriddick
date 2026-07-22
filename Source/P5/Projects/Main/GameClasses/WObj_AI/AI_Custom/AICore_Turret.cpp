@@ -247,7 +247,17 @@ void CAI_Core_Turret::OnRefresh(bool _bPassive)
 		};
 
 		bool bIsBraindead = false;
-		CWO_Character_ClientData* pCD = CWObject_Character::GetClientData(m_pGameObject);
+		// EFBB content lacks the rail-turret templates, so the wagon
+		// object can carry a non-character client object in slot 0;
+		// CWObject_Character::GetClientData safe_cast throws on it
+		// (SIGILL on the sim thread). Cast manually, tolerate NULL.
+		CWO_Character_ClientData* pCD = TDynamicCast<CWO_Character_ClientData>((CReferenceCount*) m_pGameObject->m_lspClientObj[PLAYER_CLIENTOBJ_CLIENTDATA]);
+		static bool s_bLoggedBadCD = false;
+		if (!pCD && !s_bLoggedBadCD)
+		{
+			s_bLoggedBadCD = true;
+			ConOut("(CAI_Core_Turret::OnRefresh) non-character client data - turret AI degraded");
+		}
 		if ((pCD)&&(pCD->m_AnimGraph2.GetPropertyBool(PROPERTY_BOOL_ISSLEEPING))||(!m_pGameObject->AI_IsAlive()))
 		{
 			bIsBraindead = true;
