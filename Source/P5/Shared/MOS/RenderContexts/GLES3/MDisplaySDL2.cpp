@@ -44,6 +44,7 @@ static const char* kGLES3_UIVertSrc =
 	"layout(location=4) in vec3 aNormal;\n"
 	"uniform mat4 uMVP;\n"
 	"uniform mat4 uModel;\n"
+	"uniform float uMirrorX;\n"
 	"uniform mat4 uTexMat;\n"
 	"uniform mat4 uTexMat1;\n"
 	"out vec2 vUV;\n"
@@ -61,6 +62,12 @@ static const char* kGLES3_UIVertSrc =
 	// on any surfaces at similar distance. UI/2D uses the same shader
 	// but has z ≈ w so remap keeps it near far clip — no regression.
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	// Diagnostic: RIDDICK_MIRROR_X sends -1 as uMirrorX to flip clip.x.
+	// User reports LEFT/RIGHT inverted vs original (OBJ dump correct).
+	// If this env fixes it, the engine emits an X-flipped projection
+	// that our winding/composite doesn't compensate; permanent fix will
+	// be in Viewport_Update or the composite pass.
+	"  gl_Position.x *= uMirrorX;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
@@ -770,6 +777,7 @@ public:
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_UModelLoc = -1;
+		int m_UMirrorXLoc = -1;
 		int m_ULightingModeLoc = -1, m_UAmbientLoc = -1, m_UNumLightsLoc = -1;
 		int m_ULightPosLoc = -1, m_ULightColorLoc = -1;
 		// Latest light state from Attrib_Lights (engine holds the array,
@@ -1015,6 +1023,7 @@ public:
 				m_UFogStartLoc  = m_UIShader.UniformLocation("uFogStart");
 				m_UFogEndLoc    = m_UIShader.UniformLocation("uFogEnd");
 				m_UModelLoc     = m_UIShader.UniformLocation("uModel");
+				m_UMirrorXLoc   = m_UIShader.UniformLocation("uMirrorX");
 				m_ULightingModeLoc = m_UIShader.UniformLocation("uLightingMode");
 				m_UAmbientLoc      = m_UIShader.UniformLocation("uAmbient");
 				m_UNumLightsLoc    = m_UIShader.UniformLocation("uNumLights");
@@ -1885,6 +1894,15 @@ public:
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
 			m_UIShader.SetMat4(m_UModelLoc, (const float*)&m_ModelMat);
+			{
+				static int sMirrorX = -1;
+				if (sMirrorX < 0)
+				{
+					const char* e = getenv("RIDDICK_MIRROR_X");
+					sMirrorX = (e && *e && *e != '0') ? 1 : 0;
+				}
+				m_UIShader.SetFloat(m_UMirrorXLoc, sMirrorX ? -1.0f : 1.0f);
+			}
 			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
 			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
 			PushLightUniforms(_bAllowFog);

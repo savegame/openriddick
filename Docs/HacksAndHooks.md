@@ -56,6 +56,12 @@
   рисует RGB-тестовый треугольник. Mode 1 = identity MVP, mode 2 = engine
   MVP. Bisect диагностика: pipeline vs data.
 
+- **DBG** `RIDDICK_MIRROR_X=1` (`kGLES3_UIVertSrc`, `SetupCommonUniforms`) —
+  негативирует `gl_Position.x` в vertex shader. Диагностика L/R инверсии
+  сцены. Если экран становится корректным — engine кормит X-flipped
+  projection которую мы не компенсируем; permanent fix в Viewport_Update
+  или composite pass. → удалить после нахождения корня.
+
 ### Skip-фильтры (для изоляции проблем)
 
 - **HACK** `RIDDICK_SKIP_SKINNED=1` (`BuildVertsFromVBB`, `BuildInterleavedVerts`)
