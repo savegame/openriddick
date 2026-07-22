@@ -1220,6 +1220,22 @@ public:
 					(unsigned)_RenderTarget.m_lColorTextureID[3],
 					TargetID ? "FBO" : "backbuffer");
 			}
+			// RIDDICK_DIRECT_RENDER=1: force ALL passes to draw straight
+			// into the screen FBO. Bypasses env-map RTTs, mirror captures,
+			// downsample pyramids, etc. Everything overlaps in one target,
+			// but if the screen finally shows the world, then the RTT
+			// pipeline was the source of "полигоны пляшут / всё пропало".
+			static int sDirectRender = -1;
+			if (sDirectRender < 0)
+			{
+				const char* e = getenv("RIDDICK_DIRECT_RENDER");
+				sDirectRender = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sDirectRender)
+			{
+				BindScreenTarget();
+				return;
+			}
 			if (TargetID > 0)
 			{
 				SFBOSlot* pSlot = EnsureFBOFor(TargetID);
@@ -1244,6 +1260,11 @@ public:
 		void RenderTarget_CopyToTexture(int _TextureID, CRct _SrcRect, CPnt _Dest, bint _bContinueTiling, uint16 _Slice, int _iMRT)
 		{
 			if (_TextureID <= 0) return;
+			// Under DIRECT_RENDER the whole RTT plumbing is bypassed —
+			// no copy needed. Any downstream sample of _TextureID will
+			// get whatever placeholder we had; that's the price for
+			// isolating the pipeline.
+			if (getenv("RIDDICK_DIRECT_RENDER")) return;
 			SFBOSlot* pSlot = EnsureFBOFor(_TextureID);
 			if (!pSlot) return;
 
@@ -2056,7 +2077,7 @@ public:
 				const char* e = getenv("RIDDICK_ONLY_BSP");
 				sOnlyBSP = (e && *e && *e != '0') ? 1 : 0;
 			}
-			if (sOnlyBSP && nVerts < 500)
+			if (sOnlyBSP && nVerts < 100)
 			{
 				FreeScratch(pVerts, nVerts, bMalloced);
 				return;
@@ -2340,7 +2361,7 @@ public:
 			if (!m_bGLInited) InitGLResources();
 			if (!m_UIShader.IsValid()) return;
 			// ONLY_BSP filter (same threshold as DrawIndexed).
-			if (getenv("RIDDICK_ONLY_BSP") && _nVerts < 500) return;
+			if (getenv("RIDDICK_ONLY_BSP") && _nVerts < 100) return;
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 
