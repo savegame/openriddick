@@ -2050,11 +2050,25 @@ public:
 				if (bAdditive) return;
 			}
 
-			// RIDDICK_SKIP_STENCIL=1: drop draws with CRC_FLAGS_STENCIL.
-			// These are stencil ops (shadow volumes, silhouettes). Should
-			// write only stencil (colormask=0), but if flags mismatch or
-			// our colormask handling has a gap they'd leak visible extruded
-			// geometry — the classic "polygons dancing on the sides" pattern.
+			// RIDDICK_SKIP_SHADOWVOL=1: drop draws that look like stencil
+			// shadow volumes — STENCIL enabled AND COLORWRITE disabled
+			// (they write only stencil, per WBSP2Light.cpp:1938). Regular
+			// world geometry uses STENCIL+COLORWRITE together (shadow-
+			// masked shading), those we keep.
+			static int sSkipSV = -1;
+			if (sSkipSV < 0)
+			{
+				const char* e = getenv("RIDDICK_SKIP_SHADOWVOL");
+				sSkipSV = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sSkipSV && m_pCurAttrib)
+			{
+				const uint32 F = m_pCurAttrib->m_Flags;
+				if ((F & CRC_FLAGS_STENCIL) && !(F & CRC_FLAGS_COLORWRITE))
+					return;
+			}
+			// RIDDICK_SKIP_STENCIL=1: aggressive — drop ANY stencil draw.
+			// Kills shadow-mask world too, only for isolation testing.
 			static int sSkipStencil = -1;
 			if (sSkipStencil < 0)
 			{
