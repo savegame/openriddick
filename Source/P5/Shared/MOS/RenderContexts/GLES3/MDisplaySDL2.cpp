@@ -1596,17 +1596,13 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// XREngine.cpp negates W2V.X on Linux to fix the LH/RH
-				// camera mismatch, which flips winding once: model-space
-				// CCW becomes CW in view space. Combined effect with the
-				// retail PS3 GCM CULLCW mapping produced inverted culling
-				// (interior faces visible, exterior culled). Simplest
-				// stable answer: keep default GL_CCW frontFace and invert
-				// the CULLCW → GL_CULL_FACE mapping vs retail. The single
-				// coordinate flip on the CPU side is fully compensated
-				// here.
+				// XREngine.cpp negates W2V.X on Linux. PS3 GCM's
+				// "front-face" convention was already inverted vs GL's
+				// default, so our X-flip cancels that -- the retail cull
+				// mapping (CULLCW=1 -> BACK, else FRONT) works UNCHANGED
+				// with default GL_CCW frontFace.
 				glFrontFace(GL_CCW);
-				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_FRONT : GL_BACK);
+				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
 			}
 			else
 			{
