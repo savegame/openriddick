@@ -45,7 +45,6 @@ static const char* kGLES3_UIVertSrc =
 	"layout(location=4) in vec3 aNormal;\n"
 	"uniform mat4 uMVP;\n"
 	"uniform mat4 uModel;\n"
-	"uniform float uMirrorX;\n"
 	"uniform mat4 uTexMat;\n"
 	"uniform mat4 uTexMat1;\n"
 	"out vec2 vUV;\n"
@@ -67,13 +66,6 @@ static const char* kGLES3_UIVertSrc =
 	// on any surfaces at similar distance. UI/2D uses the same shader
 	// but has z ≈ w so remap keeps it near far clip — no regression.
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
-	// X-mirror diagnostic: uMirrorX flips clip.x. RIDDICK_MIRROR_X=1
-	// flips everything (UI included); =2 flips only draws whose model
-	// matrix is not a 2D pixel matrix (see MirrorXThisDraw) -> world
-	// corrected, UI untouched. Winding needs NO compensation: the flip
-	// restores the data-correct winding (mirror and inverted winding
-	// share one root cause).
-	"  gl_Position.x *= uMirrorX;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
 	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
@@ -839,7 +831,6 @@ public:
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_UModelLoc = -1;
-		int m_UMirrorXLoc = -1;
 		int m_ULightingModeLoc = -1, m_UAmbientLoc = -1, m_UNumLightsLoc = -1;
 		int m_ULightPosLoc = -1, m_ULightColorLoc = -1;
 		// Latest light state from Attrib_Lights (engine holds the array,
@@ -1102,7 +1093,6 @@ public:
 				m_UFogStartLoc  = m_UIShader.UniformLocation("uFogStart");
 				m_UFogEndLoc    = m_UIShader.UniformLocation("uFogEnd");
 				m_UModelLoc     = m_UIShader.UniformLocation("uModel");
-				m_UMirrorXLoc   = m_UIShader.UniformLocation("uMirrorX");
 				m_ULightingModeLoc = m_UIShader.UniformLocation("uLightingMode");
 				m_UAmbientLoc      = m_UIShader.UniformLocation("uAmbient");
 				m_UNumLightsLoc    = m_UIShader.UniformLocation("uNumLights");
@@ -1504,41 +1494,6 @@ public:
 			}
 		}
 
-		// RIDDICK_MIRROR_X: 0 = off, 1 = flip clip.x on ALL draws (UI
-		// included), 2 = flip only 3D draws. There is no separate ortho
-		// projection for UI in this engine: CRC_Viewport::Update always
-		// builds a perspective matrix (MRender.cpp:441), and 2D content
-		// rides it via CRC_Viewport::Get2DMatrix MODEL matrices (diagonal
-		// 3x3, z row/column untouched, k[2][2]=1). So the projection
-		// matrix cannot discriminate UI from 3D (the reverted 01e6b04
-		// attempt, Proj.k[0][0]<0, was a no-op) -- but the model matrix
-		// can: 3D draws carry the camera view matrix with an arbitrary
-		// rotation, 2D draws don't.
-		static int MirrorXMode()
-		{
-			static int sMode = -1;
-			if (sMode < 0)
-			{
-				const char* e = getenv("RIDDICK_MIRROR_X");
-				sMode = e ? atoi(e) : 2;
-			}
-			return sMode;
-		}
-		static bool Is2DModelMat(const CMat4Dfp32& M)
-		{
-			const fp32 e = 1e-5f;
-			return fabsf(M.k[0][2]) < e && fabsf(M.k[1][2]) < e
-				&& fabsf(M.k[2][0]) < e && fabsf(M.k[2][1]) < e
-				&& fabsf(M.k[2][2] - 1.0f) < 1e-3f;
-		}
-		bool MirrorXThisDraw() const
-		{
-			const int m = MirrorXMode();
-			if (m == 1) return true;
-			if (m == 2) return !Is2DModelMat(m_ModelMat);
-			return false;
-		}
-
 		// Full-set translation of a CRC_Attributes bundle to GL state.
 		// Called by both Attrib_Set (delta) and Attrib_SetAbsolute
 		// (reset). We ignore the delta hint for M1 and re-apply
@@ -1592,23 +1547,11 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// FrontFace: default retail mapping is CCW=front (matches
-				// RndrGL:38438 and PS3 GCM MRenderPS3_Attrib.cpp:288-294).
-				// RIDDICK_FIX_CAMERA=x flips the view-space X column of
-				// W2V (see XREngine.cpp:~1044), which reverses handedness
-				// -> CCW becomes CW in view space. Compensate with
-				// glFrontFace(GL_CW) so cull sees the SAME "front" as
-				// authoring intent. RIDDICK_FIX_CAMERA=xz applies BOTH X
-				// and Z flips -- two negations cancel, back to CCW.
-				static int sFixFront = -1;   // -1 unread, 0 CCW, 1 CW
-				if (sFixFront < 0)
-				{
-					const char* e = getenv("RIDDICK_FIX_CAMERA");
-					sFixFront = 0;
-					if (e && (strcmp(e, "x") == 0 || strcmp(e, "z") == 0))
-						sFixFront = 1;  // single-axis flip -> reverse winding
-				}
-				glFrontFace(sFixFront ? GL_CW : GL_CCW);
+				// FrontFace: retail (PS3 GCM / RndrGL) uses CCW=front.
+				// XREngine.cpp negates W2V.X on Linux to fix the LH/RH
+				// camera mismatch -- that reverses handedness so CCW
+				// becomes CW in view space. Compensate with GL_CW here.
+				glFrontFace(GL_CW);
 				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
 			}
 			else
@@ -1963,7 +1906,17 @@ public:
 			// Engine sets CRC_FLAGS_LIGHTING when a vertex-lit pass is
 			// wanted. Additional heuristic: any pass whose blend is ONE/ONE
 			// (CRC_RASTERMODE_ADD) with lights supplied is a light-add pass.
-			const bool bHaveLights = (m_pRCLights && m_nRCLights > 0);
+			// RIDDICK_NO_LIGHT=1: force lighting off. Diagnoses "level
+			// went black" -- if walls show diffuse under this, our
+			// modulate-lighting is over-zealous (Ambient=0 or lights
+			// aren't propagating so N*L*ambient = 0).
+			static int sNoLight = -1;
+			if (sNoLight < 0)
+			{
+				const char* e = getenv("RIDDICK_NO_LIGHT");
+				sNoLight = (e && *e && *e != '0') ? 1 : 0;
+			}
+			const bool bHaveLights = !sNoLight && (m_pRCLights && m_nRCLights > 0);
 			if (bHaveLights && m_pCurAttrib)
 			{
 				const uint32 F = m_pCurAttrib->m_Flags;
@@ -2035,9 +1988,6 @@ public:
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
 			m_UIShader.SetMat4(m_UModelLoc, (const float*)&m_ModelMat);
-			// Per-draw X-mirror (see MirrorXThisDraw): mode 2 flips only
-			// 3D draws, UI keeps uMirrorX=1.
-			m_UIShader.SetFloat(m_UMirrorXLoc, MirrorXThisDraw() ? -1.0f : 1.0f);
 			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
 			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
 			PushLightUniforms(_bAllowFog);

@@ -1041,57 +1041,29 @@ void CXR_ViewContextImpl::Clear(const CMat4Dfp32& _CameraWMat, const CMat4Dfp32&
 //		m_dCameraWMat.InverseOrthogonal(m_dW2VMat);
 	}
 
-	// GLES3 bring-up direct camera fix. RIDDICK_FIX_CAMERA=<axis>:
-	//   "x" -- negate view-space X-column of W2V (mirror-X in view space).
-	//   "z" -- negate view-space Z-column of W2V (flip forward vector).
-	//   "xz" -- both.
-	// Replaces the shader-side MIRROR_X hack: applied here so downstream
-	// CPU consumers (BSP portal culling, frustum, m_bIsMirrored) see the
-	// SAME camera orientation as the GPU. Rationale: symptoms (mirror +
-	// front-polygons-culled + huge slowdown on empty scenes) all point at
-	// a single handedness/axis mismatch between the engine-authored
-	// _CameraWMat (PS3 LH convention) and what our GL platform layer
-	// implicitly expects (GL RH). This fix normalises W2V once, at the
-	// point where it enters the render pipeline.
+#ifdef PLATFORM_LINUX
+	// GLES3 port camera fix: negate view-space X column of W2V. Applied
+	// once here so downstream CPU consumers (BSP portal culling, frustum,
+	// m_bIsMirrored) AND the GPU render pipeline see the same corrected
+	// camera orientation. Without this the world renders X-mirrored AND
+	// front-of-camera geometry is culled as if behind (single handedness
+	// mismatch between engine-authored _CameraWMat and GL RH expectation).
+	// The winding compensation lives in the GLES3 backend
+	// (glFrontFace(GL_CW), see MDisplaySDL2.cpp) because negating X
+	// reverses det -> CCW becomes CW in view space.
 	{
-		static int sMode = -1;   // -1 unread, 0 off, 1 x, 2 z, 3 xz
-		if (sMode < 0)
-		{
-			const char* e = getenv("RIDDICK_FIX_CAMERA");
-			sMode = 0;
-			if (e)
-			{
-				if      (strcmp(e, "x")  == 0) sMode = 1;
-				else if (strcmp(e, "z")  == 0) sMode = 2;
-				else if (strcmp(e, "xz") == 0) sMode = 3;
-			}
-		}
-		if (sMode)
-		{
-			// W2V is row-major: rows 0..2 = basis vectors in world space,
-			// row 3 = translation. Negating a column negates that view-
-			// space axis. Column c is k[0..2][c] (row 3 = translation, keep).
-			fp32* K = (fp32*)&m_W2VMat;
-			auto negCol = [&](int c) {
-				K[0*4 + c] = -K[0*4 + c];
-				K[1*4 + c] = -K[1*4 + c];
-				K[2*4 + c] = -K[2*4 + c];
-				K[3*4 + c] = -K[3*4 + c];
-			};
-			if (sMode & 1) negCol(0);   // flip view X
-			if (sMode & 2) negCol(2);   // flip view Z
-			// dW2V should stay coherent -- same treatment.
-			fp32* Kd = (fp32*)&m_dW2VMat;
-			auto negColD = [&](int c) {
-				Kd[0*4 + c] = -Kd[0*4 + c];
-				Kd[1*4 + c] = -Kd[1*4 + c];
-				Kd[2*4 + c] = -Kd[2*4 + c];
-				Kd[3*4 + c] = -Kd[3*4 + c];
-			};
-			if (sMode & 1) negColD(0);
-			if (sMode & 2) negColD(2);
-		}
+		fp32* K = (fp32*)&m_W2VMat;
+		K[0*4 + 0] = -K[0*4 + 0];
+		K[1*4 + 0] = -K[1*4 + 0];
+		K[2*4 + 0] = -K[2*4 + 0];
+		K[3*4 + 0] = -K[3*4 + 0];
+		fp32* Kd = (fp32*)&m_dW2VMat;
+		Kd[0*4 + 0] = -Kd[0*4 + 0];
+		Kd[1*4 + 0] = -Kd[1*4 + 0];
+		Kd[2*4 + 0] = -Kd[2*4 + 0];
+		Kd[3*4 + 0] = -Kd[3*4 + 0];
 	}
+#endif
 
 	m_bIsMirrored = MACRO_ISMIRRORED(m_W2VMat);
 

@@ -50,13 +50,18 @@
   - `tex_lod0` — то же, но `textureLod(uTex, vUV, 0.0)` — обходит mipmap chain
     (если высокие LOD пусты, а base OK, tex_only даст серый, tex_lod0 — детали).
 
-- **HACK** `RIDDICK_FIX_CAMERA=x|z|xz` (`XREngine.cpp:~1044`, `CXR_ViewContextImpl::Clear`)
-  — сразу после `InverseOrthogonal(m_W2VMat)` инвертирует X/Z‑колонку в
-  view‑space. Правит и **CPU‑culling** (BSP portal, frustum, m_bIsMirrored),
-  и **GPU render** одной точкой. Замена shader‑side `MIRROR_X=2`.
-  Гипотеза: движковая LH‑конвенция камеры vs наш RH GL‑layer. Если под этим
-  мир НЕ зеркальный + polygons в front НЕ пропадают + перф вернулся → нашли
-  корневой слой, надо будет сделать это условно по PLATFORM_LINUX (без env).
+- **KEEP** (hardcoded, `#ifdef PLATFORM_LINUX`, `XREngine.cpp:~1044`,
+  `CXR_ViewContextImpl::Clear`) — сразу после `InverseOrthogonal(m_W2VMat)`
+  негируется view‑space X‑колонка (и та же операция для `m_dW2VMat`). Правит
+  и **CPU‑culling** (BSP portal, frustum, m_bIsMirrored), и **GPU render**
+  одной точкой. Заменяет старый shader‑side `MIRROR_X`. Компенсация winding —
+  `glFrontFace(GL_CW)` в GLES3 backend. Root cause: LH‑конвенция
+  _CameraWMat (PS3) vs RH GL. Проверено 2026-07-24 — движение камеры,
+  ориентация модели и culling сходятся.
+
+- **DBG** `RIDDICK_NO_LIGHT=1` (`PushLightUniforms`) — форсит `uLightingMode=0`
+  для всех draws. Диагностика «уровень чёрный»: если под этим видим
+  диффуз — наша modulate-lighting перебарщивает (ambient=0 → `c *= vec3(0)`).
 
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.
@@ -107,16 +112,8 @@
   рисует RGB-тестовый треугольник. Mode 1 = identity MVP, mode 2 = engine
   MVP. Bisect диагностика: pipeline vs data.
 
-- **DBG** `RIDDICK_MIRROR_X=0|1|2` (`MirrorXThisDraw`, `ApplyAttribs`,
-  `SetupCommonUniforms`) — негативирует `gl_Position.x` в vertex shader.
-  Диагностика L/R инверсии сцены. 1 = флип всего (включая UI), 2 = флип
-  только 3D-дроев: дискриминатор — структура МОДЕЛЬНОЙ матрицы (UI едет
-  через Get2DMatrix → диагональная 3×3, `k[2][2]=1`; 3D несёт camera-view
-  с произвольным вращением). Отдельной ortho-проекции для UI в движке НЕТ
-  (`CRC_Viewport::Update` всегда строит perspective, MRender.cpp:441),
-  поэтому дискриминация по m_ProjMat невозможна (откаченный 01e6b04,
-  `Proj.k[0][0]<0`, был no-op). Winding компенсируется в ApplyAttribs
-  (`glFrontFace(GL_CW)` для флипнутых). → удалить после нахождения корня.
+- ~~**DBG** `RIDDICK_MIRROR_X`~~ — удалён 2026-07-24, заменён на unconditional
+  W2V.X negate под `PLATFORM_LINUX` (см. запись выше).
 
 ### Skip-фильтры (для изоляции проблем)
 
