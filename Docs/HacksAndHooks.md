@@ -20,6 +20,15 @@
   счётчики draws/verts/upload'ов раз в 60 кадров. Полезно для профайла.
   → удалять когда рендер стабилен.
 
+- **HACK** BSP2 fallback (`WBSP2Model.cpp:~2340`): если
+  `pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]` пуст, скан по остальным
+  слотам (NORMAL/SPECULAR/HEIGHT/...) — берём первый ненулевой в Tex0.
+  Без этого стены арривала/пита выходят magenta (DIFFUSE не заполнен для
+  многих surface'ов в BSP2, движок ждёт shader-pipeline который у нас нет).
+  **DBG** `RIDDICK_DBG_SURF=1` — разовый лог `[BSP2-SSP] slots=[...] chose ...`
+  для каждого уникального `CXR_SurfaceShaderParams` (cap 64). Убрать когда
+  запилим полноценный shader-generator.
+
 - **DBG** `RIDDICK_FORCE_TEX=1` (`SetupCommonUniforms`) — насильно биндит
   яркий magenta/cyan checkerboard 32x32 на unit 0 для каждого draw'а,
   отключает ch1/lighting/alpha-test/dbg-mode. Проверяет, доезжают ли

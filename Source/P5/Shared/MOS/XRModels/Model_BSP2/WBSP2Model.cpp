@@ -2329,7 +2329,38 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 					CRC_Attributes*M_RESTRICT pA = pZAlphaAttr + iInner;
 			//		pA->Attrib_TextureID(0, pLayers->m_TextureID);
 			//		pA->Attrib_AlphaCompare(pLayers->m_AlphaFunc, pLayers->m_AlphaRef);
-					pA->Attrib_TextureID(0, pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]);
+					// bNoShaderPipeline fallback: DIFFUSE slot 0 empty for
+					// many BSP2 surfaces (arrival walls only fill NORMAL/
+					// SPECULAR/HEIGHT etc). Scan all slots for the first
+					// non-zero texture ID so *something* diffuses the wall
+					// instead of leaving it untextured. One-shot log per
+					// distinct SSP to spot which slot became the fallback.
+					uint16 TexID = pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE];
+					int TexSlot = XR_SHADERMAP_DIFFUSE;
+					if (!TexID)
+					{
+						for (int s = 1; s < XR_SHADERMAP_MAXMAPS; ++s)
+							if (pSSP->m_lTextureIDs[s]) { TexID = pSSP->m_lTextureIDs[s]; TexSlot = s; break; }
+					}
+					if (getenv("RIDDICK_DBG_SURF"))
+					{
+						static const void* s_lastSSP[64] = {0};
+						static int s_nSSP = 0;
+						bool bSeen = false;
+						for (int k = 0; k < s_nSSP; ++k) if (s_lastSSP[k] == pSSP) { bSeen = true; break; }
+						if (!bSeen && s_nSSP < 64)
+						{
+							s_lastSSP[s_nSSP++] = pSSP;
+							fprintf(stderr, "[BSP2-SSP] slots=[%u %u %u %u %u %u %u %u %u]  chose slot=%d id=%u\n",
+								(unsigned)pSSP->m_lTextureIDs[0], (unsigned)pSSP->m_lTextureIDs[1],
+								(unsigned)pSSP->m_lTextureIDs[2], (unsigned)pSSP->m_lTextureIDs[3],
+								(unsigned)pSSP->m_lTextureIDs[4], (unsigned)pSSP->m_lTextureIDs[5],
+								(unsigned)pSSP->m_lTextureIDs[6], (unsigned)pSSP->m_lTextureIDs[7],
+								(unsigned)pSSP->m_lTextureIDs[8], TexSlot, (unsigned)TexID);
+							fflush(stderr);
+						}
+					}
+					pA->Attrib_TextureID(0, TexID);
 					pA->Attrib_AlphaCompare(pSSP->m_AlphaFunc, pSSP->m_AlphaRef);
 					// bNoShaderPipeline fallback: pZAttr is Z-prepass base with
 					// COLORWRITE disabled (m_RenderZBuffer, :300). Without the
