@@ -862,6 +862,54 @@ public:
 		int  m_DbgDumpActive;    // 1 during the target frame
 		int  m_DbgDumpDrawIdx;
 		FILE* m_DbgDumpFp;
+		// VBID → count histogram, populated in DbgDumpDraw during a dump.
+		// Cleared per dump. Summary printed at end-of-dump; hot VBIDs
+		// (count > 1) = same mesh drawn multiple times in one frame.
+		TArray<unsigned> m_DbgDumpVBIDList;
+		TArray<int>      m_DbgDumpVBIDCount;
+		void DbgVBIDBumpCount(unsigned _VBID)
+		{
+			for (int i = 0; i < m_DbgDumpVBIDList.Len(); ++i)
+			{
+				if (m_DbgDumpVBIDList[i] == _VBID) { ++m_DbgDumpVBIDCount[i]; return; }
+			}
+			m_DbgDumpVBIDList.Add(_VBID);
+			m_DbgDumpVBIDCount.Add(1);
+		}
+		void DbgDumpVBIDSummary()
+		{
+			if (!m_DbgDumpFp) return;
+			int uniq = m_DbgDumpVBIDList.Len();
+			int dup = 0, total = 0, maxN = 0;
+			unsigned maxVBID = 0;
+			for (int i = 0; i < uniq; ++i)
+			{
+				total += m_DbgDumpVBIDCount[i];
+				if (m_DbgDumpVBIDCount[i] > 1) ++dup;
+				if (m_DbgDumpVBIDCount[i] > maxN) { maxN = m_DbgDumpVBIDCount[i]; maxVBID = m_DbgDumpVBIDList[i]; }
+			}
+			fprintf(m_DbgDumpFp, "-- VBID summary: %d unique / %d total, %d drawn >1x, worst=VBID %u x%d --\n",
+				uniq, total, dup, maxVBID, maxN);
+			// List all VBIDs drawn more than once, sorted by count desc.
+			// Simple selection-sort (list is short).
+			TArray<int> lIdx; lIdx.SetLen(uniq);
+			for (int i = 0; i < uniq; ++i) lIdx[i] = i;
+			for (int i = 0; i < uniq - 1; ++i)
+			{
+				int best = i;
+				for (int j = i + 1; j < uniq; ++j)
+					if (m_DbgDumpVBIDCount[lIdx[j]] > m_DbgDumpVBIDCount[lIdx[best]]) best = j;
+				if (best != i) { int t = lIdx[i]; lIdx[i] = lIdx[best]; lIdx[best] = t; }
+			}
+			for (int k = 0; k < uniq; ++k)
+			{
+				int i = lIdx[k];
+				if (m_DbgDumpVBIDCount[i] <= 1) break;
+				fprintf(m_DbgDumpFp, "  VBID %u x%d\n", m_DbgDumpVBIDList[i], m_DbgDumpVBIDCount[i]);
+			}
+			m_DbgDumpVBIDList.SetLen(0);
+			m_DbgDumpVBIDCount.SetLen(0);
+		}
 
 		// Diagnostic per-frame counters. Enable with RIDDICK_DBG_GL=1;
 		// prints one line every DBG_INTERVAL frames.
@@ -978,6 +1026,7 @@ public:
 				{
 					fprintf(m_DbgDumpFp, "-- end frame %d, %d drawcalls --\n",
 						m_DbgTotalFrames - 1, m_DbgDumpDrawIdx);
+					DbgDumpVBIDSummary();
 					fclose(m_DbgDumpFp);
 					m_DbgDumpFp = 0;
 				}
@@ -2442,18 +2491,25 @@ public:
 				BlendSrc = SD & 0xff; BlendDst = (SD >> 8) & 0xff;
 			}
 			fprintf(m_DbgDumpFp,
-				"[#%d] %s prim=0x%04x nV=%d nI=%d "
-				"flags=0x%08x ZTest=%d ZWrite=%d Cull=%d Blend=%d(%d/%d) "
+				"[#%d] %s prim=0x%04x nV=%d nI=%d VBID=%u "
+				"flags=0x%08x ZTest=%d ZWrite=%d ColW=%d Cull=%s Blend=%d(%d/%d) "
 				"Stencil=%d AlphaCmp=%d FBO=%d RTT=%d\n",
 				m_DbgDumpDrawIdx, _Tag, (unsigned)_GLPrim, _nVerts, _nInd,
+				(unsigned)m_GeomVBID,
 				F,
 				(F & CRC_FLAGS_ZCOMPARE) ? 1 : 0,
 				(F & CRC_FLAGS_ZWRITE)   ? 1 : 0,
-				(F & CRC_FLAGS_CULL)     ? 1 : 0,
+				(F & CRC_FLAGS_COLORWRITE) ? 1 : 0,
+				(F & CRC_FLAGS_CULL) ? ((F & CRC_FLAGS_CULLCW) ? "CW" : "CCW") : "off",
 				(F & CRC_FLAGS_BLEND)    ? 1 : 0, BlendSrc, BlendDst,
 				(F & CRC_FLAGS_STENCIL)  ? 1 : 0,
 				m_pCurAttrib ? (int)m_pCurAttrib->m_AlphaCompare : -1,
 				(int)CurFBO, m_bRTTActive ? 1 : 0);
+			// VBID histogram for end-of-frame summary.
+			if ((unsigned)m_GeomVBID > 0)
+			{
+				DbgVBIDBumpCount((unsigned)m_GeomVBID);
+			}
 			// All texture slots + whether the engine's TextureID has an
 			// uploaded GL name in our cache.
 			fprintf(m_DbgDumpFp, "  Tex:");
