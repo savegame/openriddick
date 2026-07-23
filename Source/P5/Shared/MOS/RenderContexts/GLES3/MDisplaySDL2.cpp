@@ -1512,7 +1512,7 @@ public:
 			if (sMode < 0)
 			{
 				const char* e = getenv("RIDDICK_MIRROR_X");
-				sMode = e ? atoi(e) : 0;
+				sMode = e ? atoi(e) : 2;
 			}
 			return sMode;
 		}
