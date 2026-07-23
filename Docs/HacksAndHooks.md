@@ -24,9 +24,10 @@
   фрагмент-шейдер: UV-как-RGB / position-как-red / vCol-only / world-normal
   как RGB (N*0.5+0.5). Используется визуально для проверки атрибутов.
 
-- **DBG** `RIDDICK_DBG_VBB=1` (`~2685`) — первые 32 VBB-draw'а логирует
-  `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/... TxEn col`, чтобы
-  проверить, что BSP2 подаёт diffuse UV в TEXCOORD0 (а не всё в NULL/wrong-slot).
+- **DBG** F10 (`DbgDumpTick`, edge-detect) — армит VBB-лог: следующие 32
+  VBB-draw'а логируют `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/...
+  TxEn col`. Позволяет ловить регистр-wiring в нужный момент игры (не в
+  меню/загрузке). Аналогично F9 (frame dump / MTX log rearm).
 
 - **DBG** `RIDDICK_DBG_RTT=1` (`RTTOverlay.InitFromEnv()`) — рисует
   thumbnails всех активных RTT-текстур в углу экрана.

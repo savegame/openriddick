@@ -911,6 +911,15 @@ public:
 				fprintf(stderr, "[GL-DBG] F9: MTX log rearmed (next 10 world draws)\n");
 			}
 			s_PrevF9 = F9;
+			// F10 → arm VBB register log for the next 32 draws.
+			static int s_PrevF10 = 0;
+			int F10 = (pState && NumKeys > SDL_SCANCODE_F10) ? pState[SDL_SCANCODE_F10] : 0;
+			if (F10 && !s_PrevF10)
+			{
+				m_DbgVBBLogArm = 32;
+				fprintf(stderr, "[GL-DBG] F10: VBB log armed (next 32 draws)\n");
+			}
+			s_PrevF10 = F10;
 			if (m_DbgDumpActive)
 			{
 				// Finish: close and never open again.
@@ -2044,6 +2053,9 @@ public:
 		// function-local statics so DbgDumpTick can zero them on demand).
 		int    m_MtxLog          = 0;
 		int    m_UvLog           = 0;
+		// F10-armed VBB register-wiring log (see BuildVertsFromVBB).
+		// Counter of remaining draws to log; F10 sets it to 32.
+		int    m_DbgVBBLogArm    = 0;
 
 		// Geometry dumper: on RIDDICK_DUMP_OBJ=<dir>, writes each unique
 		// drawn mesh to <dir>/geom_XXXX.obj. Keyed by nV + first-vertex
@@ -2683,23 +2695,19 @@ public:
 			const void* pNrm  = VBB.m_lpVReg[CRC_VREG_NORMAL];
 			const int   NrmFmt = VBB.m_Format.GetFormat(CRC_VREG_NORMAL);
 
-			// RIDDICK_DBG_VBB=1: one-shot per-shape log of what registers
-			// were wired for each VBB draw. Used to check that BSP2 sends
-			// diffuse UV (F32/V2) in TEXCOORD0 as expected, not e.g. all
-			// NULL or wrong-slot.
-			if (getenv("RIDDICK_DBG_VBB"))
+			// F10-armed per-shape log of what registers were wired for
+			// each VBB draw (m_DbgVBBLogArm set to 32 by DbgDumpTick on
+			// F10 edge). Used to check that BSP2 sends diffuse UV
+			// (F32/V2) in TEXCOORD0 as expected, not NULL or wrong slot.
+			if (m_DbgVBBLogArm > 0)
 			{
-				static int sLogged = 0;
-				if (sLogged < 32)
-				{
-					fprintf(stderr,
-						"[VBB] nV=%d PosFmt=%d NrmFmt=%d UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s TxEn=0x%08x col=%s\n",
-						nV, PosFmt, NrmFmt, UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
-						UVSet1, iUVReg1, UV1Fmt, pUV1?"y":"n",
-						(unsigned)VBB.m_TransformEnable, pCol?"y":"n");
-					fflush(stderr);
-					++sLogged;
-				}
+				fprintf(stderr,
+					"[VBB] nV=%d PosFmt=%d NrmFmt=%d UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s TxEn=0x%08x col=%s\n",
+					nV, PosFmt, NrmFmt, UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
+					UVSet1, iUVReg1, UV1Fmt, pUV1?"y":"n",
+					(unsigned)VBB.m_TransformEnable, pCol?"y":"n");
+				fflush(stderr);
+				--m_DbgVBBLogArm;
 			}
 
 			// Per-register scale+offset (packed formats hold values as
