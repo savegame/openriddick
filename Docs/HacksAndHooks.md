@@ -59,6 +59,14 @@
   _CameraWMat (PS3) vs RH GL. Проверено 2026-07-24 — движение камеры,
   ориентация модели и culling сходятся.
 
+- **HACK** DIRECT_RENDER 3D‑фильтр (`DrawIndexed`): под `RIDDICK_DIRECT_RENDER=1`
+  скипает 3D‑дроу, где нет **и** COLORWRITE, **и** ZWRITE одновременно.
+  Z‑only prepass'ы (для deferred/G-buffer) не нужны в single-pass mode.
+  Alpha‑blend overlay'ы (без ZWRITE, e.g. BSP2 detail‑decals) — тоже,
+  чтобы избежать двойного paint'а и z‑fight'а. UI обходит фильтр через
+  проверку 2D-model matrix (диагональная, `k[2][2]==1`). Убрать когда
+  вернём FBO с deferred pipeline.
+
 - **DBG** `RIDDICK_NO_LIGHT=1` (`PushLightUniforms`) — форсит `uLightingMode=0`
   для всех draws. Диагностика «уровень чёрный»: если под этим видим
   диффуз — наша modulate-lighting перебарщивает (ambient=0 → `c *= vec3(0)`).

@@ -1596,12 +1596,17 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// FrontFace: retail (PS3 GCM / RndrGL) uses CCW=front.
 				// XREngine.cpp negates W2V.X on Linux to fix the LH/RH
-				// camera mismatch -- that reverses handedness so CCW
-				// becomes CW in view space. Compensate with GL_CW here.
-				glFrontFace(GL_CW);
-				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
+				// camera mismatch, which flips winding once: model-space
+				// CCW becomes CW in view space. Combined effect with the
+				// retail PS3 GCM CULLCW mapping produced inverted culling
+				// (interior faces visible, exterior culled). Simplest
+				// stable answer: keep default GL_CCW frontFace and invert
+				// the CULLCW → GL_CULL_FACE mapping vs retail. The single
+				// coordinate flip on the CPU side is fully compensated
+				// here.
+				glFrontFace(GL_CCW);
+				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_FRONT : GL_BACK);
 			}
 			else
 			{
@@ -2336,6 +2341,33 @@ public:
 				{
 					const int Tid = (int)m_pCurAttrib->m_TextureID[s];
 					if (Tid > 0 && Tid < (int)m_lFBO.Len() && m_lFBO[Tid].m_FBO)
+					{
+						FreeScratch(pVerts, nVerts, bMalloced);
+						return;
+					}
+				}
+
+				// DIRECT_RENDER = single-pass color+depth. Skip any 3D
+				// drawcall that isn't a solid-geometry pass:
+				//   * ColW=0 (Z-prepass / stencil-only): purposeless in
+				//     single-pass mode, deferred/G-buffer only.
+				//   * ZWrite=0 (alpha-blend overlays, detail decals):
+				//     retail uses these on top of base diffuse for extra
+				//     polish; in DIRECT_RENDER we skip to avoid double
+				//     paint and z-fight surprises.
+				// UI keeps ColW=1 ZWrite=0 -- must NOT be skipped; detect
+				// UI via 2D model matrix (diagonal 3x3, k[2][2]==1).
+				const uint32 F = m_pCurAttrib->m_Flags;
+				const bool bIs2D = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
+				                 && fabsf(m_ModelMat.k[1][2]) < 1e-5f
+				                 && fabsf(m_ModelMat.k[2][0]) < 1e-5f
+				                 && fabsf(m_ModelMat.k[2][1]) < 1e-5f
+				                 && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+				if (!bIs2D)
+				{
+					const bool bColW   = (F & CRC_FLAGS_COLORWRITE) != 0;
+					const bool bZWrite = (F & CRC_FLAGS_ZWRITE)     != 0;
+					if (!bColW || !bZWrite)
 					{
 						FreeScratch(pVerts, nVerts, bMalloced);
 						return;
