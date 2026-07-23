@@ -2268,6 +2268,28 @@ public:
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 
+			// RIDDICK_DBG_DRAW=1: for the first 40 "world-sized" draws
+			// (_nInd >= 300) print what m_pCurAttrib has in its texture
+			// slots. Answers "does the diffuse ID we set in WBSP2Model
+			// reach the drawcall, or was pVB->m_pAttrib rebound
+			// elsewhere?" Fires ONCE per session.
+			if (_nInd >= 300 && getenv("RIDDICK_DBG_DRAW"))
+			{
+				static int sDraws = 0;
+				if (sDraws < 40)
+				{
+					unsigned t0 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[0] : 0;
+					unsigned t1 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[1] : 0;
+					unsigned t2 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[2] : 0;
+					unsigned t3 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[3] : 0;
+					unsigned F  = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_Flags : 0;
+					fprintf(stderr, "[DRAW #%d] nInd=%d pCurAttrib=%p tex=[%u %u %u %u] Flags=0x%08x\n",
+						sDraws, _nInd, (void*)m_pCurAttrib, t0, t1, t2, t3, F);
+					fflush(stderr);
+					++sDraws;
+				}
+			}
+
 			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
 			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
 
