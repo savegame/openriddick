@@ -2272,13 +2272,12 @@ public:
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 
-			// F10-armed: for the next N world-sized draws (_nInd >= 300)
-			// print what m_pCurAttrib has in its texture slots. Answers
-			// "does the diffuse ID we set in WBSP2Model reach the
-			// drawcall, or was pVB->m_pAttrib rebound elsewhere?"
-			// Shares m_DbgVBBLogArm with the VBB register-wiring log (F10
-			// arms both to 32).
-			if (_nInd >= 300 && m_DbgDrawLogArm > 0)
+			// F10-armed: for the next N draws print what m_pCurAttrib
+			// has in its texture slots. Answers "does the diffuse ID we
+			// set in WBSP2Model reach the drawcall, or was pVB->m_pAttrib
+			// rebound elsewhere?" BSP2 walls draw in small batches
+			// (30..100 indices) so we log every drawcall size.
+			if (m_DbgDrawLogArm > 0)
 			{
 				unsigned t0 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[0] : 0;
 				unsigned t1 = m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[1] : 0;
