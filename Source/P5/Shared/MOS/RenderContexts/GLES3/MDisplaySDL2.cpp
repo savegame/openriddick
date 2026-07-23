@@ -973,8 +973,9 @@ public:
 			int F10 = (pState && NumKeys > SDL_SCANCODE_F10) ? pState[SDL_SCANCODE_F10] : 0;
 			if (F10 && !s_PrevF10)
 			{
-				m_DbgVBBLogArm  = 32;
-				m_DbgDrawLogArm = 32;
+				m_DbgVBBLogArm   = 32;
+				m_DbgDrawLogArm  = 32;
+				m_DbgDrawPostArm = 32;
 				fprintf(stderr, "[GL-DBG] F10: VBB+DRAW logs armed (next 32 draws)\n");
 			}
 			s_PrevF10 = F10;
@@ -2145,6 +2146,7 @@ public:
 		// F10-armed per-draw m_pCurAttrib.TextureID log (world-sized).
 		// Independent counter so both logs run to completion.
 		int    m_DbgDrawLogArm   = 0;
+		int    m_DbgDrawPostArm  = 0;   // post-uniform outcome for same draws
 
 		// Geometry dumper: on RIDDICK_DUMP_OBJ=<dir>, writes each unique
 		// drawn mesh to <dir>/geom_XXXX.obj. Keyed by nV + first-vertex
@@ -2423,6 +2425,20 @@ public:
 			SetupCommonUniforms(true);
 			m_DbgTotalVerts += nVerts;
 			m_DbgTotalIdx   += _nInd;
+
+			// F10-armed post-uniform state (paired with [DRAW] above):
+			// what the shader actually sees for this draw. If the pre-log
+			// showed tex=[3918 ..] but post shows UseTex=0 boundGL=0, then
+			// TextureID_EnsureUploaded failed for that ID on this thread /
+			// this frame -- narrows the bug from "attrib routing" to
+			// "texture upload lookup".
+			if (m_DbgDrawPostArm > 0)
+			{
+				fprintf(stderr, "  [DRAW/post] UseTex=%d boundGL=%u lastUseTex1=%d\n",
+					m_DbgLastUseTex, (unsigned)m_DbgLastBind0, m_DbgLastUseTex1);
+				fflush(stderr);
+				--m_DbgDrawPostArm;
+			}
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
