@@ -50,6 +50,12 @@
   - `tex_lod0` — то же, но `textureLod(uTex, vUV, 0.0)` — обходит mipmap chain
     (если высокие LOD пусты, а base OK, tex_only даст серый, tex_lod0 — детали).
 
+- **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
+  `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.
+  Диагностика «хром на стенах»: если под этим стены оказываются с
+  видимой текстурой — `glGenerateMipmap` тихо провалил цепочку и sampler
+  ловит incomplete texture. Также лог `[GLES3-TEX] glGenerateMipmap failed err=...`.
+
 - **DBG** `RIDDICK_DUMP_GL_TEX=<W>` (`GLES3_Texture.cpp`) — при аплоаде
   первых 8 текстур ширины `W` (или любых, если `=0`) дампит *post-swizzle*
   CPU‑буфер в `/tmp/openriddick_tex_<W>x<H>_<n>.ppm`. Проверяет, что

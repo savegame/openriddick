@@ -199,9 +199,22 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
-		if (_bGenerateMipmaps)
+		// RIDDICK_NO_MIPMAP=1: force GL_LINEAR (skip mipmap sampling).
+		// Diagnoses "chrome wall" -- if walls appear textured with this
+		// on, glGenerateMipmap silently produced incomplete levels and
+		// the LINEAR_MIPMAP_LINEAR sampler returns garbage / placeholder.
+		static int sNoMipmap = -1;
+		if (sNoMipmap < 0)
+		{
+			const char* e = getenv("RIDDICK_NO_MIPMAP");
+			sNoMipmap = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (_bGenerateMipmaps && !sNoMipmap)
 		{
 			glGenerateMipmap(GL_TEXTURE_2D);
+			GLenum err = glGetError();
+			if (err != GL_NO_ERROR)
+				fprintf(stderr, "[GLES3-TEX] glGenerateMipmap failed err=0x%x on %dx%d DXT\n", (unsigned)err, W, H);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		}
 		else
@@ -296,14 +309,25 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	MaybeDumpPPM("bgra", pSrc, W, H, F.BytesPerPixel, (unsigned)_pImage->GetFormat());
 	glTexImage2D(GL_TEXTURE_2D, 0, F.InternalFormat, W, H, 0, F.Format, F.Type, pSrc);
 
-	if (_bGenerateMipmaps)
 	{
-		glGenerateMipmap(GL_TEXTURE_2D);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	}
-	else
-	{
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		static int sNoMip = -1;
+		if (sNoMip < 0)
+		{
+			const char* e = getenv("RIDDICK_NO_MIPMAP");
+			sNoMip = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (_bGenerateMipmaps && !sNoMip)
+		{
+			glGenerateMipmap(GL_TEXTURE_2D);
+			GLenum err = glGetError();
+			if (err != GL_NO_ERROR)
+				fprintf(stderr, "[GLES3-TEX] glGenerateMipmap failed err=0x%x on %dx%d BGRA\n", (unsigned)err, W, H);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		}
+		else
+		{
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		}
 	}
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	// GL_REPEAT: world/prop tiling textures use UV outside [0..1] to
