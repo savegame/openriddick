@@ -458,6 +458,50 @@ public:
 		// the engine samples "nothing"; give it a loud debug colour
 		// so missing-RTT surfaces are obvious rather than invisible.
 		GLuint m_PlaceholderTex;
+		GLuint m_CheckerTex = 0;
+		int    m_ForceTex   = -1;   // -1 = not yet queried from env
+
+		// Bright 32x32 magenta/cyan checkerboard for RIDDICK_FORCE_TEX=1.
+		// If world geometry is visible under FORCE_TEX but invisible under
+		// DBG_SHADER=nrm_raw/pos_local, the problem is per-vertex attrib
+		// plumbing, not draw submission. If invisible even under
+		// FORCE_TEX, world draws are being discarded entirely (culled,
+		// alpha, depth, or never reaching this shader).
+		GLuint GetCheckerTex()
+		{
+			if (m_CheckerTex) return m_CheckerTex;
+			const int N = 32;
+			unsigned char* buf = (unsigned char*)malloc(N*N*4);
+			for (int y = 0; y < N; ++y) for (int x = 0; x < N; ++x)
+			{
+				const bool c = ((x >> 2) ^ (y >> 2)) & 1;
+				unsigned char* p = buf + (y*N + x)*4;
+				p[0] = c ? 255 : 0;
+				p[1] = c ? 0   : 255;
+				p[2] = c ? 255 : 255;
+				p[3] = 255;
+			}
+			glGenTextures(1, &m_CheckerTex);
+			glBindTexture(GL_TEXTURE_2D, m_CheckerTex);
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, N, N, 0, GL_RGBA, GL_UNSIGNED_BYTE, buf);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+			free(buf);
+			return m_CheckerTex;
+		}
+
+		bool ForceTexEnabled()
+		{
+			if (m_ForceTex < 0)
+			{
+				const char* e = getenv("RIDDICK_FORCE_TEX");
+				m_ForceTex = (e && *e && *e != '0') ? 1 : 0;
+			}
+			return m_ForceTex != 0;
+		}
 
 		GLuint GetPlaceholderTex()
 		{
@@ -1024,6 +1068,7 @@ public:
 			ReleaseAllFBOs();
 			ReleaseScreenFBO();
 			if (m_PlaceholderTex) { glDeleteTextures(1, &m_PlaceholderTex); m_PlaceholderTex = 0; }
+			if (m_CheckerTex)     { glDeleteTextures(1, &m_CheckerTex);     m_CheckerTex     = 0; }
 			if (m_VAO) { glDeleteVertexArrays(1, &m_VAO); m_VAO = 0; }
 		}
 
@@ -2052,8 +2097,32 @@ public:
 					glActiveTexture(GL_TEXTURE0);
 				}
 			}
+			// RIDDICK_FORCE_TEX=1 override: bind a bright magenta/cyan
+			// checkerboard to unit 0 on every draw, disable ch1 modulation,
+			// and force uUseTexture=1. Used to check if the world geometry
+			// even reaches the framebuffer.
+			if (ForceTexEnabled())
+			{
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, GetCheckerTex());
+				m_UIShader.SetInt(m_UTexLoc, 0);
+				UseTex = 1;
+				UseTex1 = 0;
+				// Also unbias identity texture matrix so raw vUV samples.
+				CMat4Dfp32 I; I.Unit();
+				m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&I);
+			}
 			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
 			m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
+			// FORCE_TEX overrides dbg mode + lighting so the checker actually
+			// reaches the framebuffer regardless of other flags.
+			if (ForceTexEnabled())
+			{
+				m_UIShader.SetInt(m_UDbgModeLoc, 0);
+				m_UIShader.SetInt(m_ULightingModeLoc, 0);
+				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+			}
+			else
 			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
 			m_DbgLastUseTex = UseTex;
 			m_DbgLastUseTex1 = UseTex1;

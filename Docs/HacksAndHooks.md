@@ -20,6 +20,12 @@
   счётчики draws/verts/upload'ов раз в 60 кадров. Полезно для профайла.
   → удалять когда рендер стабилен.
 
+- **DBG** `RIDDICK_FORCE_TEX=1` (`SetupCommonUniforms`) — насильно биндит
+  яркий magenta/cyan checkerboard 32x32 на unit 0 для каждого draw'а,
+  отключает ch1/lighting/alpha-test/dbg-mode. Проверяет, доезжают ли
+  world-пиксели до фрагмент-шейдера вообще (когда nrm_raw/pos_local
+  дают «невидимо»).
+
 - **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal|nrm_raw|pos_local`
   (`~763`) — переопределяет фрагмент-шейдер:
   - `uv` — vUV.xy как RG
