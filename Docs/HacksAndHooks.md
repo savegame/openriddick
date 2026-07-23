@@ -48,10 +48,11 @@
     если `uUseTexture=0`. Проверяет реальный диффуз без интерференции остальных
     факторов.
 
-- **DBG** F10 (`DbgDumpTick`, edge-detect) — армит VBB-лог: следующие 32
-  VBB-draw'а логируют `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/...
-  TxEn col`. Позволяет ловить регистр-wiring в нужный момент игры (не в
-  меню/загрузке). Аналогично F9 (frame dump / MTX log rearm).
+- **DBG** F10 (`DbgDumpTick`, edge-detect) — армит два лога на следующие
+  32 draw'а: `[VBB] ...` (регистр-wiring через `BuildVertsFromVBB`) и
+  `[DRAW] nInd pCurAttrib tex=[..] Flags` (реальный `m_pCurAttrib` в
+  `DrawIndexed` для world-sized `_nInd>=300`). Ловит игру в нужный момент
+  (не меню/загрузка). Аналогично F9 (frame dump / MTX log rearm).
 
 - **DBG** `RIDDICK_DBG_RTT=1` (`RTTOverlay.InitFromEnv()`) — рисует
   thumbnails всех активных RTT-текстур в углу экрана.
