@@ -10,12 +10,43 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cerrno>
 
 int g_GLES3_UploadRGBA = 0;
 int g_GLES3_UploadDXT1 = 0;
 int g_GLES3_UploadDXT3 = 0;
 int g_GLES3_UploadDXT5 = 0;
 int g_GLES3_UploadFail = 0;
+
+// RIDDICK_DUMP_GL_TEX=<width>: writes the CPU-side pixel buffer that
+// will be uploaded to GL (post-swizzle for raw, post-DXT-decode for
+// S3TC) as a PPM in the current working directory. Rides on width
+// since the CImage carries no engine texture ID here. Cap 8 across
+// both upload paths. Set wantW=0 to dump ANY width.
+static void MaybeDumpPPM(const char* _tag, const unsigned char* _pixels,
+                         int W, int H, int _bpp, unsigned _fmt)
+{
+	if (_bpp < 3 || !_pixels) return;
+	const char* env = getenv("RIDDICK_DUMP_GL_TEX");
+	if (!env) return;
+	static int sDumped = 0;
+	if (sDumped >= 8) return;
+	const int wantW = atoi(env);
+	if (wantW != 0 && wantW != W) return;
+	char path[256];
+	snprintf(path, sizeof(path), "openriddick_tex_%s_%dx%d_%d.ppm",
+		_tag, W, H, sDumped);
+	FILE* fp = fopen(path, "wb");
+	if (!fp) { fprintf(stderr, "[GLES3-TEX-DUMP] fopen('%s') failed: %s\n", path, strerror(errno)); return; }
+	fprintf(fp, "P6\n%d %d\n255\n", W, H);
+	for (int i = 0; i < W*H; ++i)
+		fwrite(_pixels + i*_bpp, 1, 3, fp);
+	fclose(fp);
+	fprintf(stderr, "[GLES3-TEX-DUMP] wrote %s  (fmt=0x%x bpp=%d)\n",
+		path, _fmt, _bpp);
+	fflush(stderr);
+	++sDumped;
+}
 
 SGLES3Format CGLES3TextureUploader::MapFormat(int _ImageFormat)
 {
@@ -163,6 +194,8 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		// in pixels). Reset to 0 (=default: tightly packed) after upload
 		// so subsequent glTexImage2D calls behave normally.
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, PadW);
+		// Dump post-DXT-decode RGBA8 (padded to PadW; caller trims later).
+		MaybeDumpPPM("dxt", pDecoded, PadW, PadH, 4, (unsigned)_pImage->GetFormat());
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -260,31 +293,7 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 
 	glBindTexture(GL_TEXTURE_2D, Tex);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	// RIDDICK_DUMP_GL_TEX=<width>: if uploaded image matches that width,
-	// dump the *post-swizzle* CPU-side buffer (what glTexImage2D actually
-	// sees) as a PPM to /tmp/openriddick_tex_<W>x<H>_<n>.ppm. Rides on
-	// width because we don't have the engine texture ID here. Cap 8.
-	if (F.BytesPerPixel >= 3 && getenv("RIDDICK_DUMP_GL_TEX"))
-	{
-		static int sDumped = 0;
-		const int wantW = atoi(getenv("RIDDICK_DUMP_GL_TEX"));
-		if (sDumped < 8 && (wantW == 0 || wantW == W))
-		{
-			char path[256];
-			snprintf(path, sizeof(path), "/tmp/openriddick_tex_%dx%d_%d.ppm", W, H, sDumped);
-			FILE* fp = fopen(path, "wb");
-			if (fp)
-			{
-				fprintf(fp, "P6\n%d %d\n255\n", W, H);
-				const int bpp = F.BytesPerPixel;
-				for (int i = 0; i < W*H; ++i)
-					fwrite(pSrc + i*bpp, 1, 3, fp);
-				fclose(fp);
-				fprintf(stderr, "[GLES3-TEX-DUMP] wrote %s (fmt=0x%x)\n", path, (unsigned)_pImage->GetFormat());
-				++sDumped;
-			}
-		}
-	}
+	MaybeDumpPPM("bgra", pSrc, W, H, F.BytesPerPixel, (unsigned)_pImage->GetFormat());
 	glTexImage2D(GL_TEXTURE_2D, 0, F.InternalFormat, W, H, 0, F.Format, F.Type, pSrc);
 
 	if (_bGenerateMipmaps)
