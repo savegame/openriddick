@@ -2699,11 +2699,19 @@ public:
 			// each VBB draw (m_DbgVBBLogArm set to 32 by DbgDumpTick on
 			// F10 edge). Used to check that BSP2 sends diffuse UV
 			// (F32/V2) in TEXCOORD0 as expected, not NULL or wrong slot.
-			if (m_DbgVBBLogArm > 0)
+			const bool bLogVBB = (m_DbgVBBLogArm > 0);
+			if (bLogVBB)
 			{
+				float n0x=0, n0y=0, n0z=0; bool nOK = false;
+				if (pNrm) nOK = VRegFetch(pNrm, NrmFmt, 0, 0, n0x) &&
+				                VRegFetch(pNrm, NrmFmt, 0, 1, n0y) &&
+				                VRegFetch(pNrm, NrmFmt, 0, 2, n0z);
 				fprintf(stderr,
-					"[VBB] nV=%d PosFmt=%d NrmFmt=%d UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s TxEn=0x%08x col=%s\n",
-					nV, PosFmt, NrmFmt, UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
+					"[VBB] nV=%d PosFmt=%d NrmFmt=%d nrmPtr=%s v0N=(%.3f,%.3f,%.3f)%s"
+					" UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s"
+					" TxEn=0x%08x col=%s\n",
+					nV, PosFmt, NrmFmt, pNrm?"y":"n", n0x,n0y,n0z, nOK?"":"[fetchFAIL]",
+					UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
 					UVSet1, iUVReg1, UV1Fmt, pUV1?"y":"n",
 					(unsigned)VBB.m_TransformEnable, pCol?"y":"n");
 				fflush(stderr);
