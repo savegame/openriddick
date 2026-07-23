@@ -20,9 +20,13 @@
   счётчики draws/verts/upload'ов раз в 60 кадров. Полезно для профайла.
   → удалять когда рендер стабилен.
 
-- **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex` (`~763`) — переопределяет
-  фрагмент-шейдер: UV-как-RGB / position-как-red / vCol-only. Используется
-  визуально для проверки атрибутов.
+- **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal` (`~763`) — переопределяет
+  фрагмент-шейдер: UV-как-RGB / position-как-red / vCol-only / world-normal
+  как RGB (N*0.5+0.5). Используется визуально для проверки атрибутов.
+
+- **DBG** `RIDDICK_DBG_VBB=1` (`~2685`) — первые 32 VBB-draw'а логирует
+  `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/... TxEn col`, чтобы
+  проверить, что BSP2 подаёт diffuse UV в TEXCOORD0 (а не всё в NULL/wrong-slot).
 
 - **DBG** `RIDDICK_DBG_RTT=1` (`RTTOverlay.InitFromEnv()`) — рисует
   thumbnails всех активных RTT-текстур в углу экрана.

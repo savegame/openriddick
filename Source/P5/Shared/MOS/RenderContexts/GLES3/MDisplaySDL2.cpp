@@ -94,7 +94,8 @@ static const char* kGLES3_UIFragSrc =
 	"uniform int uUseTexture1;\n"
 	// Debug modes for RIDDICK_DBG_SHADER: 0=normal, 1=UV as
 	// RGB (see quad UVs), 2=solid red (see quad positions),
-	// 3=vertex-color only (ignore texture).
+	// 3=vertex-color only (ignore texture), 4=world-normal as
+	// RGB ((N+1)*0.5 -- see per-vertex normal integrity).
 	"uniform int uDbgMode;\n"
 	// Alpha test: CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
 	"uniform int uAlphaFunc;\n"
@@ -119,6 +120,7 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 1) { oColor = vec4(vUV.x, vUV.y, 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 2) { oColor = vec4(1.0, 0.0, 0.0, 0.5); return; }\n"
 	"  if (uDbgMode == 3) { oColor = vCol; return; }\n"
+	"  if (uDbgMode == 4) { vec3 N = normalize(vWorldNrm); oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
@@ -989,6 +991,7 @@ public:
 				if      (strcmp(e, "uv")     == 0) m_DbgShaderMode = 1;
 				else if (strcmp(e, "pos")    == 0) m_DbgShaderMode = 2;
 				else if (strcmp(e, "no_tex") == 0) m_DbgShaderMode = 3;
+				else if (strcmp(e, "normal") == 0) m_DbgShaderMode = 4;
 			}
 		}
 
@@ -2679,6 +2682,25 @@ public:
 				pCol = (const uint32_t*)VBB.m_lpVReg[CRC_VREG_COLOR];
 			const void* pNrm  = VBB.m_lpVReg[CRC_VREG_NORMAL];
 			const int   NrmFmt = VBB.m_Format.GetFormat(CRC_VREG_NORMAL);
+
+			// RIDDICK_DBG_VBB=1: one-shot per-shape log of what registers
+			// were wired for each VBB draw. Used to check that BSP2 sends
+			// diffuse UV (F32/V2) in TEXCOORD0 as expected, not e.g. all
+			// NULL or wrong-slot.
+			if (getenv("RIDDICK_DBG_VBB"))
+			{
+				static int sLogged = 0;
+				if (sLogged < 32)
+				{
+					fprintf(stderr,
+						"[VBB] nV=%d PosFmt=%d NrmFmt=%d UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s TxEn=0x%08x col=%s\n",
+						nV, PosFmt, NrmFmt, UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
+						UVSet1, iUVReg1, UV1Fmt, pUV1?"y":"n",
+						(unsigned)VBB.m_TransformEnable, pCol?"y":"n");
+					fflush(stderr);
+					++sLogged;
+				}
+			}
 
 			// Per-register scale+offset (packed formats hold values as
 			// raw*Scale+Offset; without applying we get "spikes" as the
