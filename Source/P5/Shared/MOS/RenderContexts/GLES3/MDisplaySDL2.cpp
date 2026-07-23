@@ -1592,14 +1592,23 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// NOTE: no front-face swap for RIDDICK_MIRROR_X. The
-				// X-mirror in the pipeline and the inverted winding are
-				// the SAME defect (det<0 through the transform chain);
-				// flipping clip.x restores the data-correct winding
-				// (OBJ dump proves data is sane), so cull must keep the
-				// retail mapping. Swapping front face here re-inverted
-				// it -> interior faces visible (verified 2026-07-22).
-				glFrontFace(GL_CCW);
+				// FrontFace: default retail mapping is CCW=front (matches
+				// RndrGL:38438 and PS3 GCM MRenderPS3_Attrib.cpp:288-294).
+				// RIDDICK_FIX_CAMERA=x flips the view-space X column of
+				// W2V (see XREngine.cpp:~1044), which reverses handedness
+				// -> CCW becomes CW in view space. Compensate with
+				// glFrontFace(GL_CW) so cull sees the SAME "front" as
+				// authoring intent. RIDDICK_FIX_CAMERA=xz applies BOTH X
+				// and Z flips -- two negations cancel, back to CCW.
+				static int sFixFront = -1;   // -1 unread, 0 CCW, 1 CW
+				if (sFixFront < 0)
+				{
+					const char* e = getenv("RIDDICK_FIX_CAMERA");
+					sFixFront = 0;
+					if (e && (strcmp(e, "x") == 0 || strcmp(e, "z") == 0))
+						sFixFront = 1;  // single-axis flip -> reverse winding
+				}
+				glFrontFace(sFixFront ? GL_CW : GL_CCW);
 				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
 			}
 			else
