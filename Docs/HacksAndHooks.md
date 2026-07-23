@@ -47,6 +47,13 @@
   - `tex_only` — сырое `texture(uTex, vUV)` без vCol/light/fog/alpha; magenta
     если `uUseTexture=0`. Проверяет реальный диффуз без интерференции остальных
     факторов.
+  - `tex_lod0` — то же, но `textureLod(uTex, vUV, 0.0)` — обходит mipmap chain
+    (если высокие LOD пусты, а base OK, tex_only даст серый, tex_lod0 — детали).
+
+- **DBG** `RIDDICK_DUMP_GL_TEX=<W>` (`GLES3_Texture.cpp`) — при аплоаде
+  первых 8 текстур ширины `W` (или любых, если `=0`) дампит *post-swizzle*
+  CPU‑буфер в `/tmp/openriddick_tex_<W>x<H>_<n>.ppm`. Проверяет, что
+  реально уходит в `glTexImage2D`.
 
 - **DBG** F10 (`DbgDumpTick`, edge-detect) — армит два лога на следующие
   32 draw'а: `[VBB] ...` (регистр-wiring через `BuildVertsFromVBB`) и

@@ -134,6 +134,7 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 5) { oColor = vec4(vNrmRaw * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 6) { vec3 P = fract(vPosLocal * 0.01); oColor = vec4(P, 1.0); return; }\n"
 	"  if (uDbgMode == 7) { oColor = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0, 0.0, 1.0, 1.0); return; }\n"
+	"  if (uDbgMode == 8) { oColor = (uUseTexture != 0) ? textureLod(uTex, vUV, 0.0) : vec4(1.0, 0.0, 1.0, 1.0); return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
@@ -1063,6 +1064,7 @@ public:
 				else if (strcmp(e, "nrm_raw")   == 0) m_DbgShaderMode = 5;
 				else if (strcmp(e, "pos_local") == 0) m_DbgShaderMode = 6;
 				else if (strcmp(e, "tex_only")  == 0) m_DbgShaderMode = 7;
+				else if (strcmp(e, "tex_lod0")  == 0) m_DbgShaderMode = 8;
 			}
 		}
 
