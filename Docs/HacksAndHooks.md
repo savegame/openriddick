@@ -35,6 +35,9 @@
   - `nrm_raw` — сырой `aNormal` без transform/normalize (проверяет per-vertex
     plumbing атрибута 4)
   - `pos_local` — `fract(aPos*0.01)` (проверяет per-vertex plumbing атрибута 0)
+  - `tex_only` — сырое `texture(uTex, vUV)` без vCol/light/fog/alpha; magenta
+    если `uUseTexture=0`. Проверяет реальный диффуз без интерференции остальных
+    факторов.
 
 - **DBG** F10 (`DbgDumpTick`, edge-detect) — армит VBB-лог: следующие 32
   VBB-draw'а логируют `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/...

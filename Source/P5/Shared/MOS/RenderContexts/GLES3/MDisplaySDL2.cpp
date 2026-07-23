@@ -102,6 +102,8 @@ static const char* kGLES3_UIFragSrc =
 	//   5=nrm_raw (RAW aNormal, no model transform/normalize -- proves
 	//              per-vertex attribute plumbing regardless of uModel)
 	//   6=pos_local (aPos/scale as RGB -- proves attr location=0 varies)
+	//   7=tex_only (raw texture(uTex, vUV); no vCol/lighting/fog/alpha; magenta
+	//               if uUseTexture is off -- proves diffuse decode/binding)
 	"uniform int uDbgMode;\n"
 	"in vec3 vNrmRaw;\n"
 	"in vec3 vPosLocal;\n"
@@ -131,6 +133,7 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 4) { vec3 N = normalize(vWorldNrm); oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 5) { oColor = vec4(vNrmRaw * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 6) { vec3 P = fract(vPosLocal * 0.01); oColor = vec4(P, 1.0); return; }\n"
+	"  if (uDbgMode == 7) { oColor = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0, 0.0, 1.0, 1.0); return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
@@ -1057,6 +1060,7 @@ public:
 				else if (strcmp(e, "normal") == 0) m_DbgShaderMode = 4;
 				else if (strcmp(e, "nrm_raw")   == 0) m_DbgShaderMode = 5;
 				else if (strcmp(e, "pos_local") == 0) m_DbgShaderMode = 6;
+				else if (strcmp(e, "tex_only")  == 0) m_DbgShaderMode = 7;
 			}
 		}
 
