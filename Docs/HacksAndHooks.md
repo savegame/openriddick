@@ -20,9 +20,15 @@
   счётчики draws/verts/upload'ов раз в 60 кадров. Полезно для профайла.
   → удалять когда рендер стабилен.
 
-- **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal` (`~763`) — переопределяет
-  фрагмент-шейдер: UV-как-RGB / position-как-red / vCol-only / world-normal
-  как RGB (N*0.5+0.5). Используется визуально для проверки атрибутов.
+- **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal|nrm_raw|pos_local`
+  (`~763`) — переопределяет фрагмент-шейдер:
+  - `uv` — vUV.xy как RG
+  - `pos` — сплошной красный
+  - `no_tex` — только vCol
+  - `normal` — world-normal `(N+1)*0.5` (после `mat3(uModel)*aNormal`)
+  - `nrm_raw` — сырой `aNormal` без transform/normalize (проверяет per-vertex
+    plumbing атрибута 4)
+  - `pos_local` — `fract(aPos*0.01)` (проверяет per-vertex plumbing атрибута 0)
 
 - **DBG** F10 (`DbgDumpTick`, edge-detect) — армит VBB-лог: следующие 32
   VBB-draw'а логируют `[VBB] nV PosFmt NrmFmt UVSet0/reg/fmt/ptr UVSet1/...

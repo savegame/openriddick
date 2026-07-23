@@ -54,7 +54,11 @@ static const char* kGLES3_UIVertSrc =
 	"out float vDepth;\n"
 	"out vec3 vWorldPos;\n"
 	"out vec3 vWorldNrm;\n"
+	"out vec3 vNrmRaw;\n"
+	"out vec3 vPosLocal;\n"
 	"void main(){\n"
+	"  vNrmRaw = aNormal;\n"
+	"  vPosLocal = aPos;\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	// Engine's projection puts NDC.z into [0..1] (D3D convention); GL
 	// wants [-1..+1]. Remap: NDC.z_gl = 2*NDC.z_engine - 1, which in
@@ -92,11 +96,15 @@ static const char* kGLES3_UIFragSrc =
 	// Secondary texture (channel 1: lightmaps etc.) -- modulates RGB.
 	"uniform sampler2D uTex1;\n"
 	"uniform int uUseTexture1;\n"
-	// Debug modes for RIDDICK_DBG_SHADER: 0=normal, 1=UV as
-	// RGB (see quad UVs), 2=solid red (see quad positions),
-	// 3=vertex-color only (ignore texture), 4=world-normal as
-	// RGB ((N+1)*0.5 -- see per-vertex normal integrity).
+	// Debug modes for RIDDICK_DBG_SHADER:
+	//   0=off  1=uv (vUV.xy as RG)  2=pos (solid red)  3=no_tex (vCol only)
+	//   4=normal (world-normal as RGB, (N+1)*0.5)
+	//   5=nrm_raw (RAW aNormal, no model transform/normalize -- proves
+	//              per-vertex attribute plumbing regardless of uModel)
+	//   6=pos_local (aPos/scale as RGB -- proves attr location=0 varies)
 	"uniform int uDbgMode;\n"
+	"in vec3 vNrmRaw;\n"
+	"in vec3 vPosLocal;\n"
 	// Alpha test: CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
 	"uniform int uAlphaFunc;\n"
 	"uniform float uAlphaRef;\n"
@@ -121,6 +129,8 @@ static const char* kGLES3_UIFragSrc =
 	"  if (uDbgMode == 2) { oColor = vec4(1.0, 0.0, 0.0, 0.5); return; }\n"
 	"  if (uDbgMode == 3) { oColor = vCol; return; }\n"
 	"  if (uDbgMode == 4) { vec3 N = normalize(vWorldNrm); oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 5) { oColor = vec4(vNrmRaw * 0.5 + 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 6) { vec3 P = fract(vPosLocal * 0.01); oColor = vec4(P, 1.0); return; }\n"
 	"  vec4 c = vCol;\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  if (uUseTexture1 != 0) c.rgb *= texture(uTex1, vUV1).rgb;\n"
@@ -1001,6 +1011,8 @@ public:
 				else if (strcmp(e, "pos")    == 0) m_DbgShaderMode = 2;
 				else if (strcmp(e, "no_tex") == 0) m_DbgShaderMode = 3;
 				else if (strcmp(e, "normal") == 0) m_DbgShaderMode = 4;
+				else if (strcmp(e, "nrm_raw")   == 0) m_DbgShaderMode = 5;
+				else if (strcmp(e, "pos_local") == 0) m_DbgShaderMode = 6;
 			}
 		}
 
