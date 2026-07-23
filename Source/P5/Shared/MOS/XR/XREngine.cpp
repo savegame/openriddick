@@ -298,7 +298,7 @@ static void ClearViewport(CRenderContext* _pRC, CXR_VBManager* _pVBM, CPixel32 _
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CTextureContainer_PortalTexture
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -403,7 +403,7 @@ void CTextureContainer_Render::BuildInto(int _iLocal, CImage** _ppImg, int _nMip
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CTextureContainer_EnginePortals
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -434,7 +434,7 @@ void CTextureContainer_EnginePortals::GetTextureProperties(int _iLocal, CTC_Text
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CTextureContainer_ShadowDecals
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -677,7 +677,7 @@ void CTextureContainer_ShadowDecals::BuildInto(int _iLocal, class CRenderContext
 #endif
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CTextureContainer_Screen
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -883,7 +883,7 @@ const CXR_Portal& CXR_Portal::operator= (const CXR_Portal& _Src)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CXR_ViewContext
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -921,7 +921,7 @@ CXR_WorldLightState *CXR_ViewContext::GetLightState()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CXR_ViewContextImpl
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -982,7 +982,7 @@ void CXR_ViewContextImpl::Create(CXR_Engine* _pEngine, int _MaxObjects, int _Dep
 
 /*	MRTC_SAFECREATEOBJECT_NOEX(spSky, "CXR_Model_Sky", CXR_Model_Sky);
 	m_spSky = spSky;
-	if (!m_spSky) ConOutL("§cf80WARNING: (CXR_ViewContextImpl::CXR_ViewContextImpl) Could not create sky-object.");
+	if (!m_spSky) ConOutL("ï¿½cf80WARNING: (CXR_ViewContextImpl::CXR_ViewContextImpl) Could not create sky-object.");
 	m_spSky->Create("Skytrack.txt");*/
 
 	CMat4Dfp32 Mat; Mat.Unit();
@@ -1039,6 +1039,58 @@ void CXR_ViewContextImpl::Clear(const CMat4Dfp32& _CameraWMat, const CMat4Dfp32&
 
 //		m_dCameraWMat.Multiply(m_CameraWMat, M1);
 //		m_dCameraWMat.InverseOrthogonal(m_dW2VMat);
+	}
+
+	// GLES3 bring-up direct camera fix. RIDDICK_FIX_CAMERA=<axis>:
+	//   "x" -- negate view-space X-column of W2V (mirror-X in view space).
+	//   "z" -- negate view-space Z-column of W2V (flip forward vector).
+	//   "xz" -- both.
+	// Replaces the shader-side MIRROR_X hack: applied here so downstream
+	// CPU consumers (BSP portal culling, frustum, m_bIsMirrored) see the
+	// SAME camera orientation as the GPU. Rationale: symptoms (mirror +
+	// front-polygons-culled + huge slowdown on empty scenes) all point at
+	// a single handedness/axis mismatch between the engine-authored
+	// _CameraWMat (PS3 LH convention) and what our GL platform layer
+	// implicitly expects (GL RH). This fix normalises W2V once, at the
+	// point where it enters the render pipeline.
+	{
+		static int sMode = -1;   // -1 unread, 0 off, 1 x, 2 z, 3 xz
+		if (sMode < 0)
+		{
+			const char* e = getenv("RIDDICK_FIX_CAMERA");
+			sMode = 0;
+			if (e)
+			{
+				if      (strcmp(e, "x")  == 0) sMode = 1;
+				else if (strcmp(e, "z")  == 0) sMode = 2;
+				else if (strcmp(e, "xz") == 0) sMode = 3;
+			}
+		}
+		if (sMode)
+		{
+			// W2V is row-major: rows 0..2 = basis vectors in world space,
+			// row 3 = translation. Negating a column negates that view-
+			// space axis. Column c is k[0..2][c] (row 3 = translation, keep).
+			fp32* K = (fp32*)&m_W2VMat;
+			auto negCol = [&](int c) {
+				K[0*4 + c] = -K[0*4 + c];
+				K[1*4 + c] = -K[1*4 + c];
+				K[2*4 + c] = -K[2*4 + c];
+				K[3*4 + c] = -K[3*4 + c];
+			};
+			if (sMode & 1) negCol(0);   // flip view X
+			if (sMode & 2) negCol(2);   // flip view Z
+			// dW2V should stay coherent -- same treatment.
+			fp32* Kd = (fp32*)&m_dW2VMat;
+			auto negColD = [&](int c) {
+				Kd[0*4 + c] = -Kd[0*4 + c];
+				Kd[1*4 + c] = -Kd[1*4 + c];
+				Kd[2*4 + c] = -Kd[2*4 + c];
+				Kd[3*4 + c] = -Kd[3*4 + c];
+			};
+			if (sMode & 1) negColD(0);
+			if (sMode & 2) negColD(2);
+		}
 	}
 
 	m_bIsMirrored = MACRO_ISMIRRORED(m_W2VMat);
@@ -1106,7 +1158,7 @@ void CXR_ViewContextImpl::AddSky(CXR_Model_Sky* _pModel, const CMat4Dfp32& _Pos,
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CXR_Engine
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1143,7 +1195,7 @@ CXR_Engine::CXR_Engine()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CXR_EngineImpl
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1755,7 +1807,7 @@ static int CreateConvexPolygon(const CPlane3Dfp32& _Plane, CVec3Dfp32* _pV, int 
 
 	if (nV > _MaxV)
 	{
-		ConOut("§cf80WARNING: (::CreateConvexPolygon) Polygon truncated.");
+		ConOut("ï¿½cf80WARNING: (::CreateConvexPolygon) Polygon truncated.");
 		nV = _MaxV;
 	}
 
@@ -1847,7 +1899,7 @@ static int CreateConvexPolygon(const CPlane3Dfp32& _Plane, CVec3Dfp32* _pV, int 
 
 	if (nV > _MaxV)
 	{
-		ConOut("§cf80WARNING: (::CreateConvexPolygon) Polygon truncated.");
+		ConOut("ï¿½cf80WARNING: (::CreateConvexPolygon) Polygon truncated.");
 		nV = _MaxV;
 	}
 
@@ -2270,7 +2322,7 @@ bool CXR_EngineImpl::Render_AddModel(CXR_Model* _pModel, const CMat4Dfp32& _Pos,
 				m_lspVC[m_iCurrentVC]->AddSky(pSky, _Pos, _Anim);
 			else
 			{
-				ConOut("§cf80WARNING: (CXR_EngineImpl::Render_AddModel) Model supplied as type XR_MODEL_SKY was not an object of class CXR_Model_Sky.");
+				ConOut("ï¿½cf80WARNING: (CXR_EngineImpl::Render_AddModel) Model supplied as type XR_MODEL_SKY was not an object of class CXR_Model_Sky.");
 				return false;
 			}
 	}
@@ -2278,7 +2330,7 @@ bool CXR_EngineImpl::Render_AddModel(CXR_Model* _pModel, const CMat4Dfp32& _Pos,
 
 	default :
 		{
-			ConOut(CStrF("§cf80WARNING: (CXR_EngineImpl::Render_AddModel) Invalid model-type. (%d)", _ModelType));
+			ConOut(CStrF("ï¿½cf80WARNING: (CXR_EngineImpl::Render_AddModel) Invalid model-type. (%d)", _ModelType));
 			return false;
 		}
 	}
@@ -2632,7 +2684,7 @@ void CXR_EngineImpl::Engine_BuildViewContext(const CMat4Dfp32& _CameraWMat, cons
 		ConOut(CStr(char(32), m_iCurrentVC*4) + CStrF("RenderVC %d, %d/%d Models", m_iCurrentVC, pVC->m_nObjects, pVC->m_lObjects.Len() ));
 
 	if (pVC->m_nObjects == pVC->m_lObjects.Len())
-		ConOut("§cf80WARNING: (CXR_EngineImpl::Engine_BuildViewContext) Too many models.");
+		ConOut("ï¿½cf80WARNING: (CXR_EngineImpl::Engine_BuildViewContext) Too many models.");
 
 //GetFogState()->DepthFog_Init(500, 1000, 0);
 }
@@ -5210,7 +5262,7 @@ void CXR_EngineImpl::Engine_Render(CXR_EngineClient *_pClient, CXR_VBManager* _p
 
 	if (!m_Shader.OnPrepareFrame() && (m_EngineMode == XR_MODE_UNIFIED))
 	{
-		ConOutL("§cf80WARNING: Insufficient renderer feature set to prepare shader.");
+		ConOutL("ï¿½cf80WARNING: Insufficient renderer feature set to prepare shader.");
 	}
 	else
 	{
@@ -5360,7 +5412,7 @@ void CXR_EngineImpl::SetVar(int _Var, aint _Value)
 
 	case XR_ENGINE_UNIFIED_ADDLIGHTOCCLUSION :
 		{
-			ConOut(CStr("§cf80WARNING: (CXR_EngineImpl::SetVar XR_ENGINE_UNIFIED_ADDLIGHTOCCLUSION) NOP"));
+			ConOut(CStr("ï¿½cf80WARNING: (CXR_EngineImpl::SetVar XR_ENGINE_UNIFIED_ADDLIGHTOCCLUSION) NOP"));
 
 			break;
 		}

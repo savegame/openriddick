@@ -50,6 +50,14 @@
   - `tex_lod0` — то же, но `textureLod(uTex, vUV, 0.0)` — обходит mipmap chain
     (если высокие LOD пусты, а base OK, tex_only даст серый, tex_lod0 — детали).
 
+- **HACK** `RIDDICK_FIX_CAMERA=x|z|xz` (`XREngine.cpp:~1044`, `CXR_ViewContextImpl::Clear`)
+  — сразу после `InverseOrthogonal(m_W2VMat)` инвертирует X/Z‑колонку в
+  view‑space. Правит и **CPU‑culling** (BSP portal, frustum, m_bIsMirrored),
+  и **GPU render** одной точкой. Замена shader‑side `MIRROR_X=2`.
+  Гипотеза: движковая LH‑конвенция камеры vs наш RH GL‑layer. Если под этим
+  мир НЕ зеркальный + polygons в front НЕ пропадают + перф вернулся → нашли
+  корневой слой, надо будет сделать это условно по PLATFORM_LINUX (без env).
+
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.
   Диагностика «хром на стенах»: если под этим стены оказываются с
