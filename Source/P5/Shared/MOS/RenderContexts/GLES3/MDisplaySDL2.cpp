@@ -2932,12 +2932,22 @@ public:
 				if (pNrm) nOK = VRegFetch(pNrm, NrmFmt, 0, 0, n0x) &&
 				                VRegFetch(pNrm, NrmFmt, 0, 1, n0y) &&
 				                VRegFetch(pNrm, NrmFmt, 0, 2, n0z);
+				// Sample UV of first 3 vertices to see if they vary or are
+				// constant (broken loader / broken UV register on some maps).
+				float u0=0,v0=0, u1=0,v1=0, u2=0,v2=0;
+				if (pUV)
+				{
+					VRegFetch(pUV, UVFmt, 0, 0, u0); VRegFetch(pUV, UVFmt, 0, 1, v0);
+					if (nV >= 2) { VRegFetch(pUV, UVFmt, 1, 0, u1); VRegFetch(pUV, UVFmt, 1, 1, v1); }
+					if (nV >= 3) { VRegFetch(pUV, UVFmt, 2, 0, u2); VRegFetch(pUV, UVFmt, 2, 1, v2); }
+				}
 				fprintf(stderr,
 					"[VBB] nV=%d PosFmt=%d NrmFmt=%d nrmPtr=%s v0N=(%.3f,%.3f,%.3f)%s"
-					" UVSet0=%d/reg%d fmt=%d ptr=%s UVSet1=%d/reg%d fmt=%d ptr=%s"
+					" UVSet0=%d/reg%d fmt=%d ptr=%s v0UV=(%.3f,%.3f) v1UV=(%.3f,%.3f) v2UV=(%.3f,%.3f)"
+					" UVSet1=%d/reg%d fmt=%d ptr=%s"
 					" TxEn=0x%08x col=%s\n",
 					nV, PosFmt, NrmFmt, pNrm?"y":"n", n0x,n0y,n0z, nOK?"":"[fetchFAIL]",
-					UVSet0, iUVReg0, UVFmt, pUV?"y":"n",
+					UVSet0, iUVReg0, UVFmt, pUV?"y":"n", u0,v0, u1,v1, u2,v2,
 					UVSet1, iUVReg1, UV1Fmt, pUV1?"y":"n",
 					(unsigned)VBB.m_TransformEnable, pCol?"y":"n");
 				fflush(stderr);
