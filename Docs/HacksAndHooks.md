@@ -67,9 +67,11 @@
   проверку 2D-model matrix (диагональная, `k[2][2]==1`). Убрать когда
   вернём FBO с deferred pipeline.
 
-- **DBG** `RIDDICK_NO_LIGHT=1` (`PushLightUniforms`) — форсит `uLightingMode=0`
-  для всех draws. Диагностика «уровень чёрный»: если под этим видим
-  диффуз — наша modulate-lighting перебарщивает (ambient=0 → `c *= vec3(0)`).
+- **DBG** `RIDDICK_NO_LIGHT=1` (`GLES3_NoLight()` — три точки:
+  `BuildVertsFromVBB`, `BuildInterleavedVerts`, `SetupCommonUniforms`,
+  `PushLightUniforms`) — **fullbright**: `vCol=white` (стирает
+  vertex-baked ambient, из-за которого Pit — чёрный), `uFogEnable=0`,
+  `uLightingMode=0`. Фрагмент коллапсирует в `c = texture(uTex,vUV)`.
 
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.

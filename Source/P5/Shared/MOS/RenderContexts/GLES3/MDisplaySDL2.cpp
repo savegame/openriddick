@@ -253,6 +253,22 @@ static bool GLES3_DirectRender()
 	return s != 0;
 }
 
+// RIDDICK_NO_LIGHT=1 -- fullbright diagnostic. Every darkening path
+// disabled at once: vCol forced to white (vertex-baked ambient wiped),
+// uLightingMode=0 (dynamic lights skipped), uFogEnable=0. Fragment
+// collapses to `c = texture(uTex,vUV)` -- no matter how dark the map's
+// baked ambient is (Pit had it ~0 -> pitch-black walls).
+static bool GLES3_NoLight()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_LIGHT");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
@@ -1914,7 +1930,8 @@ public:
 				{
 					p[i].u1 = 0.0f; p[i].v1 = 0.0f;
 				}
-				p[i].col = pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol;
+				p[i].col = GLES3_NoLight() ? 0xffffffffu
+					: (pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol);
 				if (pN) { p[i].nx = pN[i].k[0]; p[i].ny = pN[i].k[1]; p[i].nz = pN[i].k[2]; }
 				else    { p[i].nx = 0; p[i].ny = 0; p[i].nz = 1; }
 			}
@@ -1972,17 +1989,10 @@ public:
 			// Engine sets CRC_FLAGS_LIGHTING when a vertex-lit pass is
 			// wanted. Additional heuristic: any pass whose blend is ONE/ONE
 			// (CRC_RASTERMODE_ADD) with lights supplied is a light-add pass.
-			// RIDDICK_NO_LIGHT=1: force lighting off. Diagnoses "level
-			// went black" -- if walls show diffuse under this, our
-			// modulate-lighting is over-zealous (Ambient=0 or lights
-			// aren't propagating so N*L*ambient = 0).
-			static int sNoLight = -1;
-			if (sNoLight < 0)
-			{
-				const char* e = getenv("RIDDICK_NO_LIGHT");
-				sNoLight = (e && *e && *e != '0') ? 1 : 0;
-			}
-			const bool bHaveLights = !sNoLight && (m_pRCLights && m_nRCLights > 0);
+			// RIDDICK_NO_LIGHT=1: fullbright diagnostic. Fold vCol,
+			// fog and lighting-block to no-ops so fragment reduces to
+			// pure diffuse (see GLES3_NoLight() near top of file).
+			const bool bHaveLights = !GLES3_NoLight() && (m_pRCLights && m_nRCLights > 0);
 			if (bHaveLights && m_pCurAttrib)
 			{
 				const uint32 F = m_pCurAttrib->m_Flags;
@@ -2067,7 +2077,7 @@ public:
 			else
 				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
 
-			if (_bAllowFog && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
+			if (_bAllowFog && !GLES3_NoLight() && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
 			{
 				const CPixel32 FC = m_pCurAttrib->m_FogColor;
 				const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
@@ -2964,7 +2974,8 @@ public:
 						pVerts[i].v1 = pVerts[i].v1 * UV1Tx.m_Scale.k[1] + UV1Tx.m_Offset.k[1];
 					}
 				}
-				pVerts[i].col = pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu;
+				pVerts[i].col = GLES3_NoLight() ? 0xffffffffu
+					: (pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu);
 				pVerts[i].nx = 0; pVerts[i].ny = 0; pVerts[i].nz = 1;
 				if (pNrm)
 				{
