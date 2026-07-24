@@ -1596,13 +1596,29 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// XREngine.cpp negates W2V.X on Linux. PS3 GCM's
-				// "front-face" convention was already inverted vs GL's
-				// default, so our X-flip cancels that -- the retail cull
-				// mapping (CULLCW=1 -> BACK, else FRONT) works UNCHANGED
-				// with default GL_CCW frontFace.
-				glFrontFace(GL_CCW);
-				glCullFace((F & CRC_FLAGS_CULLCW) ? GL_BACK : GL_FRONT);
+				// RIDDICK_CULL_MODE (0..3): empirical picker for the
+				// FrontFace + CULLCW → GL_CULL_FACE combination. Default
+				// retail mapping should have been "right" after our
+				// W2V.X flip in XREngine.cpp, but derivations kept
+				// disagreeing with what the user sees on screen. Pick
+				// the one that shows outward faces:
+				//   0: GL_CCW + (CULLCW ? BACK  : FRONT)  retail
+				//   1: GL_CCW + (CULLCW ? FRONT : BACK)   inv cull
+				//   2: GL_CW  + (CULLCW ? BACK  : FRONT)  inv front
+				//   3: GL_CW  + (CULLCW ? FRONT : BACK)   both
+				static int sCullMode = -1;
+				if (sCullMode < 0)
+				{
+					const char* e = getenv("RIDDICK_CULL_MODE");
+					sCullMode = e ? atoi(e) : 0;
+					if (sCullMode < 0 || sCullMode > 3) sCullMode = 0;
+				}
+				const bool bFrontCW = (sCullMode & 2) != 0;
+				const bool bInvCull = (sCullMode & 1) != 0;
+				glFrontFace(bFrontCW ? GL_CW : GL_CCW);
+				const bool bCw = (F & CRC_FLAGS_CULLCW) != 0;
+				const bool bCullBack = bInvCull ? !bCw : bCw;
+				glCullFace(bCullBack ? GL_BACK : GL_FRONT);
 			}
 			else
 			{
@@ -2343,27 +2359,44 @@ public:
 					}
 				}
 
-				// DIRECT_RENDER = single-pass color+depth. Skip any 3D
-				// drawcall that isn't a solid-geometry pass:
-				//   * ColW=0 (Z-prepass / stencil-only): purposeless in
-				//     single-pass mode, deferred/G-buffer only.
-				//   * ZWrite=0 (alpha-blend overlays, detail decals):
-				//     retail uses these on top of base diffuse for extra
-				//     polish; in DIRECT_RENDER we skip to avoid double
-				//     paint and z-fight surprises.
-				// UI keeps ColW=1 ZWrite=0 -- must NOT be skipped; detect
-				// UI via 2D model matrix (diagonal 3x3, k[2][2]==1).
+				// DIRECT_RENDER pass filter for 3D. UI (2D model matrix)
+				// bypasses the filter. RIDDICK_DIRECT_PASS:
+				//   both    (default) — no filter, draw everything
+				//   solid   — keep only ColW && ZWrite (base-diffuse
+				//             pass; my WBSP2Model hack enables COLORWRITE
+				//             on the shader-Z base attrib so it becomes
+				//             a full color+depth pass).
+				//   overlay — keep only ColW && !ZWrite (alpha-blend
+				//             detail overlay pass; often carries the
+				//             actual UV/textured decal).
+				//   skipz   — skip ColW=0 (Z/stencil-only prepass).
+				static int sPassMode = -1;   // 0 both, 1 solid, 2 overlay, 3 skipz
+				if (sPassMode < 0)
+				{
+					const char* e = getenv("RIDDICK_DIRECT_PASS");
+					sPassMode = 0;
+					if (e)
+					{
+						if      (strcmp(e, "solid")   == 0) sPassMode = 1;
+						else if (strcmp(e, "overlay") == 0) sPassMode = 2;
+						else if (strcmp(e, "skipz")   == 0) sPassMode = 3;
+					}
+				}
 				const uint32 F = m_pCurAttrib->m_Flags;
 				const bool bIs2D = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
 				                 && fabsf(m_ModelMat.k[1][2]) < 1e-5f
 				                 && fabsf(m_ModelMat.k[2][0]) < 1e-5f
 				                 && fabsf(m_ModelMat.k[2][1]) < 1e-5f
 				                 && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
-				if (!bIs2D)
+				if (!bIs2D && sPassMode != 0)
 				{
 					const bool bColW   = (F & CRC_FLAGS_COLORWRITE) != 0;
 					const bool bZWrite = (F & CRC_FLAGS_ZWRITE)     != 0;
-					if (!bColW || !bZWrite)
+					bool bSkip = false;
+					if      (sPassMode == 1) bSkip = !(bColW && bZWrite);
+					else if (sPassMode == 2) bSkip = !(bColW && !bZWrite);
+					else if (sPassMode == 3) bSkip = !bColW;
+					if (bSkip)
 					{
 						FreeScratch(pVerts, nVerts, bMalloced);
 						return;
