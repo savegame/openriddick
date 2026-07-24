@@ -2,6 +2,13 @@
 #include "PCH.h"
 #include "WFrontEnd.h"
 #include "../../GameContext/WGameContext.h"
+// Full definition of CRenderContext for the Render_SetUIPass hint
+// in OnRender below (_pRC alone only needs a fwd decl to be passed
+// around; calling a method needs the class body).
+// Path check (SourceTree): this file lives in
+//   Shared/MOS/Classes/GameWorld/FrontEnd/
+// target is Shared/MOS/MSystem/Raster/MRender.h -> ../../../MSystem/...
+#include "../../../MSystem/Raster/MRender.h"
 
 MRTC_IMPLEMENT(CWFrontEnd, CConsoleClient);
 
@@ -332,6 +339,12 @@ void CWFrontEnd::OnRender(CRenderContext* _pRC, CXR_VBManager* _pVBM)
 
 	M_LOCK(m_FrontEndLock);
 
+	// Tell the backend everything issued from here is UI/interface,
+	// so it can select its UI pipeline explicitly (GLES3: UI shader)
+	// instead of inferring 2D-ness from matrices/attribs. Reset below
+	// before returning. CRenderContext::Render_SetUIPass, default no-op.
+	_pRC->Render_SetUIPass(true);
+
 	CRC_Viewport* pVP = _pVBM->Viewport_Get();
 
 //	if (m_pSystem->m_spInput!=NULL)
@@ -414,6 +427,8 @@ void CWFrontEnd::OnRender(CRenderContext* _pRC, CXR_VBManager* _pVBM)
 		Util2D.SetCoordinateScale(CVec2Dfp32(Rect.GetHeight() / 640.0f, Rect.GetHeight() / 480.0f));
 		Util2D.End();
 	}
+
+	_pRC->Render_SetUIPass(false);
 }
 
 void CWFrontEnd::OnPostRenderInterface(CRC_Util2D* _pRCUtil, CClipRect _Clip, CVec2Dfp32 *_pScale)

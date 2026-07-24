@@ -28,8 +28,13 @@
 #include <cstring>
 #include <cmath>
 
-// One shared shader for M3 UI/frontend drawing. Attributes: aPos
-// (vec3 world), aUV (vec2), aCol (vec4, unpacked from CPixel32 BGRA).
+// Two geometry programs share this vertex layout. m_UIShader (below,
+// full feature set: lights/fog/alpha test/second UV) draws UI/2D;
+// m_3DShader (kGLES3_3DVertSrc/FragSrc further down, minimal:
+// diffuse + debug modes) draws world geometry. Selection happens
+// per-draw in SetupCommonUniforms via IsUIDraw().
+// Attributes: aPos (vec3 world), aUV (vec2), aUV1 (vec2),
+// aCol (vec4, unpacked from CPixel32 BGRA), aNormal (vec3).
 // Uniforms: uMVP (mat4), uUseTexture (bool), uTex (sampler2D).
 // Max simultaneous per-vertex Lambert lights. CRC_MAXLIGHTS in the
 // engine is 8; we mirror that. Each light needs 3 vec4s: pos+range,
@@ -75,7 +80,13 @@ static const char* kGLES3_UIVertSrc =
 	"  vWorldNrm = normalize(mat3(uModel) * aNormal);\n"
 	"}\n";
 
-static const char* kGLES3_UIFragSrc =
+// --- Legacy UI fragment shader -------------------------------------------
+// Kept for history/reference only (superseded by the minimal UI shader
+// below). This was the original everything-shader: dynamic Lambert lights,
+// fog, alpha test, second UV channel, 8 debug modes. To A/B against the
+// new UI shader, flip the #if and rebuild.
+#if 0
+static const char* kGLES3_UIFragSrc_Legacy =
 	"#version 300 es\n"
 	"precision mediump float;\n"
 	"in vec2 vUV;\n"
@@ -161,6 +172,102 @@ static const char* kGLES3_UIFragSrc =
 	"    float f = clamp((uFogEnd - vDepth) / max(uFogEnd - uFogStart, 0.001), 0.0, 1.0);\n"
 	"    c.rgb = mix(uFogColor, c.rgb, f);\n"
 	"  }\n"
+	"  oColor = c;\n"
+	"}\n";
+#endif // 0 -- legacy UI fragment shader
+
+// --- Minimal UI fragment shader -------------------------------------------
+// For UI/2D draws only (world geometry goes through kGLES3_3DFragSrc).
+// No lighting, no fog, no alpha test, no second UV channel: UI is
+// textured vertex-coloured quads, alpha comes from blending state.
+// vCol is REQUIRED (text/menu art carries authored per-vertex colours).
+// Debug modes (RIDDICK_DBG_SHADERUI): 0=off, 1=uv, 2=pos (solid red).
+// Other legacy enum values are ignored -> normal rendering.
+static const char* kGLES3_UIFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec4 vCol;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	"uniform int uDbgMode;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  if (uDbgMode == 1) { oColor = vec4(fract(vUV), 0.0, 1.0); return; }\n"
+	"  if (uDbgMode == 2) { oColor = vec4(1.0, 0.0, 0.0, 0.5); return; }\n"
+	"  vec4 c = vCol;\n"
+	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
+	"  oColor = c;\n"
+	"}\n";
+
+// --- Minimal 3D shader (m_3DShader). ------------------------------------
+// Dedicated program for world geometry, switched in SetupCommonUniforms
+// (UI draws keep the full m_UIShader path). Deliberately bare: no lights,
+// no fog, no alpha test, no second UV channel -- geometry + diffuse only,
+// plus debug visualisation modes.
+// Same attribute locations as the UI shader (SetVertexAttribPointers is
+// shared); aUV1/aCol at locations 2/3 are simply not consumed here.
+static const char* kGLES3_3DVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=2) in vec4 aCol;\n"
+	"layout(location=4) in vec3 aNormal;\n"
+	"uniform mat4 uMVP;\n"
+	"uniform mat4 uModel;\n"
+	"uniform mat4 uTexMat;\n"
+	"out vec2 vUV;\n"
+	"out vec4 vCol;\n"
+	"out vec3 vWorldPos;\n"
+	"out vec3 vWorldNrm;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Same NDC.z remap as the UI VS: engine projection produces [0..1]
+	// (D3D convention), GL wants [-1..+1] (see kGLES3_UIVertSrc).
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vCol = aCol;\n"
+	// Row-vector convention: worldPos = v * Model (same layout for GL).
+	"  vWorldPos = (uModel * vec4(aPos, 1.0)).xyz;\n"
+	"  vWorldNrm = mat3(uModel) * aNormal;\n"
+	"}\n";
+
+static const char* kGLES3_3DFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec4 vCol;\n"
+	"in vec3 vWorldPos;\n"
+	"in vec3 vWorldNrm;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	// RIDDICK_NO_LIGHT=1: ignore the baked per-vertex ambient in vCol,
+	// draw pure diffuse (host also whitens vCol, this is belt-and-braces
+	// so the shader alone guarantees the behaviour).
+	"uniform int uNoLight;\n"
+	// Ambient floor for the baked vCol (env RIDDICK_AMBIENT_FLOOR, default
+	// 0). Maps whose baked vertex ambient is ~0 (Pit had pitch-black
+	// walls) render black without it -- the old everything-shader hid
+	// this behind dynamic lights + a 0.2 floor. 0.2 reproduces the old
+	// floor without any light processing.
+	"uniform float uAmbientFloor;\n"
+	// Debug modes (own enum, fed from m_Dbg3DShaderMode / RIDDICK_DBG_SHADER):
+	//   0=off -> diffuse texture * vertex colour
+	//   1=uv       (fract(vUV) as RG -- fract so tiled UVs stay readable)
+	//   2=normal   (world normal as RGB, (N+1)*0.5)
+	//   3=worldpos (fract(worldPos * 0.01) as RGB -- 100-unit repeat)
+	"uniform int uDbgMode;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  if (uDbgMode == 1) { oColor = vec4(fract(vUV), 0.0, 1.0); return; }\n"
+	"  if (uDbgMode == 2) { vec3 N = normalize(vWorldNrm); oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 3) { oColor = vec4(fract(vWorldPos * 0.01), 1.0); return; }\n"
+	// vCol carries the engine's baked per-vertex ambient; multiplying keeps
+	// the scene's authored brightness. uNoLight wipes it for fullbright,
+	// uAmbientFloor lifts it off zero for maps with black-baked ambient.
+	"  vec3 bake = max(vCol.rgb, vec3(uAmbientFloor));\n"
+	"  vec4 c = (uNoLight != 0) ? vec4(1.0) : vec4(bake, vCol.a);\n"
+	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
 	"  oColor = c;\n"
 	"}\n";
 
@@ -843,12 +950,22 @@ public:
 		// first Render_* call (Create() may run before the SDL2 GL
 		// context is current).
 		CGLES3Shader      m_UIShader;
+		// Second program for world geometry (kGLES3_3DVertSrc/FragSrc).
+		// Selected per-draw in SetupCommonUniforms via IsUIDraw(); the UI
+		// program above keeps the full feature set (lights/fog/alpha/UV1).
+		CGLES3Shader      m_3DShader;
+		int m_3DUMVPLoc = -1, m_3DUModelLoc = -1, m_3DUTexMatLoc = -1;
+		int m_3DUTexLoc = -1, m_3DUUseTexLoc = -1, m_3DUDbgModeLoc = -1;
+		int m_Dbg3DShaderMode = 0; // 0=off, 1=uv, 2=normal, 3=worldpos
+		int m_3DUNoLightLoc = -1;
+		int m_3DUAmbientFloorLoc = -1;
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_UModelLoc = -1;
 		int m_ULightingModeLoc = -1, m_UAmbientLoc = -1, m_UNumLightsLoc = -1;
 		int m_ULightPosLoc = -1, m_ULightColorLoc = -1;
+		
 		// Latest light state from Attrib_Lights (engine holds the array,
 		// we just cache pointer + count until next Attrib_Set overrides).
 		const CRC_Light* m_pRCLights = 0;
@@ -1110,7 +1227,9 @@ public:
 			for (int i = 0; i < 4; ++i) m_TexMat[i].Unit();
 			DbgInit();
 			m_RTTOverlay.InitFromEnv();
-			const char* e = getenv("RIDDICK_DBG_SHADER");
+			// RIDDICK_DBG_SHADERUI -- debug modes of the UI program only
+			// (kGLES3_UIFragSrc enum).
+			const char* e = getenv("RIDDICK_DBG_SHADERUI");
 			if (e)
 			{
 				if      (strcmp(e, "uv")     == 0) m_DbgShaderMode = 1;
@@ -1121,6 +1240,15 @@ public:
 				else if (strcmp(e, "pos_local") == 0) m_DbgShaderMode = 6;
 				else if (strcmp(e, "tex_only")  == 0) m_DbgShaderMode = 7;
 				else if (strcmp(e, "tex_lod0")  == 0) m_DbgShaderMode = 8;
+			}
+			// RIDDICK_DBG_SHADER -- debug modes of the 3D program only
+			// (kGLES3_3DFragSrc enum): 1=uv, 2=normal, 3=worldpos.
+			const char* e3 = getenv("RIDDICK_DBG_SHADER");
+			if (e3)
+			{
+				if      (strcmp(e3, "uv")       == 0) m_Dbg3DShaderMode = 1;
+				else if (strcmp(e3, "normal")   == 0) m_Dbg3DShaderMode = 2;
+				else if (strcmp(e3, "worldpos") == 0) m_Dbg3DShaderMode = 3;
 			}
 		}
 
@@ -1164,6 +1292,22 @@ public:
 				m_ULightPosLoc     = m_UIShader.UniformLocation("uLightPos[0]");
 				m_ULightColorLoc   = m_UIShader.UniformLocation("uLightColor[0]");
 			}
+
+			// Minimal 3D program (world geometry). NOTE: previously this
+			// was a second m_UIShader.Build(...) which Destroy()ed the UI
+			// program built above -- it is now a separate CGLES3Shader.
+			if (m_3DShader.Build(kGLES3_3DVertSrc, kGLES3_3DFragSrc, "3D"))
+			{
+				m_3DUMVPLoc     = m_3DShader.UniformLocation("uMVP");
+				m_3DUModelLoc   = m_3DShader.UniformLocation("uModel");
+				m_3DUTexMatLoc  = m_3DShader.UniformLocation("uTexMat");
+				m_3DUTexLoc     = m_3DShader.UniformLocation("uTex");
+				m_3DUUseTexLoc  = m_3DShader.UniformLocation("uUseTexture");
+				m_3DUDbgModeLoc = m_3DShader.UniformLocation("uDbgMode");
+				m_3DUNoLightLoc = m_3DShader.UniformLocation("uNoLight");
+				m_3DUAmbientFloorLoc = m_3DShader.UniformLocation("uAmbientFloor");
+			}
+
 			glGenVertexArrays(1, &m_VAO);
 			if (m_CompShader.Build(kGLES3_CompVertSrc, kGLES3_CompFragSrc, "Composite"))
 			{
@@ -1756,6 +1900,14 @@ public:
 			}
 		}
 
+		// Explicit UI-pass hint from the engine (CRC_Core::Render_SetUIPass
+		// override). Set around frontend/HUD rendering (WFrontEnd::
+		// OnRender). Authoritative when set -- the matrix/attrib
+		// heuristics in IsUI2DDraw remain as fallback for UI geometry
+		// issued outside a hinted bracket (and for deferred VBM flushes).
+		bool m_bUIPass = false;
+		void Render_SetUIPass(bint _bOn) { m_bUIPass = (_bOn != 0); }
+
 		// BeginScene: sync viewport with the active CRC_Viewport rect.
 		// The engine calls Viewport_Set separately too, but Base_CRC's
 		// stub does nothing; we just do it here so state is coherent
@@ -1812,6 +1964,38 @@ public:
 				const int Y = ScreenH() - R.p1.y;
 				glViewport(R.p0.x, Y, W, H);
 			}
+
+			// RIDDICK_DBG_VP=1: log every viewport change with its
+			// projection signature. Perspective routes view-Z into clip-W
+			// (flat index 11, see the cw formula in the MTX debug log);
+			// 2D/ortho leaves W constant. Run once with this on to verify
+			// empirically which viewports are UI and which are world.
+			static int sDbgVP = -1;
+			if (sDbgVP < 0) sDbgVP = DbgEnvFlag("RIDDICK_DBG_VP");
+			if (sDbgVP)
+			{
+				const float* mp = (const float*)&m_ProjMat;
+				fprintf(stderr, "[VP] rect=(%d,%d)-(%d,%d) proj z->w=%g constW=%g projTest=%s hint=%d -> %s\n",
+					R.p0.x, R.p0.y, R.p1.x, R.p1.y, mp[11], mp[15],
+					Is2DProjection() ? "2D" : "persp", m_bUIPass ? 1 : 0,
+					ClassifyUI() ? "UI shader" : "3D shader");
+				fflush(stderr);
+			}
+		}
+
+		// UI/3D discriminator based on the PROJECTION matrix captured in
+		// Viewport_Update. Perspective projections route view-space Z into
+		// clip W (flat index 11: cw = x*mv[3] + y*mv[7] + z*mv[11] + mv[15],
+		// per the MTX debug-log formulas in DrawIndexed); 2D/ortho
+		// projections leave W constant (index 11 == 0, index 15 == 1).
+		// This replaces the old MODEL-matrix test, which misclassified
+		// world geometry: BSP/static-world draws keep Model=identity
+		// (vertices already in world space) and identity passes the old
+		// "2D" check, so parts of the 3D world went through the UI shader.
+		bool Is2DProjection() const
+		{
+			const float* mp = (const float*)&m_ProjMat;
+			return fabsf(mp[11]) < 1e-6f && fabsf(mp[15] - 1.0f) < 1e-3f;
 		}
 
 		virtual int Texture_GetBackBufferTextureID() {return 0;}
@@ -1907,12 +2091,7 @@ public:
 			const CVec3Dfp32* pN   = m_Geom.m_pN;
 			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
 			// See BuildVertsFromVBB: NO_LIGHT fullbright only on 3D draws.
-			const bool bIs2DIntl = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[1][2]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][0]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][1]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
-			const bool bForceWhiteIntl = GLES3_NoLight() && !bIs2DIntl;
+			const bool bForceWhiteIntl = GLES3_NoLight() && !ClassifyUI();
 
 			for (int i = 0; i < nV; ++i)
 			{
@@ -2064,48 +2243,182 @@ public:
 			}
 		}
 
+		// Shared matrix tests used by IsUI2DDraw + the classify log.
+		bool IsModelIdentity() const
+		{
+			const CMat4Dfp32& M = m_ModelMat;
+			return fabsf(M.k[0][0] - 1.0f) < 1e-3f && fabsf(M.k[1][1] - 1.0f) < 1e-3f
+				&& fabsf(M.k[0][2]) < 1e-5f && fabsf(M.k[1][2]) < 1e-5f
+				&& fabsf(M.k[2][0]) < 1e-5f && fabsf(M.k[2][1]) < 1e-5f
+				&& fabsf(M.k[2][2] - 1.0f) < 1e-3f
+				&& fabsf(M.k[3][0]) < 1e-5f && fabsf(M.k[3][1]) < 1e-5f
+				&& fabsf(M.k[3][2]) < 1e-5f;
+		}
+		bool IsModelGet2DPattern() const
+		{
+			// CRC_Viewport::Get2DMatrix (MRender.cpp): diagonal 3x3 with
+			// k[2][2]==1 plus a Z translation to the back plane.
+			const CMat4Dfp32& M = m_ModelMat;
+			return fabsf(M.k[0][2]) < 1e-5f && fabsf(M.k[1][2]) < 1e-5f
+				&& fabsf(M.k[2][0]) < 1e-5f && fabsf(M.k[2][1]) < 1e-5f
+				&& fabsf(M.k[2][2] - 1.0f) < 1e-3f;
+		}
+
+		// Pure UI/2D classification (no debug overrides). No single test
+		// suffices (UI text was observed with PERSPECTIVE projection AND
+		// identity model), so three independent signals are combined:
+		//  a) true 2D/ortho viewport -> UI (Is2DProjection);
+		//  b) Get2DMatrix-style MODEL matrix (non-identity) -> UI drawn
+		//     via CRC_Util2D with a model transform to the back plane;
+		//  c) identity MODEL + depth test AND depth write both disabled
+		//     -> UI whose verts were pre-transformed on the CPU (font
+		//     quads from CRC_Font::Write carry pixel coords; the frontend
+		//     explicitly disables CRC_FLAGS_ZCOMPARE for interface
+		//     rendering). World BSP also keeps Model=identity but always
+		//     depth-tests/writes, so it stays on the 3D program.
+		bool IsUI2DDraw() const
+		{
+			if (Is2DProjection()) return true;
+			if (IsModelGet2DPattern() && !IsModelIdentity()) return true;
+			if (IsModelIdentity() && m_pCurAttrib)
+			{
+				const uint32 F = m_pCurAttrib->m_Flags;
+				if (!(F & CRC_FLAGS_ZCOMPARE) && !(F & CRC_FLAGS_ZWRITE))
+					return true;
+			}
+			return false;
+		}
+
+		// Final UI classification: the explicit engine hint
+		// (Render_SetUIPass -> m_bUIPass) is authoritative; the
+		// matrix/attrib heuristics cover UI issued without a hint.
+		bool ClassifyUI() const
+		{
+			return m_bUIPass || IsUI2DDraw();
+		}
+
+		// UI vs world-geometry discriminator for shader selection.
+		// RIDDICK_FORCE_3D_SHADER=1 override: every draw uses the 3D
+		// program (handy to verify the new shader in isolation).
+		bool IsUIDraw() const
+		{
+			static int sForce3D = -1;
+			if (sForce3D < 0)
+			{
+				const char* e = getenv("RIDDICK_FORCE_3D_SHADER");
+				sForce3D = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sForce3D) return false;
+			return ClassifyUI();
+		}
+
 		void SetupCommonUniforms(bool _bAllowFog)
 		{
-			m_UIShader.Use();
+			// Pick the program for this draw: UI/2D keeps the full
+			// m_UIShader (lights/fog/alpha test/second UV channel), world
+			// geometry goes through the minimal m_3DShader. Fall back to
+			// the UI program if the 3D one failed to build.
+			const bool bUI = IsUIDraw() || !m_3DShader.IsValid();
+
+			// RIDDICK_DBG_CLASSIFY=N: log the classification inputs of the
+			// first N draws, then stop. For chasing UI/3D misroutes:
+			// projection test, model-matrix class, depth/blend flags and
+			// the resulting program choice.
+			static int sClsLog = -1;
+			if (sClsLog < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_CLASSIFY");
+				sClsLog = e ? atoi(e) : 0;
+			}
+			if (sClsLog > 0)
+			{
+				--sClsLog;
+				const uint32 F = m_pCurAttrib ? m_pCurAttrib->m_Flags : 0;
+				const CMat4Dfp32& M = m_ModelMat;
+				fprintf(stderr, "[CLS] hint=%d proj=%s mdl=%s k00=%.3g k32=%.3g ZCmp=%d ZW=%d Blend=%d Tex0=%d -> %s\n",
+					m_bUIPass ? 1 : 0,
+					Is2DProjection() ? "2D" : "persp",
+					IsModelIdentity() ? "ident" : (IsModelGet2DPattern() ? "2dpat" : "3d"),
+					M.k[0][0], M.k[3][2],
+					(F & CRC_FLAGS_ZCOMPARE) ? 1 : 0,
+					(F & CRC_FLAGS_ZWRITE)   ? 1 : 0,
+					(F & CRC_FLAGS_BLEND)    ? 1 : 0,
+					m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[0] : 0,
+					bUI ? "UI" : "3D");
+				fflush(stderr);
+			}
+
+			CGLES3Shader& Sh   = bUI ? m_UIShader     : m_3DShader;
+			const int LocMVP   = bUI ? m_UMVPLoc      : m_3DUMVPLoc;
+			const int LocModel = bUI ? m_UModelLoc    : m_3DUModelLoc;
+			const int LocTexM  = bUI ? m_UTexMatLoc   : m_3DUTexMatLoc;
+			const int LocTex   = bUI ? m_UTexLoc      : m_3DUTexLoc;
+			const int LocUseT  = bUI ? m_UUseTexLoc   : m_3DUUseTexLoc;
+			const int LocDbg   = bUI ? m_UDbgModeLoc  : m_3DUDbgModeLoc;
+
+			Sh.Use();
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
-			m_UIShader.SetMat4(m_UMVPLoc, (const float*)&MVP);
-			m_UIShader.SetMat4(m_UModelLoc, (const float*)&m_ModelMat);
-			m_UIShader.SetMat4(m_UTexMatLoc,  (const float*)&m_TexMat[0]);
-			m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
-			PushLightUniforms(_bAllowFog);
+			Sh.SetMat4(LocMVP, (const float*)&MVP);
+			Sh.SetMat4(LocModel, (const float*)&m_ModelMat);
+			Sh.SetMat4(LocTexM,  (const float*)&m_TexMat[0]);
 
-			// Alpha test (no fixed-function path in GLES3; done in shader)
-			if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			// --- UI-program-only features (lights, alpha test, fog, UV1).
+			// The 3D shader has none of these uniforms by design.
+			if (bUI)
 			{
-				m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
-				m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
-			}
-			else
-				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+				m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
+				PushLightUniforms(_bAllowFog);
 
-			if (_bAllowFog && !GLES3_NoLight() && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
-			{
-				const CPixel32 FC = m_pCurAttrib->m_FogColor;
-				const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
-				m_UIShader.SetInt(m_UFogEnableLoc, 1);
-				glUniform3fv(m_UFogColorLoc, 1, Fog);
-				m_UIShader.SetFloat(m_UFogStartLoc, m_pCurAttrib->m_FogStart);
-				m_UIShader.SetFloat(m_UFogEndLoc, m_pCurAttrib->m_FogEnd);
+				// Alpha test (no fixed-function path in GLES3; done in shader)
+				if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+				{
+					m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
+					m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
+				}
+				else
+					m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+
+				if (_bAllowFog && !GLES3_NoLight() && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
+				{
+					const CPixel32 FC = m_pCurAttrib->m_FogColor;
+					const float Fog[3] = { FC.GetR() * (1.0f/255.0f), FC.GetG() * (1.0f/255.0f), FC.GetB() * (1.0f/255.0f) };
+					m_UIShader.SetInt(m_UFogEnableLoc, 1);
+					glUniform3fv(m_UFogColorLoc, 1, Fog);
+					m_UIShader.SetFloat(m_UFogStartLoc, m_pCurAttrib->m_FogStart);
+					m_UIShader.SetFloat(m_UFogEndLoc, m_pCurAttrib->m_FogEnd);
+				}
+				else
+					m_UIShader.SetInt(m_UFogEnableLoc, 0);
 			}
+			// 3D-program-only: RIDDICK_NO_LIGHT=1 -> shader ignores the
+			// baked per-vertex ambient (vCol) and draws pure diffuse.
+			// RIDDICK_AMBIENT_FLOOR=f (default 0) -> floor for the baked
+			// vCol; maps with black-baked ambient (Pit) render black at 0.
+			// 0.2 reproduces the old everything-shader's floor.
 			else
-				m_UIShader.SetInt(m_UFogEnableLoc, 0);
+			{
+				m_3DShader.SetInt(m_3DUNoLightLoc, GLES3_NoLight() ? 1 : 0);
+				static float sAmbFloor = -1.0f;
+				if (sAmbFloor < 0.0f)
+				{
+					const char* e = getenv("RIDDICK_AMBIENT_FLOOR");
+					sAmbFloor = e ? (float)atof(e) : 0.0f;
+				}
+				m_3DShader.SetFloat(m_3DUAmbientFloorLoc, sAmbFloor);
+			}
 
 			// Textures. Base = channel 0; if channel 0 is empty scan
 			// 1..N for the first non-zero (shader-driven UI surfaces
 			// sometimes park the main texture in a higher slot) -- in
 			// that case there is no secondary. Channel 1 on top of a
-			// channel-0 base = multitexture (lightmap modulate).
+			// channel-0 base = multitexture (lightmap modulate) -- UI
+			// program only; the 3D shader is single-texture by design.
 			int UseTex = 0, UseTex1 = 0;
 			if (m_pCurAttrib)
 			{
 				int Tex0 = (int)m_pCurAttrib->m_TextureID[0];
-				int Tex1 = (int)m_pCurAttrib->m_TextureID[1];
+				int Tex1 = bUI ? (int)m_pCurAttrib->m_TextureID[1] : 0;
 				if (!Tex0)
 				{
 					Tex1 = 0;
@@ -2122,7 +2435,7 @@ public:
 					{
 						glActiveTexture(GL_TEXTURE0);
 						glBindTexture(GL_TEXTURE_2D, T);
-						m_UIShader.SetInt(m_UTexLoc, 0);
+						Sh.SetInt(LocTex, 0);
 						UseTex = 1;
 						++m_DbgTexBound;
 					}
@@ -2131,7 +2444,7 @@ public:
 				}
 				else
 					m_DbgLastBind0 = 0;
-				if (UseTex && Tex1 > 0)
+				if (bUI && UseTex && Tex1 > 0)
 				{
 					GLuint T1 = TextureID_EnsureUploaded(Tex1);
 					if (T1)
@@ -2152,36 +2465,36 @@ public:
 			// decorations (any pass with BLEND) so full-screen alpha
 			// sprites (TheDream dust clouds) don't paint over the world
 			// under diagnostic. Also skip 2D UI so HUD stays readable.
-			const bool bIs2DFT = m_pCurAttrib && (fabsf(m_ModelMat.k[0][2]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[1][2]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][0]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][1]) < 1e-5f
-			                     && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+			const bool bIs2DFT = m_pCurAttrib && ClassifyUI();
 			const bool bBlendFT = m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_BLEND);
 			const bool bDoForceTex = ForceTexEnabled() && !bIs2DFT && !bBlendFT;
 			if (bDoForceTex)
 			{
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, GetCheckerTex());
-				m_UIShader.SetInt(m_UTexLoc, 0);
+				Sh.SetInt(LocTex, 0);
 				UseTex = 1;
 				UseTex1 = 0;
 				// Also unbias identity texture matrix so raw vUV samples.
 				CMat4Dfp32 I; I.Unit();
-				m_UIShader.SetMat4(m_UTexMatLoc, (const float*)&I);
+				Sh.SetMat4(LocTexM, (const float*)&I);
 			}
-			m_UIShader.SetInt(m_UUseTexLoc, UseTex);
-			m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
+			Sh.SetInt(LocUseT, UseTex);
+			if (bUI)
+				m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
 			// FORCE_TEX overrides dbg mode + lighting so the checker actually
 			// reaches the framebuffer regardless of other flags.
 			if (bDoForceTex)
 			{
-				m_UIShader.SetInt(m_UDbgModeLoc, 0);
-				m_UIShader.SetInt(m_ULightingModeLoc, 0);
-				m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+				Sh.SetInt(LocDbg, 0);
+				if (bUI)
+				{
+					m_UIShader.SetInt(m_ULightingModeLoc, 0);
+					m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
+				}
 			}
 			else
-			m_UIShader.SetInt(m_UDbgModeLoc, m_DbgShaderMode);
+				Sh.SetInt(LocDbg, bUI ? m_DbgShaderMode : m_Dbg3DShaderMode);
 			m_DbgLastUseTex = UseTex;
 			m_DbgLastUseTex1 = UseTex1;
 		}
@@ -2315,7 +2628,7 @@ public:
 		{
 			if (!_pInd || _nInd <= 0) return;
 			if (!m_bGLInited) InitGLResources();
-			if (!m_UIShader.IsValid()) return;
+			if (!m_UIShader.IsValid() && !m_3DShader.IsValid()) return;
 
 			// Flush deferred attrib/matrix state (mirrors the PS3
 			// backend: engine mutates its own stack, then expects
@@ -2408,11 +2721,7 @@ public:
 					}
 				}
 				const uint32 F = m_pCurAttrib->m_Flags;
-				const bool bIs2D = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
-				                 && fabsf(m_ModelMat.k[1][2]) < 1e-5f
-				                 && fabsf(m_ModelMat.k[2][0]) < 1e-5f
-				                 && fabsf(m_ModelMat.k[2][1]) < 1e-5f
-				                 && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+				const bool bIs2D = ClassifyUI();
 				if (!bIs2D && sPassMode != 0)
 				{
 					const bool bColW   = (F & CRC_FLAGS_COLORWRITE) != 0;
@@ -2726,7 +3035,7 @@ public:
 		{
 			if (!_pVerts || _nVerts <= 0 || !_pInd || _nInd <= 0) return;
 			if (!m_bGLInited) InitGLResources();
-			if (!m_UIShader.IsValid()) return;
+			if (!m_UIShader.IsValid() && !m_3DShader.IsValid()) return;
 			// ONLY_BSP filter (same threshold as DrawIndexed).
 			if (getenv("RIDDICK_ONLY_BSP") && _nVerts < 100) return;
 			if (m_AttribChanged) Attrib_Update();
@@ -2970,14 +3279,9 @@ public:
 			// to `c = texture(...)`. But ONLY for 3D world draws -- UI
 			// text/HUD/loading-bar carry authored per-vertex colors
 			// (yellow captions, red bars) that we must not overwrite.
-			// 2D discriminator: engine-level Get2DMatrix produces a
-			// diagonal 3x3 with k[2][2]==1 (see MRender.cpp).
-			const bool bIs2DForCol = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
-			                       && fabsf(m_ModelMat.k[1][2]) < 1e-5f
-			                       && fabsf(m_ModelMat.k[2][0]) < 1e-5f
-			                       && fabsf(m_ModelMat.k[2][1]) < 1e-5f
-			                       && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
-			const bool bForceWhiteCol = GLES3_NoLight() && !bIs2DForCol;
+			// 2D discriminator: engine UI-pass hint + projection/model
+			// heuristics (ClassifyUI) -- identity-model world BSP stays 3D.
+			const bool bForceWhiteCol = GLES3_NoLight() && !ClassifyUI();
 			for (int i = 0; i < nV; ++i)
 			{
 				VRegFetch(pPos, PosFmt, i, 0, pVerts[i].x);

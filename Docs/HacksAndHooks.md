@@ -36,20 +36,43 @@
   облака в TheDream — они alpha‑blended на весь экран и без skip'а полностью
   перекрывали геометрию).
 
-- **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal|nrm_raw|pos_local`
-  (`~763`) — переопределяет фрагмент-шейдер:
-  - `uv` — vUV.xy как RG
-  - `pos` — сплошной красный
-  - `no_tex` — только vCol
-  - `normal` — world-normal `(N+1)*0.5` (после `mat3(uModel)*aNormal`)
-  - `nrm_raw` — сырой `aNormal` без transform/normalize (проверяет per-vertex
-    plumbing атрибута 4)
-  - `pos_local` — `fract(aPos*0.01)` (проверяет per-vertex plumbing атрибута 0)
-  - `tex_only` — сырое `texture(uTex, vUV)` без vCol/light/fog/alpha; magenta
-    если `uUseTexture=0`. Проверяет реальный диффуз без интерференции остальных
-    факторов.
-  - `tex_lod0` — то же, но `textureLod(uTex, vUV, 0.0)` — обходит mipmap chain
-    (если высокие LOD пусты, а base OK, tex_only даст серый, tex_lod0 — детали).
+- **DBG** `RIDDICK_DBG_SHADER=uv|normal|worldpos` (`MDisplaySDL2.cpp:~1245`)
+  — debug-режимы **только 3D-программы** (`kGLES3_3DFragSrc`, свой enum):
+  - `uv` — `fract(vUV)` как RG (fract, чтобы тайлинг читался)
+  - `normal` — world-normal `(N+1)*0.5`
+  - `worldpos` — `fract(worldPos*0.01)` как RGB (повтор каждые 100 юнитов)
+
+  ИЗМЕНЕНО 2026-07-25: раньше эта переменная управляла единым
+  шейдером-всё-в-одном (enum 1..8). После разделения на две программы
+  она отвечает только за 3D. Старые значения (`pos`, `no_tex`, `nrm_raw`,
+  `pos_local`, `tex_only`, `tex_lod0`) живут в legacy-UI-шейдере под `#if 0`
+  и в новом UI-шейдере не поддерживаются.
+
+- **DBG** `RIDDICK_DBG_SHADERUI=uv|pos` (`MDisplaySDL2.cpp:~1230`) —
+  debug-режимы **только UI-программы** (новый минимальный
+  `kGLES3_UIFragSrc`): `uv` — `fract(vUV)` как RG, `pos` — сплошной
+  красный. Остальные значения старого enum парсятся, но новым шейдером
+  игнорируются (нет соответствующих веток).
+
+- **DBG** `RIDDICK_FORCE_3D_SHADER=1` (`IsUIDraw`, `~2301`) — гоняет ВСЕ
+  draw calls (включая UI) через 3D-программу. Для изолированной проверки
+  3D-шейдера.
+
+- **DBG** `RIDDICK_DBG_VP=1` (`Viewport_Update`, `~1968`) — лог `[VP]` на
+  каждую смену вьюпорта: rect, сигнатура проекции (z→w, constW), состояние
+  UI-хинта и итоговая классификация (`UI shader|3D shader`).
+
+- **DBG** `RIDDICK_DBG_CLASSIFY=N` (`SetupCommonUniforms`, `~2323`) — лог
+  `[CLS]` для первых N draw'ов: UI-хинт, тест проекции, класс модельной
+  матрицы (ident/2dpat/3d), k00/k32, ZCmp/ZW/Blend, Tex0 и выбранная
+  программа. Инструмент для отлова мисроутов UI↔3D по реальным данным.
+
+- **DBG** `RIDDICK_AMBIENT_FLOOR=<f>` (дефолт 0, `SetupCommonUniforms`,
+  `~2396`) — нижний «пол» для запечённого в вершины ambient (vCol) в
+  3D-шейдере: `bake = max(vCol.rgb, uAmbientFloor)`. Карты с чёрной
+  запечкой (Pit) без него рисуются чёрным — старый шейдер-всё-в-одном
+  маскировал это динамическим светом + полом 0.2. `=0.2` воспроизводит
+  старый пол без всякой обработки источников света.
 
 - **KEEP** (hardcoded, `#ifdef PLATFORM_LINUX`, `XREngine.cpp:~1044`,
   `CXR_ViewContextImpl::Clear`) — сразу после `InverseOrthogonal(m_W2VMat)`
@@ -73,9 +96,13 @@
   `PushLightUniforms`) — **fullbright для 3D‑мира**: `vCol=white`
   (стирает vertex-baked ambient, из-за которого Pit — чёрный),
   `uFogEnable=0`, `uLightingMode=0`. Фрагмент коллапсирует в
-  `c = texture(uTex,vUV)`. **UI не трогается** — дискриминатор 2D‑model‑matrix
-  (диагональ + `k[2][2]=1`) сохраняет authored per-vertex цвета
-  (жёлтые надписи диалогов, полоса загрузки, ESRB и т.д.).
+  `c = texture(uTex,vUV)`. **UI не трогается** — authored per-vertex цвета
+  (жёлтые надписи диалогов, полоса загрузки, ESRB) сохраняются.
+  ОБНОВЛЕНО 2026-07-25: (а) дискриминатор 2D — теперь `ClassifyUI()`
+  (engine-хинт `Render_SetUIPass` + эвристики, см. ниже), старый тест
+  по model-matrix заменён; (б) в 3D-шейдере добавлен uniform `uNoLight`
+  — шейдер сам игнорирует vCol независимо от host-side отбеливания
+  (belt-and-braces).
 
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.
@@ -174,6 +201,45 @@
 
 ## Костыли внутри рендера
 
+### Разделение UI/3D шейдеров (2026-07-25)
+
+- **KEEP** Две шейдерные программы вместо одной «всё-в-одном»
+  (`MDisplaySDL2.cpp`): `m_UIShader` (новый минимальный `kGLES3_UIVertSrc`
+  + `kGLES3_UIFragSrc`: `vCol × texture`, debug `uv|pos`) для UI/2D и
+  `m_3DShader` (`kGLES3_3DVertSrc/FragSrc`: `vCol × diffuse`, debug
+  `uv|normal|worldpos`, `uNoLight`, `uAmbientFloor`) для мировой
+  геометрии. Выбор — per-draw в `SetupCommonUniforms` через `IsUIDraw()`.
+  Общий vertex layout (SUIVert, локации 0-4) — `SetVertexAttribPointers`
+  общий. Заодно починен баг: `InitGLResources` раньше вызывал
+  `m_UIShader.Build()` дважды, и второй вызов через `Destroy()` убивал
+  UI-программу.
+
+- **DBG** Legacy-UI-фрагментник сохранён под `#if 0` как
+  `kGLES3_UIFragSrc_Legacy` (`~89-175`) — для A/B-сравнения (свет, туман,
+  alpha-test, UV1, 8 debug-режимов). **Удалить перед мержем.**
+
+- **KEEP** Явный канал «сейчас рисуется UI»: виртуал
+  `CRenderContext::Render_SetUIPass(bint)` (`MRender.h`), no-op тело
+  `CRC_Core::Render_SetUIPass` (`MRender.cpp`), override в `CRC_GLES3`
+  (флаг `m_bUIPass`, `~1909`). Движок выставляет в
+  `CWFrontEnd::OnRender` (`WFrontEnd.cpp`) — `_pRC->Render_SetUIPass(true/false)`
+  вокруг рендера интерфейса. ВНИМАНИЕ: виртуал меняет vtable
+  `CRenderContext` — после правки заголовков обязательна полная
+  пересборка всех модулей. TODO: добавить такую же скобку в точке
+  рендера in-game HUD, если он идёт мимо `WFrontEnd::OnRender`.
+
+- **HACK** Эвристический дискриминатор UI (`IsUI2DDraw`, `~2279`) —
+  фолбэк для UI, идущего вне hinted-скобки (и для отложенных VBM-флашей).
+  Три сигнала, любого достаточно: (а) ортографическая/2D проекция
+  вьюпорта (`Is2DProjection`: z→w == 0, constW == 1); (б) model-matrix с
+  паттерном `CRC_Viewport::Get2DMatrix` (диагональ, `k[2][2]==1`,
+  НЕ identity — identity это мировая BSP с world-space вершинами);
+  (в) identity model + `ZCOMPARE` и `ZWRITE` оба выключены (UI со
+  шрифтовыми квадами в пиксельных координатах, пре-трансформированными
+  на CPU; фронтенд явно гасит ZCOMPARE). `ClassifyUI()` = hint || эвристика.
+  → правильно: покрыть хинтом ВСЕ точки входа UI (HUD, VBM-flush) и
+  удалить эвристики.
+
 ### Placeholder textures
 
 - **HACK** `GetPlaceholderTex()` (`~380`) — magenta 1×1 текстура,
@@ -191,8 +257,9 @@
 ### NDC.z remap в шейдере
 
 - **KEEP** `gl_Position.z = 2.0 * gl_Position.z - gl_Position.w`
-  (`kGLES3_UIVertSrc`, `~57`) — компенсация engine [0..1] NDC.z vs
-  GL [-1..+1]. **Оставить** — правильный фикс.
+  (`kGLES3_UIVertSrc`, `~57`; также `kGLES3_3DVertSrc`, `~210`) —
+  компенсация engine [0..1] NDC.z vs GL [-1..+1]. Есть в обоих
+  вершинных шейдерах. **Оставить** — правильный фикс.
 
 ### Winding fix (final, повторно проверен пользователем)
 
@@ -315,6 +382,9 @@
 5. Заменить `BuildInterleavedVerts` malloc-путь на VBO cache.
 6. Удалить `RIDDICK_COPYTEX_FLIP` A/B (закрепить рабочий вариант).
 7. Проверить `Placeholder` — либо loud-fail либо графическая индикация.
+8. Удалить `kGLES3_UIFragSrc_Legacy` (`#if 0`-блок).
+9. Покрыть `Render_SetUIPass`-скобками все точки входа UI (in-game HUD,
+   отложенные VBM-флаши) и удалить эвристики `IsUI2DDraw`/`Is2DProjection`.
 
 ## Меньшие детали
 

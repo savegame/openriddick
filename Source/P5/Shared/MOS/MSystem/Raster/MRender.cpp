@@ -7,7 +7,7 @@
 
 // -------------------------------------------------------------------
 #if !defined(COMPILER_CODEWARRIOR) && !defined(COMPILER_GNU)
-#pragma warning(disable : 4244)		// Slår av varning för float = int, int = float.
+#pragma warning(disable : 4244)		// Slï¿½r av varning fï¿½r float = int, int = float.
 #endif
 
 // -------------------------------------------------------------------
@@ -708,7 +708,7 @@ Returns mask for intersecting planes
 	fp32 d;
 	if ((_Pos.k[2] + _Radius) < m_FrontPlane) return 0;					// Bakom?
 	if ((_Pos.k[2] - _Radius) < m_FrontPlane) Mask += 1;
-	if ((_Pos.k[2] - _Radius) > m_BackPlane) return 0;			// För långt bort?
+	if ((_Pos.k[2] - _Radius) > m_BackPlane) return 0;			// Fï¿½r lï¿½ngt bort?
 	if ((_Pos.k[2] + _Radius) > m_BackPlane) Mask += 2;
 
 	d = (m_VViewPlanes[0].n.k[0] * _Pos.k[0] + 
@@ -2302,6 +2302,13 @@ CRC_Core::~CRC_Core()
 //	g_pOS->m_spCon->RemoveSubSystem(this);
 	m_pTC = NULL;
 };
+
+void CRC_Core::Render_SetUIPass(bint _bOn)
+{
+	// Default no-op -- backends that care (GLES3) override this to
+	// switch UI/3D pipelines explicitly (see MRender.h).
+	(void)_bOn;
+}
 
 void CRC_Core::BeginScene(CRC_Viewport* _pVP)
 {

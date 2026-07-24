@@ -483,6 +483,10 @@ public:
 	CRC_Core();
 	virtual ~CRC_Core();
 
+	// Override of CRenderContext::Render_SetUIPass (see MRender.h).
+	// Default no-op body lives in MRender.cpp.
+	DRenderVirtual void Render_SetUIPass(bint _bOn);
+
 	DRenderVirtual void PreEndScene();
 	
 	DRenderVirtual void Texture_MakeAllDirty(int _iPicMip = -1);
