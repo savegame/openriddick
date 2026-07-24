@@ -544,6 +544,8 @@ spCMWnd CWFrontEnd_Mod::CreateWindowFromName(const char *_pName)
 		return spWnd;
 
 	}
+	M_TRACEALWAYS("(CWFrontEnd_Mod::CreateWindowFromName) no GUI registry resource 'GUI\\%s' (window '%s')\n",
+		m_CubeWndName.Str(), _pName);
 	return NULL;
 }
 
@@ -1377,7 +1379,7 @@ void CWFrontEnd_Mod::Cube_DoLoadingLayout()
 //
 void CWFrontEnd_Mod::Cube_Update(CMWnd *_pWnd)
 {
-	// Jakob: varför i hela friden skulle man behöva göra såhär?!
+	// Jakob: varfï¿½r i hela friden skulle man behï¿½va gï¿½ra sï¿½hï¿½r?!
 	m_Cube.InitSound(m_spMapData, m_spSoundContext, m_iChannel); // so stupid..
 
 	if(m_pCurrentWnd != _pWnd)
@@ -1938,6 +1940,15 @@ void CWFrontEnd_Mod::Con_CacheCommand(CStr _Cmd)
 {
 	M_LOCK(m_FrontEndLock);
 	m_CachedCommand = _Cmd;
+#ifdef PLATFORM_LINUX
+	// On console the menu asks the async profile/save subsystem
+	// something like "issignedin(cmd_yes, cmd_no)" and waits for
+	// docachedcommand() to fire from the platform callback once the
+	// answer arrives. We have no such async subsystem on Linux, so
+	// the menu would hang forever at the START prompt. Emulate an
+	// instant "OK" response: execute the cached command right away.
+	ConExecuteImp(m_CachedCommand, __FUNCTION__, 0);
+#endif
 }
 
 void CWFrontEnd_Mod::Con_DoCacheCommand()
@@ -2074,7 +2085,7 @@ void CWFrontEnd_Mod::RenderHelpButtons(CMWnd *_pWnd, CRC_Util2D* _pRCUtil, CClip
 				const fp32 FontSize = 16.0f;
 				fp32 w = pFont->GetWidth(FontSize, Text);
 				//				fp32 h = pFont->GetHeight(FontSize, Text);
-				Text = CStrF("§Z%.2i", int(FontSize)) + Text;
+				Text = CStrF("ï¿½Z%.2i", int(FontSize)) + Text;
 				rButton.m_Extend = w; // extend the possible clicking area
 
 				CPnt Pos = ButtonRect.p0; // calculate position of the text

@@ -194,6 +194,8 @@ void CWAG2I::TagAnimSetFromImpulses(const CWAG2I_Context* _pContext, CMapData* _
 
 				const CXRAG2_State* pFirstState = pAnimGraph->GetState(pBlock->GetBaseStateIndex());
 				const CXRAG2_State* pLastState = pAnimGraph->GetState(pBlock->GetBaseStateIndex() + pBlock->GetNumStates() - 1);
+				if (!pFirstState || !pLastState)
+					continue;
 				int32 iBaseAnimLayer = pFirstState->GetBaseAnimLayerIndex();
 				int32 iLastAnimLayer = pLastState->GetBaseAnimLayerIndex() + pLastState->GetNumAnimLayers();
 				int32 NumLayers = iLastAnimLayer - iBaseAnimLayer;
@@ -259,6 +261,9 @@ void CWAG2I::TagAnimSetFromBlockReaction(const CWAG2I_Context* _pContext, CMapDa
 				if (pMoveToken->m_iTargetState != -1 && !pMoveToken->m_TargetStateType)
 				{
 					const CXRAG2_State* pState = pAnimGraph->GetState(pMoveToken->m_iTargetState);
+					// PC content legally uses TERMINATE/STARTAG as target state; nothing to precache then.
+					if (!pState)
+						continue;
 					int32 nAnimLayers = pState->GetNumAnimLayers();
 					for (int32 iAnimLayer = pState->GetBaseAnimLayerIndex(); iAnimLayer < (pState->GetBaseAnimLayerIndex() + nAnimLayers); iAnimLayer++)
 					{
@@ -334,6 +339,9 @@ void CWAG2I::TagAnimSetFromBlockReactionSwitchState(const CWAG2I_Context* _pCont
 
 							const CXRAG2_State* pState = pAnimGraph->GetState(pMoveTokenAV->m_iTargetState);
 							M_ASSERT(pState, "CWAG2I::TagAnimSetFromBlockReaction Invalid State");
+							// PC content legally uses TERMINATE/STARTAG as target state; nothing to precache then.
+							if (!pState)
+								continue;
 							int32 nAnimLayers = pState->GetNumAnimLayers();
 							for (int32 iAnimLayer = pState->GetBaseAnimLayerIndex(); iAnimLayer < (pState->GetBaseAnimLayerIndex() + nAnimLayers); iAnimLayer++)
 							{

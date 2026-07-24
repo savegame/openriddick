@@ -227,7 +227,7 @@ CRPG_Object_Item *CWObject_HealthStation::GetActivatorCartItem(int16 _iActivator
 {
 	CRPG_Object_Inventory *pInventory = GetActivatorInventory(_iActivator);
 	if(!pInventory)
-		return false;
+		return NULL;
 
 	for(int32 i = 0; i < pInventory->GetNumItems(); i++)
 	{

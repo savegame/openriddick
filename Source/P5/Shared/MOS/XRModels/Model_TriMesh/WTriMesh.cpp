@@ -8106,12 +8106,12 @@ template <int ePlatform>
 static void SetWantTransform(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB);
 
 template <>
-static void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
+void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
 {
 }
 
 template <>
-static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
+void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
 {
 	_VB.Geometry_SetWantFormat(CRC_VREG_POS, CRC_VREGFMT_NU3_P32);
 	// Transform Positions
@@ -8152,7 +8152,7 @@ static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, const
 }
 
 template <>
-static void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
+void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, const CBox3Dfp32& _BoundBox, const CTM_VertexBuffer* _pVB)
 {
 	// Transform Positions
 	{

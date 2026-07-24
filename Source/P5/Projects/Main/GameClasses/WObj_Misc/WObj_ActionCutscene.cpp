@@ -3050,7 +3050,7 @@ int32 CWObject_ActionCutsceneRiot::RespawnCharacter(CWorld_Server* _pWServer, in
 			int32 iExclude = _iChar;
 			CVec3Dfp32 Origin = pRiot->GetPosition();
 			Origin.k[2] += 30.0f;
-			bool bHit = _pWServer->Phys_IntersectLine(Origin, TargetPos, OwnFlags, ObjectFlags, MediumFlags, NULL, iExclude);
+			bool bHit = _pWServer->Phys_IntersectLine(Origin, TargetPos, OwnFlags, ObjectFlags, MediumFlags, (CCollisionInfo*)NULL, iExclude);
 			if (bHit)
 				return false;
 		}

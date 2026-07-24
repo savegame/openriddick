@@ -149,7 +149,7 @@ M_FORCEINLINE void CMat4Dfp32::CreateTranslation(const TVector4<fp32>& _Translat
 \*************************************************************************************************/
 /*
 template <>
-static void TVector3Aggr<fp32>::MultiplyMatrix(const TVector3Aggr<fp32>* _pSrc, TVector3Aggr<fp32>* _pDest, const CMat4Dfp32& _Mat, int n)
+void TVector3Aggr<fp32>::MultiplyMatrix(const TVector3Aggr<fp32>* _pSrc, TVector3Aggr<fp32>* _pDest, const CMat4Dfp32& _Mat, int n)
 {
 	CMat4Dfp32 M = _Mat;
 	for(int i = 0; i < n; i++)

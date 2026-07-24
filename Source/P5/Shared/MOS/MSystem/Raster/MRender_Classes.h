@@ -860,9 +860,17 @@ public:
 
 		struct
 		{
+			// Must cover the attribute struct above; 64-bit pointers make
+			// it larger than the original 10 vector registers.
+#if defined(PLATFORM_LINUX) && defined(CPU_PTR64)
+			vec128 m_v128[0x0b];
+#else
 			vec128 m_v128[0x0a];
+#endif
 		};
 	};
+
+	enum { k_nAttribVec128 = sizeof(m_v128) / sizeof(vec128) };
 
 
 	CRC_Attributes();
@@ -875,26 +883,8 @@ public:
 	{
 		if((mint(&_Src) & 0xf) || (mint(this) & 0xf))
 			M_BREAKPOINT;
-		vec128 v0 = _Src.m_v128[0];
-		vec128 v1 = _Src.m_v128[1];
-		vec128 v2 = _Src.m_v128[2];
-		vec128 v3 = _Src.m_v128[3];
-		vec128 v4 = _Src.m_v128[4];
-		vec128 v5 = _Src.m_v128[5];
-		vec128 v6 = _Src.m_v128[6];
-		vec128 v7 = _Src.m_v128[7];
-		vec128 v8 = _Src.m_v128[8];
-		vec128 v9 = _Src.m_v128[9];
-		m_v128[0] = v0;
-		m_v128[1] = v1;
-		m_v128[2] = v2;
-		m_v128[3] = v3;
-		m_v128[4] = v4;
-		m_v128[5] = v5;
-		m_v128[6] = v6;
-		m_v128[7] = v7;
-		m_v128[8] = v8;
-		m_v128[9] = v9;
+		for (int i = 0; i < k_nAttribVec128; i++)
+			m_v128[i] = _Src.m_v128[i];
 		return *this;
 	}
 

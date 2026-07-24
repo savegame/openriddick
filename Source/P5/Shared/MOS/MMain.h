@@ -140,6 +140,15 @@
 	{\
 		PS3_Main(argc, argv, AppClassName);\
 	};
+
+#elif defined(PLATFORM_LINUX)
+	int Linux_Main(int argc, char** argv, const char* _pAppClassName);
+
+	#define MACRO_MAIN(AppClassName)\
+	int main(int argc, char** argv)\
+	{\
+		return Linux_Main(argc, argv, AppClassName);\
+	};
 #else
 
 #error "Implement this"

@@ -1,5 +1,7 @@
 
 #include "PCH.h"
+#include <cstdio>
+#include <cstdlib>
 #include "../Misc/MRTC_Task.h"
 #include "MRender.h"
 #include "MTextureContainers.h"
@@ -836,20 +838,48 @@ void CTexture::ReadIndexData(CCFile* _pFile, TArray<spCImagePalette>* _plspPalet
 {
 	MAUTOSTRIP(CTexture_ReadIndexData, MAUTOSTRIP_VOID);
 
+	// Optional diagnostic tracing for XTC parsing. Enable with RIDDICK_DBG_XTC=1.
+	static int s_DbgXTC = -1;
+	if (s_DbgXTC < 0) { const char* e = getenv("RIDDICK_DBG_XTC"); s_DbgXTC = (e && *e && *e != '0') ? 1 : 0; }
+	fint _dbgP0 = s_DbgXTC ? _pFile->Pos() : 0;
+
 	_pFile->ReadLE(m_iPalette);
 	if (m_iPalette >= 0) m_iPalette += _iPalBase;
 	_pFile->ReadLE(m_PaletteFilePos);
+	fint _dbgPBeforeName = s_DbgXTC ? _pFile->Pos() : 0;
+	int  _dbgNameLen = 0;
 	{
 		CFStr TmpStr;
 		TmpStr.Read(_pFile);
-		if (TmpStr.Len() > 31) Error("Read", "Too long texture-name.");
+		_dbgNameLen = TmpStr.Len();
+		if (TmpStr.Len() > 31)
+		{
+			if (s_DbgXTC)
+				fprintf(stderr, "[XTC-DIAG] Too long texture-name: len=%d  file='%s'  entryPos=0x%llx  posBeforeName=0x%llx  iPalette=%d  PaletteFilePos=%d\n",
+					_dbgNameLen, (const char*)_pFile->GetFileName(),
+					(unsigned long long)_dbgP0, (unsigned long long)_dbgPBeforeName,
+					(int)m_iPalette, (int)m_PaletteFilePos);
+			Error("Read", "Too long texture-name.");
+		}
 #ifdef USE_HASHED_TEXTURENAME
 		m_NameID = StringToHash(TmpStr);
-#else		
+#else
 		strcpy(m_Name, (char*)TmpStr);
-#endif		
+#endif
+		if (s_DbgXTC)
+			fprintf(stderr, "[XTC-DIAG] tex entryPos=0x%llx  iPal=%d  PalFilePos=%d  name='%s'(len=%d)  posAfterName=0x%llx\n",
+				(unsigned long long)_dbgP0, (int)m_iPalette, (int)m_PaletteFilePos,
+#ifdef USE_HASHED_TEXTURENAME
+				"<hashed>",
+#else
+				(const char*)TmpStr,
+#endif
+				_dbgNameLen, (unsigned long long)_pFile->Pos());
 	}
 	_pFile->ReadLE(m_nMipmaps);
+	if (s_DbgXTC)
+		fprintf(stderr, "[XTC-DIAG]   nMipmaps=%d  posBeforeReadHeader=0x%llx\n",
+			(int)m_nMipmaps, (unsigned long long)_pFile->Pos());
 //	m_lspMaps.SetLen(m_nMipmaps);
 /*
 	int i;
@@ -1752,7 +1782,7 @@ static void CreateTSVectorMap(CImage* _pSrc, CImage* _pDst)
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:	Get pixel by Linear Interpolation	
 
 Parameters:		
@@ -1785,7 +1815,7 @@ CPixel32 GetPixel(CImage * _pImg,fp32 _TexX,fp32 _TexY)
 	return CPixel32(FinalPixel);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:	Get UV coordinates by sphere map
 
 Parameters:		
@@ -6191,7 +6221,7 @@ void	CTextureContainer_Plain::createDualParaboloidMaps( void )
 				for( i=0; i<6; i++ )
 					parabolid.pushSource( spT );
 
-				//	Save directly, since this cubemap has all it´s sides made up of this one texture.
+				//	Save directly, since this cubemap has all itï¿½s sides made up of this one texture.
 				parabolid.save( false, iTxt );
 			}
 			else if( spT->m_Properties.m_Flags & CTC_TEXTUREFLAGS_CUBEMAPCHAIN )
@@ -6442,6 +6472,13 @@ void CTextureContainer_VirtualXTC::ScanImageList(CDataFile* _pDFile)
 	{
 		int iLastNewImage = -1;
 		int nTxt = _pDFile->GetUserData();
+		{
+			static int s_DbgXTC = -1;
+			if (s_DbgXTC < 0) { const char* e = getenv("RIDDICK_DBG_XTC"); s_DbgXTC = (e && *e && *e != '0') ? 1 : 0; }
+			if (s_DbgXTC)
+				fprintf(stderr, "[XTC-DIAG] VirtualXTC IMAGEDIRECTORY4 file='%s'  nTxt=%d  iFirstTxt=%d  filePos=0x%llx\n",
+					(const char*)pFile->GetFileName(), nTxt, iFirstTxt, (unsigned long long)pFile->Pos());
+		}
 		m_lspTextures.SetLen(iFirstTxt + nTxt);
 		for(int iTxt = 0; iTxt < m_lspTextures.Len(); iTxt++)
 		{

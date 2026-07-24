@@ -536,6 +536,36 @@ void CSystemCore::CreateSystems()
 			}
 #endif
 			
+#ifdef PLATFORM_LINUX
+			// The engine concatenates DEFAULTGAMEPATH components directly with
+			// file names ("Content" + "FONTS\\..."), so every ';'-separated
+			// component must end with a path separator. Environment.cfg files
+			// in the wild ship without one - normalize here.
+			{
+				spCRegistry spEnv = m_spRegistry->Find("ENV");
+				if (spEnv && spEnv->FindChild("DEFAULTGAMEPATH"))
+				{
+					CStr Paths = spEnv->GetValue("DEFAULTGAMEPATH", "Content\\");
+					CStr Fixed;
+					while (Paths != "")
+					{
+						CStr Path = Paths.GetStrSep(";");
+						if (Path != "")
+						{
+							char Last = Path[Path.Len() - 1];
+							if (Last != '\\' && Last != '/')
+								Path = Path + "\\";
+							if (Fixed != "")
+								Fixed = Fixed + ";";
+							Fixed = Fixed + Path;
+						}
+					}
+					if (Fixed != "")
+						spEnv->SetValue("DEFAULTGAMEPATH", Fixed);
+				}
+			}
+#endif
+
 			// Don't flag environment as loaded if we're remote (so we won't save it)
 			if(!bIsRemote) m_bEnvLoaded = true;
 			
@@ -1451,6 +1481,9 @@ void CSystemCore::SetCaption(CStr _Caption)
 void SYSTEMDLLEXPORT ConsoleWrite(CStr _s)
 {
 	MAUTOSTRIP(ConsoleWrite, MAUTOSTRIP_VOID);
+#ifdef PLATFORM_LINUX
+	fprintf(stderr, "[CON] %s\n", _s.Str());
+#endif
 	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
 	if (pCon)
 	{
@@ -1462,6 +1495,12 @@ void SYSTEMDLLEXPORT ConsoleWrite(CStr _s)
 void SYSTEMDLLEXPORT ConsoleWriteL(CStr _s)
 {
 	MAUTOSTRIP(ConsoleWriteL, MAUTOSTRIP_VOID);
+#ifdef PLATFORM_LINUX
+	// Bring-up: mirror the engine console to stderr -- the terminal IS
+	// our console, and messages like "World doesn't exist" are vital
+	// when debugging from run logs.
+	fprintf(stderr, "[CON] %s\n", _s.Str());
+#endif
 	LogFile(_s);
 	MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
 	if (pCon)

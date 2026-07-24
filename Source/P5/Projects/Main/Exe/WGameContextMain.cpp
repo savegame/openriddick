@@ -706,11 +706,11 @@ void CGameContextMod::Render_Loading(CXR_Engine * _pEngine, CXR_VBManager* _pVBM
 					/*if (Loading)
 					{
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, "§LSTD_LOADING", (int)(640*0.15f/2+1), (int)(480-480*0.15f/2-25+1),
+							Clip, pFont, "ï¿½LSTD_LOADING", (int)(640*0.15f/2+1), (int)(480-480*0.15f/2-25+1),
 							StyleCenter, CPixel32(0,0,0, Intensity), 0, 0, (int)(640 * 0.85f), 20, false);
 
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, "§LSTD_LOADING", (int)(640*0.15f/2), (int)(480-480*0.15f/2-25),
+							Clip, pFont, "ï¿½LSTD_LOADING", (int)(640*0.15f/2), (int)(480-480*0.15f/2-25),
 							StyleCenter, CPixel32(95,90,70, Intensity), 0, 0, (int)(640*0.85f), 20, false);
 					}
 
@@ -718,7 +718,7 @@ void CGameContextMod::Render_Loading(CXR_Engine * _pEngine, CXR_VBManager* _pVBM
 					if(Loading && pFrontEnd->Cube_LoadingIsTakingToMuchTime())
 					{
 						Util2D.Text_DrawFormatted(
-							Clip, pFont, CStrF("§LLOADING_TIP%d", Tip+1), (int)(640 * 0.15f/2), 480/2-100,
+							Clip, pFont, CStrF("ï¿½LLOADING_TIP%d", Tip+1), (int)(640 * 0.15f/2), 480/2-100,
 							StyleCenter, CPixel32(95,90,70, 0xff), 0, 0, (int)(640 * 0.85f), 20, false);
 					}*/
 
@@ -874,15 +874,15 @@ void CGameContextMod::Render_Corrupt(CXR_VBManager* _pVBM, CRenderContext* _pRC,
 				{
 #ifdef M_DEMO_XBOX
 					if (g_XboxDemoParams.m_bLaunchedFromDemoLauncher)
-						Msg = CStr("§Z22§LSTD_BADGAMEDISCCONTINUE");
+						Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISCCONTINUE");
 					else
-						Msg = CStr("§Z22§LSTD_BADGAMEDISC");
+						Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISC");
 #else
-					Msg = CStr("§Z22§LSTD_BADGAMEDISC");
+					Msg = CStr("ï¿½Z22ï¿½LSTD_BADGAMEDISC");
 #endif
 				}
 				else
-					Msg = CStr("§Z22§LSTD_BADAPP");
+					Msg = CStr("ï¿½Z22ï¿½LSTD_BADAPP");
 
 				Util2D.Text_DrawFormatted(
 					Clip, pFont, 
@@ -1002,7 +1002,7 @@ CStr CGameContextMod::GetScriptLayerInfo(CStr _ScriptLayer)
 	}
 	else
 	{
-		ConOutL(CStrF("§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
+		ConOutL(CStrF("ï¿½cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
 		M_TRACEALWAYS("ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!\n", RegisterFile.Str());
 	}
 
@@ -1119,6 +1119,70 @@ void CGameContextMod::Con_InitCampaign(int _Mode)
 		m_PendingWindow = _Mode;
 	}
 }*/
+
+// Dark Athena frontend: startnewcampaign(2) = Butcher Bay, (1) = Dark
+// Athena. Follows the (commented-out) Con_InitCampaign flow: switch the
+// game class to "campaign" and load the campaign's first map (index 0).
+void CGameContextMod::Con_StartNewCampaign(int _Mode)
+{
+	M_TRACEALWAYS("(Con_StartNewCampaign) mode %d\n", _Mode);
+
+	// Bring-up: the profile/savegame subsystem needs the async save
+	// content context which the Linux port does not provide yet.
+	// Without a "valid profile" Con_ChangeMap silently refuses to load
+	// any map, so force a default profile for now (no persistence).
+	if (!m_bValidProfileLoaded)
+	{
+		M_TRACEALWAYS("(Con_StartNewCampaign) no profile subsystem - forcing default profile\n");
+		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
+		if (pSys)
+		{
+			SetDefaultProfileSettings(pSys->GetOptions(1));
+			pSys->GetOptions()->SetValue("GAME_PROFILE", "Player");
+		}
+		m_bValidProfileLoaded = true;
+	}
+
+	Con_SetGameClass("campaign");
+	Con_SetGameKey("current_campaign", (_Mode == 1) ? "DA" : "EFBB");
+
+	// Resolve the campaign start world against the actual content set:
+	// some editions ship a "campaign.xw" bootstrap world, the EFBB
+	// content set starts straight at Pa1_Intro. Probe candidates and
+	// load the first one that exists.
+	// Bring-up: RIDDICK_STARTMAP overrides the start world (skip intro
+	// cinematics while debugging world rendering).
+	static const char* sEFBB[] = { "campaign", "Pa1_Intro", 0 };
+	static const char* sDA[]   = { "campaign", "da1_intro", "BBR_01", 0 };
+	const char** ppMap = (_Mode == 1) ? sDA : sEFBB;
+	CStr Map = ppMap[0];
+	const char* pStartMap = getenv("RIDDICK_STARTMAP");
+	if (pStartMap && pStartMap[0])
+		Map = pStartMap; // Command_ChangeMap resolves worlds\<name>.xw itself
+	else if (m_spWData)
+	{
+		for (int i = 0; ppMap[i]; ++i)
+		{
+			CStr FileName = m_spWData->ResolveFileName(CStrF("worlds\\%s.xw", ppMap[i]));
+			if (CDiskUtil::FileExists(FileName))
+			{
+				Map = ppMap[i];
+				break;
+			}
+		}
+	}
+	M_TRACEALWAYS("(Con_StartNewCampaign) changemap '%s' queued\n", Map.Str());
+	Con_ChangeMap(Map, 0);
+}
+
+void CGameContextMod::Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode)
+{
+	Con_SetGameKey("difficulty", _Difficulty);
+	// Also store the numeric GAME_DIFFICULTY option -- CWObject_GameP4::
+	// OnCreate reads it at world spawn ("Difficulty option net set"
+	// warning + NORMAL fallback otherwise).
+	Con_SetDifficulty(_Difficulty);
+}
 
 void CGameContextMod::UpdateControllerStatus()
 {
@@ -1426,9 +1490,9 @@ void CGameContextMod::Con_ConfirmLaunchDashboard(CStr _What)
 		CWorld_Client *pC = GetCurrentClient();
 		if(pC)
 		{
-			pFrontEndMod->Chooser_Init("§LMENU_LOSE_UNSAVEDPROGRESS");
-			pFrontEndMod->Chooser_AddChoice("§LMENU_NO", "cg_prevmenu");
-			pFrontEndMod->Chooser_AddChoice("§LMENU_YES", "launchdashboard "+_What);
+			pFrontEndMod->Chooser_Init("ï¿½LMENU_LOSE_UNSAVEDPROGRESS");
+			pFrontEndMod->Chooser_AddChoice("ï¿½LMENU_NO", "cg_prevmenu");
+			pFrontEndMod->Chooser_AddChoice("ï¿½LMENU_YES", "launchdashboard "+_What);
 			pFrontEndMod->Chooser_Invoke();
 		}
 		else
@@ -1780,6 +1844,8 @@ void CGameContextMod::Register(CScriptRegisterContext & _RegContext)
 	_RegContext.RegFunction("mp_setgamemode", this, &CGameContextMod::Con_mpSetGameMode);
 
 	_RegContext.RegFunction("campaignmap", this, &CGameContextMod::Con_CampaignMap);
+	_RegContext.RegFunction("startnewcampaign", this, &CGameContextMod::Con_StartNewCampaign);
+	_RegContext.RegFunction("setdifficultycampaign", this, &CGameContextMod::Con_SetDifficultyCampaign);
 	_RegContext.RegFunction("scriptlayer", this, &CGameContextMod::Con_ScriptLayer);
 }
 

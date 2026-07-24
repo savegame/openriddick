@@ -748,7 +748,7 @@ fp32* CXR_FogState::VertexFog_EvalCoord(CXR_VBManager* _pVBM, CXR_VertexBuffer* 
 	MAUTOSTRIP(CXR_FogState_VertexFog_EvalCoord, NULL);
 	CXR_VBChain *pChain = _pVB->GetVBChain();
 	if (!pChain->BuildVertexUsage(_pVBM)) 
-		return false;
+		return NULL;
 
 	const uint16* piV = pChain->m_piVertUse;
 	int nVA = pChain->m_nV;

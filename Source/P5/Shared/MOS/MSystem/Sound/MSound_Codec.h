@@ -135,6 +135,7 @@ public:
 	virtual bool CreateRAW(CImage *_pFormat);
 	virtual bool CreateDecoder(int _Flags); // This function must fill the codec format structure
 	virtual bool GetData(void *&_pData, mint &_nBytes, bool _bLooping, bool &_bReadSomething);
+	virtual mint GetData(fp32 *_pDest, mint _nMaxSamples, bint _bLooping); // returns the number of samples decoded
 	virtual bool SeekData(int _SampleOffset);
 	
 	// Flushes all data and invalidates the stream

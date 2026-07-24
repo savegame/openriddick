@@ -6,7 +6,7 @@
 #pragma warning(disable:4756)
 #endif
 
-#if defined(TARGET_PS2) || defined(TARGET_PS3)	// Should be COMPILER_GNU but that hasn't been defined yet
+#if defined(TARGET_PS2) || defined(TARGET_PS3) || defined(TARGET_LINUX_SDL2)	// Should be COMPILER_GNU but that hasn't been defined yet
 	#include <new>
 #else
 	#include <new.h>
@@ -62,6 +62,9 @@ class CStream;
 	#ifdef _DEBUG
 		#define MRTC_MEMMANAGEROVERRIDE_MEMDEBUG	//Enables SCB memory statistics
 	#endif
+
+#elif defined PLATFORM_LINUX
+//	#define MRTC_MEMMANAGEROVERRIDE		// Disabled: the system allocator is used directly
 
 #else
 	#define MRTC_MEMMANAGEROVERRIDE		//Enables SCB memory manager
@@ -208,6 +211,37 @@ void* M_CDECL operator new(mint _nSize)
 	return M_ALLOC(_nSize);
 }
 void M_CDECL operator delete(void* p)
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+
+
+// Sized deallocation (GCC/Clang default since C++14): without these the
+// compiler-generated operator delete(void*, size_t) / delete[](void*)
+// calls fall through to libstdc++ and glibc free() gets pointers inside
+// the MRTC arena -> heap corruption (valgrind: 130+ invalid frees).
+void M_CDECL operator delete(void* p, size_t)
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+
+#ifndef PLATFORM_PS3
+// MRTC.h declares global operator new[] for COMPILER_GNU, but Mrtc.cpp
+// used to define it for PS3 only -- on Linux new[] fell through to
+// libstdc++ while delete[] (above) routed to the MRTC arena. Mismatched
+// pair = heap corruption (P_ItemBox.xw load crash). Define the pair.
+void* M_CDECL operator new[](mint _nSize)
+{
+	return M_ALLOC(_nSize);
+}
+
+void M_CDECL operator delete[](void* p) throw()
+{
+	return MRTC_GetMemoryManager()->Free(p);
+}
+#endif
+
+void M_CDECL operator delete[](void* p, size_t)
 {
 	return MRTC_GetMemoryManager()->Free(p);
 }
@@ -3273,7 +3307,7 @@ NMemMgr::CMemTrack_Class::~CMemTrack_Class()
 
 #endif
 
-#if defined(PLATFORM_WIN_PC) || defined(PLATFORM_XBOX) || defined(PLATFORM_PS3)
+#if defined(PLATFORM_WIN_PC) || defined(PLATFORM_XBOX) || defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 
 void File_WriteLE(CCFile* _pFile, fp64 _Value)
 {

@@ -13,6 +13,12 @@ History:
 060604:		Created file
 \*____________________________________________________________________________________________*/
 #ifndef __WGame_MultiplayerHandler_h__
+
+#ifdef PLATFORM_LINUX
+#include <netinet/in.h>
+typedef int SOCKET;
+#endif
+
 #define __WGame_MultiplayerHandler_h__
 
 #define MAX_CLIENTS 8
@@ -119,6 +125,11 @@ public:
 		bool		m_bPrivateSlot;
 		SceNpId		m_npid;
 		uint32_t	m_ConnectionID;	//Valid for all clients on server, only valid for m_Host on clients
+#endif
+#ifdef PLATFORM_LINUX
+		char		m_gamertag[32];	// gamertag
+		bool		m_bPrivateSlot;
+		uint32_t	m_ConnectionID;
 #endif
 		SOCKET		m_socket;		
 	};

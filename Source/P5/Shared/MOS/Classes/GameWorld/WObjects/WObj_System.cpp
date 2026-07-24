@@ -1,5 +1,7 @@
 #include "PCH.h"
 #include "WObj_System.h"
+#include "../Client/WClient_Core.h"	// WCLIENT_ATTENUATION_*
+#include "WObj_Damage.h"
 
 #include "../../../XR/XR.h"
 #include "../../../XR/XREngineVar.h"

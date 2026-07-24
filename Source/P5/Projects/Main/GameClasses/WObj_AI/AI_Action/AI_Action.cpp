@@ -20534,7 +20534,7 @@ bool CAI_Action_DarklingJumpClose::FindDestination()
 		}
 		else
 		{
-			m_pScenePoint = false;
+			m_pScenePoint = NULL;
 			return(false);
 		}
 	}
@@ -20630,7 +20630,7 @@ bool CAI_Action_DarklingJumpClose::MoveToDestination()
 
 	if (!m_pScenePoint)
 	{
-		m_pScenePoint = false;
+		m_pScenePoint = NULL;
 		m_StayTimeout = -1;
 		return(false);
 	}

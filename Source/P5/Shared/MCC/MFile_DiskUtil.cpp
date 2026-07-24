@@ -179,7 +179,8 @@ bool CDiskUtil::MakeDir(CStr _At, CStr _Name)
 	_At = _At.Ansi();
 	_Name = _Name.Ansi();
 
-	return MRTC_SystemInfo::OS_DirectoryCreate(_At + MRTC_SystemInfo::OS_DirectorySeparator() + _Name);
+	// Linux: an empty _At must not gain a separator (it would turn the path absolute)
+	return MRTC_SystemInfo::OS_DirectoryCreate(_At.Len() ? CStr(_At + MRTC_SystemInfo::OS_DirectorySeparator() + _Name) : _Name);
 }
 
 bool CDiskUtil::RemoveDir(CStr _At, CStr _Name)
@@ -340,7 +341,7 @@ bool CDiskUtil::CreatePath(CStr _Name)
 		while(_Name != "")
 		{
 			CStr Dir = _Name.GetStrMSep("\\/");
-			CStr NewPath = Path + "\\" + Dir;
+			CStr NewPath = Path.Len() ? Path + "\\" + Dir : Dir; // Linux: no leading separator for the first component
 			if(!DirectoryExists(NewPath))
 				MakeDir(Path, Dir);
 			Path = NewPath;
@@ -539,7 +540,7 @@ CStr CDiskUtil::GetDrive()
 	Error_static("CDiskUtil::GetDrive", "Not supported.");
 	return "";
 
-#elif defined PLATFORM_PS3
+#elif defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 	Error_static("CDiskUtil::GetDrive", "Not supported.");
 	return "";
 
@@ -568,7 +569,7 @@ bool CDiskUtil::ChangeDrive(CStr _Drive)
 #elif defined PLATFORM_PS2
 	Error_static("CDiskUtil::ChangeDrive", "Not supported.");
 	return false;
-#elif defined PLATFORM_PS3
+#elif defined(PLATFORM_PS3) || defined(PLATFORM_LINUX)
 	Error_static("CDiskUtil::ChangeDrive", "Not supported.");
 	return false;
 

@@ -1,5 +1,6 @@
 #include "PCH.h"
 
+#include <cstdio>
 #include "MImage.h"
 #include "MImageIO.h"
 #include "MTexture.h"
@@ -865,7 +866,7 @@ bool	CImage::RepackS3TC_Dolphin( CImage *pImage )
 ///		LogFile( "Merging Color & Alpha Textures (GC Pseudo-DXT3)" );
 		this->mergeDXT3_Dolphin( &compressedAlphaImage );
 
-		/*	Make sure this image is DXT3, not DXT1. (make it appear that way.. we all know it isn´t..)*/	
+		/*	Make sure this image is DXT3, not DXT1. (make it appear that way.. we all know it isnï¿½t..)*/	
 		uint8	*pS3tcData = (uint8 *)this->LockCompressed();
 		CImage_CompressHeader_S3TC	*pS3tcHeader = (CImage_CompressHeader_S3TC *)pS3tcData;
 		pS3tcHeader->setCompressType( IMAGE_COMPRESSTYPE_S3TC_DXT3 );
@@ -2172,6 +2173,16 @@ public:
 	int32 m_Height;
 	int32 m_Format;
 	int32 m_Flags;
+	// Added in file-header version 0x0400 (Dark Athena era). For a plain 2D
+	// texture m_ChunkCount == 1 and m_ChunkSize == payload bytes (i.e.
+	// m_AllocSize - 16). For chunked/tiled images the payload is split into
+	// m_ChunkCount pieces of m_ChunkSize bytes plus a 16-byte prefix. When
+	// m_Compression has the 0x4000 flag the invariant
+	//   m_AllocSize == m_ChunkSize * m_ChunkCount + 16
+	// holds; if it doesn't, m_ChunkSize is recomputed from m_AllocSize
+	// (matches MXR/MSystem.dll behaviour).
+	int32 m_ChunkSize;
+	int32 m_ChunkCount;
 
 	CImage_FileHeader()
 	{
@@ -2183,6 +2194,8 @@ public:
 		m_Height = 0;
 		m_Format = 0;
 		m_Flags = 0;
+		m_ChunkSize = 0;
+		m_ChunkCount = 0;
 	}
 
 
@@ -2210,10 +2223,18 @@ public:
 		{
 		case 0x0200 :
 			_pFile->ReadLE(&m_Compression, 5); // read all at once
+			m_ChunkSize = m_AllocSize;         // v0x0400 back-compat: seed new field
+			m_ChunkCount = 1;
 			break;
 		case 0x0300 :
 			// wow, this is nice. make sure to only use int32 in this struct or this won't work on big endian
 			_pFile->ReadLE(&m_Compression, 6); // read all at once
+			m_ChunkSize = m_AllocSize;         // v0x0400 back-compat: seed new field
+			m_ChunkCount = 1;
+			break;
+		case 0x0400 :
+			// Dark Athena format: struct extended with 2 int32 chunk fields.
+			_pFile->ReadLE(&m_Compression, 8); // read all 8 int32s at once
 			break;
 
 		case 0 :
@@ -2224,7 +2245,57 @@ public:
 			}
 			break;
 		default :
-			Error_static("CImage_FileHeader::Write", CStrF("Unsupported version %.4x", Ver));
+			{
+				// Diagnostic dump: file, position of Ver, raw bytes around it.
+				fint HdrPos = _pFile->Pos() - (fint)sizeof(uint32);
+				CStr FName = _pFile->GetFileName();
+				fprintf(stderr,
+					"[XTC-DIAG] CImage_FileHeader::Read unsupported Ver=0x%08x  file='%s'  hdrPos=0x%llx (%lld)\n",
+					(unsigned)Ver, (const char*)FName,
+					(unsigned long long)HdrPos, (long long)HdrPos);
+
+				// Try to hex-dump 32 bytes before and 64 bytes after the header start.
+				fint DumpFrom = HdrPos - 32; if (DumpFrom < 0) DumpFrom = 0;
+				fint DumpLen  = 96;
+				uint8 buf[128];
+				if (DumpLen > (fint)sizeof(buf)) DumpLen = sizeof(buf);
+				fint SaveCur = _pFile->Pos();
+				_pFile->Seek(DumpFrom);
+				_pFile->Read(buf, (mint)DumpLen);
+				_pFile->Seek(SaveCur);
+				fprintf(stderr, "[XTC-DIAG] hex @0x%llx (marker '<' at Ver offset):\n", (unsigned long long)DumpFrom);
+				for (fint i = 0; i < DumpLen; i += 16)
+				{
+					fprintf(stderr, "  %08llx:", (unsigned long long)(DumpFrom + i));
+					for (fint j = 0; j < 16 && (i + j) < DumpLen; ++j)
+					{
+						fint absPos = DumpFrom + i + j;
+						char sep = (absPos == HdrPos) ? '<' : ' ';
+						fprintf(stderr, "%c%02x", sep, buf[i + j]);
+					}
+					fprintf(stderr, "  |");
+					for (fint j = 0; j < 16 && (i + j) < DumpLen; ++j)
+					{
+						uint8 c = buf[i + j];
+						fputc((c >= 32 && c < 127) ? c : '.', stderr);
+					}
+					fprintf(stderr, "|\n");
+				}
+				fflush(stderr);
+				Error_static("CImage_FileHeader::Write", CStrF("Unsupported version %.4x", Ver));
+			}
+		}
+
+		// Chunk-size fixup for v0x0400+ (mirrors MXR/MSystem.dll). When
+		// m_Compression has bit 0x4000 set and the invariant does not hold,
+		// recompute m_ChunkSize from m_AllocSize so downstream code sees a
+		// self-consistent header. For versions <0x0400 we seeded
+		// m_ChunkCount=1 above, so this is a no-op unless the file already
+		// agreed.
+		if ((m_Compression & 0x4000) != 0)
+		{
+			if (m_ChunkCount != 0 && m_AllocSize != m_ChunkSize * m_ChunkCount + 0x10)
+				m_ChunkSize = (m_AllocSize - 0x10) / m_ChunkCount;
 		}
 	}
 
@@ -8859,7 +8930,7 @@ void CImage::Rect(const CClipRect& cr,  CRct rect, int32 color)
 // -------------------------------------------------------------------
 /*void CImage::Line(const CClipRect& cr, CPnt p0, CPnt p1, int32 color)
 {
-	// Om man känner att man har för mycket tid över, då kan man roa sig med att skapa DCs.
+	// Om man kï¿½nner att man har fï¿½r mycket tid ï¿½ver, dï¿½ kan man roa sig med att skapa DCs.
 	
 	HDC DC;
 	HRESULT ddrval = mspDDS->GetObj()->GetDC(&DC);
@@ -8885,7 +8956,7 @@ void CImage::Internal_Line(CPnt p0, CPnt p1, CPixel32 col, uint8* pSurfMem)
 {
 	MAUTOSTRIP(CImage_Internal_Line, MAUTOSTRIP_VOID);
 
-	// See Bjarne sid 195 för alt. algoritm.
+	// See Bjarne sid 195 fï¿½r alt. algoritm.
 
 	int dx = abs(p1.x - p0.x);
 	int dy = abs(p1.y - p0.y);
@@ -8955,7 +9026,7 @@ void CImage::Line(const CClipRect& cr, CPnt p0, CPnt p1, int32 color)
 /*
 void CImage::Line(const CClipRect& cr, CI_LineContainer& LC)
 {
-	// Totalt värdelös lösning...
+	// Totalt vï¿½rdelï¿½s lï¿½sning...
 	HDC DC;
 	HRESULT ddrval = mspDDS->GetObj()->GetDC(&DC);
 	try
@@ -9374,7 +9445,7 @@ NoLoop:
 		pop edx
 	};
 #else
-	// BLAH! Fanken är det en vanlig memcpy eller?  *testar*
+	// BLAH! Fanken ï¿½r det en vanlig memcpy eller?  *testar*
 	memcpy( pSurfMem, pTextureMem, SpanLen );
 #endif
 };
@@ -9387,7 +9458,7 @@ NoLoop:
 			mov al, [edi+esi]
 
 */
-/* 4.10 OBS ingen stackframe tillgänglig.
+/* 4.10 OBS ingen stackframe tillgï¿½nglig.
 
 		mov al,bh
 		mov ah,ch
@@ -9440,7 +9511,7 @@ NoLoop:
 		mov [ebp-4], eax
 		dec edx
 
-// 6.87 OBS ingen stackframe tillgänglig.
+// 6.87 OBS ingen stackframe tillgï¿½nglig.
 
 			shld edi, ecx, 7
 		push edx

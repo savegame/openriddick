@@ -1905,7 +1905,7 @@ void CXR_Shader::RenderDeferredArray(uint _nVB, CXR_VertexBufferGeometry* _pVB, 
 					Prio += _OffsPrio;
 				}
 			}
-			m_pVBM->AddVBArray(lpVB, 3);
+			m_pVBM->AddVBArray((CXR_VertexBuffer**)lpVB, 3);
 		}
 
 //		RenderDeferred_VB(_pVB,(CXR_VertexBuffer*)pVBData,_BasePrio,_OffsPrio);
@@ -2159,7 +2159,7 @@ void CXR_Shader::RenderDeferredMotionVectorArray(
 				}
 				lpVB[3]->m_Priority = Prio;
 			}
-			m_pVBM->AddVBArray(lpVB, 4);
+			m_pVBM->AddVBArray((CXR_VertexBuffer**)lpVB, 4);
 		}
 
 		//		RenderDeferred_VB(_pVB,(CXR_VertexBuffer*)pVBData,_BasePrio,_OffsPrio);

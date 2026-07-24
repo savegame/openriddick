@@ -38,7 +38,7 @@ void TPriorityQueue<T>::Put(const T& _Element, uint32 _Priority)
 	qe.m_Priority = _Priority;
 	qe.m_Element = _Element;
 
-	TTNode<TQueueElem<T>,2>* pNewChild = &Insert(qe);
+	TTNode<TQueueElem<T>,2>* pNewChild = &this->Insert(qe);
 
 	// Has the new child become the rightmost child?
 	if (!m_pRightMostChild)

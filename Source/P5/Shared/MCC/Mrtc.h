@@ -2142,12 +2142,12 @@ public:
 
 	TPtr2& operator= (T* _p)
 	{
-		Assign(_p);
+		this->Assign(_p);
 		return *this;
 	}
 	TPtr2& operator= (const TPtr2& _p)
 	{
-		Assign(_p);
+		this->Assign(_p);
 		return *this;
 	}
 };
@@ -2732,6 +2732,9 @@ public:
 	#elif defined PLATFORM_PS3
 		#define D_MPLATFORM 5
 		#define D_MBIGENDIAN 1
+	#elif defined PLATFORM_LINUX
+		#define D_MPLATFORM 0
+		#define D_MBIGENDIAN 0
 	#else
 		#error "Implement this"
 	#endif

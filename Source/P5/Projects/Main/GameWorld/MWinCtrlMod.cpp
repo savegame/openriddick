@@ -2793,7 +2793,7 @@ void CMWnd_ModTexture::PaintVideo(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 
 	CClipRect Clip(0, 0, 640, 480);
 
-	_pRCUtil->SetTexture(NULL);
+	_pRCUtil->SetTexture(0);
 	_pRCUtil->Rect(Clip, CRct(0, 0, 640, 480), 0x0);
 
 	CStr YFrameName = m_TextureName + "_y";

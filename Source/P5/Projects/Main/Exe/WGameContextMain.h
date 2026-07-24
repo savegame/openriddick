@@ -234,6 +234,8 @@ public:
 
 	void Con_unlockall();
 	void Con_CampaignMap(CStr _Challenge);
+	void Con_StartNewCampaign(int _Mode);
+	void Con_SetDifficultyCampaign(CStr _Difficulty, int _Mode);
 	void Con_ScriptLayer(CStr _ScriptLayer);
 	CStr GetScriptLayerInfo(CStr _ScriptLayer);
 

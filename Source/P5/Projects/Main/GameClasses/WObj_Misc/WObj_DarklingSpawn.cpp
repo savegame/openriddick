@@ -230,7 +230,7 @@ bool CWObj_ObjLightMeter::Measure(CWorld_Server* _pWServer, const bool& _bConsid
 		int32 Mediums = XW_MEDIUM_SOLID /*| XW_MEDIUM_PHYSSOLID | XW_MEDIUM_PLAYERSOLID | XW_MEDIUM_GLASS | XW_MEDIUM_CAMERASOLID*/;
 		CCollisionInfo Info;
 		Info.Clear();
-		if ((_TraceLines) && (_pWServer->Phys_IntersectLine(_MeasurePos,pLight->GetPosition(),ObjectFlags,ObjectFlags,Mediums,NULL,_iSkipObj)))
+		if ((_TraceLines) && (_pWServer->Phys_IntersectLine(_MeasurePos,pLight->GetPosition(),ObjectFlags,ObjectFlags,Mediums, (CCollisionInfo*)NULL,_iSkipObj)))
 		{
 			m_lpLightIntensities[curLight] = 0;
 			continue;

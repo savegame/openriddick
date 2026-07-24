@@ -18,7 +18,24 @@ void CXRAG2_GraphBlock::Read(CCFile* _pFile, int _Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION3:
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
 		{
+			m_Condition.Read(_pFile);
+			_pFile->ReadLE(m_iStartMoveToken);
+			_pFile->ReadLE(m_iStateFullStart);
+			_pFile->ReadLE(m_StateFullLen);
+			_pFile->ReadLE(m_iSwitchStateStart);
+			_pFile->ReadLE(m_SwitchStateLen);
+			_pFile->ReadLE(m_iReactionFullStart);
+			_pFile->ReadLE(m_ReactionFullLen);
+			_pFile->ReadLE(m_iStateConstantStart);
+			_pFile->ReadLE(m_StateConstantLen);
+			break;
+		}
+	case XR_ANIMGRAPH2_VERSION6:
+		{
+			// v6 (PC): new u32 field first (likely exported-name hash; unused by the v4-era runtime)
+			_pFile->ReadLE(m_NameHash);
 			m_Condition.Read(_pFile);
 			_pFile->ReadLE(m_iStartMoveToken);
 			_pFile->ReadLE(m_iStateFullStart);

@@ -50,7 +50,9 @@ CSC_Mixer::CSC_Mixer()
 	m_FinishedOutputFrame.Construct(0);
 	m_StartNewFrame.Construct(0);
 //	Thread_Create(NULL, 16384, MRTC_THREAD_PRIO_TIMECRITICAL);
-	Thread_Create(NULL, 65536, MRTC_THREAD_PRIO_TIMECRITICAL); // More stack when opts are disabled
+	// NOTE(Linux): -O0 frame CSC_Mixer_DSP_VolumeMatrix::ProcessFrame ~110 KB
+	// (all vec128 temps of every case get own stack slots), 64 KB was not enough.
+	Thread_Create(NULL, 1024*1024, MRTC_THREAD_PRIO_TIMECRITICAL); // More stack when opts are disabled
 
 	m_WorkContextBlockManagerMemory.SetLen(64*1024); // Only 64 KB Allowed
 	m_WorkContextBlockManagerMemoryVPU.SetLen(64*1024);
@@ -1042,6 +1044,30 @@ bint CSC_Mixer_WorkerContext::CDSPChainInstanceInternal::SetDSPChain(CDSPChainIn
 {
 	m_pChain = _pChain;
 	mint nInstances = _pChain->m_nDSPInstances;
+	// [RIDDICK-DBG] dump chain layout of the first created instances,
+	// gated by RIDDICK_DBG_SND=1 (was spamming even the healthy runs)
+	static int s_DbgSnd = -1;
+	if (s_DbgSnd < 0)
+	{
+		const char *pEnv = getenv("RIDDICK_DBG_SND");
+		s_DbgSnd = (pEnv && pEnv[0] == '1') ? 1 : 0;
+	}
+	if (s_DbgSnd)
+	{
+		static int s_DbgChains = 0;
+		if (s_DbgChains < 30)
+		{
+			++s_DbgChains;
+			fprintf(stderr, "[SND-CHAIN] inst %p chain %p nDSP %d:", (void *)this, (void *)_pChain, (int)nInstances);
+			CDSPInstanceInternalIterator DbgIter = _pChain->m_DSPInstances;
+			while (DbgIter)
+			{
+				fprintf(stderr, " [%d]=DSPID %u", (int)DbgIter->m_iChainDSP, (uint32)DbgIter->m_DSPID);
+				++DbgIter;
+			}
+			fprintf(stderr, "\n");
+		}
+	}
 	if (!AllocIndices(nInstances))
 		return false;
 	{

@@ -773,17 +773,42 @@ void CRegistry_Dynamic::SetNumChildren(int _nChildren)
 	Private_Hash_Invalidate();
 }
 
+#ifdef PLATFORM_LINUX
+#include <execinfo.h>
+// Bring-up diagnostics: an out-of-range child index usually means a hash
+// or ID was passed where an index was expected -- dump who did it.
+static void Linux_RegGetChildDump(const CRegistry* _pReg, int _iChild, int _nChildren)
+{
+	fprintf(stderr, "[REG-ERR] GetChild(%d) of '%s' (children=%d), backtrace:\n",
+		_iChild, _pReg->GetThisName().Str(), _nChildren);
+	void* lBT[48];
+	int n = backtrace(lBT, 48);
+	backtrace_symbols_fd(lBT, n, 2);
+	fflush(stderr);
+}
+#endif
+
 CRegistry* CRegistry_Dynamic::GetChild(int _iChild)
 {
-	if (!m_lChildren.ValidPos(_iChild)) 
+	if (!m_lChildren.ValidPos(_iChild))
+	{
+#ifdef PLATFORM_LINUX
+		Linux_RegGetChildDump(this, _iChild, m_lChildren.Len());
+#endif
 		Error_static("CRegistry_Dynamic::GetChild", CStrF("Index out of range. (%d/%d)", _iChild, m_lChildren.Len()));
+	}
 	return m_lChildren[_iChild].m_spReg;
 }
 
 const CRegistry* CRegistry_Dynamic::GetChild(int _iChild) const
 {
-	if (!m_lChildren.ValidPos(_iChild)) 
+	if (!m_lChildren.ValidPos(_iChild))
+	{
+#ifdef PLATFORM_LINUX
+		Linux_RegGetChildDump(this, _iChild, m_lChildren.Len());
+#endif
 		Error_static("CRegistry_Dynamic::GetChild", CStrF("Index out of range. (%d/%d)", _iChild, m_lChildren.Len()));
+	}
 	return m_lChildren[_iChild].m_spReg;
 }
 
@@ -2735,7 +2760,7 @@ void CRegistry_Dynamic::XRG_Read(const CStr& _Filename, TArray<CStr> _lDefines, 
 
 void CRegistry_Dynamic::XRG_Read(const CStr& _Filename)
 {
-	XRG_Read(_Filename, TArray<CStr>::TArray(), true);
+	XRG_Read(_Filename, TArray<CStr>(), true);
 }
 
 void CRegistry_Dynamic::ReadSimple(CCFile* _pFile)

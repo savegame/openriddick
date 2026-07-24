@@ -74,6 +74,16 @@ typedef dReal dQuaternion[4];
 
 #define PURE_INLINE M_INLINE
 
+// Two-phase lookup: the DECL templates below expand macros that call these;
+// they must be declared before the templates (defined further below).
+	PURE_INLINE dReal dDOT   (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT13 (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT31 (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT33 (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT14 (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT41 (const dReal *a, const dReal *b);
+	PURE_INLINE dReal dDOT44 (const dReal *a, const dReal *b);
+
 #define DECL template <class TA, class TB, class TC> PURE_INLINE void
 
 	DECL dMULTIPLY0_331(TA *A, const TB *B, const TC *C) { dMULTIPLYOP0_331(A,=,B,C)}

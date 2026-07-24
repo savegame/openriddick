@@ -270,6 +270,8 @@ void CXRAG2_EffectInstance::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 		case XR_ANIMGRAPH2_VERSION:
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_iParams);
 			_pFile->ReadLE(m_ID);
@@ -307,6 +309,8 @@ void CXRAG2_StateConstant::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 		case XR_ANIMGRAPH2_VERSION:
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_Value);
 			_pFile->ReadLE(m_ID);
@@ -373,6 +377,8 @@ void CXRAG2_ConditionNodeV2::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_Data.m_BitUnion);
 			_pFile->ReadLE(m_ConstantInt);
@@ -407,6 +413,8 @@ void CXRAG2_ActionHashEntry::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_HashKey);
 			_pFile->ReadLE(m_iAction);
@@ -441,6 +449,8 @@ void CXRAG2_NameAndID::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			ReadFStr(_pFile, m_Name);
 			_pFile->ReadLE(m_ID);
@@ -472,6 +482,8 @@ void CXRAG2_NameAndValue::Read(CCFile* _pFile, int _Ver)
 	switch(_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			ReadFStr(_pFile, m_Name);
 			_pFile->ReadLE(m_Value);
@@ -508,6 +520,16 @@ void CXRAG2::Read(CDataFile* _pDFile)
 	int32 AGVersion;
 	if(!_pDFile->GetNext("NAME"))
 		Error("Read", "No NAME entry found.");
+	if (_pDFile->GetUserData2() >= XR_ANIMGRAPH2_VERSION6)
+	{
+		// v6 (PC): NAME entry is a Readln line, then AGVersion, then a u16
+		// name hash (PC keeps it on the graph object; unused by this runtime)
+		m_Name = pFile->Readln();
+		pFile->ReadLE(AGVersion);
+		uint16 NameHash;
+		pFile->ReadLE(NameHash);
+	}
+	else
 	{
 		char pName[1024];
 		pFile->Read(pName, Min((int32)1023,(int32) (_pDFile->GetEntrySize() - sizeof(int32))));
@@ -515,32 +537,32 @@ void CXRAG2::Read(CDataFile* _pDFile)
 		pFile->ReadLE(AGVersion);
 	}
 
-	if (AGVersion != XR_ANIMGRAPH2_VERSION)
-		return;
+	if (AGVersion < XR_ANIMGRAPH2_VERSION3 || AGVersion > XR_ANIMGRAPH2_VERSION6)
+		Error("Read", CStrF("Unsupported AnimGraph2 version %.4x", AGVersion));
 
 	// States
 	if(!_pDFile->GetNext("GRAPHBLOCKS"))
 		Error("Read", "No GRAPHBLOCKS entry found.");
-	ReadArray2(m_lGraphBlocks, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lGraphBlocks, _pDFile, AGVersion);
 
 	// States
 	if(!_pDFile->GetNext("FULLSTATES"))
 		Error("Read", "No FULLSTATES entry found.");
-	ReadArray2(m_lFullStates, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lFullStates, _pDFile, AGVersion);
 
 	// States
 	if(!_pDFile->GetNext("SWSTATES"))
 		Error("Read", "No SWSTATES entry found.");
-	ReadArray2(m_lSwitchStates, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lSwitchStates, _pDFile, AGVersion);
 
 	// AnimLayers
 	if(!_pDFile->GetNext("FULLANIMLAYERS"))
 		Error("Read", "No FULLANIMLAYERS entry found.");
-	ReadArray2(m_lFullAnimLayers, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lFullAnimLayers, _pDFile, AGVersion);
 
 	if(!_pDFile->GetNext("ANIMNAMES"))
 		Error("Read", "No ANIMNAMES entry found.");
-	ReadArray2(m_lAnimNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lAnimNames, _pDFile, AGVersion);
 	
 	if(!_pDFile->GetNext("ANIMCONTAINERNAMES"))
 	{
@@ -549,107 +571,107 @@ void CXRAG2::Read(CDataFile* _pDFile)
 	else
 	{
 		CCFile* pFile = _pDFile->GetFile();
-		m_AnimContainerNames.Read(pFile, XR_ANIMGRAPH2_VERSION);
+		m_AnimContainerNames.Read(pFile, AGVersion);
 	}
 
 	// Actions
 	if(!_pDFile->GetNext("FULLACTIONS"))
 		Error("Read", "No FULLACTIONS entry found.");
-	ReadArray2(m_lFullActions, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lFullActions, _pDFile, AGVersion);
 
 	// Actions
 	if(!_pDFile->GetNext("MOVETOKENS"))
 		Error("Read", "No MOVETOKENS entry found.");
-	ReadArray2(m_lMoveTokens, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lMoveTokens, _pDFile, AGVersion);
 
 	// Actions
 	if(!_pDFile->GetNext("MOVEANIMGRAPH2"))
 		Error("Read", "No MOVEANIMGRAPH2 entry found.");
-	ReadArray2(m_lMoveAnimGraphs, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lMoveAnimGraphs, _pDFile, AGVersion);
 
 	// Actions
 	if(!_pDFile->GetNext("FULLREACTIONS"))
 		Error("Read", "No FULLREACTIONS entry found.");
-	ReadArray2(m_lFullReactions, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lFullReactions, _pDFile, AGVersion);
 
 	// Actionvals
 	if(!_pDFile->GetNext("SWACTIONVALS"))
 		Error("Read", "No SWACTIONVALS entry found.");
-	ReadArray2(m_lSwitchStateActionVals, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lSwitchStateActionVals, _pDFile, AGVersion);
 
 	// Nodes
 	if(!_pDFile->GetNext("NODESV2"))
 		Error("Read", "No NODESV2 entry found.");
-	ReadArray2(m_lNodesV2, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lNodesV2, _pDFile, AGVersion);
 
 	// Effects
 	if(!_pDFile->GetNext("EFFECTS"))
 		Error("Read", "No EFFECTS entry found.");
-	ReadArray2(m_lEffectInstances, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lEffectInstances, _pDFile, AGVersion);
 
 	// CallbackParams
 	if(!_pDFile->GetNext("CALLBACKPARAMS"))
 		Error("Read", "No CALLBACKPARAMS entry found.");
-	ReadArray2WholeStruct(m_lCallbackParams, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2WholeStruct(m_lCallbackParams, _pDFile, AGVersion);
 
 	// StateConstants
 	if(!_pDFile->GetNext("STATECONSTANTS"))
 		Error("Read", "No STATECONSTANTS entry found.");
-	ReadArray2(m_lStateConstants, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lStateConstants, _pDFile, AGVersion);
 
 	// ActionHashEntries
 	if(!_pDFile->GetNext("ACTIONHASHENTRIES"))
 		Error("Read", "No ACTIONHASHENTRIES entry found.");
-	ReadArray2(m_lActionHashEntries, _pDFile, XR_ANIMGRAPH2_VERSION);
+	ReadArray2(m_lActionHashEntries, _pDFile, AGVersion);
 
 #ifndef M_RTM
 	if (!D_MXDFCREATE)
 	{
 		// ExportedNames (Optional)
 		if(_pDFile->GetNext("EXPORTEDGRAPHBLOCKNAMES"))
-			ReadArray2FallBack(m_lExportedGraphBlockNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedGraphBlockNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDACTIONNAMES"))
-			ReadArray2FallBack(m_lExportedActionNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedActionNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDREACTIONNAMES"))
-			ReadArray2FallBack(m_lExportedReactionNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedReactionNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDSTATENAMES"))
-			ReadArray2FallBack(m_lExportedStateNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedStateNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDSWSTNAMES"))
-			ReadArray2FallBack(m_lExportedSwitchStateNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedSwitchStateNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDAG2NAMES"))
-			ReadArray2FallBack(m_lExportedAnimGraphNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedAnimGraphNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYFNNAMES"))
-			ReadArray2FallBack(m_lExportedPropertyFunctionNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2FallBack(m_lExportedPropertyFunctionNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYFNAMES"))
-			ReadArray2(m_lExportedPropertyFloatNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedPropertyFloatNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYINAMES"))
-			ReadArray2(m_lExportedPropertyIntNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedPropertyIntNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYBNAMES"))
-			ReadArray2(m_lExportedPropertyBoolNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedPropertyBoolNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDOPERATORNAMES"))
-			ReadArray2(m_lExportedOperatorNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedOperatorNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDEFFECTNAMES"))
-			ReadArray2(m_lExportedEffectNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedEffectNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDSTATECONSTNAMES"))
-			ReadArray2(m_lExportedStateConstantNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedStateConstantNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDIMPULSETNAMES"))
-			ReadArray2(m_lExportedImpulseTypeNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedImpulseTypeNames, _pDFile, AGVersion);
 
 		if(_pDFile->GetNext("EXPORTEDIMPULSEVNAMES"))
-			ReadArray2(m_lExportedImpulseValueNames, _pDFile, XR_ANIMGRAPH2_VERSION);
+			ReadArray2(m_lExportedImpulseValueNames, _pDFile, AGVersion);
 	}
 #endif
 }
@@ -832,6 +854,8 @@ void CXRAG2_AnimNames::Read(CCFile* _pFile, int _Ver)
 	switch (_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_iAnimSeq);
 			_pFile->ReadLE(m_iContainerName);
@@ -866,6 +890,8 @@ void CXRAG2_AnimContainerNames::Read(CCFile* _pFile, int _Ver)
 	switch (_Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			int16 Len;
 			_pFile->ReadLE(Len);

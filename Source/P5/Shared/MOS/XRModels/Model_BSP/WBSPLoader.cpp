@@ -1918,15 +1918,29 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 			((CBSP_CoreFace*)&pFaces[iFace])->Read(pFile, 0x0200);
 
 #else
-		M_ASSERT(_pDFile->GetUserData2() == XW_FACE_VERSION && 
-			sizeof(CBSP_CoreFace) * nFaces == _pDFile->GetEntrySize(), "!");
+		const int FaceVersion = _pDFile->GetUserData2();
 		CBSP_Face* pFaces = m_lFaces.GetBasePtr();
-		for (int iFace=0; iFace < nFaces; iFace++)
+		if (FaceVersion == XW_FACE_VERSION &&
+			sizeof(CBSP_CoreFace) * nFaces == _pDFile->GetEntrySize())
 		{
-			pFile->Read(&pFaces[iFace], sizeof(CBSP_CoreFace));
+			// Fast path: on-disk layout matches the in-memory struct.
+			for (int iFace=0; iFace < nFaces; iFace++)
+			{
+				pFile->Read(&pFaces[iFace], sizeof(CBSP_CoreFace));
 #ifndef CPU_LITTLEENDIAN
-			pFaces[iFace].SwapLE();
+				pFaces[iFace].SwapLE();
 #endif
+			}
+		}
+		else
+		{
+			// Older/other face versions (PC world files): go through the
+			// version-aware per-face reader instead of asserting.
+			M_TRACEALWAYS("(CBSP_Model::Read) FACES version 0x%04x, entry size %d (n=%d, fast path needs 0x%04x/%d) - using per-face reader\n",
+				FaceVersion, (int)_pDFile->GetEntrySize(), nFaces,
+				XW_FACE_VERSION, (int)(sizeof(CBSP_CoreFace) * nFaces));
+			for (int iFace=0; iFace < nFaces; iFace++)
+				((CBSP_CoreFace*)&pFaces[iFace])->Read(pFile, FaceVersion);
 		}
 #endif
 	}
@@ -1966,9 +1980,41 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 
 		int nNodes = _pDFile->GetUserData();
 		int Ver = _pDFile->GetUserData2();
-		m_lNodes.SetLen(nNodes); 
+		m_lNodes.SetLen(nNodes);
 		CBSP_Node* pN = m_lNodes.GetBasePtr();
-		if (Ver == XW_NODE_VERSION)
+		if (Ver == XW_NODE_VERSION && XWVersion >= 0x0124)
+		{
+			// PC (Dark Athena remaster) node records: raw CBSP2_Node
+			// dumps (see XW2Common.h) also used for the BSP1 sub-models:
+			//   [0] iNodeFront / nFaces     [1] iNodeBack / iMedium
+			//   [2] iNodeParent             [3] iiFaces:24 | Flags:8
+			//   [4] iPlane (0 = leaf)       [5] iPortalLeaf (u16)
+			// Convert to this loader's CBSP_Node (u16 links, plane first).
+			M_ASSERT((mint)nNodes * 24 == _pDFile->GetEntrySize(), "!");
+			for (int iNode=0; iNode < nNodes; iNode++)
+			{
+				uint32 W[6];
+				pFile->ReadLE(W, 6);
+				CBSP_Node& N = pN[iNode];
+				N.m_iPlane = W[4];
+				if (W[4])
+				{
+					N.m_iNodeFront = (uint16)W[0];
+					N.m_iNodeBack  = (uint16)W[1];
+				}
+				else
+				{
+					N.m_nFaces  = (uint16)W[0];
+					N.m_iMedium = (uint16)W[1];
+				}
+				N.m_iNodeParent = (uint16)W[2];
+				N.m_iiFaces     = W[3] & 0x00ffffff;
+				N.m_Flags       = (uint16)(W[3] >> 24);
+				N.m_iPortalLeaf = (uint16)(W[5] & 0xffff);
+				N.m_Padding0    = 0;
+			}
+		}
+		else if (Ver == XW_NODE_VERSION)
 		{
 			// Fast path if the node version is the latest
 			M_ASSERT(m_lNodes.ListSize() == _pDFile->GetEntrySize(), "!");

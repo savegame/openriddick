@@ -2025,7 +2025,7 @@ CWD_HingeJointWorld2::CWD_HingeJointWorld2(CWD_DynamicsWorld *_pWorld,
 
 fp32 CWD_HingeJointWorld2::Solve(CWD_DynamicsWorld& _World, vec128 _dt) 
 {
-	M_ASSERT("NOT SUPPORTED!", false);
+	M_ASSERT(false, "NOT SUPPORTED!");
 	return -1.0f;
 }
 

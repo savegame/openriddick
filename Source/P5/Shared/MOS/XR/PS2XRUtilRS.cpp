@@ -1,10 +1,10 @@
 
 #include "PCH.h"
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 	File:			Surface renderer and associated functions
 					
-	Author:			Magnus Högdahl
+	Author:			Magnus Hï¿½gdahl
 					
 	Copyright:		Starbreeze Studios AB, 1998-2001
 					
@@ -41,7 +41,7 @@
 #include "MFloat.h"
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | Stuff in MImage.cpp. These should be moved to MSIMD.cpp
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -391,7 +391,7 @@ static bool SetColorizedLights(CRC_Attributes* _pA, CXR_VBManager* _pVBM, CPixel
 // CXR_VertexBuffer* SubdivisionSurface_TesselateVB(CXR_VBManager* _pVBM, CXR_VertexBuffer* _pVB, const CMat4Dfp32& _WMat, const CMat4Dfp32& _VMat);
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 	Function:			Renders a vertex buffer with a surface.
 						
 	Parameters:			
@@ -444,6 +444,35 @@ bool CXR_Util::Render_Surface(
 
 #ifndef M_RTM
 	_pVBM->m_Stats_nRenderSurface++;
+#endif
+
+#ifdef PLATFORM_LINUX
+	// RIDDICK_DBG_SURF=1: log the first calls with the surface name and
+	// its layer texture IDs -- pinpoints whether GUI/frontend surfaces
+	// reach the renderer and whether their textures resolved.
+	{
+		static int sDbg = -1;
+		if (sDbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_SURF");
+			sDbg = (e && *e && *e != '0') ? 120 : 0;
+		}
+		if (sDbg > 0)
+		{
+			--sDbg;
+			const int nL = _pSurfKey ? _pSurfKey->m_lTextures.Len() : -1;
+			fprintf(stderr, "[SURF] '%s' layers=%d texids=[",
+				_pSurface ? _pSurface->m_Name.Str() : "?", nL);
+			for (int i = 0; i < nL && i < 6; ++i)
+			{
+				CXW_SurfaceLayer* pL = &_pSurfKey->m_lTextures[i];
+				fprintf(stderr, "%s%d:'%s'", i ? " " : "",
+					(int)pL->m_TextureID, pL->GetTextureName());
+			}
+			fprintf(stderr, "]\n");
+			fflush(stderr);
+		}
+	}
 #endif
 
 	// -------------------------------------------------------------------
@@ -872,7 +901,7 @@ bool CXR_Util::Render_Surface(
 					}
 					else
 					{
-						ConOut("§cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
+						ConOut("ï¿½cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
 					}
 				}
 			}
@@ -1015,7 +1044,7 @@ bool CXR_Util::Render_Surface(
 					}
 					else
 					{
-						ConOut("§cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
+						ConOut("ï¿½cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
 					}
 				}
 

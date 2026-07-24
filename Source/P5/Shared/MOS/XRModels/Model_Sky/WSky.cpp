@@ -326,7 +326,7 @@ void CSkySurface::Create(TArray<uint8> _lData)
 
 	CCFile file;
 	file.Open(_lData, CFILE_READ);
-	spRoot->XRG_Read(&file, "", TArray<CStr>::TArray(), true);
+	spRoot->XRG_Read(&file, "", TArray<CStr>(), true);
 	file.Close();
 	spRoot = spRoot->FindChild("skytrack");
 	if (!spRoot)

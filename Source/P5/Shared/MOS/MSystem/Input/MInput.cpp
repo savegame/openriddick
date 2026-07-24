@@ -453,6 +453,13 @@ spCInputContext MCreateInputContext()
 #elif defined PLATFORM_PS3
 	spCInputContext spIC = (CInputContext*) MRTC_GetObjectManager()->CreateObject("CInputContext_PS3");
 
+#elif defined PLATFORM_LINUX
+	// Pull the SDL2 input backend TU out of the static libp5_msystem.a
+	// archive so its MRTC_IMPLEMENT_DYNAMIC static registrar runs and
+	// "CInputContext_SDL2" is known to the object factory below.
+	MRTC_REFERENCE(CInputContext_SDL2);
+	spCInputContext spIC = (CInputContext*) MRTC_GetObjectManager()->CreateObject("CInputContext_SDL2");
+
 #else
 	#error "Implement this"
 	

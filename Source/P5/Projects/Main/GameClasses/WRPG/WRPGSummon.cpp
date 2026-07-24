@@ -6,7 +6,7 @@
 #include "WRPGAmmo.h"
 #include "../WObj_Char.h"
 #include "../WObj_Misc/WObj_Shell.h"
-#include "..\..\Shared\mos\XRModels\Model_BSP4Glass\WBSP4Glass.h"
+#include "../../../../Shared/MOS/XRModels/Model_BSP4Glass/WBSP4Glass.h"
 
 /*
 #include "../WObj_RPG.h"

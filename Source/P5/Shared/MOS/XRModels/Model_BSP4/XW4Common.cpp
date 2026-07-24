@@ -107,7 +107,7 @@ void CBSP4_Node::Write(CCFile* _pF) const
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CBSP4_CoreFace
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -130,6 +130,9 @@ void CBSP4_CoreFace::Read(CCFile* _pF, int _Version)
 	MAUTOSTRIP(CBSP4_CoreFace_Read, MAUTOSTRIP_VOID);
 	switch(_Version)
 	{
+	case 0x0204:
+	// PC world files: 0x0203 layout + two trailing uint32 (lightmap
+	// rect / spline mapping indices, unused here) skipped below.
 	case 0x0203:
 		{
 			struct
@@ -164,6 +167,12 @@ void CBSP4_CoreFace::Read(CCFile* _pF, int _Version)
 			m_Flags = TempRead.m_Flags;
 			m_iPlane = TempRead.m_iPlane;
 			m_iBackMedium = TempRead.m_iBackMedium;
+
+			if (_Version == 0x0204)
+			{
+				uint32 lSkip[2];
+				_pF->Read(lSkip, sizeof(lSkip));
+			}
 		}
 		break;
 

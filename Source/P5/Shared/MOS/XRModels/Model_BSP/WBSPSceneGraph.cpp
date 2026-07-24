@@ -112,7 +112,7 @@ const uint8* CXR_Model_BSP::SceneGraph_PVSLock(int _PVSType, const CVec3Dfp32& _
 	MSCOPE(CXR_Model_BSP::SceneGraph_PVSLock, XR_BSPMODEL);
 
 	int iNode = GetPortalLeaf(_Pos);
-	if (iNode == -1) return false;
+	if (iNode == -1) return NULL;
 	return SceneGraph_PVSLock(_PVSType, m_lNodes[iNode].m_iPortalLeaf);
 }
 

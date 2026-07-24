@@ -4541,12 +4541,12 @@ public:
 
 	M_INLINE TPlane3(const V& _n, const V& _p)
 	{
-		CreateNV(_n, _p);
+		this->CreateNV(_n, _p);
 	}
 
 	M_INLINE TPlane3(const V& _p0, const V& _p1, const V& _p2)
 	{
-		Create(_p0, _p1, _p2);
+		this->Create(_p0, _p1, _p2);
 	}
 
 	M_FORCEINLINE void operator= (const PBase& _p)
@@ -8083,7 +8083,7 @@ void MCCDLLEXPORT MatrixSpline(const CMat43fp32 &_M0o, const CMat43fp32 &_M1o, c
 template <typename t_CType0, typename t_CType1>
 static M_INLINE bool AlmostEqual(const t_CType0& _Number0, const t_CType0& _Number1, t_CType1 _Margin)
 {
-	CGenerateCompileTimeError<int>::GenerateError(); // Implement type
+	t_CType0::UnimplementedAlmostEqualType(); // Implement type (compile-time error for unsupported types)
 	return 0;
 } 
 
@@ -8092,7 +8092,7 @@ template <> MCCDLLEXPORT bool TBox<fp32>::IntersectLine(const V& _p0, const V& _
 // -------------------------------------------------------------------
 
 template <>
-static M_INLINE bool AlmostEqual<fp32, fp32>(const fp32& _Number0, const fp32& _Number1, fp32 _Margin)
+M_INLINE bool AlmostEqual<fp32, fp32>(const fp32& _Number0, const fp32& _Number1, fp32 _Margin)
 {
 	if (M_Fabs(_Number0 - _Number1) < _Margin)
 		return true;
@@ -8100,7 +8100,7 @@ static M_INLINE bool AlmostEqual<fp32, fp32>(const fp32& _Number0, const fp32& _
 }
 
 template <>
-static M_INLINE bool AlmostEqual<fp32, fp64>(const fp32& _Number0, const fp32& _Number1, fp64 _Margin)
+M_INLINE bool AlmostEqual<fp32, fp64>(const fp32& _Number0, const fp32& _Number1, fp64 _Margin)
 {
 	if (M_Fabs(_Number0 - _Number1) < _Margin)
 		return true;
@@ -8108,7 +8108,7 @@ static M_INLINE bool AlmostEqual<fp32, fp64>(const fp32& _Number0, const fp32& _
 }
 
 template <>
-static M_INLINE bool AlmostEqual<fp64, fp64>(const fp64& _Number0, const fp64& _Number1, fp64 _Margin)
+M_INLINE bool AlmostEqual<fp64, fp64>(const fp64& _Number0, const fp64& _Number1, fp64 _Margin)
 {
 	if (M_Fabs(_Number0 - _Number1) < _Margin)
 		return true;
@@ -8116,7 +8116,7 @@ static M_INLINE bool AlmostEqual<fp64, fp64>(const fp64& _Number0, const fp64& _
 }
 
 template <>
-static M_INLINE bool AlmostEqual<fp64, fp32>(const fp64& _Number0, const fp64& _Number1, fp32 _Margin)
+M_INLINE bool AlmostEqual<fp64, fp32>(const fp64& _Number0, const fp64& _Number1, fp32 _Margin)
 {
 	if (M_Fabs(_Number0 - _Number1) < _Margin)
 		return true;

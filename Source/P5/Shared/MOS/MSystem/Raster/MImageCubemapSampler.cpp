@@ -464,7 +464,7 @@ void CTextureContainer_Plain::FilterCubemap(int _iTexture, const CTC_CubeFilterP
 								for(int kx = -KernelMax; kx <= KernelMax; kx++)
 								{
 									CVec3Dfp32 SampleVector = CenterVector + (XAxis * (fp32)kx) + (YAxis *(fp32)ky);
-									Pixel	+= (CVec4Dfp32)CubeSampler.SampleVector(SampleVector) * pCalcWeights[(KernelMax + ky) * KernelWidth + (KernelMax + kx)];
+									Pixel	+= CubeSampler.SampleVector(SampleVector).operator CVec4Dfp32() * pCalcWeights[(KernelMax + ky) * KernelWidth + (KernelMax + kx)];
 								}
 							}
 

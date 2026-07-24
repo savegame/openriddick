@@ -10,7 +10,7 @@
 #include "../GameWorld/FrontEnd/WFrontEnd.h"
 #include "../Video/MVideo.h"
 
-#ifndef	PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 #include "../../SDK/Include/cdapfn.h" // SafeDisc
 #endif
 
@@ -50,7 +50,7 @@
 #define CHECKSUM_BYTELENGTH XCALCSIG_SIGNATURE_SIZE
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Class:   		Calculates checksums using CRC-16
 \*____________________________________________________________________*/
 class CCrcCheck
@@ -67,7 +67,7 @@ public:
 };
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Creates and initializes a CCrcCheck object
 \*____________________________________________________________________*/
 CCrcCheck::CCrcCheck()
@@ -75,7 +75,7 @@ CCrcCheck::CCrcCheck()
 	m_hChecksum = XCalculateSignatureBegin(XCALCSIG_FLAG_SAVE_GAME);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Updates the checksum in reverse. Uses CRC-16.
 \*____________________________________________________________________*/
 void CCrcCheck::UpdateCrc(int c)
@@ -88,7 +88,7 @@ void CCrcCheck::UpdateCrc(const uint8 *_pData, int32 _Size)
 	XCalculateSignatureUpdate(m_hChecksum, _pData, _Size);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Divides the checksum into a list of bytes 
 \*____________________________________________________________________*/
 void CCrcCheck::GetChecksumList(uint8 _List[CHECKSUM_BYTELENGTH])
@@ -100,7 +100,7 @@ void CCrcCheck::GetChecksumList(uint8 _List[CHECKSUM_BYTELENGTH])
 #define CHECKSUM_BYTELENGTH 4
 #define MASK_CRC16			0xA001
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Class:   		Calculates checksums using CRC-16
 \*____________________________________________________________________*/
 class CCrcCheck
@@ -117,7 +117,7 @@ public:
 };
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Creates and initializes a CCrcCheck object
 \*____________________________________________________________________*/
 CCrcCheck::CCrcCheck()
@@ -129,7 +129,7 @@ CCrcCheck::CCrcCheck()
 #endif
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Updates the checksum in reverse. Uses CRC-16.
 \*____________________________________________________________________*/
 void CCrcCheck::UpdateCrc(int c)
@@ -152,7 +152,7 @@ void CCrcCheck::UpdateCrc(const uint8 *_pData, int32 _Size)
 
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function:   	Divides the checksum into a list of bytes 
 \*____________________________________________________________________*/
 void CCrcCheck::GetChecksumList(uint8 _List[CHECKSUM_BYTELENGTH])
@@ -168,7 +168,7 @@ void CCrcCheck::GetChecksumList(uint8 _List[CHECKSUM_BYTELENGTH])
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CGameContext
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -559,7 +559,7 @@ void CGameContext::ExecuteCommand(CGC_Command& _Cmd)
 	M_CATCH(
 		catch(CCException)
 	{
-		LogFile(CStrF("§cf80WARNING: Exception during execution of command %d, %s, %s, %s, %s", _Cmd.m_Command,
+		LogFile(CStrF("ï¿½cf80WARNING: Exception during execution of command %d, %s, %s, %s, %s", _Cmd.m_Command,
 			_Cmd.m_lParams[0].Str(), _Cmd.m_lParams[1].Str(), _Cmd.m_lParams[2].Str(), _Cmd.m_lParams[3].Str()));
 	}
 	)
@@ -1541,7 +1541,7 @@ void CGameContext::Simulate_Resume()
 
 	if (!m_PauseCount) 
 	{
-		ConOut("§cf80WARNING: (Simulate_Resume) Not paused.");
+		ConOut("ï¿½cf80WARNING: (Simulate_Resume) Not paused.");
 
 		// Just to be absolutely sure.
 		if (m_spWServer != NULL && m_spWServer->World_Pause(0))
@@ -1725,7 +1725,7 @@ bool CGameContext::WriteProfileInfo(CStr _Profile)
 	m_spAsyncSaveContext = NULL;
 	m_spAsyncSaveContext = MNew1(CGameContext::CSaveContext, m_spWData);
 
-	//m_SaveInfoString = "§LMENU_SAVINGPROFILE";
+	//m_SaveInfoString = "ï¿½LMENU_SAVINGPROFILE";
 	m_SaveInfoString = "";
 
 	FixProfile(_Profile);
@@ -1783,7 +1783,15 @@ void CGameContext::Refresh(CXR_VBManager* _pVBM)
 		return;
 
 	if (CDiskUtil::GetCorrupt() & DISKUTIL_STATUS_CORRUPTANY)
+	{
+#ifdef PLATFORM_LINUX
+		static int sLogged = 0;
+		if (!sLogged++)
+			M_TRACEALWAYS("(CGameContext::Refresh) BLOCKED: disk corrupt status 0x%x -- pending commands never flush\n",
+				CDiskUtil::GetCorrupt());
+#endif
 		return;
+	}
 
 	if (CDiskUtil::GetCorrupt() & DISKUTIL_STATUS_CORRUPTWRITE)
 	{
@@ -3011,7 +3019,7 @@ void CGameContext::RenderGUI(CXR_VBManager* _pVBM, CRenderContext* _pRC, CRC_Vie
 	{
 		int iRcFont = m_spWData->GetResourceIndex("XFC:TEXT", NULL);
 		CWRes_XFC* pRcFont = safe_cast<CWRes_XFC>(m_spWData->GetResource(iRcFont));
-		CStr Text = "§Z16" + m_SaveInfoString;
+		CStr Text = "ï¿½Z16" + m_SaveInfoString;
 
 		CRC_Font *pFont = NULL; //m_spMapData->GetResource_Font(m_spMapData->GetResourceIndex_Font("HEADINGS"));
 		if(pRcFont && (pFont = pRcFont->GetFont()))
@@ -3420,6 +3428,11 @@ void CGameContext::Command_ChangeMap(CStr _Name, CStr _Flags)
 
 	CStr FileName = m_spWData->ResolveFileName(CStrF("worlds\\%s", _Name.Str()));
 	CStr FileNameXDF = m_spWData->ResolveFileName(CStrF("XDF\\%s_Server.xdf", _Name.GetFilenameNoExt().Str()));
+#ifdef PLATFORM_LINUX
+	M_TRACEALWAYS("(Command_ChangeMap) '%s' -> '%s' (exists %d) / '%s' (exists %d)\n",
+		_Name.Str(), FileName.Str(), (int)CDiskUtil::FileExists(FileName),
+		FileNameXDF.Str(), (int)CDiskUtil::FileExists(FileNameXDF));
+#endif
 	if (!CDiskUtil::FileExists(FileName) && !CDiskUtil::FileExists(FileNameXDF))
 	{
 #ifdef PLATFORM_CONSOLE
@@ -4096,7 +4109,7 @@ bool CGameContext::BeginWriteSaveFile(CStr _Profile, CStr _Name)
 	{
 		// Corrupt Save
 		//  We need to inform the player abt it!!
-		ConOutL("§cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
+		ConOutL("ï¿½cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
 		throw;
 		//Error("CWorld_DeltaGameState::World_Save", _Ex.GetExceptionInfo().GetString());
 	}
@@ -4213,7 +4226,7 @@ catch(CCException _Ex)
 {
 // Corrupt Save
 //  We need to inform the player abt it!!
-ConOutL("§cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
+ConOutL("ï¿½cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
 throw;
 //Error("CWorld_DeltaGameState::World_Save", _Ex.GetExceptionInfo().GetString());
 }
@@ -4384,7 +4397,7 @@ bool CGameContext::BeginReadSaveFile(CStr _Profile, CStr _Name, bool _Validate)
 	{
 		// Corrupt Save
 		//  We need to inform the player abt it!!
-		ConOutL("§cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during load.");
+		ConOutL("ï¿½cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during load.");
 		throw;
 		//Error("CWorld_DeltaGameState::World_Save", _Ex.GetExceptionInfo().GetString());
 	}

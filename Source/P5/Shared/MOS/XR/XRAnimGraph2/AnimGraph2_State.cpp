@@ -33,6 +33,8 @@ void CXRAG2_State::Read(CCFile* _pFile, int _Ver)
 	{
 		case XR_ANIMGRAPH2_VERSION3:
 		case XR_ANIMGRAPH2_VERSION:
+		case XR_ANIMGRAPH2_VERSION5:
+		case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_lFlags[0]);
 			_pFile->ReadLE(m_lFlags[1]);
@@ -110,6 +112,8 @@ void CXRAG2_SwitchState::Read(CCFile* _pFile, int _Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION3:
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			//_pFile->ReadLE(m_iBaseAction);
 			_pFile->ReadLE(m_iProperty);
@@ -158,6 +162,8 @@ void CXRAG2_SwitchStateActionVal::Read(CCFile* _pFile, int _Ver)
 	{
 	case XR_ANIMGRAPH2_VERSION3:
 	case XR_ANIMGRAPH2_VERSION:
+	case XR_ANIMGRAPH2_VERSION5:
+	case XR_ANIMGRAPH2_VERSION6:
 		{
 			_pFile->ReadLE(m_iMoveToken);
 			_pFile->ReadLE(m_ConstantInt);

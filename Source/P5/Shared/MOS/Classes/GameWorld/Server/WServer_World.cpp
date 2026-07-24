@@ -16,7 +16,7 @@
 #include "../../../XRModels/Model_BSP2/WBSP2Model.h"
 
 
-#ifndef	PLATFORM_CONSOLE
+#if !defined(PLATFORM_CONSOLE) && !defined(PLATFORM_LINUX)
 #include "../../SDK/Include/cdapfn.h" // SafeDisc
 #endif
 
@@ -328,7 +328,9 @@ void CWorld_ServerCore::World_Change(const CFStr &WorldName, int _Flags)
 
 
 		// Dumping memusage to file
-#ifdef M_Profile
+		// Linux: profiling dumps disabled for bring-up (they crash on PC content and
+		// stress the half-ported async write path; retail builds compile this out via M_RTM)
+#if defined(M_Profile) && !defined(PLATFORM_LINUX)
  #if defined(PLATFORM_XENON)
 		//CStr Path = "Cache:\\MemUsage\\";
 		CStr Path = m_spMapData->ResolvePath("MemUsage\\");

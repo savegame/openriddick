@@ -1,10 +1,10 @@
 #ifndef __WMAPDATA_H
 #define __WMAPDATA_H
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 	File:			Resource index mapper
 
-	Author:			Magnus Högdahl
+	Author:			Magnus Hï¿½gdahl
 
 	Maintainer:		Jens Andersson
 
@@ -21,9 +21,11 @@
 #include "WDataRes_Core.h"
 #include "WDataRes_Sound.h"
 #include "WDataRes_Anim.h"
+#include <cstdio>	// fprintf for GetResource_Model diagnostic
+#include <cstdint>	// uintptr_t for canonical-VA pModel sanity check
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 | CMapData
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -188,12 +190,100 @@ public:
 		CWResource* pRc = GetResource(_iModel);
 		if (!pRc) return NULL;
 
+		// Guard against wrong-class resources landing at model-model indices.
+		// On PC EFBB some phys-model lookups (e.g. m_iPhysModel=1658 inside
+		// CWObject_Item::CreatePhys for Pa1_TheDream) return a CWResource
+		// whose real class is NOT a model (RTTI/type-confusion under our
+		// Linux port). Prior code did just TDynamicCast<CWRes_Model>, which
+		// then let a non-model through; GetModel() virtual-dispatched via
+		// the wrong vtable and returned a raw pointer into a heap string
+		// buffer ("Phys\\P_ItemBox.xw:..."), crashing on the next call.
+		// Reject up-front by comparing the resource's m_iRcClass against the
+		// known-model class IDs (see WDataRes_Core.h).
+		{
+			int cls = pRc->GetClass();
+			if (cls != WRESOURCE_CLASS_MODEL_XW  &&
+			    cls != WRESOURCE_CLASS_MODEL_XW2 &&
+			    cls != WRESOURCE_CLASS_MODEL_XW3 &&
+			    cls != WRESOURCE_CLASS_MODEL_XW4 &&
+			    cls != WRESOURCE_CLASS_MODEL_XMD &&
+			    cls != WRESOURCE_CLASS_MODEL_CUSTOM &&
+			    cls != WRESOURCE_CLASS_MODEL_CUSTOM_FILE &&
+			    cls != WRESOURCE_CLASS_MODEL_GLASS)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): rc class %d ('%s') is not a model class, returning NULL\n",
+					        _iModel, cls, pRc->GetName().Str());
+				return NULL;
+			}
+		}
+
 		CWRes_Model* pRCModel = TDynamicCast<CWRes_Model>(pRc);
 		if (!pRCModel) return NULL;
+
+		// If OnLoad hasn't run, m_spModel inside the resource may be an
+		// uninitialised TPtr (raw p uninitialised) - reading it back
+		// returns garbage that looks like a valid pointer but really
+		// points into unrelated heap memory (e.g. the resource's own
+		// m_Name storage, as seen with 'Phys\\P_ItemBox.xw:2' where the
+		// resource exists but never got its sub-model loaded because
+		// ReadAllModels never matched ModelNr==2 in the .xw file).
+		// Retail's GetResource used to sync-load on demand (commented-out
+		// code in WMapData.cpp:463-472); we skip instead of loading here
+		// because we're on the game thread during World_DoOnSpawnWorld.
+		if (!pRc->IsLoaded())
+		{
+			static int s_nWarn = 0;
+			if (s_nWarn++ < 20)
+				fprintf(stderr, "[WMAP] GetResource_Model(%d): '%s' not loaded yet, returning NULL\n",
+				        _iModel, pRc->GetName().Str());
+			return NULL;
+		}
 
 		pRc->m_TouchTime = m_spWData->m_TouchTime;
 
 		CXR_Model* pModel = pRCModel->GetModel();
+
+		// Defensive sanity on the returned pointer. On our Linux port some
+		// CWRes_Model_XW instances come back with an m_spModel field that
+		// contains a wild address (partially-precached resource whose model
+		// buffer got reclaimed; the wild ptr typically lands inside a heap
+		// string buffer such as the resource's own m_Name storage â€” see the
+		// Pa1_TheDream crash where *pModel == ASCII "mBox.xw:" from
+		// "Phys\\P_ItemBox.xw:2"). Any virtual call through this pointer
+		// segfaults. Two-step check:
+		//  1) pModel itself is a canonical userspace VA.
+		//  2) The vtable pointer at *pModel is also a canonical VA (in the
+		//     code/rodata range). If pModel points at a heap string buffer
+		//     the first 8 bytes are ASCII, which is NOT a canonical VA
+		//     (high 17 bits are non-zero), so this catches the actual bug.
+		//  Step 2 does one extra deref â€” if pModel is unmapped this
+		//  segfaults, but that's no worse than the current crash and the
+		//  observed case shows pModel is always in mapped heap memory,
+		//  just with garbage content.
+		if (pModel)
+		{
+			uintptr_t p = (uintptr_t)pModel;
+			if ((p & 0x7) != 0 || p < 0x1000 || (p >> 47) != 0)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' not canonical, returning NULL\n",
+					        _iModel, (void*)pModel, pRc->GetName().Str());
+				return NULL;
+			}
+			// Step 2: check vtable pointer at *pModel
+			uintptr_t vtable = *(uintptr_t *)pModel;
+			if ((vtable & 0x7) != 0 || vtable < 0x1000 || (vtable >> 47) != 0)
+			{
+				static int s_nWarn = 0;
+				if (s_nWarn++ < 20)
+					fprintf(stderr, "[WMAP] GetResource_Model(%d): pModel=%p from '%s' has bogus vtable=0x%lx (likely reused heap buffer), returning NULL\n",
+					        _iModel, (void*)pModel, pRc->GetName().Str(), (unsigned long)vtable);
+				return NULL;
+			}
+		}
 
 		return pModel;
 	}

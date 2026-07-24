@@ -216,7 +216,7 @@ void CMWnd_CenterImage::PaintTexture(CRC_Util2D* _pRCUtil, const CClipRect& _Cli
 
 	CClipRect Clip(0, 0, 640, 480);
 
-	_pRCUtil->SetTexture(NULL);
+	_pRCUtil->SetTexture(0);
 	_pRCUtil->Rect(Clip, CRct(0, 0, 640, 480), 0x0);
 
 	if(_pRCUtil->SetTexture(m_TextureName))
@@ -2638,7 +2638,14 @@ void CMWnd_CubeMenu_NewGame::OnCreate()
 	}
 	int Difficulty = pSys->GetRegistry()->GetValuei("OPT\\GAME_DIFFICULTY", 0);
 	m_lspWndChildren[1]->KillFocus();
-	m_lspWndChildren[Difficulty + 1]->SetFocus();
+	// PC EFBB menu has fewer entries than DA difficulty values assume
+	// (easy=1 .. commentary=4): clamp -- out-of-range index here crashes
+	// on 'hard'.
+	int iFocus = Difficulty + 1;
+	if (iFocus >= m_lspWndChildren.Len())
+		iFocus = m_lspWndChildren.Len() - 1;
+	if (iFocus > 0)
+		m_lspWndChildren[iFocus]->SetFocus();
 }
 
 // ---------------------------------------------------------------------------------------------

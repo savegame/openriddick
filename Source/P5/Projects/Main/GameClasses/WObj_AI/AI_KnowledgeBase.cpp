@@ -2378,7 +2378,7 @@ CAI_AgentInfo * CAI_KnowledgeBase::NewAgent(int _iObj, bool _bAddGlobal)
 		(CStrBase::CompareNoCase(pObj->GetName(), "TELEPHONEREG") == 0)||
 		(CStrBase::CompareNoCase(pObj->GetName(), "RADIO") == 0))
 	{
-		return(false);
+		return(NULL);
 	}
 
 	//Add agent to global list of agents if appropriate
@@ -2441,7 +2441,7 @@ CAI_AgentInfo* CAI_KnowledgeBase::AddAgent(int _iObj, int _Info, int _Awareness,
 		if ((CStrBase::CompareNoCase(pName, "TELEPHONEREG") == 0)||
 			(CStrBase::CompareNoCase(pName, "RADIO") == 0))
 		{
-			return(false);
+			return(NULL);
 		}
 
 		CAI_AgentInfo Agent(_iObj, this);

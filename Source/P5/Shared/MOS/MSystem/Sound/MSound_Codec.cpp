@@ -141,6 +141,67 @@ bool CSCC_Codec_RAW::GetData(void *&_pData, mint &_nBytes, bool _bLoop, bool &_b
 	return true;
 }
 
+mint CSCC_Codec_RAW::GetData(fp32 *_pDest, mint _nMaxSamples, bint _bLooping)
+{
+	// Decode raw PCM to fp32 (mixer packet streaming path, Linux/SDL2 port)
+	int nChannels = m_Format.m_Data.GetChannels();
+	int SampleSize = m_Format.m_Data.GetSampleSize();
+	int nSamples = m_Format.m_Data.GetNumSamples();
+	if (!nChannels || !SampleSize || !nSamples)
+		return 0;
+
+	int64 DataSize = (int64)nSamples * nChannels * SampleSize;
+	mint nDecoded = 0;
+	uint8 Temp[4096];
+	while (nDecoded < _nMaxSamples)
+	{
+		int64 Pos = m_pFile->Pos() - m_FileStart;
+		int64 BytesLeft = DataSize - Pos;
+		if (BytesLeft <= 0)
+		{
+			if (_bLooping)
+			{
+				m_pFile->Seek(m_FileStart);
+				continue;
+			}
+			break;
+		}
+
+		mint nValues = (_nMaxSamples - nDecoded) * nChannels;
+		{
+			int64 FileValues = BytesLeft / SampleSize;
+			if (FileValues < nValues)
+				nValues = (mint)FileValues;
+			int64 ChunkValues = sizeof(Temp) / SampleSize;
+			if (ChunkValues < nValues)
+				nValues = (mint)ChunkValues;
+		}
+		if (!nValues)
+			break;
+
+		m_pFile->Read(Temp, nValues * SampleSize);
+		if (SampleSize == 2)
+		{
+			const int16 *pSrc = (const int16 *)Temp;
+			for (mint i = 0; i < nValues; ++i)
+				*_pDest++ = pSrc[i] * (1.0f / 32768.0f);
+		}
+		else if (SampleSize == 1)
+		{
+			const uint8 *pSrc = (const uint8 *)Temp;
+			for (mint i = 0; i < nValues; ++i)
+				*_pDest++ = ((int)pSrc[i] - 128) * (1.0f / 128.0f);
+		}
+		else
+		{
+			break; // Unsupported sample size
+		}
+		nDecoded += nValues / nChannels;
+	}
+
+	return nDecoded;
+}
+
 bool CSCC_Codec_RAW::SeekData(int _SampleOffset)
 {
 	int SampleOffset = _SampleOffset % m_Format.m_Data.GetNumSamples();

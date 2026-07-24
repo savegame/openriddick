@@ -130,19 +130,27 @@ public:
 			(*((uint32 *)(this + 1))) = ((*((uint32 *)(this + 1))) & (~Mask)) | (((_Value & (Mask>>1)) << 1));
 		}
 
+		// Widened in-memory layout: when HasChildren, we reserve TWO uint32
+		// slots after CRegistry_Const instead of one. Slot 0 keeps the
+		// original packed word (bit 0=ChildrenHasChildren, bits 1..15=NumChildren,
+		// bits 16..31 unused now). Slot 1 holds the full 32-bit ChildNodeStart.
+		// The on-disk format remains 1 packed word with 16-bit start; ReadNode
+		// decodes disk's bits 16..31 into slot 1 so post-read state matches
+		// legacy semantics. Runtime renumbering (ReadNode_r) can then assign
+		// wide (>65535) offsets without truncation.
+		// TODO write path (Write_r) still emits the legacy 1-word form; only
+		// works for start<=65535. Runtime never writes compiled registries.
 		uint32 Private_Get_ChildNodeStart() const
 		{
 			if (Private_Get_HasChildren())
-				return ((*((uint32 *)(this + 1))) & (uint32)DBitRangeTyped(16,31, uint32)) >> 16;
+				return ((uint32 *)(this + 1))[1];
 			else
 				return 0;
 		}
 		void Private_Set_ChildNodeStart(uint32 _Value)
 		{
 			M_ASSERT(Private_Get_HasChildren(), "Cannot write here");
-			uint32 Mask = DBitRangeTyped(16,31, uint32);
-			M_ASSERT(!(_Value & (~(Mask>>16))), "Value too large");
-			(*((uint32 *)(this + 1))) = ((*((uint32 *)(this + 1))) & (~Mask)) | (((_Value & (Mask>>16)) << 16));
+			((uint32 *)(this + 1))[1] = _Value;
 		}
 
 		const CRegistry_Const *Private_GetChild(mint _Stride, const uint32 *_pNodes, int _iChild) const
@@ -157,7 +165,7 @@ public:
 			M_ASSERT(Private_Get_HasChildren(), "Cannot write here");
 			int nChildren = Private_Get_NumChildren();
 			bint bChildrenHasChildren = Private_Get_ChildrenHasChildren();
-			_Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? sizeof(uint32) : 0)) / sizeof(uint32);
+			_Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			const CRegistryCompiledInternal::CCompiledData *pData = Private_GetData();
 			_pNodes = pData->GetNodePtr(Private_Get_ChildNodeStart());
@@ -171,7 +179,7 @@ public:
 			int nChildren = Private_Get_NumChildren();
 			M_ASSERT(_iChild >= 0 && _iChild < nChildren, "Access error");
 			bint bChildrenHasChildren = Private_Get_ChildrenHasChildren();
-			mint Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? sizeof(uint32) : 0)) / sizeof(uint32);
+			mint Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			CRegistryCompiledInternal::CCompiledData *pData = Private_GetData();
 
@@ -193,7 +201,7 @@ public:
 			int nChildren = Private_Get_NumChildren();
 			M_ASSERT(_iChild >= 0 && _iChild < nChildren, "Access error");
 			bint bChildrenHasChildren = Private_Get_ChildrenHasChildren();
-			mint Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? sizeof(uint32) : 0)) / sizeof(uint32);
+			mint Stride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			const CRegistryCompiledInternal::CCompiledData *pData = Private_GetData();
 
@@ -279,7 +287,7 @@ public:
 				return -1;
 
 			bint bChildrenHasChildren = Private_Get_ChildrenHasChildren();
-			mint ChildStride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? sizeof(uint32) : 0)) / sizeof(uint32);
+			mint ChildStride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			const CRegistryCompiledInternal::CCompiledData *pData = Private_GetData();
 			const uint32 *pChildNodes = pData->GetNodePtr(Private_Get_ChildNodeStart());
@@ -369,7 +377,7 @@ public:
 			int nChildren = Private_Get_NumChildren();
 
 			bint bChildrenHasChildren = Private_Get_ChildrenHasChildren();
-			mint ChildStride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? sizeof(uint32) : 0)) / sizeof(uint32);
+			mint ChildStride = (sizeof(CRegistry_Const) + (bChildrenHasChildren ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 			const CRegistryCompiledInternal::CCompiledData *pData = Private_GetData();
 			const uint32 *pChildNodes = pData->GetNodePtr(Private_Get_ChildNodeStart());
 			pChildNodes += (nChildren + 1) >> 1;
@@ -2964,7 +2972,7 @@ ReturnNull:
 			uint32 *pNodeData = &(pCompiledData->m_NodeHeap[_Node.Private_Get_ChildNodeStart()]);
 			uint32 nChildren = _Node.Private_Get_NumChildren();
 			uint32 *pNodes = pNodeData + ((nChildren + 1) >> 1);
-			mint NodeSize = (_Node.Private_Get_ChildrenHasChildren() ? sizeof(uint32) : 0) + sizeof(CRegistry_Const);
+			mint NodeSize = (_Node.Private_Get_ChildrenHasChildren() ? 2 * sizeof(uint32) : 0) + sizeof(CRegistry_Const);
 
 			for (int i = 0; i < nChildren; ++i)
 			{
@@ -3486,7 +3494,7 @@ NormalBranch:
 			}
 		}
 		
-		mint ChildSize = nChildren * ((bChildrenHasChildren ? sizeof(uint32) : 0) + sizeof(CRegistry_Const)) + ((nChildren + 1) >> 1) * sizeof(uint32);
+		mint ChildSize = nChildren * ((bChildrenHasChildren ? 2 * sizeof(uint32) : 0) + sizeof(CRegistry_Const)) + ((nChildren + 1) >> 1) * sizeof(uint32);
 
 		if (bChildren)
 		{
@@ -3676,7 +3684,7 @@ NormalBranch:
 			}
 
 			uint32 *pNodes = pNodeData + ((nChildren + 1) >> 1);
-			mint NodeSize = (bChildrenHasChildren ? sizeof(uint32) : 0) + sizeof(CRegistry_Const);
+			mint NodeSize = (bChildrenHasChildren ? 2 * sizeof(uint32) : 0) + sizeof(CRegistry_Const);
 
 			for (int i = 0; i < nChildren; ++i)
 			{
@@ -3730,7 +3738,7 @@ NormalBranch:
 		int iNodeStart = (nChildren + 1) >> 1;
 		iChildBase += iNodeStart;
 
-		int Stride = sizeof(CRegistry_Const) / sizeof(uint32) + (_pThis->Private_Get_ChildrenHasChildren() ? 1 : 0);
+		int Stride = sizeof(CRegistry_Const) / sizeof(uint32) + (_pThis->Private_Get_ChildrenHasChildren() ? 2 : 0);
 		for (int i = 0; i < nChildren; ++i)
 		{
 			CRegistry_Const *pThis = GetFromNode(iData, iChildBase + i * Stride);
@@ -3757,7 +3765,7 @@ NormalBranch:
 		{
 			int iNodeStart = (m_RootNodeChildren + 1) >> 1;
 			CRegistry_Const *pRootNode = GetFromNode(0, iNodeStart);
-			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 			for (int i = 0; i < m_RootNodeChildren; ++i)
 			{
 				CRegistry_Const *pNode = GetFromNode(0, iNodeStart + i * Stride);
@@ -3799,9 +3807,16 @@ NormalBranch:
 
 		if (_pThis->Private_Get_HasChildren())
 		{
-			_pFile->ReadLE(*((uint32 *)(_pThis + 1)));
+			// On-disk: 1 packed uint32 with ChildNodeStart in bits 16..31.
+			// In-memory (widened): slot 0 keeps packed word (bits 0..15 still
+			// hold ChildrenHasChildren+NumChildren), slot 1 holds full 32-bit
+			// ChildNodeStart initialised from disk's 16-bit value.
+			uint32 packed;
+			_pFile->ReadLE(packed);
+			((uint32 *)(_pThis + 1))[0] = packed;
+			((uint32 *)(_pThis + 1))[1] = (packed >> 16) & 0xFFFF;
 		}
-	}	
+	}
 	
 	void ReadNode_r(CRegistry_Const *_pThis, CCFile *_pFile, CWriteHelper *_pHelper)
 	{
@@ -3821,7 +3836,7 @@ NormalBranch:
 			_pThis->Private_Set_ChildNodeStart(_pHelper[iData].m_iCurrent);
 			_pHelper[iData].m_Tags[iOrgNode] = _pHelper[iData].m_iCurrent;
 
-			int Stride = (sizeof(CRegistry_Const) + (_pThis->Private_Get_ChildrenHasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+			int Stride = (sizeof(CRegistry_Const) + (_pThis->Private_Get_ChildrenHasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			_pHelper[iData].m_iCurrent += Stride * nChildren + ((nChildren + 1) >> 1);
 
@@ -3856,11 +3871,24 @@ NormalBranch:
 			_pFile->ReadLE(pHelper[i].m_nHashEntries);
 
 			int ConstSize = sizeof(CRegistry_Const);
-			int NeededSize = pHelper[i].m_nNodesLarge * (ConstSize + sizeof(uint32));
+			// In-memory layout of a has-children node was widened from 1 to 2
+			// extra uint32 slots (see Private_Get_ChildNodeStart comment) so
+			// large-node accounting doubles the +sizeof(uint32) term.
+			int NeededSize = pHelper[i].m_nNodesLarge * (ConstSize + 2 * sizeof(uint32));
 			NeededSize += pHelper[i].m_nNodesSmall * ConstSize;
 			NeededSize += pHelper[i].m_nHashEntries * sizeof(uint32);
 			NeededSize /= sizeof(uint32);
-			M_ASSERT(NeededSize <= 1 << 16, "Overflow");
+			// Old code capped NeededSize at 65536 because ChildNodeStart was
+			// a 16-bit packed field. Now it's a full 32-bit slot, so lift the
+			// cap to a generous 16M slots (~64MB per block) as a sanity guard.
+			if (NeededSize > (1 << 24))
+			{
+				fprintf(stderr, "[REG-CMP] compiled registry block %d/%d needs %d slots (>16M), refusing to load\n", i, (int)nData, NeededSize);
+				m_RootNodeChildren = 0;
+				for (int j = 0; j <= i; ++j)
+					m_CompiledData[j].m_lRegistryNodes.SetLen(0);
+				return;
+			}
 			m_CompiledData[i].m_lRegistryNodes.SetLen(NeededSize);
 		}
 
@@ -3877,7 +3905,7 @@ NormalBranch:
 			CRegistry_Const *pRootNode = GetFromNode(0, iNodeStart);
 			new (pRootNode) CRegistry_Const;
 			ReadNode(pRootNode, _pFile);
-			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 			pHelper[0].m_iCurrent += Stride * m_RootNodeChildren;
 			ReadNode_r(pRootNode, _pFile, pHelper);
 
@@ -3892,7 +3920,8 @@ NormalBranch:
 
 		for (int i = 0; i < nData; ++i)
 		{
-			int NeededSize = pHelper[i].m_nNodesLarge * (sizeof(CRegistry_Const) + sizeof(uint32));
+			// Post-read sanity: same widened accounting as the pre-alloc pass
+			int NeededSize = pHelper[i].m_nNodesLarge * (sizeof(CRegistry_Const) + 2 * sizeof(uint32));
 			NeededSize += pHelper[i].m_nNodesSmall * sizeof(CRegistry_Const);
 			NeededSize += pHelper[i].m_nHashEntries * sizeof(uint32);
 			NeededSize /= sizeof(uint32);
@@ -3947,7 +3976,15 @@ NormalBranch:
 		int nChildren = _pThis->Private_Get_NumChildren();
 		if (_pThis->Private_Get_HasChildren())
 		{
-			_pFile->WriteLE(*((uint32 *)(_pThis + 1)));
+			// In-memory: slot 0 (packed) holds HasChildren+NumChildren in bits
+			// 0..15, slot 1 holds full 32-bit ChildNodeStart. On-disk format is
+			// still the legacy 1 packed word, so recompose bits 16..31 with the
+			// low 16 bits of the wide start. Writing a compiled registry with
+			// start>=65536 is not supported (retail format cap).
+			uint32 wide = ((uint32 *)(_pThis + 1))[1];
+			M_ASSERT(wide < (uint32)(1 << 16), "Wide ChildNodeStart doesn't fit legacy on-disk format");
+			uint32 packed = (((uint32 *)(_pThis + 1))[0] & 0x0000FFFFu) | ((wide & 0xFFFFu) << 16);
+			_pFile->WriteLE(packed);
 
 			if (nChildren)
 			{
@@ -3977,7 +4014,7 @@ NormalBranch:
 		{
 			int iNodeStart = (m_RootNodeChildren + 1) >> 1;
 			CRegistry_Const *pRootNode = GetFromNode(0, iNodeStart);
-			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			int nChildren = m_RootNodeChildren;
 			if (pRootNode->Private_Get_HasChildren())
@@ -4011,7 +4048,7 @@ NormalBranch:
 			int iNodeStart = (m_RootNodeChildren + 1) >> 1;
 			CRegistry_Const *pRootNode = GetFromNode(0, iNodeStart);
 
-			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+			int Stride = (sizeof(CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 
 			for (int i = 0; i < m_RootNodeChildren; ++i)
 			{
@@ -4034,7 +4071,7 @@ NormalBranch:
 		CCompileContext Context;
 		Context.m_bFastSearch = _bFastSearch;
 
-		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 		NodeData[0] = 0xFFffFFff;
 		CRegistryCompiledInternal::CRegistry_Const &Node = *((CRegistry_Const *)NodeData);
 		Node.Private_Set_HasChildren(true);
@@ -4064,7 +4101,7 @@ NormalBranch:
 			Context.CalcChecksum<0>(Node);
 #endif
 
-			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 			NodeData2[0] = 0xFFffFFff;
 			CRegistryCompiledInternal::CRegistry_Const &Node2 = *((CRegistry_Const *)NodeData2);
 			Node2.Private_Set_HasChildren(true);
@@ -4087,7 +4124,7 @@ NormalBranch:
 		m_CompiledData.Destroy();
 		CCompileContext Context;
 		Context.m_bFastSearch = _bFastSearch;
-		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 		NodeData[0] = 0xFFffFFff;
 		CRegistryCompiledInternal::CRegistry_Const &Node = *((CRegistry_Const *)NodeData);
 		Node.Private_Set_HasChildren(true);
@@ -4108,7 +4145,7 @@ NormalBranch:
 
 			Context.CalcChecksum<1>(Node);
 
-			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 			NodeData2[0] = 0xFFffFFff;
 			CRegistryCompiledInternal::CRegistry_Const &Node2 = *((CRegistry_Const *)NodeData2);
 			Node2.Private_Set_HasChildren(true);
@@ -4127,7 +4164,7 @@ NormalBranch:
 		m_CompiledData.Destroy();
 		CCompileContext Context;
 		Context.m_bFastSearch = _bFastSearch;
-		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+		uint32 NodeData[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 		NodeData[0] = 0xFFffFFff;
 		CRegistryCompiledInternal::CRegistry_Const &Node = *((CRegistry_Const *)NodeData);
 		Node.Private_Set_HasChildren(true);
@@ -4148,7 +4185,7 @@ NormalBranch:
 
 			Context.CalcChecksum<0>(Node);
 
-			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 1];
+			uint32 NodeData2[((sizeof(CRegistry_Const)+sizeof(uint32)-1) / sizeof(uint32)) + 2];
 			NodeData2[0] = 0xFFffFFff;
 			CRegistryCompiledInternal::CRegistry_Const &Node2 = *((CRegistry_Const *)NodeData2);
 			Node2.Private_Set_HasChildren(true);
@@ -4240,7 +4277,7 @@ spCRegistry CRegistryCompiled::GetRoot()
 
 		int iNodeStart = (m_pInternal->m_RootNodeChildren + 1) >> 1;
 		CRegistryCompiledInternal::CRegistry_Const *pRootNode = m_pInternal->GetFromNode(0, iNodeStart);
-		int Stride = (sizeof(CRegistryCompiledInternal::CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? sizeof(uint32) : 0)) / sizeof(uint32);
+		int Stride = (sizeof(CRegistryCompiledInternal::CRegistry_Const) + (pRootNode->Private_Get_HasChildren() ? 2 * sizeof(uint32) : 0)) / sizeof(uint32);
 		for (int i = 0; i < m_pInternal->m_RootNodeChildren; ++i)
 		{
 			CRegistryCompiledInternal::CRegistry_Const *pNode = m_pInternal->GetFromNode(0, iNodeStart + i * Stride);

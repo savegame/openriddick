@@ -3,8 +3,6 @@
 
 #include "CSinRandTable.h"
 
-CSinRandTable1024x8 g_SinRandTable;
-
 template<>
 CSinRandTable<1024, 8>::CSinRandTable()
 {
@@ -40,6 +38,9 @@ CSinRandTable<1024, 8>::CSinRandTable()
 	m_fInvAccuricy = 1.0f / m_fAccuricy;
 	m_fSizeAccScale = m_fTableSize * m_fAccuricy;
 }
+
+CSinRandTable1024x8 g_SinRandTable;
+
 
 template<>
 fp32 CSinRandTable<1024, 8>::GetRand(fp32 _Time) const

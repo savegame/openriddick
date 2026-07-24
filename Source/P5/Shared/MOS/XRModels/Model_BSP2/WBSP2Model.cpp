@@ -1402,7 +1402,7 @@ bool CXR_Model_BSP2::RenderTesselate(const uint32* _piFaces, int _nFaces, int _T
 
 	if (_TessFlags & 3)
 	{
-		ConOut(CStrF("§cf80WARNING: (CXR_Model_BSP2::RenderTesselate) TessFlags %d", _TessFlags));
+		ConOut(CStrF("ï¿½cf80WARNING: (CXR_Model_BSP2::RenderTesselate) TessFlags %d", _TessFlags));
 	}
 
 	if (_TessFlags & 4)
@@ -1967,6 +1967,20 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 
 	int bDeferredShading = pShader->m_ShaderModeTraits & XR_SHADERMODETRAIT_DEFERRED;
 
+	// GLES3 bring-up: no shading pipeline available (m_ShaderMode == -1).
+	// Route all shading-queue surfaces through the textured ZAlpha path below,
+	// so the world is drawn with diffuse textures (unlit) instead of plain ambience.
+	const int bNoShaderPipeline = ((int)pShader->m_ShaderMode < 0);
+	if (bNoShaderPipeline)
+	{
+		static bool s_bLoggedNoShaderPipeline = false;
+		if (!s_bLoggedNoShaderPipeline)
+		{
+			s_bLoggedNoShaderPipeline = true;
+			ConOut(CStrF("[BSP2] NoShaderPipeline fallback ACTIVE (m_ShaderMode=0x%x) - diffuse textures in Z-prepass", (uint)pShader->m_ShaderMode));
+		}
+	}
+
 
 	CXR_VBIDChain* pVBIDChainZbuffer = NULL;
 	CXR_VBIDChain* pVBIDChainFog = NULL;
@@ -2265,7 +2279,7 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 				// Z-prepass and fog
 				{
 					// Render vertex-buffer chain into z-buffer, no color/alpha write
-					if (pSSP->m_Flags & XR_SHADERFLAGS_USEZEQUAL)
+					if ((pSSP->m_Flags & XR_SHADERFLAGS_USEZEQUAL) || bNoShaderPipeline)
 					{
 						liZAlphaQueue[nZAlphaQueue++] = iQueue;
 					}
@@ -2309,14 +2323,55 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 
 					CXR_VertexBuffer*M_RESTRICT pVB = pZAlphaVBs+iInner;
 					pVBChain->SetToVB(pVB);
-					pVB->Geometry_Color(Ambience);
+					pVB->Geometry_Color(bNoShaderPipeline ? 0xffffffff : Ambience);
 
 			//		CXW_SurfaceLayer* pLayers = pSurf->GetBaseFrame()->m_lTextures.GetBasePtr();
 					CRC_Attributes*M_RESTRICT pA = pZAlphaAttr + iInner;
 			//		pA->Attrib_TextureID(0, pLayers->m_TextureID);
 			//		pA->Attrib_AlphaCompare(pLayers->m_AlphaFunc, pLayers->m_AlphaRef);
-					pA->Attrib_TextureID(0, pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]);
+					// bNoShaderPipeline fallback: DIFFUSE slot 0 empty for
+					// many BSP2 surfaces (arrival walls only fill NORMAL/
+					// SPECULAR/HEIGHT etc). Scan all slots for the first
+					// non-zero texture ID so *something* diffuses the wall
+					// instead of leaving it untextured. One-shot log per
+					// distinct SSP to spot which slot became the fallback.
+					uint16 TexID = pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE];
+					int TexSlot = XR_SHADERMAP_DIFFUSE;
+					if (!TexID)
+					{
+						for (int s = 1; s < XR_SHADERMAP_MAXMAPS; ++s)
+							if (pSSP->m_lTextureIDs[s]) { TexID = pSSP->m_lTextureIDs[s]; TexSlot = s; break; }
+					}
+					if (getenv("RIDDICK_DBG_SURF"))
+					{
+						static const void* s_lastSSP[64] = {0};
+						static int s_nSSP = 0;
+						bool bSeen = false;
+						for (int k = 0; k < s_nSSP; ++k) if (s_lastSSP[k] == pSSP) { bSeen = true; break; }
+						if (!bSeen && s_nSSP < 64)
+						{
+							s_lastSSP[s_nSSP++] = pSSP;
+							fprintf(stderr, "[BSP2-SSP] slots=[%u %u %u %u %u %u %u %u %u]  chose slot=%d id=%u\n",
+								(unsigned)pSSP->m_lTextureIDs[0], (unsigned)pSSP->m_lTextureIDs[1],
+								(unsigned)pSSP->m_lTextureIDs[2], (unsigned)pSSP->m_lTextureIDs[3],
+								(unsigned)pSSP->m_lTextureIDs[4], (unsigned)pSSP->m_lTextureIDs[5],
+								(unsigned)pSSP->m_lTextureIDs[6], (unsigned)pSSP->m_lTextureIDs[7],
+								(unsigned)pSSP->m_lTextureIDs[8], TexSlot, (unsigned)TexID);
+							fflush(stderr);
+						}
+					}
+					pA->Attrib_TextureID(0, TexID);
 					pA->Attrib_AlphaCompare(pSSP->m_AlphaFunc, pSSP->m_AlphaRef);
+					// bNoShaderPipeline fallback: pZAttr is Z-prepass base with
+					// COLORWRITE disabled (m_RenderZBuffer, :300). Without the
+					// override the diffuse texture binds but the draw writes
+					// only depth+stencil, no color -> BSP world stays untextured
+					// grey. Enable color/alpha write for the fallback path;
+					// retail USEZEQUAL path keeps color off (it's a real Z-prepass).
+					if (bNoShaderPipeline)
+					{
+						pA->Attrib_Enable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
+					}
 					pVB->m_pAttrib = pA;
 
 					pVB->Matrix_Set(_pRenderParams->m_pVBMatrixM2V);
@@ -2729,12 +2784,12 @@ template <int tPlatform>
 static void SetWantTransform(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB);
 
 template <>
-static void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_Default>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 }
 
 template <>
-static void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_Xenon>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 	CBSP2_VertexBuffer* pBSPVB = _pBSPVB;
 	
@@ -2894,7 +2949,7 @@ static void GetMinMax(const fp32* _pValues, fp32& _Min, fp32& _Max, uint _nV)
 }
 
 template <>
-static void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
+void SetWantTransform<e_Platform_PS3>(CRC_BuildVertexBuffer& _VB, CXR_Model_BSP2* _pModel, uint _iLocal, CBSP2_VertexBuffer* _pBSPVB)
 {
 	CBSP2_VertexBuffer* pBSPVB = _pBSPVB;
 	
@@ -3314,7 +3369,11 @@ void CXR_Model_BSP2::RenderShaderQueue(CBSP2_RenderParams* _pRenderParams)
 			Params.Create(_pRenderParams->m_pVBMatrixM2W, _pRenderParams->m_pVBMatrixW2V, pShader);
 			Params.m_nVB = nSQBatch;
 
-			M_PRECACHE128(0, &lShaderQueueVBChain[iSQBatch]);
+			// iSQBatch may be == Len here (batch loop ran the array to the
+			// end); the bounds-checked TAP_RCD operator[] throws on the
+			// one-past-end prefetch. Prefetch is a hint -- skip it.
+			if (iSQBatch < (uint)lShaderQueueVBChain.Len())
+				M_PRECACHE128(0, &lShaderQueueVBChain[iSQBatch]);
 
 			if(!(_pRenderParams->m_pCurrentEngine->m_DebugFlags & M_Bit(19)))
 				pShader->RenderShading(*pSGI->GetLight(iLight), lBatchGeom, &Params, lpBatchSSP);
@@ -4737,7 +4796,7 @@ void CXR_Model_BSP2::RenderWire(CBSP2_RenderParams* _pRenderParams, CPixel32 _Co
 
 #ifdef M_Profile
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Counts Non-dynamic lights per face
 Parameters:
 	_pRenderParams:	Render parameters
@@ -4782,7 +4841,7 @@ void CXR_Model_BSP2::LightCountSLC(CBSP2_RenderParams * _pRenderParams)
 	}
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Render a collection of faces with a color key
 Parameters:
 	_pRenderParams:	Render parameters
@@ -4820,7 +4879,7 @@ void CXR_Model_BSP2::RenderLightColorKeyFaceList(CBSP2_RenderParams * _pRenderPa
 	pVBM->AddVB(pVB);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½*\
 Function: Render Color-keyed lightcount information
 Parameters:
 	_pRenderParams:	Render parameters
@@ -5148,7 +5207,7 @@ void CXR_Model_BSP2::OnRender2(CXR_Engine* _pEngine, CRenderContext* _pRender, C
 				// check if something strage is going on (can crash if this check isn't here)
 				if(m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len())
 				{
-					ConOutL("§cf80WARNING: (CXR_Model_BSP2::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
+					ConOutL("ï¿½cf80WARNING: (CXR_Model_BSP2::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
 					return;
 				}
 

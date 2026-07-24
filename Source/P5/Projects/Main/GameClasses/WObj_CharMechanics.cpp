@@ -1196,7 +1196,7 @@ void CWObject_Character::CheckDarklingSpawnPoints(const CVec3Dfp32& _SelectPos, 
 		if (m_pWServer->Phys_Message_SendToObject(Msg,pSel[i]) && // Check if usable (returns 1)
 			!m_pWServer->Phys_IntersectLine(_SelectPos, ObjPos, 
 			OBJECT_FLAGS_PROJECTILE, OBJECT_FLAGS_WORLD, 
-			XW_MEDIUM_SOLID | XW_MEDIUM_PHYSSOLID, NULL, m_iObject))
+			XW_MEDIUM_SOLID | XW_MEDIUM_PHYSSOLID, (CCollisionInfo*)NULL, m_iObject))
 		{
 			// Check which is the best one
 			CVec3Dfp32 DirToSpawn = ObjPos - _SelectPos;

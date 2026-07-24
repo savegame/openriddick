@@ -222,12 +222,12 @@ template <> const char *ScriptTypeName<_Type>() { return #_Type;}
 template <typename t_CConvert>
 static const char *ScriptTypeName()
 {
-	CGenerateCompileTimeError<int>::GenerateError(); // You have to implement this type name
+	t_CConvert::UnimplementedScriptTypeName(); // You have to implement this type name
 	return "";
 }
 
-#define DScriptType(_Type) template <> M_INLINE static const char *ScriptTypeName<_Type>() { return #_Type;}
-#define DScriptType2(_Type, _Name) template <> M_INLINE static const char *ScriptTypeName<_Type>() { return #_Name;}
+#define DScriptType(_Type) template <> M_INLINE const char *ScriptTypeName<_Type>() { return #_Type;}
+#define DScriptType2(_Type, _Name) template <> M_INLINE const char *ScriptTypeName<_Type>() { return #_Name;}
 
 DScriptType(void);
 #ifdef M_SEPARATETYPE_int

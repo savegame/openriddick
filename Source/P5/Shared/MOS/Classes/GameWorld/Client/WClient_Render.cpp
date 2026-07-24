@@ -9,7 +9,7 @@
 #include "../../../MSystem/Misc/MPerfGraph.h"
 #include "../../../XRModels/Model_TriMesh/WTriMesh.h"
 
-#include "../../../../../projects/main/gameclasses/WObj_Char.h"
+#include "../../../../../Projects/Main/GameClasses/WObj_Char.h"
 
 
 // MUPPJOKKO -	Temp fix, this still fucks upp with translucent surfaces in the world!
@@ -772,7 +772,7 @@ void CWorld_ClientCore::Render(CXR_VBManager* _pVBM, CRenderContext* _pRender, C
 			//pCapture->Render(_pRender, &DummyVP);
 		}
 
-		_pVBM->ScopeBegin(false, 1);
+		_pVBM->ScopeBegin(NULL, 1);
 		m_spWireContainer->Render(_pVBM, VMat);
 		_pVBM->ScopeEnd();
 

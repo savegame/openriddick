@@ -174,7 +174,7 @@ public:
 	{
 		CXR_VertexBuffer* pVB = (CXR_VertexBuffer*) Alloc(sizeof(CXR_VertexBuffer) + sizeof(CXR_VBIDChain));
 		if (!pVB)
-			return false;
+			return NULL;
 		Construct_VB_IDChain(pVB, pVB+1);
 		return pVB;
 	}

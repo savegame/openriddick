@@ -471,13 +471,23 @@ CDA_MemoryManager_SizeClass::~CDA_MemoryManager_SizeClass()
 
 CDA_MemoryManager_SizeClass *CDA_MemoryManager::GetFreeSizeClass(mint _Size, bint _bFragment)
 {
+	// Bring-up tripwire (Arrival heap corruption hunt): a size class with
+	// a bogus size (the -16 fragment seen in gdb) must be caught at the
+	// creation site. Run with RIDDICK_ASSERT_FATAL=1 for a hard stop.
+	if ((aint)_Size < (aint)sizeof(SDA_DefraggableFree)) // mint is unsigned: signed compare!
+	{
+		fprintf(stderr, "[HEAP-TRIPWIRE] GetFreeSizeClass bad size %d fragment %d\n",
+			(int)_Size, (int)_bFragment);
+		M_ASSERT(0, "GetFreeSizeClass: bogus size class");
+	}
 	CDA_MemoryManager_SizeClass *SizeClass;
 	if (_bFragment)
 	{
 		SizeClass = (CDA_MemoryManager_SizeClass *)m_SizesFreeTreeFragments.FindEqual(_Size);
 		if (!SizeClass)
 		{
-			SizeClass = m_SizesPool.New(this);
+			CDA_MemoryManager* pThis = this;
+			SizeClass = m_SizesPool.New(pThis);
 			SizeClass->m_Size = _Size;
 			m_SizesFreeTreeFragments.f_InsertLowStack(SizeClass, (void*)NULL);
 	#ifdef DA__HEAPVALIDATE
@@ -491,7 +501,8 @@ CDA_MemoryManager_SizeClass *CDA_MemoryManager::GetFreeSizeClass(mint _Size, bin
 		SizeClass = (CDA_MemoryManager_SizeClass *)m_SizesFreeTreeNormal.FindEqual(_Size);
 		if (!SizeClass)
 		{
-			SizeClass = m_SizesPool.New(this);
+			CDA_MemoryManager* pThis = this;
+			SizeClass = m_SizesPool.New(pThis);
 			SizeClass->m_Size = _Size;
 			m_SizesFreeTreeNormal.f_InsertLowStack(SizeClass, (void*)NULL);
 	#ifdef DA__HEAPVALIDATE
@@ -1364,7 +1375,10 @@ void *CDA_MemoryManager::AllocImp(mint Size, mint _Alignment)
 
 			mint StartDefraggable = AlignedEndAddress - sizeof(SDA_Defraggable);
 			mint PreBlockSize = StartDefraggable - BlockAddress;
-			if (PreBlockSize)
+			// Exact/near-exact fit (PC data, WBSP2Loader large TArray allocs): a
+			// pre-block that does not even hold SDA_DefraggableFree would carve
+			// BEFORE the chunk and poison the free list -- use the block whole.
+			if ((aint)PreBlockSize >= (aint)sizeof(SDA_DefraggableFree)) // mint is unsigned: signed compare!
 			{
 				FinalBlockSize -= PreBlockSize;
 
@@ -2503,7 +2517,18 @@ CDA_MemoryManager_SizeClass* CDA_MemoryManager::GetSizeClass(mint _SizeNeeded)
 		SizeClass = (CDA_MemoryManager_SizeClass *)m_SizesFreeTreeFragments.FindSmallestGreaterThanEqual(_SizeNeeded);
 
 		if (SizeClass)
+		{
+			// Bring-up tripwire: tree returned a node that cannot satisfy
+			// the request (dangling node or bogus m_Size, see Arrival
+			// SizeClass->m_Size == -16 in gdb). RIDDICK_ASSERT_FATAL=1 stops here.
+			if ((aint)SizeClass->m_Size < (aint)_SizeNeeded) // mint is unsigned: signed compare!
+			{
+				fprintf(stderr, "[HEAP-TRIPWIRE] GetSizeClass frag tree returned class size %d for %d\n",
+					(int)SizeClass->m_Size, (int)_SizeNeeded);
+				M_ASSERT(0, "GetSizeClass: stale/bogus fragment class");
+			}
 			return SizeClass;
+		}
 	
 		if (m_bCanDefrag)
 			// The memory is defragmented, must defrag to fit element

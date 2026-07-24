@@ -1370,14 +1370,21 @@ void CWorld_ClientCore::Simulate(int _bCalcInterpolation)
 							pObj->m_LastPos = LastPos;
 
 	#ifndef DEF_DISABLE_PERFGRAPH
-						int iClass = pObj->m_iClass;
 						TStop(T);
 
-						CWorldData::CWD_ClassStatistics* pCS = m_spMapData->GetResource_ClassStatistics(iClass);
-						if (pCS)
+						// Linux port: pObj may be NULL here -- the object can be
+						// deleted inside its own OnClientRefresh/Execute above
+						// (re-fetch is guarded for m_LastPos, but this deref was
+						// not). SIGSEGV in Pa1_Pit, WClient_Core.cpp:1373.
+						if (pObj)
 						{
-							pCS->m_ClientExecuteTime += T;
-							pCS->m_nClientExecute++;
+							int iClass = pObj->m_iClass;
+							CWorldData::CWD_ClassStatistics* pCS = m_spMapData->GetResource_ClassStatistics(iClass);
+							if (pCS)
+							{
+								pCS->m_ClientExecuteTime += T;
+								pCS->m_nClientExecute++;
+							}
 						}
 
 						// Plot OnClientRefresh execution time

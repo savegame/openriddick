@@ -795,9 +795,7 @@ static void ParseComment_SlashAstrix(const char* p, int& _Pos, int _Len, T * pTe
 {
 	int End = FindSeq(p + _Pos, _Len - _Pos, "*/", 2);
 	if (End < 0)
-	{
-		Error_static("ParseQuote", "Unexpected end-of-file in /*  */ comment.");
-	}
+		_Pos = _Len; // tolerate unterminated /* */ at EOF (dead commented-out blocks in PC data, e.g. SoundCategories.xrg) -- same as // comments
 	else
 		_Pos += End+2;
 }
@@ -808,9 +806,7 @@ void ParseComment_SlashAstrix(const wchar* p, int& _Pos, int _Len, T * pTemp)
 {
 	int End = FindSeq(p + _Pos, _Len - _Pos, WTEXT("*/"), 2);
 	if (End < 0)
-	{
-		Error_static("ParseQuote", "Unexpected end-of-file in /*  */ comment.");
-	}
+		_Pos = _Len; // tolerate unterminated /* */ at EOF (dead commented-out blocks in PC data, e.g. SoundCategories.xrg) -- same as // comments
 	else
 		_Pos += End+2;
 }

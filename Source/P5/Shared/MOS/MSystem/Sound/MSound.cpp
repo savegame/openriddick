@@ -16,6 +16,14 @@ SYSTEMDLLEXPORT spCSoundContext MCreateSoundContext(CStr _ClassName, int _MaxVoi
 	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject("CSoundContext_Xenon3");
 #elif defined(PLATFORM_PS3)
 	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject("CSoundContext_PS3");
+#elif defined(PLATFORM_LINUX)
+	// Pull the SDL2 sound backend TU out of the static libp5_msystem.a
+	// archive so its MRTC_IMPLEMENT_DYNAMIC static registrar runs and
+	// "CSoundContext_SDL2" is known to the object factory below.
+	MRTC_REFERENCE(CSoundContext_SDL2);
+	// Same for the Vorbis wave codec (created by name in CWaveContext::OpenStream)
+	MRTC_REFERENCE(CMSound_Codec_VORB);
+	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject(_ClassName);
 #else
 	spCSoundContext spSC = (CSoundContext*) MRTC_GetObjectManager()->CreateObject(_ClassName);
 #endif
@@ -238,7 +246,7 @@ spCSCC_CodecStream CWaveContext::OpenStream(int _WaveID, int _Flags)
 		
 		TPtr<CReferenceCount> _spRefCount = MRTC_GetObjectManager()->CreateObject(ClassName);
 		if (!_spRefCount)
-			Error("OpenStream", "No such codec:" + ClassName);
+			Error("OpenStream", CFStr("No such codec:") + ClassName);
 
 		// Read the original format
 		CSCC_CodecFormat OriginalFormat;

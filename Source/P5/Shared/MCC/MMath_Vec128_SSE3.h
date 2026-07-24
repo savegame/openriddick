@@ -47,6 +47,11 @@ typedef const CMat4Dfp32& CMat4Dfp32p;
 #define M_V128IMP_TRANSPOSE4X4
 #define M_V128IMP_INTEGERARITHMETICS
 #define M_V128IMP_INTEGERCOMPARE
+#ifdef COMPILER_GNU
+// GCC/Clang provide built-in arithmetic operators for __m128; overloading
+// operators on native vector types is not allowed there.
+#define M_V128IMP_FLOAT_OPERATORS
+#endif
 
 //----------------------------------------------------------
 // Some workaround for blatant stupidity on the part of whomever designed <emmintrin.h>
@@ -95,10 +100,10 @@ M_FORCEINLINE vec128 M_VZero() { return _mm_setzero_ps(); }
 M_FORCEINLINE vec128 M_VHalf() { return _mm_set_ps1(0.5f); }
 M_FORCEINLINE vec128 M_VOne() { return _mm_set_ps1(1.0f); }
 M_FORCEINLINE vec128 M_VTwo() { return _mm_set_ps1(2.0f); }
-M_FORCEINLINE vec128 M_VOne_u8() { return (vec128&)_mm_set1_epi8(0x01); }
-M_FORCEINLINE vec128 M_VOne_u16() { return (vec128&)_mm_set1_epi16(0x0001); }
-M_FORCEINLINE vec128 M_VOne_u32() { return (vec128&)_mm_set1_epi32(0x00000001); }
-M_FORCEINLINE vec128 M_VNegOne_i32() {return (vec128&)_mm_set1_epi8(-1); }
+M_FORCEINLINE vec128 M_VOne_u8() { return (vec128)_mm_set1_epi8(0x01); }
+M_FORCEINLINE vec128 M_VOne_u16() { return (vec128)_mm_set1_epi16(0x0001); }
+M_FORCEINLINE vec128 M_VOne_u32() { return (vec128)_mm_set1_epi32(0x00000001); }
+M_FORCEINLINE vec128 M_VNegOne_i32() {return (vec128)_mm_set1_epi8(-1); }
 
 //#define M_VConst(x, y, z, w) _mm_load_ps(TVec128Const<M_VFLOATTOFIXED128(x), M_VFLOATTOFIXED128(y), M_VFLOATTOFIXED128(z), M_VFLOATTOFIXED128(w)>::ms_Const)
 //#define M_VConstMsk(x, y, z, w) _mm_load_ps((const fp32*)&TVec128Mask<((x)?1:0) + ((y)?2:0) + ((z)?4:0) + ((w)?8:0)>::ms_Mask)
@@ -350,14 +355,14 @@ M_FORCEINLINE vec128 M_VMax_u16(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VShl_u16(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u16(~0, 0, 0, 0, 0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 2), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 2));
-	vec128 t2 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t3 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 6), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 6));
-	vec128 t4 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t5 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 10), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 10));
-	vec128 t6 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
-	vec128 t7 = M_VAnd((vec128&)_mm_sll_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 14), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 14));
+	vec128 t0 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 2), mask)), (vec128)_mm_slli_si128((__m128i)mask, 2));
+	vec128 t2 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t3 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 6), mask)), (vec128)_mm_slli_si128((__m128i)mask, 6));
+	vec128 t4 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t5 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 10), mask)), (vec128)_mm_slli_si128((__m128i)mask, 10));
+	vec128 t6 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
+	vec128 t7 = M_VAnd((vec128)_mm_sll_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 14), mask)), (vec128)_mm_slli_si128((__m128i)mask, 14));
 
 	return M_VOr(M_VOr(M_VOr(t0, t1), M_VOr(t2, t3)), M_VOr(M_VOr(t4, t5), M_VOr(t6, t7)));
 }
@@ -365,14 +370,14 @@ M_FORCEINLINE vec128 M_VShl_u16(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VShr_u16(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u16(~0, 0, 0, 0, 0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 2), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 2));
-	vec128 t2 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t3 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 6), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 6));
-	vec128 t4 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t5 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 10), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 10));
-	vec128 t6 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
-	vec128 t7 = M_VAnd((vec128&)_mm_srl_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 14), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 14));
+	vec128 t0 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 2), mask)), (vec128)_mm_slli_si128((__m128i)mask, 2));
+	vec128 t2 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t3 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 6), mask)), (vec128)_mm_slli_si128((__m128i)mask, 6));
+	vec128 t4 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t5 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 10), mask)), (vec128)_mm_slli_si128((__m128i)mask, 10));
+	vec128 t6 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
+	vec128 t7 = M_VAnd((vec128)_mm_srl_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 14), mask)), (vec128)_mm_slli_si128((__m128i)mask, 14));
 
 	return M_VOr(M_VOr(M_VOr(t0, t1), M_VOr(t2, t3)), M_VOr(M_VOr(t4, t5), M_VOr(t6, t7)));
 }
@@ -380,14 +385,14 @@ M_FORCEINLINE vec128 M_VShr_u16(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VSar_i16(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u16(~0, 0, 0, 0, 0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 2), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 2));
-	vec128 t2 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t3 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 6), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 6));
-	vec128 t4 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t5 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 10), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 10));
-	vec128 t6 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
-	vec128 t7 = M_VAnd((vec128&)_mm_sra_epi16((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 14), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 14));
+	vec128 t0 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 2), mask)), (vec128)_mm_slli_si128((__m128i)mask, 2));
+	vec128 t2 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t3 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 6), mask)), (vec128)_mm_slli_si128((__m128i)mask, 6));
+	vec128 t4 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t5 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 10), mask)), (vec128)_mm_slli_si128((__m128i)mask, 10));
+	vec128 t6 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
+	vec128 t7 = M_VAnd((vec128)_mm_sra_epi16((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 14), mask)), (vec128)_mm_slli_si128((__m128i)mask, 14));
 
 	return M_VOr(M_VOr(M_VOr(t0, t1), M_VOr(t2, t3)), M_VOr(M_VOr(t4, t5), M_VOr(t6, t7)));
 }
@@ -395,10 +400,10 @@ M_FORCEINLINE vec128 M_VSar_i16(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VShl_u32(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u32(~0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_sll_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_sll_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t2 = M_VAnd((vec128&)_mm_sll_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t3 = M_VAnd((vec128&)_mm_sll_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
+	vec128 t0 = M_VAnd((vec128)_mm_sll_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_sll_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t2 = M_VAnd((vec128)_mm_sll_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t3 = M_VAnd((vec128)_mm_sll_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
 
 	return M_VOr(M_VOr(t0, t1), M_VOr(t2, t3));
 }
@@ -406,10 +411,10 @@ M_FORCEINLINE vec128 M_VShl_u32(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VShr_u32(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u32(~0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_srl_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_srl_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t2 = M_VAnd((vec128&)_mm_srl_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t3 = M_VAnd((vec128&)_mm_srl_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
+	vec128 t0 = M_VAnd((vec128)_mm_srl_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_srl_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t2 = M_VAnd((vec128)_mm_srl_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t3 = M_VAnd((vec128)_mm_srl_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
 
 	return M_VOr(M_VOr(t0, t1), M_VOr(t2, t3));
 }
@@ -417,10 +422,10 @@ M_FORCEINLINE vec128 M_VShr_u32(vec128 a, vec128 b)
 M_FORCEINLINE vec128 M_VSar_i32(vec128 a, vec128 b)
 {
 	vec128 mask = M_VConst_u32(~0, 0, 0, 0);
-	vec128 t0 = M_VAnd((vec128&)_mm_sra_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 0), mask)), mask);
-	vec128 t1 = M_VAnd((vec128&)_mm_sra_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 4), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 4));
-	vec128 t2 = M_VAnd((vec128&)_mm_sra_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 8), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 8));
-	vec128 t3 = M_VAnd((vec128&)_mm_sra_epi32((__m128i&)a, (__m128i&)M_VAnd((vec128&)_mm_srli_si128((__m128i&)b, 12), mask)), (vec128&)_mm_slli_si128((__m128i&)mask, 12));
+	vec128 t0 = M_VAnd((vec128)_mm_sra_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 0), mask)), mask);
+	vec128 t1 = M_VAnd((vec128)_mm_sra_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 4), mask)), (vec128)_mm_slli_si128((__m128i)mask, 4));
+	vec128 t2 = M_VAnd((vec128)_mm_sra_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 8), mask)), (vec128)_mm_slli_si128((__m128i)mask, 8));
+	vec128 t3 = M_VAnd((vec128)_mm_sra_epi32((__m128i)a, (__m128i)M_VAnd((vec128)_mm_srli_si128((__m128i)b, 12), mask)), (vec128)_mm_slli_si128((__m128i)mask, 12));
 
 	return M_VOr(M_VOr(t0, t1), M_VOr(t2, t3));
 }

@@ -28,6 +28,16 @@ void CXR_ParticleContainer::OnRender(CXR_Engine* _pEngine, CRenderContext* _pRen
 	MAUTOSTRIP(CXR_ParticleContainer_OnRender, MAUTOSTRIP_VOID);
 	MSCOPESHORT(CXR_ParticleContainer::OnRender);
 
+	// RIDDICK_SKIP_PARTICLES=1: debug skip of all particle batches.
+	static int sSkipParticles = -1;
+	if (sSkipParticles < 0)
+	{
+		const char* e = getenv("RIDDICK_SKIP_PARTICLES");
+		sSkipParticles = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (sSkipParticles)
+		return;
+
 	CXR_Particle2* pP = m_lParticles.GetBasePtr();
 	CPC_Particle* pPI = m_lParticleInfo.GetBasePtr();
 	uint32* piP = m_liParticles.GetBasePtr();

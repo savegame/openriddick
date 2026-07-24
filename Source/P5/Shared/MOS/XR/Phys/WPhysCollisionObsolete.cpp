@@ -1397,10 +1397,10 @@ return ctContacts;
 
 #ifdef PLATFORM_PS3
 #define copysignf copysign
-//#define copysign _copysign
+//#define copysign copysign
 #else
-#define copysignf _copysign
-#define copysign _copysign
+#define copysignf copysign
+#define copysign copysign
 #endif
 
 void dNormalize3 (dVector3 a)

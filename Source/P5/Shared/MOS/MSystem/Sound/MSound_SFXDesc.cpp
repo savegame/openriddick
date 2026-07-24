@@ -392,7 +392,7 @@ void CSC_SFXDesc::operator= (CSC_SFXDesc& _s)
 	SetVolumeRandAmp(_s.GetVolumeRandAmp());
 	SetAttnMaxDist(_s.GetAttnMaxDist());
 	SetAttnMinDist(_s.GetAttnMinDist());
-	SetCategory(_s.GetCategory());
+	m_Datas.m_Category = _s.m_Datas.m_Category; // direct copy, SetCategory() truncates to uint8 (PC scripts use >255)
 	
 }
 
@@ -459,7 +459,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 				int32 iTemp = (iLocalWave >= 0) ? _pWaveContainer->GetWaveID(iLocalWave) : -1;
 				
 				if(iTemp < 0)
-					ConOutL(CStr("§cf80WARNING: Sound references undefined waveform ."));
+					ConOutL(CStr("ï¿½cf80WARNING: Sound references undefined waveform ."));
 				else
 					GetNormalParams()->m_lWaves[Count++] = iLocalWave;
 			}
@@ -499,7 +499,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 					int32 iTemp = (iLocalWave >= 0) ? _pWaveContainer->GetWaveID(iLocalWave) : -1;
 					
 					if(iTemp < 0)
-						ConOutL(CStr("§cf80WARNING: Sound references undefined waveform."));
+						ConOutL(CStr("ï¿½cf80WARNING: Sound references undefined waveform."));
 					else
 						pHolder->AddWave(iLocalWave);
 				}
@@ -584,7 +584,7 @@ void CSC_SFXDesc::Read(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContain
 					int32 iTemp = (m_iLocalWave >= 0) ? _pWaveContainer->GetWaveID(m_iLocalWave) : -1;
 					
 					if(iTemp < 0)
-						ConOutL(CStrF("§cf80WARNING: Sound references undefined waveform '%s'.", TempStr.Str()));
+						ConOutL(CStrF("ï¿½cf80WARNING: Sound references undefined waveform '%s'.", TempStr.Str()));
 					else
 						GetNormalParams()->m_lWaves[Count++] = m_iLocalWave;
 				}
@@ -663,7 +663,7 @@ void CSC_SFXDesc::Write(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContai
 			#ifdef USE_HASHED_WAVENAME
 				int16 id = GetNormalParams()->m_lWaves[i];
 				if(id == -1)
-					ConOutL(CStrF("§cf80WARNING: Waveform with no good id.", id));
+					ConOutL(CStrF("ï¿½cf80WARNING: Waveform with no good id.", id));
 
 				uint32 nameid = _pWaveContainer->GetNameID(id);
 				_pFile->WriteLE(nameid);
@@ -726,5 +726,530 @@ void CSC_SFXDesc::Write(CCFile* _pFile, class CWaveContainer_Plain *_pWaveContai
 	_pFile->WriteLE(m_Datas.m_Volume);
 	_pFile->WriteLE(m_Datas.m_VolumeRandAmp);
 	_pFile->WriteLE(m_Datas.m_Category);
+#endif
+}
+
+// -------------------------------------------------------------------
+//  MSound_LoadSFXDescScript
+//
+//  Loads PC text SFX descriptors (Content/SfxDesc/*.xsfxc) and adds them
+//  to the scanned wave containers. The PC wave containers have no binary
+//  SFXDESC sections, the Win32 build loaded these scripts instead
+//  (CWaveContext::ReadSfxDesc).
+//
+//  The .xsfxc syntax is the registry script syntax (*KEY value, nested
+//  { } scopes, // comments), but CRegistry can not be used for it: it
+//  folds ';'-separated values into animated keyframes and we need the
+//  raw wave lists, so there's a minimal tokenizer below instead.
+// -------------------------------------------------------------------
+#ifndef USE_HASHED_SFXDESC
+namespace NSFXDescScript
+{
+
+class CNode
+{
+public:
+	CStr m_Name;	// Key, upper case
+	CStr m_Value;
+	TArray<CNode *> m_lpChildren;
+
+	~CNode()
+	{
+		for(int i = 0; i < m_lpChildren.Len(); i++)
+			delete m_lpChildren[i];
+	}
+
+	const CNode *FindChild(const char *_pName) const
+	{
+		for(int i = 0; i < m_lpChildren.Len(); i++)
+			if (m_lpChildren[i]->m_Name.CompareNoCase(_pName) == 0)
+				return m_lpChildren[i];
+		return NULL;
+	}
+
+	bool GetValue(const char *_pName, CStr &_Value) const
+	{
+		const CNode *pChild = FindChild(_pName);
+		if (!pChild)
+			return false;
+		_Value = pChild->m_Value;
+		return true;
+	}
+};
+
+static void SkipWhiteSpace(const char *&_pStr)
+{
+	for(;;)
+	{
+		while (*_pStr && (uint8)*_pStr <= 32)
+			++_pStr;
+		if (_pStr[0] == '/' && _pStr[1] == '/')
+		{
+			while (*_pStr && *_pStr != '\n')
+				++_pStr;
+		}
+		else if (_pStr[0] == '/' && _pStr[1] == '*')
+		{
+			_pStr += 2;
+			while (*_pStr && !(_pStr[0] == '*' && _pStr[1] == '/'))
+				++_pStr;
+			if (*_pStr)
+				_pStr += 2;
+		}
+		else
+			return;
+	}
+}
+
+static bint IsKeyChar(char _Chr)
+{
+	return (_Chr >= 'a' && _Chr <= 'z') || (_Chr >= 'A' && _Chr <= 'Z') ||
+		(_Chr >= '0' && _Chr <= '9') || _Chr == '_';
+}
+
+// Parses *KEY value / *KEY { children } until the matching '}' or end of data
+static void ParseChildren(const char *&_pStr, TArray<CNode *> &_lChildren)
+{
+	for(;;)
+	{
+		SkipWhiteSpace(_pStr);
+		if (!*_pStr)
+			return;
+		if (*_pStr == '}')
+		{
+			++_pStr;
+			return;
+		}
+		if (*_pStr != '*')
+		{
+			// Unexpected token, skip it to avoid stalling on broken data
+			++_pStr;
+			continue;
+		}
+		++_pStr;
+
+		const char *pKey = _pStr;
+		while (IsKeyChar(*_pStr))
+			++_pStr;
+		if (_pStr == pKey)
+			continue;
+
+		CNode *pNode = DNew(CNode) CNode;
+		if (!pNode) MemError_static("NSFXDescScript::ParseChildren");
+		_lChildren.Add(pNode);
+		pNode->m_Name.Capture(pKey, _pStr - pKey);
+		pNode->m_Name.MakeUpperCase();
+
+		SkipWhiteSpace(_pStr);
+
+		// Optional value
+		if (*_pStr == '"')
+		{
+			++_pStr;
+			const char *pValue = _pStr;
+			while (*_pStr && *_pStr != '"')
+				++_pStr;
+			pNode->m_Value.Capture(pValue, _pStr - pValue);
+			if (*_pStr)
+				++_pStr;
+			SkipWhiteSpace(_pStr);
+		}
+		else if (*_pStr && *_pStr != '{' && *_pStr != '}' && *_pStr != '*')
+		{
+			const char *pValue = _pStr;
+			while (*_pStr && (uint8)*_pStr > 32 && *_pStr != '{' && *_pStr != '}' && *_pStr != '*')
+				++_pStr;
+			pNode->m_Value.Capture(pValue, _pStr - pValue);
+			SkipWhiteSpace(_pStr);
+		}
+
+		// Optional child scope
+		if (*_pStr == '{')
+		{
+			++_pStr;
+			ParseChildren(_pStr, pNode->m_lpChildren);
+		}
+	}
+}
+
+static char CharToLower(char _Chr)
+{
+	return (_Chr >= 'A' && _Chr <= 'Z') ? _Chr + 32 : _Chr;
+}
+
+// Case-insensitive wildcard match, '*' matches any sequence (including empty)
+static bool WildcardMatch(const char *_pPattern, const char *_pStr)
+{
+	while (*_pPattern)
+	{
+		if (*_pPattern == '*')
+		{
+			while (*_pPattern == '*')
+				++_pPattern;
+			if (!*_pPattern)
+				return true;
+			for(;;)
+			{
+				if (WildcardMatch(_pPattern, _pStr))
+					return true;
+				if (!*_pStr)
+					return false;
+				++_pStr;
+			}
+		}
+		if (CharToLower(*_pPattern) != CharToLower(*_pStr))
+			return false;
+		++_pPattern;
+		++_pStr;
+	}
+	return *_pStr == 0;
+}
+
+// Strip trailing "_NN"/"_NNN" numeric suffix so gui_select_01/gui_select_02
+// group into a single SFX descriptor "gui_select" (retail CSfxContainer_Plain
+// does the same; scripts request the base name "GUI_Select" without suffix).
+static CStr StripVariantSuffix(const char *_pName)
+{
+	CStr Full(_pName);
+	int Len = Full.Len();
+	int i = Len;
+	while (i > 0 && Full[i-1] >= '0' && Full[i-1] <= '9')
+		--i;
+	if (i < Len && i > 0 && Full[i-1] == '_')
+		return Full.Left(i-1);
+	return Full;
+}
+
+// Splits a ';'-separated wave list, trims whitespace
+static void SplitWaveList(const char *_pValue, TArray<CStr> &_lNames)
+{
+	const char *pStr = _pValue;
+	while (*pStr)
+	{
+		const char *pEnd = pStr;
+		while (*pEnd && *pEnd != ';')
+			++pEnd;
+		int Len = int(pEnd - pStr);
+		while (Len && (uint8)*pStr <= 32)
+		{
+			++pStr;
+			--Len;
+		}
+		while (Len && (uint8)pStr[Len-1] <= 32)
+			--Len;
+		if (Len)
+		{
+			int iName = _lNames.Len();
+			_lNames.SetLen(iName + 1);
+			_lNames[iName].Capture(pStr, Len);
+		}
+		if (!*pEnd)
+			break;
+		pStr = pEnd + 1;
+	}
+}
+
+// The CSC_SFXDesc constructor only inits m_Mode/m_Category; the binary
+// container readers fill every m_Datas field, but this script loader sets
+// only the keys present in the xsfxc. Zero the rest or the rand-amps (etc.)
+// stay stack garbage -> wild pitch multiplier -> garbled playback.
+static void ClearDescDatas(CSC_SFXDesc &_Desc)
+{
+	memset(&_Desc.m_Datas, 0, sizeof(_Desc.m_Datas));
+}
+
+static void SetAttributes(CSC_SFXDesc &_Desc, const CNode &_Node, int _FileCategory)
+{
+	CStr Value;
+
+	// Volume and Pitch are multiplicative when the voice is created, so the
+	// identity defaults must be set explicitly (the constructor leaves them
+	// cleared). Priority and distances are additive/override-if-set, the
+	// cleared defaults are correct there.
+	_Desc.SetVolume(1.0);
+	_Desc.SetPitch(1.0);
+
+	if (_Node.GetValue("VOLUME", Value))
+		_Desc.SetVolume((fp32)NStr::StrToFloat(Value.Str(), 1.0f));
+	if (_Node.GetValue("VOLUMERANDAMP", Value))
+		_Desc.SetVolumeRandAmp((fp32)NStr::StrToFloat(Value.Str(), 0.0f));
+	// PC xsfxc encodes *Pitch/*PitchRandAmp as percent (100.0 == 1.0x);
+	// SetPitch expects the ratio, and stored as int(v*32) in a uint8 so
+	// a raw 100 wraps to pitch 4.0 (audible as chipmunk voices / no dialog).
+	if (_Node.GetValue("PITCH", Value))
+		_Desc.SetPitch((fp32)NStr::StrToFloat(Value.Str(), 100.0f) * 0.01f);
+	if (_Node.GetValue("PITCHRANDAMP", Value))
+		_Desc.SetPitchRandAmp((fp32)NStr::StrToFloat(Value.Str(), 0.0f) * 0.01f);
+	if (_Node.GetValue("PRIORITY", Value))
+		_Desc.SetPriority(NStr::StrToInt(Value.Str(), 0));
+	if (_Node.GetValue("MINDIST", Value))
+		_Desc.SetAttnMinDist((fp32)NStr::StrToFloat(Value.Str(), 0.0f));
+	if (_Node.GetValue("MAXDIST", Value))
+		_Desc.SetAttnMaxDist((fp32)NStr::StrToFloat(Value.Str(), 0.0f));
+
+	int Category = _FileCategory;
+	if (_Node.GetValue("CATEGORY", Value))
+		Category = NStr::StrToInt(Value.Str(), _FileCategory);
+	// SetCategory() only takes an uint8 but the PC scripts use categories
+	// above 255 (m_Category itself is uint16)
+	_Desc.m_Datas.m_Category = Category;
+}
+
+static void StoreDesc(CWaveContainer_Plain *_pWC, CSC_SFXDesc &_Desc)
+{
+	_Desc.SetWaveContatiner(_pWC);
+	_pWC->AddSFXDesc(_Desc);
+	// AddSFXDesc copies the descriptor with operator= which doesn't copy
+	// the container pointer, set it on the stored copy as well
+	_pWC->GetSFXDesc(_pWC->GetSFXCount() - 1)->SetWaveContatiner(_pWC);
+}
+
+static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveContainer_Plain> &_lspWC)
+{
+	CStr Source;
+	if (!_Node.GetValue("SOURCE", Source))
+		return 0;
+
+	CStr Name;
+	bool bHasName = _Node.GetValue("NAME", Name) && Name.Len() > 0;
+
+	TArray<CStr> lPatterns;
+	SplitWaveList(Source.Str(), lPatterns);
+	if (!lPatterns.Len())
+		return 0;
+
+	int nDescs = 0;
+	for(int iWC = 0; iWC < _lspWC.Len(); iWC++)
+	{
+		CWaveContainer_Plain *pWC = _lspWC[iWC];
+		if (!pWC)
+			continue;
+
+		// Collect the waves of this container matching any of the patterns
+		TArray<int16> liWaves;
+		int nWaves = pWC->GetWaveCount();
+		for(int iWave = 0; iWave < nWaves; iWave++)
+		{
+			// GetName() is allocation-free; GetWaveName() returns the name
+			// hash as a hex string in this build (and allocates per call)
+			const char *pWaveName = pWC->GetName(iWave);
+			for(int iPattern = 0; iPattern < lPatterns.Len(); iPattern++)
+			{
+				if (WildcardMatch(lPatterns[iPattern].Str(), pWaveName))
+				{
+					liWaves.Add((int16)iWave);
+					break;
+				}
+			}
+		}
+
+		if (!liWaves.Len())
+			continue;
+
+		if (bHasName)
+		{
+			// Grouped desc under the explicit *Name (random-pick playback)
+			CSC_SFXDesc Desc;
+			ClearDescDatas(Desc);
+			Desc.SetMode(CSC_SFXDesc::ENORMAL);
+			Desc.m_SoundName = Name;
+			SetAttributes(Desc, _Node, _FileCategory);
+			TThinArray<int16> &lWaves = Desc.GetNormalParams()->m_lWaves;
+			lWaves.SetLen(liWaves.Len());
+			for(int i = 0; i < liWaves.Len(); i++)
+				lWaves[i] = liWaves[i];
+			StoreDesc(pWC, Desc);
+			nDescs++;
+
+			// Also register per-variant descs â€” scripts sometimes ask
+			// for the raw wave name in addition to the *Name alias
+			for(int i = 0; i < liWaves.Len(); i++)
+			{
+				const char *pWaveName = pWC->GetName(liWaves[i]);
+				if (Name.CompareNoCase(pWaveName) == 0)
+					continue;
+				CSC_SFXDesc DescV;
+				ClearDescDatas(DescV);
+				DescV.SetMode(CSC_SFXDesc::ENORMAL);
+				DescV.m_SoundName = pWaveName;
+				SetAttributes(DescV, _Node, _FileCategory);
+				DescV.GetNormalParams()->m_lWaves.SetLen(1);
+				DescV.GetNormalParams()->m_lWaves[0] = liWaves[i];
+				StoreDesc(pWC, DescV);
+				nDescs++;
+			}
+		}
+		else
+		{
+			// No explicit *Name. Game scripts query BOTH forms â€” the
+			// base name ("SND:GUI_Select") and the exact variant name
+			// ("SND:GUI_Select_01") â€” so register both:
+			//   1) one per-variant desc named after the raw wave (single
+			//      wave, exact playback),
+			//   2) plus one grouped desc per base name (trailing "_NN"
+			//      stripped) with all variants as random-pick waves.
+			// GetSFXDescIndex is CompareNoCase exact-match, no fallback,
+			// hence the duplication.
+			TArray<CStr> lBases;
+			TArray<TArray<int16> > lGroups;
+			for(int i = 0; i < liWaves.Len(); i++)
+			{
+				// (1) per-variant desc named after the wave itself
+				const char *pWaveName = pWC->GetName(liWaves[i]);
+				CSC_SFXDesc DescV;
+				ClearDescDatas(DescV);
+				DescV.SetMode(CSC_SFXDesc::ENORMAL);
+				DescV.m_SoundName = pWaveName;
+				SetAttributes(DescV, _Node, _FileCategory);
+				DescV.GetNormalParams()->m_lWaves.SetLen(1);
+				DescV.GetNormalParams()->m_lWaves[0] = liWaves[i];
+				StoreDesc(pWC, DescV);
+				nDescs++;
+
+				// bucket by base name for (2)
+				CStr Base = StripVariantSuffix(pWaveName);
+				int iGroup = -1;
+				for(int j = 0; j < lBases.Len(); j++)
+					if (lBases[j].CompareNoCase(Base) == 0) { iGroup = j; break; }
+				if (iGroup < 0)
+				{
+					iGroup = lBases.Len();
+					lBases.SetLen(iGroup + 1);
+					lBases[iGroup] = Base;
+					lGroups.SetLen(iGroup + 1);
+				}
+				lGroups[iGroup].Add(liWaves[i]);
+			}
+
+			// (2) grouped desc per base â€” skip if base equals the raw
+			// wave name (single-wave group; already registered by (1))
+			for(int g = 0; g < lBases.Len(); g++)
+			{
+				if (lGroups[g].Len() == 1)
+				{
+					const char *pWaveName = pWC->GetName(lGroups[g][0]);
+					if (lBases[g].CompareNoCase(pWaveName) == 0)
+						continue;
+				}
+				CSC_SFXDesc Desc;
+				ClearDescDatas(Desc);
+				Desc.SetMode(CSC_SFXDesc::ENORMAL);
+				Desc.m_SoundName = lBases[g];
+				SetAttributes(Desc, _Node, _FileCategory);
+				TThinArray<int16> &lWaves = Desc.GetNormalParams()->m_lWaves;
+				lWaves.SetLen(lGroups[g].Len());
+				for(int i = 0; i < lGroups[g].Len(); i++)
+					lWaves[i] = lGroups[g][i];
+				StoreDesc(pWC, Desc);
+				nDescs++;
+			}
+		}
+	}
+	return nDescs;
+}
+
+static int BuildMaterialDesc(const CNode &_Node, int _FileCategory, TArray<spCWaveContainer_Plain> &_lspWC)
+{
+	CStr Name;
+	if (!_Node.GetValue("NAME", Name) || !Name.Len())
+		return 0;
+	const CNode *pMaterials = _Node.FindChild("MATERIALS");
+	if (!pMaterials)
+		return 0;
+
+	int nDescs = 0;
+	for(int iWC = 0; iWC < _lspWC.Len(); iWC++)
+	{
+		CWaveContainer_Plain *pWC = _lspWC[iWC];
+		if (!pWC)
+			continue;
+
+		CSC_SFXDesc Desc;
+		ClearDescDatas(Desc);
+		Desc.SetMode(CSC_SFXDesc::EMATERIAL);
+		Desc.m_SoundName = Name;
+		SetAttributes(Desc, _Node, _FileCategory);
+
+		int nAdded = 0;
+		for(int iMat = 0; iMat < pMaterials->m_lpChildren.Len(); iMat++)
+		{
+			const CNode *pMat = pMaterials->m_lpChildren[iMat];
+			int MaterialID = NStr::StrToInt(pMat->m_Name.Str(), -1);
+			if (MaterialID < 0 || MaterialID > 255)
+				continue;
+
+			TArray<CStr> lWaveNames;
+			SplitWaveList(pMat->m_Value.Str(), lWaveNames);
+			for(int iWave = 0; iWave < lWaveNames.Len(); iWave++)
+			{
+				int16 iLocal = pWC->GetLocalWaveID(lWaveNames[iWave].Str());
+				if (iLocal >= 0)
+				{
+					Desc.GetMaterialParams()->AddWave((uint8)MaterialID, iLocal);
+					nAdded++;
+				}
+			}
+		}
+
+		if (!nAdded)
+			continue;
+
+		StoreDesc(pWC, Desc);
+		nDescs++;
+	}
+	return nDescs;
+}
+
+}; // namespace NSFXDescScript
+#endif // USE_HASHED_SFXDESC
+
+int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plain>& _lspWC)
+{
+	MAUTOSTRIP( MSound_LoadSFXDescScript, 0 );
+#ifdef USE_HASHED_SFXDESC
+	// Only the non-hashed build needs the text scripts (PC content)
+	return 0;
+#else
+	CCFile File;
+	File.Open(_Filename, CFILE_READ | CFILE_BINARY);
+	int Size = File.Length();
+	char *pData = DNew(char) char[Size + 1];
+	if (!pData) MemError("MSound_LoadSFXDescScript");
+	File.Read(pData, Size);
+	File.Close();
+	pData[Size] = 0;
+
+	NSFXDescScript::CNode *pRoot = DNew(NSFXDescScript::CNode) NSFXDescScript::CNode;
+	if (!pRoot) MemError("MSound_LoadSFXDescScript");
+	const char *pParse = pData;
+	NSFXDescScript::ParseChildren(pParse, pRoot->m_lpChildren);
+	delete[] pData;
+
+	int nDescs = 0;
+	for(int i = 0; i < pRoot->m_lpChildren.Len(); i++)
+	{
+		const NSFXDescScript::CNode *pDescs = pRoot->m_lpChildren[i];
+		if (pDescs->m_Name.CompareNoCase("SFXDESCS") != 0)
+			continue;
+
+		int FileCategory = 0;
+		CStr Value;
+		if (pDescs->GetValue("CATEGORY", Value))
+			FileCategory = NStr::StrToInt(Value.Str(), 0);
+
+		for(int iChild = 0; iChild < pDescs->m_lpChildren.Len(); iChild++)
+		{
+			const NSFXDescScript::CNode *pChild = pDescs->m_lpChildren[iChild];
+			if (pChild->m_Name.CompareNoCase("DESC") == 0)
+				nDescs += NSFXDescScript::BuildDescs(*pChild, FileCategory, _lspWC);
+			else if (pChild->m_Name.CompareNoCase("MATERIALDESC") == 0)
+				nDescs += NSFXDescScript::BuildMaterialDesc(*pChild, FileCategory, _lspWC);
+		}
+	}
+
+	delete pRoot;
+
+	LogFile(CStrF("%s: %d sfxdescs loaded.", _Filename.Str(), nDescs));
+	return nDescs;
 #endif
 }

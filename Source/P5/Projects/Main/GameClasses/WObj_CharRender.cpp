@@ -2557,7 +2557,7 @@ void CWObject_Character::OnClientRenderHealthHud(CWObject_Client* _pObj, CWorld_
 	_pUtil2D->SetTexture(0);
 	CClipRect Clip(0, 0, 640, 480);
 	CWObject_Telephone::RenderPad(_pWClient, _pUtil2D,_pObj, pCD);
-	_pUtil2D->SetTexture(NULL);
+	_pUtil2D->SetTexture(0);
 
 	if (pCD->m_PagerStartTick > 0 && (pCD->m_GameTick - pCD->m_PagerStartTick) < 200)
 	{
