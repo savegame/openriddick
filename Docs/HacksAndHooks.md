@@ -30,10 +30,11 @@
   запилим полноценный shader-generator.
 
 - **DBG** `RIDDICK_FORCE_TEX=1` (`SetupCommonUniforms`) — насильно биндит
-  яркий magenta/cyan checkerboard 32x32 на unit 0 для каждого draw'а,
-  отключает ch1/lighting/alpha-test/dbg-mode. Проверяет, доезжают ли
-  world-пиксели до фрагмент-шейдера вообще (когда nrm_raw/pos_local
-  дают «невидимо»).
+  яркий magenta/cyan checkerboard 32x32 на unit 0 для solid‑world draw'ов,
+  отключает ch1/lighting/alpha-test/dbg-mode. **Skip'ит:** 2D UI (чтобы
+  HUD оставался читаемым) и BLEND‑проходы (пыль/спрайты/декали, e.g. пылевые
+  облака в TheDream — они alpha‑blended на весь экран и без skip'а полностью
+  перекрывали геометрию).
 
 - **DBG** `RIDDICK_DBG_SHADER=uv|pos|no_tex|normal|nrm_raw|pos_local`
   (`~763`) — переопределяет фрагмент-шейдер:
@@ -67,11 +68,14 @@
   проверку 2D-model matrix (диагональная, `k[2][2]==1`). Убрать когда
   вернём FBO с deferred pipeline.
 
-- **DBG** `RIDDICK_NO_LIGHT=1` (`GLES3_NoLight()` — три точки:
+- **DBG** `RIDDICK_NO_LIGHT=1` (`GLES3_NoLight()` — четыре точки:
   `BuildVertsFromVBB`, `BuildInterleavedVerts`, `SetupCommonUniforms`,
-  `PushLightUniforms`) — **fullbright**: `vCol=white` (стирает
-  vertex-baked ambient, из-за которого Pit — чёрный), `uFogEnable=0`,
-  `uLightingMode=0`. Фрагмент коллапсирует в `c = texture(uTex,vUV)`.
+  `PushLightUniforms`) — **fullbright для 3D‑мира**: `vCol=white`
+  (стирает vertex-baked ambient, из-за которого Pit — чёрный),
+  `uFogEnable=0`, `uLightingMode=0`. Фрагмент коллапсирует в
+  `c = texture(uTex,vUV)`. **UI не трогается** — дискриминатор 2D‑model‑matrix
+  (диагональ + `k[2][2]=1`) сохраняет authored per-vertex цвета
+  (жёлтые надписи диалогов, полоса загрузки, ESRB и т.д.).
 
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.

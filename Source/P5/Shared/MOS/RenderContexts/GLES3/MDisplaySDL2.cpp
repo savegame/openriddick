@@ -1906,6 +1906,13 @@ public:
 			const CPixel32*   pCol = m_Geom.m_pCol;
 			const CVec3Dfp32* pN   = m_Geom.m_pN;
 			const uint32_t    ConstCol = PackColorBGRA_to_RGBA(*(const uint32_t*)&m_GeomColor);
+			// See BuildVertsFromVBB: NO_LIGHT fullbright only on 3D draws.
+			const bool bIs2DIntl = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[1][2]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][0]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][1]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+			const bool bForceWhiteIntl = GLES3_NoLight() && !bIs2DIntl;
 
 			for (int i = 0; i < nV; ++i)
 			{
@@ -1930,7 +1937,7 @@ public:
 				{
 					p[i].u1 = 0.0f; p[i].v1 = 0.0f;
 				}
-				p[i].col = GLES3_NoLight() ? 0xffffffffu
+				p[i].col = bForceWhiteIntl ? 0xffffffffu
 					: (pCol ? PackColorBGRA_to_RGBA(*(uint32_t*)&pCol[i]) : ConstCol);
 				if (pN) { p[i].nx = pN[i].k[0]; p[i].ny = pN[i].k[1]; p[i].nz = pN[i].k[2]; }
 				else    { p[i].nx = 0; p[i].ny = 0; p[i].nz = 1; }
@@ -2141,10 +2148,18 @@ public:
 				}
 			}
 			// RIDDICK_FORCE_TEX=1 override: bind a bright magenta/cyan
-			// checkerboard to unit 0 on every draw, disable ch1 modulation,
-			// and force uUseTexture=1. Used to check if the world geometry
-			// even reaches the framebuffer.
-			if (ForceTexEnabled())
+			// checkerboard to unit 0 on every draw. Skip particles/dust/
+			// decorations (any pass with BLEND) so full-screen alpha
+			// sprites (TheDream dust clouds) don't paint over the world
+			// under diagnostic. Also skip 2D UI so HUD stays readable.
+			const bool bIs2DFT = m_pCurAttrib && (fabsf(m_ModelMat.k[0][2]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[1][2]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][0]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][1]) < 1e-5f
+			                     && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+			const bool bBlendFT = m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_BLEND);
+			const bool bDoForceTex = ForceTexEnabled() && !bIs2DFT && !bBlendFT;
+			if (bDoForceTex)
 			{
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, GetCheckerTex());
@@ -2159,7 +2174,7 @@ public:
 			m_UIShader.SetInt(m_UUseTex1Loc, UseTex1);
 			// FORCE_TEX overrides dbg mode + lighting so the checker actually
 			// reaches the framebuffer regardless of other flags.
-			if (ForceTexEnabled())
+			if (bDoForceTex)
 			{
 				m_UIShader.SetInt(m_UDbgModeLoc, 0);
 				m_UIShader.SetInt(m_ULightingModeLoc, 0);
@@ -2941,6 +2956,18 @@ public:
 
 			SUIVert* pVerts = (SUIVert*)malloc(sizeof(SUIVert) * nV);
 			if (!pVerts) return NULL;
+			// NO_LIGHT fullbright: force white vCol so shader collapses
+			// to `c = texture(...)`. But ONLY for 3D world draws -- UI
+			// text/HUD/loading-bar carry authored per-vertex colors
+			// (yellow captions, red bars) that we must not overwrite.
+			// 2D discriminator: engine-level Get2DMatrix produces a
+			// diagonal 3x3 with k[2][2]==1 (see MRender.cpp).
+			const bool bIs2DForCol = (fabsf(m_ModelMat.k[0][2]) < 1e-5f
+			                       && fabsf(m_ModelMat.k[1][2]) < 1e-5f
+			                       && fabsf(m_ModelMat.k[2][0]) < 1e-5f
+			                       && fabsf(m_ModelMat.k[2][1]) < 1e-5f
+			                       && fabsf(m_ModelMat.k[2][2] - 1.0f) < 1e-3f);
+			const bool bForceWhiteCol = GLES3_NoLight() && !bIs2DForCol;
 			for (int i = 0; i < nV; ++i)
 			{
 				VRegFetch(pPos, PosFmt, i, 0, pVerts[i].x);
@@ -2974,7 +3001,7 @@ public:
 						pVerts[i].v1 = pVerts[i].v1 * UV1Tx.m_Scale.k[1] + UV1Tx.m_Offset.k[1];
 					}
 				}
-				pVerts[i].col = GLES3_NoLight() ? 0xffffffffu
+				pVerts[i].col = bForceWhiteCol ? 0xffffffffu
 					: (pCol ? PackColorBGRA_to_RGBA(pCol[i]) : 0xffffffffu);
 				pVerts[i].nx = 0; pVerts[i].ny = 0; pVerts[i].nz = 1;
 				if (pNrm)
