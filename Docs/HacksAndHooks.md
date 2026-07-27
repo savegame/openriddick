@@ -66,6 +66,18 @@
   → удалять/заменять реальной реализацией FP20 когда дойдём до
   соответствующей фазы (Phase B, см. "Игнорируемый light-pass" ниже).
 
+- **KEEP** `RIDDICK_NO_LFM=1` (`MDisplaySDL2.cpp`, `GLES3_NoLFM()`,
+  `CRC_GLES3::TrySetupLFMProgram`) — A/B-выключатель первой настоящей
+  FP20-программы `XRShader_FP20_LFM` (см. раздел "FP20 LFM program" ниже):
+  форсит прежний путь через `m_UIShader`/`m_3DShader` даже для draw'ов,
+  которые иначе прошли бы отбор (ext-attrib с именем программы + все
+  четыре LFM-текстуры на месте). Без флага (по умолчанию) новая программа
+  используется всегда, когда подходит.
+- **KEEP** `RIDDICK_LFM_SCALE=<f>` (default `4.0`, `GLES3_LFMScale()`) —
+  множитель яркости запечённого света LFM-программы (`uLFMScale`).
+  Заменяет непроброшенный `4.0 * lmIntensityScale * LFM_Scale.rgb`
+  оригинала одним скаляром — см. TODO в `kGLES3_LFMFragSrc`.
+
 - **HACK** BSP2 fallback (`WBSP2Model.cpp:~2340`): если
   `pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]` пуст, скан по остальным
   слотам (NORMAL/SPECULAR/HEIGHT/...) — берём первый ненулевой в Tex0.
@@ -509,6 +521,81 @@
   использует FP20 ext-attributes которые мы полностью игнорим.
   → Phase B: реализовать FP20 additive light passes через
   CRC_ExtAttributes_FragmentProgram20.
+
+### FP20 LFM program (2026-07-27) — первая настоящая Phase B программа
+
+Первая реальная (не диагностическая) реализация FP20-программы движка:
+`XRShader_FP20_LFM` — запечённый статический свет BSP2-геометрии
+(directional/radiosity-normal-map lightmaps, 4+1 базисных направления).
+Всё в `MDisplaySDL2.cpp`, разбор — `XRShader_LightField.cpp:511-545`,
+математика — `Docs/FP_Reference.md` §5.3 (портирована дословно из
+`shaders/HL_Shading/XRShader_BRDF3.fp:939-969`).
+
+- **KEEP** Третья GLSL ES 3.00 программа `m_LFMShader`
+  (`kGLES3_LFMVertSrc`/`kGLES3_LFMFragSrc`) — тот же vertex-layout, что у
+  `m_UIShader`/`m_3DShader` (локации 0=pos,1=uv0,2=col,3=uv1,4=normal,
+  общий `SetVertexAttribPointersFromEntry`); `aUV1` здесь несёт
+  **LFM-UV** (texcoord-сет 1), а не lightmap-modulate UV как у UI-шейдера.
+  Фрагмент реализует формулу из задания один в один: 4 сэмпла LFM0..3,
+  шестое направление `lfm4` из альфа-каналов LFM1..3, `nSat0/nSat1` от
+  `n_ts`, взвешенная сумма × `uLFMScale`, умножение на диффуз.
+- **KEEP** Выбор программы — `CRC_GLES3::TrySetupLFMProgram()`, вызывается
+  в начале `SetupCommonUniforms` (после диагностики `RIDDICK_FP20`, до
+  выбора `m_UIShader`/`m_3DShader`). Условие: ext-attrib типа
+  `CRC_ATTRIBTYPE_FP20`, хэш `m_ProgramNameHash` совпал с
+  `StringToHash("XRShader_FP20_LFM")` (посчитан из литерала при первом
+  вызове, НЕ хардкод константы из лога), имя подтверждено `strcmp`, и все
+  четыре текстуры каналов 10..13 присутствуют в атрибуте и успешно
+  аплоадятся через общий `TextureID_EnsureUploaded`. При успехе функция
+  сама делает `Use()` + все uniform'ы + все текстурные бинды и
+  возвращает `true` — `SetupCommonUniforms` тут же `return`, весь
+  обычный путь (UI/3D выбор, TexGen, alpha-test, fog, `RIDDICK_FORCE_TEX`
+  и т.д.) для этого draw'а не выполняется. Любой другой draw (не-LFM
+  FP20, LFM без одной из текстур, `RIDDICK_NO_LFM=1`) проваливается через
+  `TrySetupLFMProgram() == false` и рендерится байт-в-байт как раньше.
+- **KEEP** Биндинг юнитов: 0=diffuse (канал 0), 1=normal (канал 2, если
+  есть), 2..5=LFM0..3 (каналы 10..13). После всех бинов активный юнит
+  возвращается на `GL_TEXTURE0` (см. комментарий в
+  `TrySetupLFMProgram` — сознательно не повторяет старый недочёт, когда
+  активный юнит оставался ненулевым после мультитекстурного бинда).
+- **DBG** Лог `[GLES3-LFM] diffuse=.. normal=.. lfm=[.. .. .. ..]
+  uvset0=.. uvset1=.. scale=..` — один раз за сессию, при первом
+  успешном применении программы. Счётчик `lfm=N` в строке `[GL-DBG]` —
+  сколько draw'ов за 60-кадровый интервал ушло в LFM-программу.
+- **HACK** `[GLES3-LFM] falling back to legacy shader: ...` — если
+  канал 10..13 не заполнен или любая из четырёх LFM-текстур не
+  аплоадится, программа НЕ используется (чтобы не рисовать чёрным):
+  тихий откат на `m_UIShader`/`m_3DShader`, причина логируется (капа
+  4 раза за сессию, не флудит).
+
+**Упрощения относительно оригинальной формулы (сознательно, см. TODO в
+`kGLES3_LFMFragSrc`):**
+
+1. **Тангенты не проброшены.** `n_ts` берётся из normal-мапы (канал 2,
+   диффузным UV) как если бы она уже была в нужном базисе, либо
+   `(0,0,1)` (плоская нормаль, деградация до +Z-направления LFM) —
+   настоящего tangent-space преобразования (tangentU/tangentV,
+   texcoord-сеты [2]/[3] контракта) нет.
+2. **`uLFMScale` — единственный скаляр** (`RIDDICK_LFM_SCALE`,
+   default 4.0) вместо `4.0 * lmIntensityScale * LFM_Scale.rgb`:
+   per-vertex `lmIntensityScale` (texcoord-сет [4]) и параметр
+   FP20-программы `LFM_Scale` (`CRC_ExtAttributes_FragmentProgram20::
+   m_pParams`) не читаются вообще.
+3. **Спекуляр и восстановление направления `lW`** (упомянутые в
+   оригинальной BRDF3-программе вокруг этого блока) не реализованы —
+   портирован только сам lightmap-блендинг (строки 939-969).
+4. **Параметры FP20-программы** (`m_pParams`/`m_nParams`) читаются
+   только диагностикой `DbgLogFP20` (первые 4 вектора, для справки) —
+   `TrySetupLFMProgram` их не использует вовсе.
+
+**Не уверен / стоит перепроверить:**
+- Перестановка каналов `lfm1.rgb * nSat1.b` (не `.g`) и `lfm2.rgb *
+  nSat1.g` (не `.b`) взята из задания как есть ("перестановка именно
+  такая") — сверить с `XRShader_BRDF3.fp:939-969`, если яркость/цвет
+  на стенах будет выглядеть систематически перепутанным по осям.
+- `oColor.a = diff.a` (альфа диффуза) — блендинг прохода ONE/ONE
+  (аддитивный), альфа результата, скорее всего, не читается растровым
+  конвейером, но это не проверено на реальном кадре.
 
 ### Skinning не реализован
 

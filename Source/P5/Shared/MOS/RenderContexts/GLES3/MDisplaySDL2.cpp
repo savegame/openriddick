@@ -293,6 +293,94 @@ static const char* kGLES3_3DFragSrc =
 	"  oColor = c;\n"
 	"}\n";
 
+// --- FP20 LFM shader (m_LFMShader). --------------------------------------
+// First real fragment-program translation: XRShader_FP20_LFM (BSP2 baked
+// lightmaps, directional/radiosity-normal-map light -- see
+// Docs/HacksAndHooks.md "FP20 LFM program"). Channel/texcoord contract is
+// XRShader_LightField.cpp:511-545; the math is Docs/FP_Reference.md §5.3,
+// ported verbatim from shaders/HL_Shading/XRShader_BRDF3.fp:939-969.
+// Shares the same vertex layout/attribute locations as m_UIShader/
+// m_3DShader (SetVertexAttribPointersFromEntry is common to all three);
+// aUV1 here is the LFM atlas UV (CRC_Attributes::m_iTexCoordSet[1]), NOT
+// the lightmap-modulate second UV that the UI shader uses aUV1 for.
+static const char* kGLES3_LFMVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=2) in vec4 aCol;\n"
+	"layout(location=3) in vec2 aUV1;\n"
+	"layout(location=4) in vec3 aNormal;\n"
+	"uniform mat4 uMVP;\n"
+	"uniform mat4 uTexMat;\n"
+	"out vec2 vUV;\n"
+	"out vec2 vUVLFM;\n"
+	"out vec4 vCol;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Same NDC.z remap as kGLES3_UIVertSrc/kGLES3_3DVertSrc -- engine
+	// projection produces clip.z in [0..1] (D3D convention), GL wants
+	// [-1..+1].
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	// LFM (lightmap-atlas) UV: engine's texcoord set 1. No texture-matrix
+	// bias -- the engine doesn't drive one for this channel (this program
+	// has no uTexMat1 at all, unlike the UI shader's second UV channel).
+	"  vUVLFM = aUV1;\n"
+	"  vCol = aCol;\n"
+	"}\n";
+
+static const char* kGLES3_LFMFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec2 vUVLFM;\n"
+	"in vec4 vCol;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	// Normal map (channel 2, sampled with the diffuse UV). Tangents are
+	// not wired up from the engine yet, so even a decoded normal map is
+	// treated as already being in the local basis this formula expects --
+	// see the TODO further down. Absent -> flat (0,0,1): only the +Z LFM
+	// basis (lfm3) contributes, a correct (if flat) degradation.
+	"uniform sampler2D uNormalTex;\n"
+	"uniform int uUseNormalMap;\n"
+	// Four lightmap-cluster textures (CRC_Attributes::m_TextureID[10..13]
+	// = LFM0..3). lfm1/lfm2/lfm3's alpha channels secretly carry the RGB
+	// of the sixth (+Y) basis direction -- ported as-is from the engine's
+	// FP20 program, see Docs/FP_Reference.md §5.3.
+	"uniform sampler2D uLFM0;\n"
+	"uniform sampler2D uLFM1;\n"
+	"uniform sampler2D uLFM2;\n"
+	"uniform sampler2D uLFM3;\n"
+	// TODO: the original scale is `4.0 * lmIntensityScale * LFM_Scale.rgb`,
+	// where lmIntensityScale is a per-vertex texcoord-set[4] scalar and
+	// LFM_Scale a fragment-program parameter (CRC_ExtAttributes_
+	// FragmentProgram20::m_pParams) -- neither is plumbed through yet.
+	// This single uniform scalar (RIDDICK_LFM_SCALE, default 4.0) stands
+	// in for the whole product until that's done.
+	"uniform float uLFMScale;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  vec3 n_ts = (uUseNormalMap != 0)\n"
+	"      ? normalize(texture(uNormalTex, vUV).xyz * 2.0 - 1.0)\n"
+	"      : vec3(0.0, 0.0, 1.0);\n"
+	"  vec4 lfm0 = texture(uLFM0, vUVLFM);\n"
+	"  vec4 lfm1 = texture(uLFM1, vUVLFM);\n"
+	"  vec4 lfm2 = texture(uLFM2, vUVLFM);\n"
+	"  vec4 lfm3 = texture(uLFM3, vUVLFM);\n"
+	"  vec3 lfm4 = vec3(lfm1.a, lfm2.a, lfm3.a);\n" // sixth (+Y) direction, hidden in alphas 1..3
+	"  vec3 nSat0 = clamp( n_ts, 0.0, 1.0);\n"
+	"  vec3 nSat1 = clamp(-n_ts, 0.0, 1.0);\n"
+	"  vec3 lfmColor = lfm0.rgb * nSat0.r\n"   // +X
+	"                + lfm1.rgb * nSat1.b\n"   // -Z (permutation intentional, matches original)
+	"                + lfm2.rgb * nSat1.g\n"   // -Y
+	"                + lfm3.rgb * nSat0.b\n"   // +Z
+	"                + lfm4     * nSat0.g;\n"  // +Y
+	"  lfmColor *= uLFMScale;\n"
+	"  vec4 diff = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0);\n"
+	"  oColor = vec4(diff.rgb * lfmColor, diff.a);\n"
+	"}\n";
+
 #ifdef PLATFORM_LINUX
 
 #include <SDL.h>
@@ -466,6 +554,41 @@ static int GLES3_FP20ModeOverride()
 		const char* e = getenv("RIDDICK_FP20");
 		s = (e && *e) ? atoi(e) : 0;
 		if (s < 0) s = 0;
+	}
+	return s;
+}
+
+// RIDDICK_NO_LFM=1 -- A/B switch for the XRShader_FP20_LFM program below
+// (see kGLES3_LFMVertSrc/FragSrc, CRC_GLES3::TrySetupLFMProgram): forces
+// SetupCommonUniforms to keep going through the old m_UIShader/m_3DShader
+// selection even when the engine hands us a LFM ext-attrib draw with all
+// four lightmap textures present. Default (unset) draws with the new
+// program whenever it qualifies.
+static bool GLES3_NoLFM()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_LFM");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_LFM_SCALE=<f> -- brightness multiplier for the baked-lightmap
+// contribution (kGLES3_LFMFragSrc's uLFMScale). Default 4.0, standing in
+// for the engine's `4.0 * lmIntensityScale * LFM_Scale.rgb` (Docs/
+// FP_Reference.md §5.3) with the per-vertex lmIntensityScale and the
+// FP20 parameter LFM_Scale both folded to 1 -- see the TODO comment on
+// kGLES3_LFMFragSrc for what that simplifies away.
+static float GLES3_LFMScale()
+{
+	static float s = -1.0f;
+	if (s < 0.0f)
+	{
+		const char* e = getenv("RIDDICK_LFM_SCALE");
+		s = (e && *e) ? (float)atof(e) : 4.0f;
+		if (s < 0.0f) s = 4.0f;
 	}
 	return s;
 }
@@ -1057,6 +1180,23 @@ public:
 		// channel). See PushTexGenUniforms.
 		int m_3DUTexGenMode0Loc = -1;
 		int m_3DUTexGenU0Loc = -1, m_3DUTexGenV0Loc = -1;
+
+		// Third program: XRShader_FP20_LFM (baked lightmap, world geometry
+		// only -- see kGLES3_LFMVertSrc/FragSrc and TrySetupLFMProgram,
+		// selected ahead of the m_UIShader/m_3DShader pick in
+		// SetupCommonUniforms). RIDDICK_NO_LFM=1 disables selection (A/B).
+		CGLES3Shader m_LFMShader;
+		int m_LFMUMVPLoc = -1, m_LFMUTexMatLoc = -1;
+		int m_LFMUTexLoc = -1, m_LFMUUseTexLoc = -1;
+		int m_LFMUNormalTexLoc = -1, m_LFMUUseNormalLoc = -1;
+		int m_LFMULFM0Loc = -1, m_LFMULFM1Loc = -1, m_LFMULFM2Loc = -1, m_LFMULFM3Loc = -1;
+		int m_LFMUScaleLoc = -1;
+		// One-shot session log (see TrySetupLFMProgram) + per-interval draw
+		// counter (reset alongside the other [GL-DBG] counters, printed as
+		// "lfm=N").
+		bool m_bDbgLFMLogged = false;
+		int  m_DbgLFMDraws = 0;
+
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
@@ -1270,6 +1410,7 @@ public:
 			m_DbgDrawTri = m_DbgDrawStrip = m_DbgDrawWire = m_DbgDrawPoly = m_DbgDrawPrim = 0;
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgFPDraws = 0;
+			m_DbgLFMDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -1356,13 +1497,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -1425,6 +1566,133 @@ public:
 					p, V.k[0], V.k[1], V.k[2], V.k[3]);
 			}
 			fflush(stderr);
+		}
+
+		// Fallback reason log for TrySetupLFMProgram (item 6 of the task):
+		// if any of the four LFM textures fails to qualify/upload we must
+		// NOT draw black -- fall back to the old m_UIShader/m_3DShader path
+		// and say why, once (capped small so a per-draw failure condition
+		// can't flood stderr).
+		void DbgLogLFMFallback(const char* _Reason)
+		{
+			static int sLogged = 0;
+			if (sLogged >= 4) return;
+			++sLogged;
+			fprintf(stderr, "[GLES3-LFM] falling back to legacy shader: %s\n", _Reason);
+			fflush(stderr);
+		}
+
+		// Selects and fully sets up m_LFMShader (XRShader_FP20_LFM, baked
+		// BSP2 lightmap) for the current draw if it qualifies: returns true
+		// when the program is bound and all uniforms/textures are applied,
+		// in which case the caller (SetupCommonUniforms) must skip the
+		// normal UI/3D setup for this draw. Returns false -- GL state left
+		// untouched -- for every other draw, so the previous behaviour
+		// (RIDDICK_FP20 diagnostics + m_UIShader/m_3DShader selection)
+		// keeps working byte-for-byte when this doesn't apply or is
+		// disabled via RIDDICK_NO_LFM=1.
+		//
+		// Channel/texcoord contract (XRShader_LightField.cpp:511-545):
+		// m_TextureID[0]=Diffuse, [2]=Normal, [10..13]=LFM0..3;
+		// m_iTexCoordSet[0]=Mapping (diffuse UV), [1]=LFM (lightmap UV).
+		bool TrySetupLFMProgram()
+		{
+			if (GLES3_NoLFM() || !m_LFMShader.IsValid()) return false;
+			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
+			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
+				return false;
+
+			const CRC_ExtAttributes_FragmentProgram20* pFP =
+				static_cast<const CRC_ExtAttributes_FragmentProgram20*>(m_pCurAttrib->m_pExtAttrib);
+
+			// Cheap prefilter on the hash, then confirm by name. The hash
+			// is computed once from our own literal via the engine's real
+			// hash function (StringToHash == CStrBase::StrHash) rather than
+			// a constant copied out of a log line -- that would silently
+			// stop matching if the djb2 seed/algorithm or the program name
+			// ever changed upstream.
+			static const uint32 sLFMHash = StringToHash("XRShader_FP20_LFM");
+			if (pFP->m_ProgramNameHash != sLFMHash) return false;
+			if (!pFP->m_pProgramName || strcmp(pFP->m_pProgramName, "XRShader_FP20_LFM") != 0)
+				return false;
+
+			const int TexDiffuseID = (int)m_pCurAttrib->m_TextureID[0];
+			const int TexNormalID  = (int)m_pCurAttrib->m_TextureID[2];
+			const int TexLFM_ID[4] = {
+				(int)m_pCurAttrib->m_TextureID[10], (int)m_pCurAttrib->m_TextureID[11],
+				(int)m_pCurAttrib->m_TextureID[12], (int)m_pCurAttrib->m_TextureID[13],
+			};
+			if (!TexLFM_ID[0] || !TexLFM_ID[1] || !TexLFM_ID[2] || !TexLFM_ID[3])
+			{
+				DbgLogLFMFallback("CRC_Attributes::m_TextureID[10..13] not all populated");
+				return false;
+			}
+
+			GLuint LFM[4];
+			for (int i = 0; i < 4; ++i)
+			{
+				LFM[i] = TextureID_EnsureUploaded(TexLFM_ID[i]);
+				if (!LFM[i])
+				{
+					DbgLogLFMFallback("one of LFM0..3 failed to upload (see [GLES3-TEX-FAIL] above)");
+					return false;
+				}
+			}
+
+			// Diffuse and normal are optional -- the formula degrades
+			// gracefully without either (flat tangent-space normal, white
+			// diffuse). Route through the shared upload helper so a
+			// failure there behaves like everywhere else (placeholder
+			// texture handed back, one-time [GLES3-TEX-FAIL] log) instead
+			// of a second bespoke failure path.
+			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
+			const GLuint TNormal  = TexNormalID  ? TextureID_EnsureUploaded(TexNormalID)  : 0;
+
+			if (!m_bDbgLFMLogged)
+			{
+				m_bDbgLFMLogged = true;
+				fprintf(stderr,
+					"[GLES3-LFM] diffuse=%d normal=%d lfm=[%d %d %d %d] uvset0=%d uvset1=%d scale=%f\n",
+					TexDiffuseID, TexNormalID,
+					TexLFM_ID[0], TexLFM_ID[1], TexLFM_ID[2], TexLFM_ID[3],
+					(int)m_pCurAttrib->m_iTexCoordSet[0], (int)m_pCurAttrib->m_iTexCoordSet[1],
+					GLES3_LFMScale());
+				fflush(stderr);
+			}
+			++m_DbgLFMDraws;
+
+			m_LFMShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_LFMShader.SetMat4(m_LFMUMVPLoc, (const float*)&MVP);
+			m_LFMShader.SetMat4(m_LFMUTexMatLoc, (const float*)&m_TexMat[0]);
+
+			glActiveTexture(GL_TEXTURE0);
+			if (TDiffuse) glBindTexture(GL_TEXTURE_2D, TDiffuse);
+			m_LFMShader.SetInt(m_LFMUTexLoc, 0);
+			m_LFMShader.SetInt(m_LFMUUseTexLoc, TDiffuse ? 1 : 0);
+
+			glActiveTexture(GL_TEXTURE1);
+			if (TNormal) glBindTexture(GL_TEXTURE_2D, TNormal);
+			m_LFMShader.SetInt(m_LFMUNormalTexLoc, 1);
+			m_LFMShader.SetInt(m_LFMUUseNormalLoc, TNormal ? 1 : 0);
+
+			glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, LFM[0]);
+			m_LFMShader.SetInt(m_LFMULFM0Loc, 2);
+			glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_2D, LFM[1]);
+			m_LFMShader.SetInt(m_LFMULFM1Loc, 3);
+			glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_2D, LFM[2]);
+			m_LFMShader.SetInt(m_LFMULFM2Loc, 4);
+			glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, LFM[3]);
+			m_LFMShader.SetInt(m_LFMULFM3Loc, 5);
+
+			m_LFMShader.SetFloat(m_LFMUScaleLoc, GLES3_LFMScale());
+
+			// Leave the active texture unit at 0, as convention elsewhere
+			// in this file expects (see e.g. the end of the UI multitexture
+			// bind block in SetupCommonUniforms).
+			glActiveTexture(GL_TEXTURE0);
+			return true;
 		}
 
 		CRC_GLES3()
@@ -1533,6 +1801,23 @@ public:
 				m_3DUTexGenMode0Loc = m_3DShader.UniformLocation("uTexGenMode0");
 				m_3DUTexGenU0Loc    = m_3DShader.UniformLocation("uTexGenU0");
 				m_3DUTexGenV0Loc    = m_3DShader.UniformLocation("uTexGenV0");
+			}
+
+			// FP20 LFM program (baked lightmap, world geometry -- see
+			// TrySetupLFMProgram).
+			if (m_LFMShader.Build(kGLES3_LFMVertSrc, kGLES3_LFMFragSrc, "LFM"))
+			{
+				m_LFMUMVPLoc       = m_LFMShader.UniformLocation("uMVP");
+				m_LFMUTexMatLoc    = m_LFMShader.UniformLocation("uTexMat");
+				m_LFMUTexLoc       = m_LFMShader.UniformLocation("uTex");
+				m_LFMUUseTexLoc    = m_LFMShader.UniformLocation("uUseTexture");
+				m_LFMUNormalTexLoc = m_LFMShader.UniformLocation("uNormalTex");
+				m_LFMUUseNormalLoc = m_LFMShader.UniformLocation("uUseNormalMap");
+				m_LFMULFM0Loc      = m_LFMShader.UniformLocation("uLFM0");
+				m_LFMULFM1Loc      = m_LFMShader.UniformLocation("uLFM1");
+				m_LFMULFM2Loc      = m_LFMShader.UniformLocation("uLFM2");
+				m_LFMULFM3Loc      = m_LFMShader.UniformLocation("uLFM3");
+				m_LFMUScaleLoc     = m_LFMShader.UniformLocation("uLFMScale");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -2821,6 +3106,17 @@ public:
 					DbgLogFP20(static_cast<const CRC_ExtAttributes_FragmentProgram20*>(
 						m_pCurAttrib->m_pExtAttrib));
 			}
+
+			// XRShader_FP20_LFM (baked BSP2 lightmap): if this draw's FP20
+			// ext-attrib names that program AND all four LFM textures are
+			// present and upload cleanly, TrySetupLFMProgram binds
+			// m_LFMShader and sets every uniform/texture itself -- skip the
+			// normal UI/3D setup entirely for this draw. Everything else
+			// (including plain FP20 draws that aren't LFM, or LFM draws
+			// missing a texture) falls through unchanged to the selection
+			// below, same as before this program existed.
+			if (TrySetupLFMProgram())
+				return;
 
 			// Pick the program for this draw: UI/2D keeps the full
 			// m_UIShader (lights/fog/alpha test/second UV channel), world
