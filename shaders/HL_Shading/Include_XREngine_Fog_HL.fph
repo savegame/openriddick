@@ -1,0 +1,54 @@
+*do_all //if_fog
+{
+        // Samplers cannot be passed to this function since current ATI driver nukes pixels whenever a function is
+        // parsed an unset sampler as a parameter
+
+	*do1
+        "
+                void DoFog(float4 _FogInterval,float4 _FogColor,float4 _FogCubeColor,float4 _FogDitherUVScale,
+                           float4 _FogTCSky,float4 _FogTCCube,
+                           out float4 _FogRes,out float _FogAlpha)
+                {
+                    // FogInterval  { -FogStart/(end-start), 1.0f/(end-start), -SkyStart/(end-start), 1.0f/(end-start) }
+  		    // FogDitherUVScale { dX, dY, 0, Density }
+                    float4 Res;
+                    float ResAlpha,CubeLn;
+                    CubeLn = length(_FogTCCube.xyz);
+                    Res.a = clamp(CubeLn * _FogInterval.y + _FogInterval.x,0.0,1.0);
+                    Res.a = pow(Res.a, _FogDitherUVScale.w);
+                    Res.rgb = _FogColor.rgb;
+                    ResAlpha = lerp(1.0,_FogColor.a,Res.a);
+	"
+
+        *if_fogsky
+	{
+		*if_fogcube
+		"
+                    float4 TexelFogCube = texCUBE(FogCubeTex,_FogTCCube.xyz);
+                    Res.rgb = TexelFogCube.rgb * _FogCubeColor.rgb;
+		"
+		*do
+		"
+                    float4 TexelSky;
+                    float2 TCproj = _FogTCSky.xy / _FogTCSky.w;
+                    TexelSky = tex2D(FogTex,TCproj);
+                    TexelSky.a = clamp(CubeLn * _FogInterval.w + _FogInterval.z,0.0,1.0);
+                    TexelSky.a *= TexelSky.a;
+                    Res.rgb = lerp(Res.rgb,TexelSky.rgb,TexelSky.a);
+		"
+	}
+	*ifnot_fogsky
+	{
+		*if_fogcube
+		"
+                    float4 TexelFogCube = texCUBE(FogCubeTex,_FogTCCube.xyz);
+                    Res.rgb = TexelFogCube.rgb * _FogCubeColor.rgb;
+		"
+	}
+	*do2
+	"
+	            _FogRes = Res;
+	            _FogAlpha = ResAlpha;
+		}
+	"
+ }

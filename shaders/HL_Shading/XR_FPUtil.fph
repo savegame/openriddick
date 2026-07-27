@@ -1,0 +1,254 @@
+/*
+	float SnellsLaw(float _cosi, float _n1_over_n2_sqr)
+	
+		Returns square cosine of angle between transmission ray and normal. 
+		If the return value is negative there is no transmission angle due to full internal reflection.
+		_cosi = dot(Incident vector, Normal)
+		_n1_over_n2_sqr = (n1 / n2)^2, where n1 and n2 are indices of refraction, http://en.wikipedia.org/wiki/List_of_refractive_indices
+
+	float Fresnel(float _cosi, float _cost, float _n1, float _n2)
+
+		_cosi = dot(Incident vector, Normal)
+		_cost = dot(Transmission vector, Normal), given by sqrt(SnellsLaw(...))
+		_n1, _n2 = Indices of refraction, http://en.wikipedia.org/wiki/List_of_refractive_indices
+		http://en.wikipedia.org/wiki/Fresnel_equations
+
+	float FresnelSimpleDielectric(float _cosi, float _kfres)
+	
+		_kfres = 0.020363 for n = 1.3333 (water)
+		_kfres = 0.052734 for n = 1.6 (rocks)
+		_kfres = 0.168945 for n = 2.4 (diamond)
+
+	float ConvertDepth(float4 _depthtexel)
+
+		Convert sampled depth buffer texel to a scalar viewspace z value.
+		VPConst must be declared as a program parameter.
+
+	float4 ConvertDepthUVToPos(float _depth, float2 _uv)
+	
+		Convert viewspace depth and _uv into a viewspace coordinate.
+		VPScale must be declared as a program parameter.
+
+	float4 ConvertNormalTexel(float4 _Texel)
+
+		Convert alpha-green 2-component normalmap texel to a normalized normal.
+		
+*/
+
+*util
+"
+	//	const float M_PI = 3.141592653589;
+	//	const float M_2PI = 6.28318530717;
+	//	const float M_PI_RCP = 0.318309886183;
+	//	const float M_2PI_RCP = 0.159154943091;
+		
+		float lengthsqr(float2 _v) { return dot(_v, _v); }
+		float lengthsqr(float3 _v) { return dot(_v, _v); }
+		float lengthsqr(float4 _v) { return dot(_v, _v); }
+		
+		float sqr(float _a) { return _a * _a; }
+		float2 sqr(float2 _a) { return _a * _a; }
+		float3 sqr(float3 _a) { return _a * _a; }
+		float4 sqr(float4 _a) { return _a * _a; }
+
+		float FresnelBaseDielectric(float _cosi)
+		{
+			// x = (1.0 - cosi*s)
+			// y = lg2(x)
+			// f = a*x^m + b*x^n + c = a*2^(lg2(x)*m/lg2(2)) + b*2^(lg2(x)*n/lg2(2)) + c = a*2^(y*m) + b*2^(y*n) + c
+
+			float a = 0.746487 * 1.0207852;
+			float b = 0.233151 * 1.0207852;
+			float m = 7.0;
+			float n = 2.8;
+			float x = (1.0 - _cosi);					// 1 op
+			float y = log2(x);							// 1 lg2
+			float fres = saturate(a*exp2(y*m) + b*exp2(y*n));	// 5 ops
+			return fres;
+		}
+		
+		float SnellsLaw(float _cosi, float _n1_over_n2_sqr)
+		{
+			float cos_t2 = 1.0 - (1.0 - _cosi*_cosi) * _n1_over_n2_sqr;
+			return cos_t2;
+		}
+
+		float SnellsLawInverse(float _cost, float _n1_over_n2_sqr_recp)
+		{
+			float cos_i2 = (_cost*_cost - 1.0) * _n1_over_n2_sqr_recp - 1.0;
+			return cos_i2;
+		}
+
+		float Fresnel(float _cosi, float _cost, float _n1, float _n2)
+		{
+			return (sqr((_n1*_cosi - _n2*_cost) / (_n1*_cosi + _n2*_cost)) + sqr((_n1*_cost - _n2*_cosi) / (_n1*_cost + _n2*_cosi))) / 2.0;
+		}	
+
+		float3 ConvertNormalTexel(float4 _Texel)
+		{
+			float4 Remap = (_Texel * 2.0) - splat4(1.0);
+			float3 N = float3(0.0, Remap.a, Remap.g);
+			N.x = sqrt(saturate(1.0 - dot(N, N)));
+			return N;
+		}
+		float3 ConvertNormalTexel_NoRemap(float4 _Texel)
+		{
+			float3 N = float3(0.0, _Texel.a, _Texel.g);
+			N.x = sqrt(saturate(1.0 - dot(N, N)));
+			return N;
+		}
+		
+		float3 FresnelApprox_AirWater_0 = float3(0.746487, 0.233151, 0.020363);
+		float3 FresnelApprox_AirWater_1 = float3(7.0, 2.8, 1.0);
+		float3 FresnelApprox_WaterAir_0 = float3(0.792980, 0.185204, 0.020363);
+		float3 FresnelApprox_WaterAir_1 = float3(33.4, 4.2, 2.951257);
+
+		float FresnelApprox(float _cosi, float3 _param0, float3 _param1)
+		{
+			// x = (1.0 - cosi*s)
+			// y = lg2(x)
+			// f = a*x^m + b*x^n + c = a*2^(lg2(x)*m/lg2(2)) + b*2^(lg2(x)*n/lg2(2)) + c = a*2^(y*m) + b*2^(y*n) + c
+
+			float a = _param0.x;
+			float b = _param0.y;
+			float c = _param0.z;
+			float m = _param1.x;
+			float n = _param1.y;
+			float s = _param1.z;
+			float x = (s*(1.0 - _cosi));		// 1 mad
+	//		x = max(x, 0.0000001);
+			float y = log2(x);							// 1 lg2
+			float fres = saturate(a*exp2(y*m) + b*exp2(y*n) + c);	// 6 ops
+//			float fres = a*pow(x, m) + b*pow(x, n) + c;
+			return fres;
+		}
+
+		float3 SafeNormalize(float3 _Vec,float _Thres)
+		{
+		    return (dot(_Vec,_Vec) < _Thres) ? splat3(0.0) : normalize(_Vec);
+	//	    return ((_Vec != _Vec) || dot(_Vec,_Vec) < _Thres) ? splat3(0.0) : normalize(_Vec);
+		}
+
+		float4 SafeNormalize(float4 _Vec,float _Thres)
+		{
+		    return (dot(_Vec,_Vec) < _Thres) ? splat4(0.0) : normalize(_Vec);
+		}
+
+
+#ifdef NO_LINEAR_FP_SAMPLE
+                float4 SampleFPTexLinear2D(sampler2D _Tex,float2 _TC,float2 _WHRcp)
+                {
+                        float2 Part = _WHRcp;
+                        _TC -= (Part * 0.5);
+
+                        // Determine fraction of pixels
+                        float2 MinTC = mod(_TC,Part);
+                        float2 Frac = MinTC / Part;
+
+                        // Make sure to sample at the center of each pixel so shader won't be broken for
+                        // Platforms where linear filtering actually exists
+                        _TC += (Part * 0.5) - MinTC;
+
+                        // Sample surrounding pixels
+                        float4 Clr0 = tex2D(_Tex,_TC);
+                        float4 Clr1 = tex2D(_Tex,float2(_TC.x+Part.x,_TC.y));
+                        float4 Clr2 = tex2D(_Tex,float2(_TC.x,_TC.y+Part.y));
+                        float4 Clr3 = tex2D(_Tex,_TC+Part);
+
+                        // Interpolate colors manually
+                        Clr0 = lerp(Clr0,Clr1,splat4(Frac.x));
+                        Clr1 = lerp(Clr2,Clr3,splat4(Frac.x));
+                        return lerp(Clr0,Clr1,splat4(Frac.y));
+                }
+
+                float4 SampleFPTexLinear2DLod(sampler2D _Tex,float2 _TC,float _Lod,float2 _WHRcp)
+                {
+                        float2 Part = _WHRcp * pow(2.0,_Lod);
+                        _TC -= (Part * 0.5);
+
+                        // Determine fraction of pixels
+                        float2 MinTC = mod(_TC,Part);
+                        float2 Frac = MinTC / Part;
+
+                        // Make sure to sample at the center of each pixel so shader won't be broken for
+                        // Platforms where linear filtering actually exists
+                        _TC += (Part * 0.5) - MinTC;
+
+                        // Sample surrounding pixels
+                        float4 Clr0 = texture2DLod(_Tex,_TC,_Lod);
+                        float4 Clr1 = texture2DLod(_Tex,float2(_TC.x+Part.x,_TC.y),_Lod);
+                        float4 Clr2 = texture2DLod(_Tex,float2(_TC.x,_TC.y+Part.y),_Lod);
+                        float4 Clr3 = texture2DLod(_Tex,_TC+Part,_Lod);
+
+                        // Interpolate colors manually
+                        Clr0 = lerp(Clr0,Clr1,splat4(Frac.x));
+                        Clr1 = lerp(Clr2,Clr3,splat4(Frac.x));
+                        return lerp(Clr0,Clr1,splat4(Frac.y));
+                }
+
+
+                float4 SampleFPTexLinear2DLodComplex(sampler2D _Tex,float2 _TC,float _Lod,float2 _WHRcp)
+                {
+                        float Frac = fract(_Lod);
+                        float IntLod = _Lod - Frac;
+                        float4 Clr0 = SampleFPTexLinear2DLod(_Tex,_TC,IntLod,_WHRcp);
+                        float4 Clr1 = SampleFPTexLinear2DLod(_Tex,_TC,IntLod+1.0,_WHRcp);
+                        return lerp(Clr0,Clr1,splat4(Frac));
+                }
+
+                float4 SampleFPTexLinear3D(sampler3D _Tex,float3 _TC,float3 _WHDRcp)
+                {
+                        float3 Part = _WHDRcp;
+                        _TC -= (Part * 0.5);
+                        
+                        // Determine fraction of pixels
+                        float3 MinTC = mod(_TC,Part);
+                        float3 Frac = MinTC / Part;
+
+                        // Make sure to sample at the center of each pixel so shader won't be broken for
+                        // Platforms where linear filtering actually exists
+                        _TC += (Part * 0.5) - MinTC;
+
+                        // Sample surrounding pixels
+                        float4 Clr0 = texture3D(_Tex,_TC);
+                        float4 Clr1 = texture3D(_Tex,float3(_TC.x+Part.x,_TC.y,_TC.z));
+                        float4 Clr2 = texture3D(_Tex,float3(_TC.x,_TC.y+Part.y,_TC.z));
+                        float4 Clr3 = texture3D(_Tex,float3(_TC.x+Part.x,_TC.y+Part.y,_TC.z));
+                        float4 Clr4 = texture3D(_Tex,float3(_TC.x,_TC.y,_TC.z+Part.z));
+                        float4 Clr5 = texture3D(_Tex,float3(_TC.x+Part.x,_TC.y,_TC.z+Part.z));
+                        float4 Clr6 = texture3D(_Tex,float3(_TC.x,_TC.y+Part.y,_TC.z+Part.z));
+                        float4 Clr7 = texture3D(_Tex,_TC+Part);
+
+                        // Interpolate colors manually
+                        Clr0 = lerp(Clr0,Clr1,splat4(Frac.x));
+                        Clr1 = lerp(Clr2,Clr3,splat4(Frac.x));
+                        Clr2 = lerp(Clr4,Clr5,splat4(Frac.x));
+                        Clr3 = lerp(Clr6,Clr7,splat4(Frac.x));
+
+                        Clr0 = lerp(Clr0,Clr1,splat4(Frac.y));
+                        Clr1 = lerp(Clr2,Clr3,splat4(Frac.y));
+
+                        return lerp(Clr0,Clr1,splat4(Frac.z));
+                }
+#else
+                vec4 SampleFPTexLinear2D(sampler2D _Tex,vec2 _TC,vec2 _WHRcp)
+                {
+                        return texture2D(_Tex,_TC);
+                }
+                
+                vec4 SampleFPTexLinear2DLod(sampler2D _Tex,float2 _TC,float _Lod,float2 _WHRcp)
+                {
+                        return texture2DLod(_Tex,_TC,_Lod);
+                }
+                
+                vec4 SampleFPTexLinear2DLodComplex(sampler2D _Tex,float2 _TC,float _Lod,float2 _WHRcp)
+                {
+                        return texture2DLod(_Tex,_TC,_Lod);
+                }
+
+                vec4 SampleFPTexLinear3D(sampler3D _Tex,vec3 _TC,vec3 _WHDRcp)
+                {
+                        return texture3D(_Tex,_TC);
+                }
+#endif
+"
