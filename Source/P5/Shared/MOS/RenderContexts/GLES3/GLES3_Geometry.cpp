@@ -204,6 +204,9 @@ bool CGLES3GeometryCache::Build(int _VBID)
 	}
 
 	void* pMem = NULL;
+	// First vertex's UV0, sampled while the CPU buffer is still alive (it
+	// is freed right after upload) -- see the diagnostic at the end.
+	float DbgU0 = 0.0f, DbgV0 = 0.0f;
 	int Stride = 0;
 	int lRegOffset[CRC_MAXVERTEXREG];
 	uint8 lRegFormat[CRC_MAXVERTEXREG];
@@ -277,6 +280,15 @@ bool CGLES3GeometryCache::Build(int _VBID)
 				uint32_t* pCol = (uint32_t*)(pBase + (size_t)i * Stride);
 				*pCol = GLES3Geom_SwapBR(*pCol);
 			}
+		}
+
+		const int UVOff = lRegOffset[CRC_VREG_TEXCOORD0];
+		const int UVFmt = lRegFormat[CRC_VREG_TEXCOORD0];
+		if (UVOff >= 0 && UVFmt >= CRC_VREGFMT_V1_F32 && UVFmt <= CRC_VREGFMT_V4_F32)
+		{
+			const float* p = (const float*)((const uint8*)pMem + UVOff);
+			DbgU0 = p[0];
+			if (CRC_VertexFormat::GetRegisterComponents(UVFmt) >= 2) DbgV0 = p[1];
 		}
 	}
 
@@ -424,8 +436,21 @@ bool CGLES3GeometryCache::Build(int _VBID)
 
 	if (GLES3Geom_DbgEnabled())
 	{
-		fprintf(stderr, "[GLES3-GEOM] VBID=%d nV=%d stride=%d nIdx=%d\n",
-			_VBID, E.m_nV, Stride, nIdx);
+		// Which texcoord sets this VBID actually carries, plus a sample of
+		// the first vertex's UV0/position. If a world cluster comes out
+		// with no UV register at all (or with all-zero UVs), the diffuse
+		// texture samples one texel and the surface renders flat/black --
+		// this line distinguishes "UV data missing at the source" from
+		// "UV lost somewhere in our attribute plumbing".
+		char UVSets[64]; UVSets[0] = 0;
+		{
+			int n = 0;
+			for (int t = 0; t < CRC_MAXTEXCOORDS && n < 60; ++t)
+				if (lRegOffset[CRC_VREG_TEXCOORD0 + t] >= 0)
+					n += snprintf(UVSets + n, sizeof(UVSets) - n, "%d,", t);
+		}
+		fprintf(stderr, "[GLES3-GEOM] VBID=%d nV=%d stride=%d nIdx=%d uvsets=[%s] v0uv=(%.4f,%.4f)\n",
+			_VBID, E.m_nV, Stride, nIdx, UVSets, DbgU0, DbgV0);
 	}
 
 	return true;

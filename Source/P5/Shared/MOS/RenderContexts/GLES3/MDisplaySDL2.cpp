@@ -2983,6 +2983,31 @@ public:
 							glBindBuffer(GL_ARRAY_BUFFER, pE->m_VBO);
 							SetVertexAttribPointersFromEntry(*pE);
 							SetupCommonUniforms(true);
+
+							// F10-armed: the legacy path prints [DRAW/post]
+							// after SetupCommonUniforms; do the same here or
+							// world draws (which all come through this path)
+							// silently lose that diagnostic. Also dump the
+							// cached entry's register layout -- answers
+							// "did this VBID even carry a UV register, and
+							// which set fed channel 0" without a GPU readback.
+							if (m_DbgDrawPostArm > 0)
+							{
+								int UVSet0 = m_pCurAttrib ? m_pCurAttrib->m_iTexCoordSet[0] : 0;
+								if (UVSet0 >= CRC_MAXTEXCOORDS) UVSet0 = 0;
+								fprintf(stderr,
+									"  [DRAW/cached] VBID=%d nV=%d stride=%d UVset0=%d "
+									"off{pos=%d uv=%d uv1=%d col=%d nrm=%d} UseTex=%d boundGL=%u\n",
+									(int)m_GeomVBID, pE->m_nV, pE->m_Stride, UVSet0,
+									pE->m_lRegOffset[CRC_VREG_POS],
+									pE->m_lRegOffset[CRC_VREG_TEXCOORD0 + UVSet0],
+									pE->m_lRegOffset[CRC_VREG_TEXCOORD0 + 1],
+									pE->m_lRegOffset[CRC_VREG_COLOR],
+									pE->m_lRegOffset[CRC_VREG_NORMAL],
+									m_DbgLastUseTex, (unsigned)m_DbgLastBind0);
+								fflush(stderr);
+								--m_DbgDrawPostArm;
+							}
 							m_DbgTotalVerts += pE->m_nV;
 							m_DbgTotalIdx   += _nInd;
 							m_DbgVMemo      += pE->m_nV;
