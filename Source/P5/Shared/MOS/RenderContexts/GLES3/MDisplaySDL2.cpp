@@ -22,6 +22,7 @@
 #include "GLES3_Shader.h"
 #include "GLES3_VBOStreamer.h"
 #include "GLES3_RTTOverlay.h"
+#include "GLES3_Geometry.h"
 
 #include <cstdlib>
 #include <cstdint>
@@ -371,6 +372,23 @@ static bool GLES3_NoLight()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_NO_LIGHT");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_NO_VBCACHE=1 -- disable the GPU-resident VBID geometry cache
+// (GLES3_Geometry.*) and fall back to the old per-draw path: fetch the
+// CRC_BuildVertexBuffer from the engine, scalar-convert every vertex via
+// BuildVertsFromVBB, and stream the result through the transient VBO/IBO
+// ring every single frame. Kept as an escape hatch while the cache is
+// being verified; the two paths should be visually identical.
+static bool GLES3_NoVBCache()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_VBCACHE");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -973,6 +991,13 @@ public:
 		int m_DbgVBIDSkipFmt = 0;
 		int m_DbgVBIDLastSkip = -1;
 		CGLES3VBOStreamer m_Streamer;
+		// Phase 4 M6: GPU-resident VBID cache (static VBO/IBO pairs),
+		// see GLES3_Geometry.h. Falls back to m_Streamer (per-frame
+		// scalar rebuild) for anything it can't handle -- skinned
+		// meshes, exotic primitive types, or RIDDICK_NO_VBCACHE=1.
+		CGLES3GeometryCache m_GeomCache;
+		int m_DbgDrawCached = 0;   // draws served from m_GeomCache this interval
+		int m_DbgDrawStreamed = 0; // draws that fell back to the old per-frame path
 		GLuint            m_VAO;
 		bool              m_bGLInited;
 		int               m_UMVPLoc;
@@ -1113,6 +1138,7 @@ public:
 			m_DbgDrawTri = m_DbgDrawStrip = m_DbgDrawWire = m_DbgDrawPoly = m_DbgDrawPrim = 0;
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgVBIDSkipFmt = 0;
+			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgTotalVerts = m_DbgTotalIdx = 0;
 			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
 			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT3 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
@@ -1198,12 +1224,15 @@ public:
 			fprintf(stderr,
 				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
+				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
 				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
+				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
+				(long long)m_GeomCache.m_nBytesV, (long long)m_GeomCache.m_nBytesI,
 				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
 			fflush(stderr);
 			m_DbgFrames = 0;
@@ -1257,6 +1286,7 @@ public:
 			if (g_pGLES3RCInst == this) g_pGLES3RCInst = 0;
 			m_RTTOverlay.Destroy();
 			Texture_ReleaseAll();
+			m_GeomCache.DestroyAll();
 			ReleaseAllFBOs();
 			ReleaseScreenFBO();
 			if (m_PlaceholderTex) { glDeleteTextures(1, &m_PlaceholderTex); m_PlaceholderTex = 0; }
@@ -1507,6 +1537,8 @@ public:
 			m_iTC = m_pTC->AddRenderContext(this);
 			m_iVBCtxRC = m_pVBCtx->AddRenderContext(this);
 
+			if (m_pVBCtx)
+				m_GeomCache.Init(m_pVBCtx, this);
 		}
 
 		const char* GetRenderingStatus() { return ""; }
@@ -2158,6 +2190,93 @@ public:
 			glDisableVertexAttribArray(2);
 			glDisableVertexAttribArray(3);
 			glDisableVertexAttribArray(4);
+		}
+
+		// --- Phase 4 M6: cached-VBID draw path (GLES3_Geometry.h) --------
+		// Bind one vertex attribute location from a cached entry's
+		// per-register layout, or fall back to a constant value via
+		// glVertexAttrib4f if the engine never supplied that register for
+		// this VBID (e.g. no per-vertex normal). Mirrors the constant
+		// defaults BuildVertsFromVBB bakes into SUIVert for the same
+		// cases (col=white, normal=+Z, uv=0).
+		void BindEntryAttrib(const SGLES3GeomEntry& _E, int _Loc, int _Reg,
+		                      float _Cx, float _Cy, float _Cz, float _Cw)
+		{
+			const int Off = _E.m_lRegOffset[_Reg];
+			if (Off < 0)
+			{
+				glDisableVertexAttribArray(_Loc);
+				glVertexAttrib4f(_Loc, _Cx, _Cy, _Cz, _Cw);
+				return;
+			}
+			glEnableVertexAttribArray(_Loc);
+			const int Fmt = _E.m_lRegFormat[_Reg];
+			const GLsizei S = (GLsizei)_E.m_Stride;
+			if (Fmt == CRC_VREGFMT_N4_COL)
+				glVertexAttribPointer(_Loc, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(intptr_t)Off);
+			else
+			{
+				int nComp = CRC_VertexFormat::GetRegisterComponents(Fmt);
+				if (nComp <= 0) nComp = 1;
+				glVertexAttribPointer(_Loc, nComp, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)Off);
+			}
+		}
+
+		// Vertex layout for a cached geometry entry: same 5 attribute
+		// locations as SetVertexAttribPointers (pos/uv0/col/uv1/normal),
+		// sourced from whichever registers CGLES3GeometryCache::Build
+		// actually found for this VBID at ITS destination offsets, rather
+		// than our fixed SUIVert struct. UV-set selection mirrors
+		// BuildVertsFromVBB's Attrib_TexCoordSet honoring.
+		void SetVertexAttribPointersFromEntry(const SGLES3GeomEntry& _E)
+		{
+			int UVSet0 = 0, UVSet1 = 1;
+			if (m_pCurAttrib)
+			{
+				UVSet0 = m_pCurAttrib->m_iTexCoordSet[0];
+				UVSet1 = m_pCurAttrib->m_iTexCoordSet[1];
+				if (UVSet0 >= CRC_MAXTEXCOORDS) UVSet0 = 0;
+				if (UVSet1 >= CRC_MAXTEXCOORDS) UVSet1 = 1;
+			}
+			BindEntryAttrib(_E, 0, CRC_VREG_POS,                0.0f, 0.0f, 0.0f, 1.0f);
+			BindEntryAttrib(_E, 1, CRC_VREG_TEXCOORD0 + UVSet0, 0.0f, 0.0f, 0.0f, 1.0f);
+			BindEntryAttrib(_E, 3, CRC_VREG_TEXCOORD0 + UVSet1, 0.0f, 0.0f, 0.0f, 1.0f);
+			BindEntryAttrib(_E, 2, CRC_VREG_COLOR,              1.0f, 1.0f, 1.0f, 1.0f);
+			BindEntryAttrib(_E, 4, CRC_VREG_NORMAL,             0.0f, 0.0f, 1.0f, 1.0f);
+		}
+
+		// Draw using GPU-resident buffers from m_GeomCache instead of
+		// streaming through m_Streamer: no per-draw malloc, no scalar
+		// VRegFetch conversion, no re-upload. _E supplies the vertex
+		// buffer (position/uv/col/normal registers + stride); _IB
+		// supplies the index buffer -- may be the same entry as _E
+		// (Render_VertexBuffer, whose VBID carries its own primitive
+		// stream) or a separate shared index-pool entry
+		// (Render_VertexBuffer_IndexBufferTriangles / BSP2 world
+		// clusters). _ByteOffset is the byte offset into _IB's index
+		// buffer where this draw's indices start. Returns false (nothing
+		// drawn) if either buffer is missing so the caller can fall back
+		// to the streaming path.
+		bool DrawCachedVB(const SGLES3GeomEntry& _E, const SGLES3GeomEntry& _IB, int _nIdx, intptr_t _ByteOffset)
+		{
+			if (!_E.m_VBO || !_IB.m_IBO || _nIdx <= 0) return false;
+
+			glBindVertexArray(m_VAO);
+			glBindBuffer(GL_ARRAY_BUFFER, _E.m_VBO);
+			SetVertexAttribPointersFromEntry(_E);
+
+			SetupCommonUniforms(false);
+			m_DbgTotalVerts += _E.m_nV;
+			m_DbgTotalIdx   += _nIdx;
+
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _IB.m_IBO);
+			const GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : GL_TRIANGLES;
+			glDrawElements(DrawPrim, _nIdx, GL_UNSIGNED_SHORT, (const void*)_ByteOffset);
+
+			DisableVertexAttribPointers();
+			glBindVertexArray(0);
+			++m_DbgDrawCached;
+			return true;
 		}
 
 		// Shared uniform + texture setup for the UI shader: MVP,
@@ -3338,6 +3457,21 @@ public:
 			++m_DbgDrawVBID;
 			if (!m_pVBCtx) return;
 
+			// Phase 4 M6: try the GPU-resident cache first -- a hit means
+			// no per-frame malloc, no scalar VRegFetch conversion, no
+			// re-upload (see GLES3_Geometry.h). Falls through to the old
+			// streaming path below for anything the cache can't handle
+			// yet (skinned meshes, exotic primitive types) or when
+			// RIDDICK_NO_VBCACHE=1 forces the old path.
+			if (!GLES3_NoVBCache())
+			{
+				if (const SGLES3GeomEntry* pE = m_GeomCache.Ensure(_VBID))
+				{
+					if (pE->m_nIdx > 0 && DrawCachedVB(*pE, *pE, pE->m_nIdx, 0))
+						return;
+				}
+			}
+
 			CRC_BuildVertexBuffer VBB;
 			VBB.Clear();
 			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
@@ -3346,6 +3480,7 @@ public:
 			int nV = 0;
 			SUIVert* pVerts = BuildVertsFromVBB(VBB, nV);
 			if (!pVerts) return;
+			++m_DbgDrawStreamed;
 
 			// Walk the primitive stream: header word = index count,
 			// then indices; type from the stream iterator.
@@ -3389,12 +3524,30 @@ public:
 			++m_DbgDrawVBID;
 			if (!m_pVBCtx || _nTriangles == 0) return;
 
+			// Phase 4 M6: cached path. _VBID supplies vertices, _IBID
+			// supplies the shared index pool (see GLES3_Geometry.h --
+			// this is exactly the BSP2 world-cluster case the cache was
+			// built for: CBSP2_SLCIBContainer hands out an index-only
+			// VBID for _IBID). Same entry for both when they coincide.
+			if (!GLES3_NoVBCache())
+			{
+				const SGLES3GeomEntry* pVB = m_GeomCache.Ensure((int)_VBID);
+				const SGLES3GeomEntry* pIB = (_IBID == _VBID) ? pVB : m_GeomCache.Ensure((int)_IBID);
+				if (pVB && pIB)
+				{
+					const intptr_t ByteOffset = (intptr_t)_PrimOffset * 2; // 2 bytes/uint16 index
+					if (DrawCachedVB(*pVB, *pIB, (int)(_nTriangles * 3), ByteOffset))
+						return;
+				}
+			}
+
 			CRC_BuildVertexBuffer VBB;
 			VBB.Clear();
 			m_pVBCtx->VB_Get(_VBID, VBB, VB_GETFLAGS_BUILD);
 			int nV = 0;
 			SUIVert* pVerts = BuildVertsFromVBB(VBB, nV);
 			if (!pVerts) return;
+			++m_DbgDrawStreamed;
 
 			// Fetch the IB (usually a separate VB whose m_piPrim is the
 			// shared index pool). May be the same as _VBID.
@@ -3442,10 +3595,22 @@ public:
 		void Render_WireStrip(const CVec3Dfp32* _pV, const uint16* _piV, int _nVertices, CPixel32 _Color){}
 		void Render_WireLoop(const CVec3Dfp32* _pV, const uint16* _piV, int _nVertices, CPixel32 _Color){}
 
-		virtual void Geometry_PrecacheFlush(){}
+		// Map change / precache-flush point: drop cached GPU geometry for
+		// any VBID the engine no longer flags PRECACHE|ALLOCATED (mirrors
+		// PS3's CContext_Geometry flush -- see GLES3_Geometry.cpp).
+		virtual void Geometry_PrecacheFlush(){ m_GeomCache.FlushUnused(); }
 		virtual void Geometry_PrecacheBegin( int _Count ){}
 		virtual void Geometry_PrecacheEnd(){}
-		virtual void Geometry_Precache(int _VBID){}
+		// Loading-screen precache tick (one VBID per call, see
+		// WClient_Precache.cpp): eagerly build+upload the GPU entry now
+		// so the first real draw of this VBID doesn't stall converting/
+		// uploading it. RIDDICK_NO_VBCACHE=1 disables the cache
+		// entirely, so skip the eager build in that case too.
+		virtual void Geometry_Precache(int _VBID)
+		{
+			if (!GLES3_NoVBCache())
+				m_GeomCache.Ensure(_VBID);
+		}
 		virtual CDisplayContext* GetDC(){ return m_pDisplayContext;}
 
 		void Register(CScriptRegisterContext & _RegContext){}

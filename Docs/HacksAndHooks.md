@@ -189,6 +189,18 @@
 - **DBG** `RIDDICK_COPYTEX_FLIP=0|1` (`RenderTarget_CopyToTexture`) — A/B
   переключение Y-flip'а при копировании backbuffer → RTT. Legacy debug.
 
+- **DBG** `RIDDICK_NO_VBCACHE=1` (`GLES3_NoVBCache()`, `MDisplaySDL2.cpp`)
+  — полностью выключает GPU-резидентный кэш геометрии по VBID
+  (`GLES3_Geometry.h/.cpp`, `CGLES3GeometryCache`) и возвращает старый
+  путь: `VB_Get` + скалярная конвертация через `BuildVertsFromVBB` +
+  ре-аплоад через стриминг-VBO/IBO (`m_Streamer`) на КАЖДЫЙ draw.
+  Держать как fallback для A/B-сравнения, пока кэш не обкатан на всех
+  типах геометрии (skinned-меши и экзотические `CRC_RIP_*` в кэш не
+  идут вообще — `m_bSkip`, всегда падают на старый путь независимо от
+  этого флага). `[GL-DBG]`-строка печатает `vbCache{cached=.. streamed=.. built=.. bytesV=.. bytesI=..}`
+  чтобы видеть долю кэшированных draw'ов и суммарный размер GPU-резидентных буферов.
+  → удалить когда кэш подтверждён идентичным старому пути на всех картах.
+
 ### Экранное отображение
 
 - **KEEP** `RIDDICK_ROTATE=0|90|180|270` — поворот финальной картинки в окне.
@@ -283,13 +295,33 @@
 - **KEEP** `CRC_VRegTransform` scale+offset (`BuildVertsFromVBB`, `~2290+`)
   — packed вершины (I16/NS/NU) хранят raw*Scale+Offset. Правильный фикс.
   Оставить.
+- **KEEP** В GPU-кэше (`GLES3_Geometry.cpp`, `CGLES3GeometryCache::Build`)
+  скейл/оффсет применять не нужно отдельно: destination-формат всегда
+  F32, а движковый `ConvertToInterleaved` сам применяет source
+  scale/offset при конвертации packed → float (см. `MRender.cpp:2210`).
+  Поэтому `DestTransformEnable=0` и `DstScale` (Scale=1/Offset=0) в
+  кэш-пути фактически no-op — это ожидаемо, а не баг.
 
 ### Fallback в BuildInterleavedVerts
 
 - **HACK** `BuildInterleavedVerts` (`~1560`) — если m_GeomVBID != 0,
   дёргаем VB_Get каждый draw. Медленно (стриминг вершин каждый кадр
-  через malloc+free+push). **Заменить на GPU-side VBO cache**.
-  → удалить malloc-путь после кэширования VB на GPU.
+  через malloc+free+push).
+  **2026-07-27: реализован GPU-side VBO/IBO кэш по VBID**
+  (`GLES3_Geometry.h/.cpp`, `CGLES3GeometryCache`, интеграция в
+  `Render_VertexBuffer`/`Render_VertexBuffer_IndexBufferTriangles`/
+  `Geometry_Precache`/`Geometry_PrecacheFlush` в `MDisplaySDL2.cpp`).
+  Кэш строит interleaved VBO + uint16 IBO один раз через engine'ский
+  `CRC_BuildVertexBuffer::ConvertToInterleaved` (не наш скалярный
+  `VRegFetch`) и переиспользует GL-буферы, пока движок не сбросит бит 0
+  `CRC_VBIDInfo::m_Fresh` (`CXR_VBContext::VB_MakeDirty`). `BuildVertsFromVBB`
+  / `BuildInterleavedVerts` остаются как fallback-путь: skinned-меши,
+  `CRC_RIP_WIRES` и всё, что кэш не смог собрать (или что явно
+  выключено через `RIDDICK_NO_VBCACHE=1`), по-прежнему идёт через
+  malloc+VRegFetch+`m_Streamer` каждый кадр, без изменений в этой
+  логике.
+  → malloc-путь для остального (skinning, wires) убрать после
+  реализации matrix-palette skinning в кэше.
 
 ### Diagnostic per-draw dumps
 
