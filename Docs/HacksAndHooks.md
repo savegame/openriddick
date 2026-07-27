@@ -104,6 +104,12 @@
   — шейдер сам игнорирует vCol независимо от host-side отбеливания
   (belt-and-braces).
 
+- **DBG** `RIDDICK_NO_TEXGEN=1` (`GLES3_NoTexGen()`, `PushTexGenUniforms`,
+  `MDisplaySDL2.cpp`) — форсит `uTexGenMode0/1=0` на всех draw'ах, т.е.
+  UV всегда берётся из вершинного регистра (поведение до реализации
+  TexGen). A/B-проверка, что реализация TexGen ничего не сломала в
+  UI/спрайтах/декалях/мировой геометрии. См. раздел «TexGen» ниже.
+
 - **DBG** `RIDDICK_NO_MIPMAP=1` (`GLES3_Texture.cpp`) — форсит
   `GL_TEXTURE_MIN_FILTER=GL_LINEAR` (без mipmap sampling) во всех аплоадах.
   Диагностика «хром на стенах»: если под этим стены оказываются с
@@ -253,6 +259,46 @@
   на CPU; фронтенд явно гасит ZCOMPARE). `ClassifyUI()` = hint || эвристика.
   → правильно: покрыть хинтом ВСЕ точки входа UI (HUD, VBM-flush) и
   удалить эвристики.
+
+### TexGen (2026-07-27)
+
+- **KEEP** Вершинные шейдеры (`kGLES3_UIVertSrc`, `kGLES3_3DVertSrc`)
+  умеют вычислять UV в шейдере вместо чтения из вершинного регистра,
+  когда `CRC_Attributes::m_lTexGenMode[iTxt]` этого требует. Разбор
+  атрибута — `CRC_GLES3::PushTexGenUniforms(bool _bUI)` в
+  `MDisplaySDL2.cpp`, вызывается из `SetupCommonUniforms` для ОБЕИХ
+  программ на каждый draw. Разбор `m_pTexGenAttr` повторяет один в один
+  движковый декодер `Classes/Render/MRenderVPGen.h::SetRegisters_TexGenMatrix`
+  (порядок каналов `iTxt = 0..CRC_MAXTEXCOORDS-1`, порядок компонент
+  U/V/W/Q, шаг указателя только на взведённых битах `GetTexGenComp`,
+  смещение между каналами — `CRC_Attributes::GetTexGenModeAttribSize`).
+  Поддержаны только два режима:
+  - `CRC_TEXGENMODE_TEXCOORD` (0) — текущее поведение, UV из `aUV`/`aUV1`;
+  - `CRC_TEXGENMODE_LINEAR` (1) — `uv = dot(vec4(aPos,1), U); dot(vec4(aPos,1), V)`,
+    `aPos` — модельное пространство, ДО `uModel`. Матрица `uTexMat`/`uTexMat1`
+    применяется к результату texgen так же, как раньше применялась к
+    вершинным UV (порядок в шейдере не менялся).
+  Юниформы `uTexGenMode0/1`, `uTexGenU0/V0/U1/V1` — только канал 0 и 1
+  (единственные, которые сэмплят оба шейдера); 3D-шейдер имеет только
+  канал 0 (у него нет `aUV1`/`vUV1` вообще). Локации кэшируются один раз
+  в `InitGLResources`, как и остальные юниформы этих программ.
+  Чинит депт-фог BSP2 (см. `Docs/Render_Strategy.md` §1): проход, который
+  раньше сэмплил `SPECIAL_DEPTHFOGTABLE` по diffuse-UV стены (плоский
+  градиент чёрное→белое поверх геометрии), теперь получает честную
+  нормированную глубину по взгляду через LINEAR texgen.
+
+- **DBG** Любой режим кроме `TEXCOORD`/`LINEAR` трактуется как `TEXCOORD`
+  (текущее поведение) и логируется один раз на уникальную пару
+  (режим, канал) под `RIDDICK_DBG_GL=1`: `[GLES3-TEXGEN] unsupported
+  mode=%d on channel %d`. Ожидаемые кандидаты по коду движка:
+  `LIGHTING`/`LIGHTING_NONORMAL` (запечённый свет), `REFLECTION`/`ENV`
+  (env-мапы), `TSLV`/`TSREFLECTION` (bump/tangent-space), проективные
+  источники света. Смотреть эти логи, чтобы расставить приоритеты
+  следующей реализации.
+  → удалить лог (оставить тихий фолбэк) когда все встречающиеся в игре
+  режимы или реализованы, или сознательно списаны.
+
+- **DBG** `RIDDICK_NO_TEXGEN=1` — см. запись в «Диагностика рендера» выше.
 
 ### Placeholder textures
 

@@ -53,6 +53,16 @@ static const char* kGLES3_UIVertSrc =
 	"uniform mat4 uModel;\n"
 	"uniform mat4 uTexMat;\n"
 	"uniform mat4 uTexMat1;\n"
+	// TexGen (CRC_Attributes::m_lTexGenMode -> uTexGenMode0/1): 0 = UV
+	// comes from the vertex register (aUV/aUV1, current behaviour), 1 =
+	// LINEAR (uv = dot(modelspace pos, U/V) -- see PushTexGenUniforms).
+	// Applied BEFORE the texture matrix, exactly like the vertex UV was.
+	"uniform int uTexGenMode0;\n"
+	"uniform int uTexGenMode1;\n"
+	"uniform vec4 uTexGenU0;\n"
+	"uniform vec4 uTexGenV0;\n"
+	"uniform vec4 uTexGenU1;\n"
+	"uniform vec4 uTexGenV1;\n"
 	"out vec2 vUV;\n"
 	"out vec2 vUV1;\n"
 	"out vec4 vCol;\n"
@@ -72,8 +82,11 @@ static const char* kGLES3_UIVertSrc =
 	// on any surfaces at similar distance. UI/2D uses the same shader
 	// but has z ≈ w so remap keeps it near far clip — no regression.
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
-	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
-	"  vUV1 = (uTexMat1 * vec4(aUV1, 0.0, 1.0)).xy;\n"
+	"  vec4 posH = vec4(aPos, 1.0);\n"
+	"  vec2 uv0 = (uTexGenMode0 == 1) ? vec2(dot(posH, uTexGenU0), dot(posH, uTexGenV0)) : aUV;\n"
+	"  vec2 uv1 = (uTexGenMode1 == 1) ? vec2(dot(posH, uTexGenU1), dot(posH, uTexGenV1)) : aUV1;\n"
+	"  vUV = (uTexMat * vec4(uv0, 0.0, 1.0)).xy;\n"
+	"  vUV1 = (uTexMat1 * vec4(uv1, 0.0, 1.0)).xy;\n"
 	"  vDepth = gl_Position.w;\n"
 	"  vCol = aCol;\n"
 	// Row-vector convention: worldPos = v * Model. Same layout for GL.
@@ -217,6 +230,12 @@ static const char* kGLES3_3DVertSrc =
 	"uniform mat4 uMVP;\n"
 	"uniform mat4 uModel;\n"
 	"uniform mat4 uTexMat;\n"
+	// TexGen channel 0 only -- this shader has a single UV channel (no
+	// aUV1/vUV1), so there is no channel-1 slot to feed. See
+	// kGLES3_UIVertSrc for the full comment on uTexGenMode0 semantics.
+	"uniform int uTexGenMode0;\n"
+	"uniform vec4 uTexGenU0;\n"
+	"uniform vec4 uTexGenV0;\n"
 	"out vec2 vUV;\n"
 	"out vec4 vCol;\n"
 	"out vec3 vWorldPos;\n"
@@ -226,7 +245,9 @@ static const char* kGLES3_3DVertSrc =
 	// Same NDC.z remap as the UI VS: engine projection produces [0..1]
 	// (D3D convention), GL wants [-1..+1] (see kGLES3_UIVertSrc).
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
-	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vec4 posH = vec4(aPos, 1.0);\n"
+	"  vec2 uv0 = (uTexGenMode0 == 1) ? vec2(dot(posH, uTexGenU0), dot(posH, uTexGenV0)) : aUV;\n"
+	"  vUV = (uTexMat * vec4(uv0, 0.0, 1.0)).xy;\n"
 	"  vCol = aCol;\n"
 	// Row-vector convention: worldPos = v * Model (same layout for GL).
 	"  vWorldPos = (uModel * vec4(aPos, 1.0)).xyz;\n"
@@ -389,6 +410,23 @@ static bool GLES3_NoVBCache()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_NO_VBCACHE");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_NO_TEXGEN=1 -- force every TexGen channel to mode 0 (UV taken
+// from the vertex register, i.e. today's behaviour) regardless of what
+// CRC_Attributes::m_lTexGenMode says. A/B switch for the TexGen work
+// below: verifies nothing regresses when TexGen decoding is compiled in
+// but the engine's own texgen state (BSP2 depth-fog, projective lights,
+// env maps) is ignored.
+static bool GLES3_NoTexGen()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_TEXGEN");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -977,13 +1015,22 @@ public:
 		int m_Dbg3DShaderMode = 0; // 0=off, 1=uv, 2=normal, 3=worldpos
 		int m_3DUNoLightLoc = -1;
 		int m_3DUAmbientFloorLoc = -1;
+		// TexGen (channel 0 only -- the 3D shader has no second UV
+		// channel). See PushTexGenUniforms.
+		int m_3DUTexGenMode0Loc = -1;
+		int m_3DUTexGenU0Loc = -1, m_3DUTexGenV0Loc = -1;
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
 		int m_UModelLoc = -1;
 		int m_ULightingModeLoc = -1, m_UAmbientLoc = -1, m_UNumLightsLoc = -1;
 		int m_ULightPosLoc = -1, m_ULightColorLoc = -1;
-		
+		// TexGen (channels 0 and 1 -- the UI shader has a second UV
+		// channel for lightmap-style modulation). See PushTexGenUniforms.
+		int m_UTexGenMode0Loc = -1, m_UTexGenMode1Loc = -1;
+		int m_UTexGenU0Loc = -1, m_UTexGenV0Loc = -1;
+		int m_UTexGenU1Loc = -1, m_UTexGenV1Loc = -1;
+
 		// Latest light state from Attrib_Lights (engine holds the array,
 		// we just cache pointer + count until next Attrib_Set overrides).
 		const CRC_Light* m_pRCLights = 0;
@@ -1358,6 +1405,12 @@ public:
 				m_UNumLightsLoc    = m_UIShader.UniformLocation("uNumLights");
 				m_ULightPosLoc     = m_UIShader.UniformLocation("uLightPos[0]");
 				m_ULightColorLoc   = m_UIShader.UniformLocation("uLightColor[0]");
+				m_UTexGenMode0Loc  = m_UIShader.UniformLocation("uTexGenMode0");
+				m_UTexGenMode1Loc  = m_UIShader.UniformLocation("uTexGenMode1");
+				m_UTexGenU0Loc     = m_UIShader.UniformLocation("uTexGenU0");
+				m_UTexGenV0Loc     = m_UIShader.UniformLocation("uTexGenV0");
+				m_UTexGenU1Loc     = m_UIShader.UniformLocation("uTexGenU1");
+				m_UTexGenV1Loc     = m_UIShader.UniformLocation("uTexGenV1");
 			}
 
 			// Minimal 3D program (world geometry). NOTE: previously this
@@ -1373,6 +1426,9 @@ public:
 				m_3DUDbgModeLoc = m_3DShader.UniformLocation("uDbgMode");
 				m_3DUNoLightLoc = m_3DShader.UniformLocation("uNoLight");
 				m_3DUAmbientFloorLoc = m_3DShader.UniformLocation("uAmbientFloor");
+				m_3DUTexGenMode0Loc = m_3DShader.UniformLocation("uTexGenMode0");
+				m_3DUTexGenU0Loc    = m_3DShader.UniformLocation("uTexGenU0");
+				m_3DUTexGenV0Loc    = m_3DShader.UniformLocation("uTexGenV0");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -2399,6 +2455,96 @@ public:
 			}
 		}
 
+		// --- TexGen ---------------------------------------------------
+		// One-shot-per-mode diagnostic: which CRC_TEXGENMODE_* values the
+		// engine actually asks for on which channel, so unimplemented
+		// modes (LIGHTING, TSLV, REFLECTION, env maps, ...) can be
+		// prioritised next. [channel][mode]; mode values are small (see
+		// CRC_TEXGENMODE_* enum in MRender_Classes.h, currently <32).
+		bool m_TexGenModeLogged[CRC_MAXTEXCOORDS][32] = {};
+		void DbgNoteTexGenMode(int _Mode, int _Channel)
+		{
+			if (!m_DbgEnabled) return;
+			if (_Channel < 0 || _Channel >= CRC_MAXTEXCOORDS) return;
+			if (_Mode < 0 || _Mode >= 32) return;
+			if (m_TexGenModeLogged[_Channel][_Mode]) return;
+			m_TexGenModeLogged[_Channel][_Mode] = true;
+			fprintf(stderr, "[GLES3-TEXGEN] unsupported mode=%d on channel %d\n", _Mode, _Channel);
+			fflush(stderr);
+		}
+
+		// Decode CRC_Attributes::m_lTexGenMode/m_TexGenComp/m_pTexGenAttr
+		// into vertex-shader uniforms for texture channels 0 and 1 (the
+		// only channels either shader samples). Walks ALL CRC_MAXTEXCOORDS
+		// channels in order to keep the m_pTexGenAttr offset correct for
+		// every channel, exactly like the engine's own decoder
+		// (Classes/Render/MRenderVPGen.h, SetRegisters_TexGenMatrix) --
+		// channels we don't implement still have to be skipped over by
+		// their correct size, or every later channel reads garbage.
+		//
+		// Supported: CRC_TEXGENMODE_TEXCOORD (0 -- current behaviour, UV
+		// from the vertex register) and CRC_TEXGENMODE_LINEAR (1 -- UV is
+		// a linear function of the modelspace vertex position: this is
+		// what BSP2's depth-fog pass uses to turn view depth into a ramp-
+		// texture lookup, see WBSP2Model.cpp / Docs/Render_Strategy.md
+		// §1). Anything else falls back to TEXCOORD and gets logged once.
+		void PushTexGenUniforms(bool _bUI)
+		{
+			int Mode0 = 0, Mode1 = 0;
+			float U0[4] = {0,0,0,0}, V0[4] = {0,0,0,0};
+			float U1[4] = {0,0,0,0}, V1[4] = {0,0,0,0};
+
+			if (!GLES3_NoTexGen() && m_pCurAttrib && m_pCurAttrib->m_pTexGenAttr)
+			{
+				const fp32* pAttr = m_pCurAttrib->m_pTexGenAttr;
+				for (int iTxt = 0; iTxt < CRC_MAXTEXCOORDS; ++iTxt)
+				{
+					const int RawMode = m_pCurAttrib->m_lTexGenMode[iTxt];
+					const int Comp    = m_pCurAttrib->GetTexGenComp(iTxt);
+
+					if (RawMode == CRC_TEXGENMODE_LINEAR)
+					{
+						// U, V, W, Q order, one vec4 per SET bit; unset
+						// bits contribute neither data nor pointer
+						// advance (W/Q are read past but not used -- we
+						// don't do projective/3rd-coordinate texgen yet).
+						float U[4] = {0,0,0,0}, V[4] = {0,0,0,0};
+						const fp32* p = pAttr;
+						if (Comp & CRC_TEXGENCOMP_U) { U[0]=p[0]; U[1]=p[1]; U[2]=p[2]; U[3]=p[3]; p += 4; }
+						if (Comp & CRC_TEXGENCOMP_V) { V[0]=p[0]; V[1]=p[1]; V[2]=p[2]; V[3]=p[3]; p += 4; }
+						if (iTxt == 0) { Mode0 = 1; memcpy(U0, U, sizeof(U)); memcpy(V0, V, sizeof(V)); }
+						else if (iTxt == 1) { Mode1 = 1; memcpy(U1, U, sizeof(U)); memcpy(V1, V, sizeof(V)); }
+					}
+					else if (RawMode != CRC_TEXGENMODE_TEXCOORD)
+					{
+						DbgNoteTexGenMode(RawMode, iTxt);
+					}
+
+					// Skip past this channel's attrib block regardless of
+					// whether we decoded it -- offsets must stay correct
+					// for channels after this one.
+					pAttr += CRC_Attributes::GetTexGenModeAttribSize(RawMode, Comp);
+				}
+			}
+
+			CGLES3Shader& Sh    = _bUI ? m_UIShader        : m_3DShader;
+			const int LocMode0  = _bUI ? m_UTexGenMode0Loc : m_3DUTexGenMode0Loc;
+			const int LocU0     = _bUI ? m_UTexGenU0Loc    : m_3DUTexGenU0Loc;
+			const int LocV0     = _bUI ? m_UTexGenV0Loc    : m_3DUTexGenV0Loc;
+			Sh.SetInt(LocMode0, Mode0);
+			Sh.SetVec4(LocU0, U0[0], U0[1], U0[2], U0[3]);
+			Sh.SetVec4(LocV0, V0[0], V0[1], V0[2], V0[3]);
+
+			// Channel 1 only exists on the UI program (second UV channel
+			// for lightmap-style modulation); the 3D shader has no vUV1.
+			if (_bUI)
+			{
+				m_UIShader.SetInt(m_UTexGenMode1Loc, Mode1);
+				m_UIShader.SetVec4(m_UTexGenU1Loc, U1[0], U1[1], U1[2], U1[3]);
+				m_UIShader.SetVec4(m_UTexGenV1Loc, V1[0], V1[1], V1[2], V1[3]);
+			}
+		}
+
 		// Shared matrix tests used by IsUI2DDraw + the classify log.
 		bool IsModelIdentity() const
 		{
@@ -2518,6 +2664,8 @@ public:
 			Sh.SetMat4(LocMVP, (const float*)&MVP);
 			Sh.SetMat4(LocModel, (const float*)&m_ModelMat);
 			Sh.SetMat4(LocTexM,  (const float*)&m_TexMat[0]);
+
+			PushTexGenUniforms(bUI);
 
 			// --- UI-program-only features (lights, alpha test, fog, UV1).
 			// The 3D shader has none of these uniforms by design.
