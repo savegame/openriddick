@@ -432,6 +432,44 @@ static bool GLES3_NoTexGen()
 	return s != 0;
 }
 
+// RIDDICK_FP20=<n> -- EXPERIMENTAL/DBG. Wakes up CXR_Shader's shader-mode
+// queue, which is otherwise dead: CXR_Shader::PrepareFrame (XRShader.cpp:
+// 1258-1305) only sets bits in ModesAvail for FRAGMENTPROGRAM20 if the caps
+// flag is set AND both multitexture counts are >= 8; with the "honest" caps
+// this backend advertises by default (2 units, no FP20 flag) ModesAvail
+// stays 0, BitScanBwd32(0) == -1, m_ShaderMode == -1, and every
+// switch(m_ShaderMode) in RenderShading* is a no-op. Does NOT draw anything
+// new by itself -- see CRC_GLES3::Create (caps) and DbgLogFP20 (logging).
+// Any non-empty value other than "0" enables it; see GLES3_FP20ModeOverride
+// for what the value itself selects. Default (unset) behaviour is
+// byte-for-byte unchanged.
+static bool GLES3_FP20Enabled()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_FP20");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// Raw numeric value of RIDDICK_FP20 (0 if unset, disabled, or non-numeric).
+// A value >1 overrides the forward-FP20 default mode (XR_SHADERMODE_
+// FRAGMENTPROGRAM20 = 5) with that literal XR_SHADERMODE_* number, so other
+// modes can be probed without a rebuild; RIDDICK_FP20=1 keeps the default.
+static int GLES3_FP20ModeOverride()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_FP20");
+		s = (e && *e) ? atoi(e) : 0;
+		if (s < 0) s = 0;
+	}
+	return s;
+}
+
 class CDisplayContextSDL2 : public CDisplayContext
 {
 protected:
@@ -1162,6 +1200,16 @@ public:
 		int m_DbgTotalVerts, m_DbgTotalIdx;
 		int m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes;
 		int m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail;
+		// RIDDICK_FP20 diagnostic: draws seen this interval whose current
+		// attrib carries an FP20 ext-attrib (CRC_ATTRIBTYPE_FP20). See
+		// DbgLogFP20. Reset with the other per-interval counters.
+		int m_DbgFPDraws;
+		// Session-lifetime (NOT per-interval) "already logged" cache of
+		// distinct FP20 program hashes, so DbgLogFP20 prints each unique
+		// program once regardless of how many frames it draws in.
+		enum { DBG_FP_HASHCACHE = 64 };
+		uint32 m_DbgFPHashSeen[DBG_FP_HASHCACHE];
+		int m_DbgFPHashCount;
 
 		static int DbgEnvFlag(const char* _Name)
 		{
@@ -1213,12 +1261,15 @@ public:
 			// slots > 0 (multitexture).
 			m_DbgTexDumpsLeft = m_DbgEnabled ? 30 : 0;
 			m_DbgFrames = 0;
+			// Session-lifetime, not per-interval -- see field comment.
+			m_DbgFPHashCount = 0;
 			DbgResetCounters();
 		}
 		void DbgResetCounters()
 		{
 			m_DbgDrawTri = m_DbgDrawStrip = m_DbgDrawWire = m_DbgDrawPoly = m_DbgDrawPrim = 0;
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
+			m_DbgFPDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -1305,13 +1356,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -1321,6 +1372,59 @@ public:
 			fflush(stderr);
 			m_DbgFrames = 0;
 			DbgResetCounters();
+		}
+
+		// RIDDICK_DBG_GL diagnostic for the RIDDICK_FP20 experiment: logs
+		// each distinct FP20 fragment program the engine requests, exactly
+		// once per m_ProgramNameHash (session lifetime, see m_DbgFPHashSeen).
+		// Purely observational -- no FP20 program is compiled or executed by
+		// this backend; the current draw still goes through m_UIShader/
+		// m_3DShader same as always. Called from SetupCommonUniforms.
+		void DbgLogFP20(const CRC_ExtAttributes_FragmentProgram20* _pFP)
+		{
+			if (!_pFP) return;
+			const uint32 Hash = _pFP->m_ProgramNameHash;
+			for (int i = 0; i < m_DbgFPHashCount; ++i)
+				if (m_DbgFPHashSeen[i] == Hash) return; // already logged once
+			if (m_DbgFPHashCount < DBG_FP_HASHCACHE)
+				m_DbgFPHashSeen[m_DbgFPHashCount++] = Hash;
+			// Cache full: keep logging anyway (duplicate lines are cheaper
+			// than silently dropping later distinct programs).
+
+			int Tex[8], TexGen[8];
+			for (int i = 0; i < 8; ++i)
+			{
+				Tex[i]    = m_pCurAttrib ? (int)m_pCurAttrib->m_TextureID[i]   : 0;
+				TexGen[i] = m_pCurAttrib ? (int)m_pCurAttrib->m_lTexGenMode[i] : 0;
+			}
+			const uint32 Flags = m_pCurAttrib ? m_pCurAttrib->m_Flags : 0;
+			int Src = 0, Dst = 0;
+			if (m_pCurAttrib)
+			{
+				// Same unpacking as ApplyAttribs' blend handling above
+				// (little-endian MAKE_SOURCEDEST_BLEND: low byte = src).
+				const uint16 SD = m_pCurAttrib->m_SourceDestBlend;
+				Src = SD & 0xff;
+				Dst = (SD >> 8) & 0xff;
+			}
+			fprintf(stderr,
+				"[GLES3-FP] prog='%s' hash=0x%08x nParams=%d "
+				"tex=[%d %d %d %d %d %d %d %d] texgen=[%d %d %d %d %d %d %d %d] "
+				"flags=0x%08x blend=%d/%d\n",
+				_pFP->m_pProgramName ? _pFP->m_pProgramName : "?",
+				Hash, _pFP->m_nParams,
+				Tex[0], Tex[1], Tex[2], Tex[3], Tex[4], Tex[5], Tex[6], Tex[7],
+				TexGen[0], TexGen[1], TexGen[2], TexGen[3], TexGen[4], TexGen[5], TexGen[6], TexGen[7],
+				Flags, Src, Dst);
+			int nP = _pFP->m_nParams;
+			if (nP > 4) nP = 4;
+			for (int p = 0; p < nP; ++p)
+			{
+				const CVec4Dfp32& V = _pFP->m_pParams[p];
+				fprintf(stderr, "[GLES3-FP]   param[%d] = %f %f %f %f\n",
+					p, V.k[0], V.k[1], V.k[2], V.k[3]);
+			}
+			fflush(stderr);
 		}
 
 		CRC_GLES3()
@@ -1623,6 +1727,64 @@ public:
 			m_Caps_nMultiTexture = 2;
 			m_Caps_nMultiTextureCoords = 2;
 			m_Caps_nMultiTextureEnv = 2;
+
+			// RIDDICK_FP20 (EXPERIMENTAL/DBG, default off -- see
+			// GLES3_FP20Enabled() above for the full rationale): opt in to
+			// CRC_CAPS_FLAGS_FRAGMENTPROGRAM20 + 8 texture units/coords so
+			// CXR_Shader::PrepareFrame's ModesAvail becomes non-zero and the
+			// shader-mode queue starts running. CRC_MAXTEXTURES/CRC_MAXTEX-
+			// COORDS on Linux are 16/8 (MRender_Classes_VPUShared.h:17-28),
+			// so the arrays comfortably hold 8.
+			if (GLES3_FP20Enabled())
+			{
+				m_Caps_Flags |= CRC_CAPS_FLAGS_FRAGMENTPROGRAM20;
+				m_Caps_nMultiTexture = 8;
+				m_Caps_nMultiTextureCoords = 8;
+				// m_Caps_nMultiTextureEnv deliberately left at 2, not raised
+				// to CRC_MAXTEXTUREENV(4): it governs the fixed-function
+				// texenv-combiner path, and this backend's UI shader still
+				// only implements 2 combine stages (uTex/uTex1). Claiming 4
+				// here would tell the engine it can rely on stages we don't
+				// execute -- same reasoning as the honest-caps comment above.
+				// Deliberately NOT adding CRC_CAPS_FLAGS_MRT / FRAGMENTPROGRAM30
+				// / COPYDEPTH: those would additionally unlock
+				// XR_SHADERMODE_FRAGMENTPROGRAM20DEFMRT and _20SS in
+				// ModesAvail (XRShader.cpp:1271-1278) -- deferred paths that
+				// need an MRT G-buffer and FP20SS programs we don't have.
+
+				// Pin the shader mode instead of leaving XR_SHADERMODE_AUTO:
+				// with the FP20 cap on, ModesAvail now has both
+				// XR_SHADERMODE_FRAGMENTPROGRAM20 (forward -- what the log
+				// below can observe) and the derived deferred bit
+				// XR_SHADERMODE_FRAGMENTPROGRAM20DEFMM (XRShader.cpp:
+				// 1283-1284); AUTO's BitScanBwd32() picks the HIGHEST set
+				// bit, i.e. the deferred mode, which needs a G-buffer this
+				// backend does not build. PrepareFrame re-reads this every
+				// frame via GetValuei("XR_SHADERMODE", ...), so writing it
+				// once here at Create() time is enough.
+				//
+				// NOT SURE / please double-check: MACRO_GetSystemEnvironment
+				// (MSystem.h:240-246) is used here as the NULL-safe wrapper
+				// around CSystem lookup + GetEnvironment(); it already
+				// no-ops (leaves pEnv == NULL) if "SYSTEM" isn't registered
+				// yet at this point in bring-up. If Create() genuinely runs
+				// before the system object is registered, this silently
+				// skips pinning the mode and the engine stays on AUTO
+				// (deferred) instead -- verify against a real run with
+				// RIDDICK_FP20=1 if that matters.
+				MACRO_GetSystemEnvironment(pEnv);
+				if (pEnv)
+				{
+					// XR_SHADERMODE_FRAGMENTPROGRAM20 = 5 (enum in
+					// XRShader.h:111-121). Deliberately not #including
+					// XRShader.h from this display-context TU just for one
+					// constant; mirrored locally instead.
+					static const int kXRShaderMode_FP20Forward = 5;
+					const int OverrideMode = GLES3_FP20ModeOverride();
+					pEnv->SetValuei("XR_SHADERMODE",
+						(OverrideMode > 1) ? OverrideMode : kXRShaderMode_FP20Forward);
+				}
+			}
 
 			// Register with the texture/VB contexts (the PS3 backend does
 			// this in its Create; CRC_Core::Create does not) so they can
@@ -2037,9 +2199,35 @@ public:
 		// The engine calls Viewport_Set separately too, but Base_CRC's
 		// stub does nothing; we just do it here so state is coherent
 		// before draw calls start.
+		// RIDDICK_FP20: pin XR_SHADERMODE to the forward FP20 mode. Create()
+		// already tries this, but "SYSTEM" may not be registered in the
+		// object manager that early -- and silently staying on AUTO would
+		// put the engine on the deferred path (needs an MRT G-buffer we
+		// don't build), which is exactly the failure this flag must avoid.
+		// Retry once per frame until it takes; PrepareFrame re-reads the
+		// value every frame anyway, so a late pin still works.
+		void PinShaderModeIfNeeded()
+		{
+			if (m_bShaderModePinned || !GLES3_FP20Enabled()) return;
+			MACRO_GetSystemEnvironment(pEnv);
+			if (!pEnv) return;
+			static const int kXRShaderMode_FP20Forward = 5; // XRShader.h:111-121
+			const int OverrideMode = GLES3_FP20ModeOverride();
+			const int Mode = (OverrideMode > 1) ? OverrideMode : kXRShaderMode_FP20Forward;
+			pEnv->SetValuei("XR_SHADERMODE", Mode);
+			m_bShaderModePinned = true;
+			if (m_DbgEnabled)
+			{
+				fprintf(stderr, "[GLES3-FP] XR_SHADERMODE pinned to %d\n", Mode);
+				fflush(stderr);
+			}
+		}
+		bool m_bShaderModePinned = false;
+
 		void BeginScene(CRC_Viewport* _pVP)
 		{
 			++m_DbgBeginScenes;
+			PinShaderModeIfNeeded();
 			// Make sure "the backbuffer" means the screen FBO even if
 			// the engine never called SetRenderTarget this frame (the
 			// composite pass leaves fb0 bound only transiently).
@@ -2616,6 +2804,24 @@ public:
 
 		void SetupCommonUniforms(bool _bAllowFog)
 		{
+			// RIDDICK_FP20 diagnostic (RIDDICK_DBG_GL=1): the engine only
+			// ever attaches an FP20 ext-attrib once RIDDICK_FP20 has pulled
+			// XR_SHADERMODE off AUTO (see CRC_GLES3::Create), so this is a
+			// no-op with default settings. m_pExtAttrib is the base
+			// CRC_ExtAttributes*; CRC_ATTRIBTYPE_FP20 identifies the real
+			// type as CRC_ExtAttributes_FragmentProgram20 (MRender_Classes.h
+			// :675-745). We only log and count here -- the draw itself
+			// still goes through m_UIShader/m_3DShader unchanged (no FP20
+			// program is compiled or executed).
+			if (m_pCurAttrib && m_pCurAttrib->m_pExtAttrib &&
+			    m_pCurAttrib->m_pExtAttrib->m_AttribType == CRC_ATTRIBTYPE_FP20)
+			{
+				++m_DbgFPDraws;
+				if (m_DbgEnabled)
+					DbgLogFP20(static_cast<const CRC_ExtAttributes_FragmentProgram20*>(
+						m_pCurAttrib->m_pExtAttrib));
+			}
+
 			// Pick the program for this draw: UI/2D keeps the full
 			// m_UIShader (lights/fog/alpha test/second UV channel), world
 			// geometry goes through the minimal m_3DShader. Fall back to

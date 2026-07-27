@@ -20,6 +20,52 @@
   счётчики draws/verts/upload'ов раз в 60 кадров. Полезно для профайла.
   → удалять когда рендер стабилен.
 
+- **DBG/ЭКСПЕРИМЕНТАЛЬНЫЙ** `RIDDICK_FP20=<n>` (`GLES3_FP20Enabled` /
+  `GLES3_FP20ModeOverride`, `MDisplaySDL2.cpp:~435-471`; caps в
+  `CRC_GLES3::Create`, `~1731-1787`; лог в `SetupCommonUniforms` +
+  `DbgLogFP20`, `~1377-1428`, `~2779-2796`) — оживляет шейдерную очередь
+  движка (`CXR_Shader::PrepareFrame`, `XRShader.cpp:1258-1305`), которая
+  сейчас мертва: без флага `ModesAvail == 0` (нет `CRC_CAPS_FLAGS_
+  FRAGMENTPROGRAM20` и texture units < 8) → `m_ShaderMode == -1` → все
+  `switch(m_ShaderMode)` в `RenderShading*` — no-op.
+
+  Что делает флаг:
+  1. Добавляет `CRC_CAPS_FLAGS_FRAGMENTPROGRAM20` к `m_Caps_Flags`,
+     поднимает `m_Caps_nMultiTexture`/`m_Caps_nMultiTextureCoords` до 8
+     (НЕ добавляет `MRT`/`FRAGMENTPROGRAM30`/`COPYDEPTH` — иначе движок
+     полез бы в deferred-режимы с MRT G-буфером, которого у нас нет).
+  2. Пишет `XR_SHADERMODE` в реестр окружения движка
+     (`pSys->GetEnvironment()->SetValuei`), форсируя forward-режим
+     `XR_SHADERMODE_FRAGMENTPROGRAM20` (=5, локальная константа
+     `kXRShaderMode_FP20Forward` — enum не импортирован из `XRShader.h`
+     в этот TU намеренно). Без этого AUTO-выбор взял бы старший бит
+     `ModesAvail` и попал бы в `FRAGMENTPROGRAM20DEFMM` (deferred).
+     `RIDDICK_FP20=1` → режим 5; `RIDDICK_FP20=<N>`, N>1 → кладёт N как
+     есть (проба других `XR_SHADERMODE_*` без пересборки).
+  3. При `RIDDICK_DBG_GL=1` логирует `[GLES3-FP] prog=... hash=... tex=[...]
+     texgen=[...] flags=... blend=.../...` один раз на уникальный
+     `m_ProgramNameHash` (кэш 64 записи) плюс первые 4 вектора параметров
+     программы (`CRC_ExtAttributes_FragmentProgram20::m_pParams`) —
+     собирает факты о том, что движок реально просит. Счётчик
+     `m_DbgFPDraws` (draws с FP20 ext-attrib за интервал) добавлен в
+     строку `[GL-DBG]` (`fp20=N`).
+
+  **НИЧЕГО не рисуется по-новому** — сами FP20-программы не
+  реализованы, draw идёт как раньше через `m_UIShader`/`m_3DShader`.
+
+  **Побочный эффект, ожидаемый и важный**: как только `m_ShaderMode`
+  перестаёт быть `-1`, автоматически **отключается** HACK-fallback
+  `bNoShaderPipeline` в `WBSP2Model.cpp` (`~1973`, см. запись выше про
+  BSP2) — тот, что сейчас подставляет диффуз-текстуру и включает
+  color-write в Z-препассе взамен отсутствующего shading pipeline.
+  С `RIDDICK_FP20` мировая геометрия временно станет **ещё темнее/более
+  untextured**, чем сейчас — это ожидаемо на данном шаге (собираем
+  список FP20-программ, не чиним рендер).
+
+  По умолчанию (без `RIDDICK_FP20`) поведение не меняется байт-в-байт.
+  → удалять/заменять реальной реализацией FP20 когда дойдём до
+  соответствующей фазы (Phase B, см. "Игнорируемый light-pass" ниже).
+
 - **HACK** BSP2 fallback (`WBSP2Model.cpp:~2340`): если
   `pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]` пуст, скан по остальным
   слотам (NORMAL/SPECULAR/HEIGHT/...) — берём первый ненулевой в Tex0.
