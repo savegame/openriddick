@@ -5,7 +5,7 @@
 #include "GLES3_VBOStreamer.h"
 
 CGLES3VBOStreamer::CGLES3VBOStreamer()
-	: m_VBO(0), m_IBO(0), m_VBOSize(0), m_IBOSize(0), m_VBOHead(0), m_IBOHead(0)
+	: m_VBO(0), m_IBO(0), m_VBOSize(0), m_IBOSize(0), m_VBOHead(0), m_IBOHead(0), m_VBGen(0)
 {
 }
 
@@ -20,6 +20,7 @@ void CGLES3VBOStreamer::Destroy()
 	if (m_IBO) { glDeleteBuffers(1, &m_IBO); m_IBO = 0; }
 	m_VBOSize = m_IBOSize = 0;
 	m_VBOHead = m_IBOHead = 0;
+	++m_VBGen;
 }
 
 bool CGLES3VBOStreamer::Create(int _VBOBytes, int _IBOBytes)
@@ -50,9 +51,13 @@ CGLES3VBOStreamer::SPushResult CGLES3VBOStreamer::PushVertices(const void* _pByt
 	glBindBuffer(GL_ARRAY_BUFFER, m_VBO);
 	if (m_VBOHead + _Size > m_VBOSize)
 	{
-		// Orphan and rewind.
+		// Orphan and rewind. Everything previously pushed into this ring
+		// is gone from here on, so bump the generation: callers that
+		// remember a (Buffer, ByteOffset) pair from an earlier push (see
+		// the m_Geom memo in MDisplaySDL2.cpp) must re-push after this.
 		glBufferData(GL_ARRAY_BUFFER, m_VBOSize, 0, GL_STREAM_DRAW);
 		m_VBOHead = 0;
+		++m_VBGen;
 	}
 	glBufferSubData(GL_ARRAY_BUFFER, m_VBOHead, _Size, _pBytes);
 	R.Ok         = true;

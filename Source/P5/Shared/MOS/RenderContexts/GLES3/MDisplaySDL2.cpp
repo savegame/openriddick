@@ -998,6 +998,41 @@ public:
 		CGLES3GeometryCache m_GeomCache;
 		int m_DbgDrawCached = 0;   // draws served from m_GeomCache this interval
 		int m_DbgDrawStreamed = 0; // draws that fell back to the old per-frame path
+		long long m_DbgVConv = 0;  // vertices actually converted this interval
+		long long m_DbgVMemo = 0;  // vertices whose conversion was skipped (cache/memo hit)
+
+		// Memo for the CPU-array geometry path (m_Geom): the engine sets
+		// one vertex array and then issues MANY draws against it (a whole
+		// primitive stream per BSP2 cluster). Without this, every single
+		// primitive re-converted the entire cluster -- measured at ~3M
+		// vertex conversions per frame for ~81k indices actually drawn.
+		// A memo entry says "this exact geometry is already sitting in the
+		// streaming VBO at this offset". It is invalidated by (a) any
+		// Geometry_VertexBuffer/Geometry_Clear call from the engine --
+		// authoritative, since the VBM scratch heap can hand out the same
+		// address for different content, (b) the streaming ring wrapping
+		// (generation counter), (c) a change in the per-draw inputs that
+		// affect conversion output (UV sets, fullbright whitening).
+		struct SGeomMemo
+		{
+			bool        m_bValid = false;
+			const void* m_pV = 0;
+			const void* m_pTV0 = 0;
+			const void* m_pTV1 = 0;
+			const void* m_pCol = 0;
+			const void* m_pN = 0;
+			int         m_nV = 0;
+			int         m_UVSet0 = 0, m_UVSet1 = 1;
+			bool        m_bWhite = false;
+			GLuint      m_Buffer = 0;
+			int         m_ByteOffset = 0;
+			int         m_Gen = -1;
+		};
+		SGeomMemo m_GeomMemo;
+		// Scratch for flattening a whole primitive stream into one
+		// triangle list (Render_IndexedPrimitives) -- a class member so
+		// it is allocated once, not per draw.
+		TArray<uint16> m_lFlatIdx;
 		GLuint            m_VAO;
 		bool              m_bGLInited;
 		int               m_UMVPLoc;
@@ -1139,6 +1174,7 @@ public:
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
+			m_DbgVConv = m_DbgVMemo = 0;
 			m_DbgTotalVerts = m_DbgTotalIdx = 0;
 			m_DbgAttribSets = m_DbgMatrixSets = m_DbgBeginScenes = 0;
 			m_DbgUploadRGBA = m_DbgUploadDXT1 = m_DbgUploadDXT3 = m_DbgUploadDXT5 = m_DbgUploadFail = 0;
@@ -1224,7 +1260,7 @@ public:
 			fprintf(stderr,
 				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
-				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld} "
+				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
@@ -1233,6 +1269,7 @@ public:
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
 				(long long)m_GeomCache.m_nBytesV, (long long)m_GeomCache.m_nBytesI,
+				m_DbgVConv, m_DbgVMemo,
 				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
 			fflush(stderr);
 			m_DbgFrames = 0;
@@ -2776,85 +2813,96 @@ public:
 				--m_DbgDrawLogArm;
 			}
 
-			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
-			if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
-
-			// RIDDICK_ONLY_BSP=1: whitelist only BSP2 world-cluster draws.
-			// World clusters are large (nV>=500); UI/particles/tiny meshes
-			// are small. This is a positive filter — one flag instead of
-			// combining multiple SKIP_* flags.
-			static int sOnlyBSP = -1;
-			if (sOnlyBSP < 0)
+			// ---- Fast path A: geometry already resident on the GPU ----
+			// The in-game world path is Geometry_VertexBuffer(VBID) followed
+			// by a stream of Render_Indexed* calls. Previously every one of
+			// those re-fetched and re-converted the WHOLE cluster
+			// (BuildInterleavedVerts -> VB_Get + malloc + scalar VRegFetch),
+			// measured at ~3M vertex conversions/frame for ~81k drawn
+			// indices. With the VBID cached in a static VBO we only have to
+			// stream this draw's indices.
+			if (!GLES3_NoVBCache() && m_GeomVBID != 0 && !GLES3_TestTri())
 			{
-				const char* e = getenv("RIDDICK_ONLY_BSP");
-				sOnlyBSP = (e && *e && *e != '0') ? 1 : 0;
+				if (const SGLES3GeomEntry* pE = m_GeomCache.Ensure((int)m_GeomVBID))
+				{
+					if (pE->m_VBO && pE->m_nV > 0)
+					{
+						if (DrawIndexed_ShouldSkip(pE->m_nV)) return;
+						glBindVertexArray(m_VAO);
+						CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices(_pInd, _nInd * (int)sizeof(uint16));
+						if (iRes.Ok)
+						{
+							glBindBuffer(GL_ARRAY_BUFFER, pE->m_VBO);
+							SetVertexAttribPointersFromEntry(*pE);
+							SetupCommonUniforms(true);
+							m_DbgTotalVerts += pE->m_nV;
+							m_DbgTotalIdx   += _nInd;
+							m_DbgVMemo      += pE->m_nV;
+							glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
+							const GLenum CachedPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
+							glDrawElements(CachedPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+							DisableVertexAttribPointers();
+							glBindVertexArray(0);
+							++m_DbgDrawCached;
+							return;
+						}
+						glBindVertexArray(0);
+					}
+				}
 			}
-			if (sOnlyBSP && nVerts < 100)
+
+			// ---- Fast path B: same CPU geometry as the previous draw ----
+			// Key = the per-draw inputs that change what BuildInterleavedVerts
+			// produces. The "did the engine hand us new geometry" question is
+			// answered authoritatively by the Geometry_* overrides above,
+			// which clear m_GeomMemo.m_bValid; the pointer/count comparison
+			// here is a second line of defence.
+			int MemoUVSet0 = 0, MemoUVSet1 = 1;
+			if (m_pCurAttrib)
+			{
+				MemoUVSet0 = m_pCurAttrib->m_iTexCoordSet[0];
+				MemoUVSet1 = m_pCurAttrib->m_iTexCoordSet[1];
+				if (MemoUVSet0 >= CRC_MAXTEXCOORDS) MemoUVSet0 = 0;
+				if (MemoUVSet1 >= CRC_MAXTEXCOORDS) MemoUVSet1 = 1;
+			}
+			const bool bMemoWhite = GLES3_NoLight() && !ClassifyUI();
+			// RIDDICK_NO_VBCACHE=1 turns off BOTH fast paths, so the flag
+			// is a single clean A/B switch back to "convert everything,
+			// every draw, every frame".
+			const bool bMemoUsable = (m_GeomVBID == 0) && !GLES3_TestTri() && !GLES3_NoVBCache();
+			bool bMemoHit = false;
+			CGLES3VBOStreamer::SPushResult vRes; vRes.Ok = false; vRes.Buffer = 0; vRes.ByteOffset = 0;
+
+			SUIVert* pVerts = 0; int nVerts = 0; bool bMalloced = false;
+			if (bMemoUsable && m_GeomMemo.m_bValid &&
+			    m_GeomMemo.m_Gen      == m_Streamer.GetVBGeneration() &&
+			    m_GeomMemo.m_pV       == (const void*)m_Geom.m_pV &&
+			    m_GeomMemo.m_nV       == (int)m_Geom.m_nV &&
+			    m_GeomMemo.m_pTV0     == (const void*)m_Geom.m_pTV[MemoUVSet0] &&
+			    m_GeomMemo.m_pTV1     == (const void*)m_Geom.m_pTV[MemoUVSet1] &&
+			    m_GeomMemo.m_pCol     == (const void*)m_Geom.m_pCol &&
+			    m_GeomMemo.m_pN       == (const void*)m_Geom.m_pN &&
+			    m_GeomMemo.m_UVSet0   == MemoUVSet0 &&
+			    m_GeomMemo.m_UVSet1   == MemoUVSet1 &&
+			    m_GeomMemo.m_bWhite   == bMemoWhite)
+			{
+				bMemoHit   = true;
+				nVerts     = m_GeomMemo.m_nV;
+				vRes.Ok    = true;
+				vRes.Buffer     = m_GeomMemo.m_Buffer;
+				vRes.ByteOffset = m_GeomMemo.m_ByteOffset;
+				m_DbgVMemo += nVerts;
+			}
+			else
+			{
+				if (!BuildInterleavedVerts(pVerts, nVerts, bMalloced)) return;
+				m_DbgVConv += nVerts;
+			}
+
+			if (DrawIndexed_ShouldSkip(nVerts))
 			{
 				FreeScratch(pVerts, nVerts, bMalloced);
 				return;
-			}
-
-			// DIRECT_RENDER effect-skip: drop drawcalls whose Tex0 samples
-			// one of our RTT slots (ResolveScreen, DeferredNormal/Diffuse/
-			// Specular, MotionMap, ShadowMask, Depth*, etc — engine
-			// snapshots backbuffer to these, then re-draws fullscreen with
-			// the snapshot as a texture; XREngine.cpp:3019, 3092, 3862+).
-			// Under DIRECT_RENDER those slots are never populated → sample
-			// returns placeholder = magenta screen. Skip = show raw world.
-			// (Belt-and-braces: the engine-side gates in XREngine.cpp /
-			// WClientMod.cpp already remove the producers of such quads.)
-			if (GLES3_DirectRender() && m_pCurAttrib)
-			{
-				for (int s = 0; s < 4; ++s)
-				{
-					const int Tid = (int)m_pCurAttrib->m_TextureID[s];
-					if (Tid > 0 && Tid < (int)m_lFBO.Len() && m_lFBO[Tid].m_FBO)
-					{
-						FreeScratch(pVerts, nVerts, bMalloced);
-						return;
-					}
-				}
-
-				// DIRECT_RENDER pass filter for 3D. UI (2D model matrix)
-				// bypasses the filter. RIDDICK_DIRECT_PASS:
-				//   both    (default) — no filter, draw everything
-				//   solid   — keep only ColW && ZWrite (base-diffuse
-				//             pass; my WBSP2Model hack enables COLORWRITE
-				//             on the shader-Z base attrib so it becomes
-				//             a full color+depth pass).
-				//   overlay — keep only ColW && !ZWrite (alpha-blend
-				//             detail overlay pass; often carries the
-				//             actual UV/textured decal).
-				//   skipz   — skip ColW=0 (Z/stencil-only prepass).
-				static int sPassMode = -1;   // 0 both, 1 solid, 2 overlay, 3 skipz
-				if (sPassMode < 0)
-				{
-					const char* e = getenv("RIDDICK_DIRECT_PASS");
-					sPassMode = 0;
-					if (e)
-					{
-						if      (strcmp(e, "solid")   == 0) sPassMode = 1;
-						else if (strcmp(e, "overlay") == 0) sPassMode = 2;
-						else if (strcmp(e, "skipz")   == 0) sPassMode = 3;
-					}
-				}
-				const uint32 F = m_pCurAttrib->m_Flags;
-				const bool bIs2D = ClassifyUI();
-				if (!bIs2D && sPassMode != 0)
-				{
-					const bool bColW   = (F & CRC_FLAGS_COLORWRITE) != 0;
-					const bool bZWrite = (F & CRC_FLAGS_ZWRITE)     != 0;
-					bool bSkip = false;
-					if      (sPassMode == 1) bSkip = !(bColW && bZWrite);
-					else if (sPassMode == 2) bSkip = !(bColW && !bZWrite);
-					else if (sPassMode == 3) bSkip = !bColW;
-					if (bSkip)
-					{
-						FreeScratch(pVerts, nVerts, bMalloced);
-						return;
-					}
-				}
 			}
 
 			// One-shot log: Model, Proj, MVP and vertex[0] → NDC for the
@@ -2872,7 +2920,7 @@ public:
 			// Log next 10 non-UI drawcalls (world meshes have non-identity
 			// Model). F9 resets m_MtxLog to 0 to re-arm.
 			(void)sMtxLog;
-			if (m_MtxLog < 10 && nVerts >= 16 && !bModelId && getenv("RIDDICK_DBG_MTX"))
+			if (pVerts && m_MtxLog < 10 && nVerts >= 16 && !bModelId && getenv("RIDDICK_DBG_MTX"))
 			{
 				const float* mm = (const float*)&m_ModelMat;
 				const float* mp = (const float*)&m_ProjMat;
@@ -2938,9 +2986,33 @@ public:
 			}
 
 			glBindVertexArray(m_VAO);
-			CGLES3VBOStreamer::SPushResult vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
+			// On a memo hit vRes already points at the block pushed by an
+			// earlier draw with the same geometry -- skip the re-upload.
+			if (!bMemoHit)
+				vRes = m_Streamer.PushVertices(pVerts, nVerts * (int)sizeof(SUIVert));
 			CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices (_pInd,  _nInd  * (int)sizeof(uint16));
 			if (!vRes.Ok || !iRes.Ok) { FreeScratch(pVerts, nVerts, bMalloced); return; }
+
+			// Remember this upload so the rest of the primitive stream can
+			// reuse it. Not done for the TEST_TRI bisect geometry (which
+			// substitutes its own vertices) -- bMemoUsable already covers
+			// that, as it does the VBID path.
+			if (!bMemoHit && bMemoUsable)
+			{
+				m_GeomMemo.m_bValid     = true;
+				m_GeomMemo.m_pV         = (const void*)m_Geom.m_pV;
+				m_GeomMemo.m_pTV0       = (const void*)m_Geom.m_pTV[MemoUVSet0];
+				m_GeomMemo.m_pTV1       = (const void*)m_Geom.m_pTV[MemoUVSet1];
+				m_GeomMemo.m_pCol       = (const void*)m_Geom.m_pCol;
+				m_GeomMemo.m_pN         = (const void*)m_Geom.m_pN;
+				m_GeomMemo.m_nV         = nVerts;
+				m_GeomMemo.m_UVSet0     = MemoUVSet0;
+				m_GeomMemo.m_UVSet1     = MemoUVSet1;
+				m_GeomMemo.m_bWhite     = bMemoWhite;
+				m_GeomMemo.m_Buffer     = vRes.Buffer;
+				m_GeomMemo.m_ByteOffset = vRes.ByteOffset;
+				m_GeomMemo.m_Gen        = m_Streamer.GetVBGeneration();
+			}
 
 			// Attribs (VBO already bound by PushVertices).
 			glBindBuffer(GL_ARRAY_BUFFER, vRes.Buffer);
@@ -3127,6 +3199,57 @@ public:
 		{
 			++m_DbgDrawPrim;
 			if (!_pPrimStream || _StreamLen <= 0) return;
+
+			// Collapse the whole stream into ONE triangle-list draw when
+			// every primitive in it is triangle-ish. The engine sends one
+			// stream per BSP2 cluster with dozens of primitives in it; the
+			// per-primitive loop below turned each of those into a separate
+			// DrawIndexed (and, before the geometry cache/memo, a separate
+			// full re-conversion of the cluster's vertices). Flattening is
+			// exactly what the PS3 backend does at VB build time --
+			// CContext_Geometry::Build, MRenderPS3_Geometry.cpp.
+			{
+				bool bAllTri = true;
+				CRCPrimStreamIterator Scan(_pPrimStream, _StreamLen);
+				if (!Scan.IsValid()) return;
+				do
+				{
+					const int T = Scan.GetCurrentType();
+					if (T != CRC_RIP_TRIANGLES && T != CRC_RIP_TRISTRIP && T != CRC_RIP_TRIFAN)
+					{
+						bAllTri = false;
+						break;
+					}
+				}
+				while (Scan.Next());
+
+				if (bAllTri)
+				{
+					CRCPrimStreamIterator CountIt(_pPrimStream, _StreamLen);
+					const int nMax = CRC_Core::Geometry_BuildTriangleListFromPrimitivesCount(CountIt);
+					if (nMax <= 0) return;
+					if (m_lFlatIdx.Len() < nMax) m_lFlatIdx.SetLen(nMax);
+
+					CRCPrimStreamIterator It2(_pPrimStream, _StreamLen);
+					int iDst = 0;
+					uint16 lChunk[1024 * 3];
+					while (It2.IsValid())
+					{
+						int nChunk = 1024 * 3;
+						const bool bDone = CRC_Core::Geometry_BuildTriangleListFromPrimitives(It2, lChunk, nChunk);
+						if (nChunk > 0 && iDst + nChunk <= nMax)
+						{
+							memcpy(&m_lFlatIdx[iDst], lChunk, sizeof(uint16) * (size_t)nChunk);
+							iDst += nChunk;
+						}
+						if (bDone) break;
+					}
+					if (iDst > 0)
+						DrawIndexed(GL_TRIANGLES, m_lFlatIdx.GetBasePtr(), iDst);
+					return;
+				}
+			}
+
 			CRCPrimStreamIterator It(_pPrimStream, _StreamLen);
 			if (!It.IsValid()) return;
 			do
@@ -3145,6 +3268,115 @@ public:
 					DrawIndexed(Prim, (uint16*)(pPrim + 1), nInd);
 			}
 			while (It.Next());
+		}
+
+		// Geometry setters: the engine calls one of these, then issues a
+		// batch of Render_Indexed* draws against it. That transition is
+		// the authoritative "the vertex data changed" signal, so it is
+		// where the m_Geom memo dies. Overriding costs nothing (these are
+		// already virtual in CRenderContext) and does NOT change the
+		// vtable layout, so no full-tree rebuild is needed.
+		void Geometry_VertexBuffer(const CRC_VertexBuffer& _VB, int _bAllUsed)
+		{
+			CRC_Core::Geometry_VertexBuffer(_VB, _bAllUsed);
+			m_GeomMemo.m_bValid = false;
+		}
+		void Geometry_VertexBuffer(int _VBID, int _bAllUsed)
+		{
+			CRC_Core::Geometry_VertexBuffer(_VBID, _bAllUsed);
+			m_GeomMemo.m_bValid = false;
+		}
+		void Geometry_Clear()
+		{
+			CRC_Core::Geometry_Clear();
+			m_GeomMemo.m_bValid = false;
+		}
+
+		// Per-draw skip filters that depend only on the attribute state
+		// and the vertex count (not on the CPU vertex data), factored out
+		// of DrawIndexed so the cached/memo fast paths apply exactly the
+		// same rules as the legacy path. Returns true = drop this draw.
+		bool DrawIndexed_ShouldSkip(int _nVerts)
+		{
+			// RIDDICK_ONLY_BSP=1: whitelist only BSP2 world-cluster draws.
+			// World clusters are large (nV>=500); UI/particles/tiny meshes
+			// are small. This is a positive filter — one flag instead of
+			// combining multiple SKIP_* flags.
+			static int sOnlyBSP = -1;
+			if (sOnlyBSP < 0)
+			{
+				const char* e = getenv("RIDDICK_ONLY_BSP");
+				sOnlyBSP = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sOnlyBSP && _nVerts < 100)
+				return true;
+
+			// DIRECT_RENDER effect-skip: drop drawcalls whose Tex0 samples
+			// one of our RTT slots (ResolveScreen, DeferredNormal/Diffuse/
+			// Specular, MotionMap, ShadowMask, Depth*, etc — engine
+			// snapshots backbuffer to these, then re-draws fullscreen with
+			// the snapshot as a texture; XREngine.cpp:3019, 3092, 3862+).
+			// Under DIRECT_RENDER those slots are never populated → sample
+			// returns placeholder = magenta screen. Skip = show raw world.
+			// (Belt-and-braces: the engine-side gates in XREngine.cpp /
+			// WClientMod.cpp already remove the producers of such quads.)
+			if (GLES3_DirectRender() && m_pCurAttrib)
+			{
+				for (int s = 0; s < 4; ++s)
+				{
+					const int Tid = (int)m_pCurAttrib->m_TextureID[s];
+					if (Tid > 0 && Tid < (int)m_lFBO.Len() && m_lFBO[Tid].m_FBO)
+						return true;
+				}
+
+				// DIRECT_RENDER pass filter for 3D. UI (2D model matrix)
+				// bypasses the filter. RIDDICK_DIRECT_PASS:
+				//   both    (default) — no filter, draw everything
+				//   solid   — keep only ColW && ZWrite (base-diffuse
+				//             pass; my WBSP2Model hack enables COLORWRITE
+				//             on the shader-Z base attrib so it becomes
+				//             a full color+depth pass).
+				//   overlay — keep only ColW && !ZWrite (alpha-blend
+				//             detail overlay pass; often carries the
+				//             actual UV/textured decal).
+				//   skipz   — skip ColW=0 (Z/stencil-only prepass).
+				static int sPassMode = -1;   // 0 both, 1 solid, 2 overlay, 3 skipz
+				if (sPassMode < 0)
+				{
+					const char* e = getenv("RIDDICK_DIRECT_PASS");
+					sPassMode = 0;
+					if (e)
+					{
+						if      (strcmp(e, "solid")   == 0) sPassMode = 1;
+						else if (strcmp(e, "overlay") == 0) sPassMode = 2;
+						else if (strcmp(e, "skipz")   == 0) sPassMode = 3;
+					}
+				}
+				const uint32 F = m_pCurAttrib->m_Flags;
+				const bool bIs2D = ClassifyUI();
+				if (!bIs2D && sPassMode != 0)
+				{
+					const bool bColW   = (F & CRC_FLAGS_COLORWRITE) != 0;
+					const bool bZWrite = (F & CRC_FLAGS_ZWRITE)     != 0;
+					if      (sPassMode == 1) return !(bColW && bZWrite);
+					else if (sPassMode == 2) return !(bColW && !bZWrite);
+					else if (sPassMode == 3) return !bColW;
+				}
+			}
+			return false;
+		}
+
+		// RIDDICK_TEST_TRI bisect mode replaces real geometry with a
+		// hardcoded triangle, so both fast paths must stand aside for it.
+		static bool GLES3_TestTri()
+		{
+			static int s = -1;
+			if (s < 0)
+			{
+				const char* e = getenv("RIDDICK_TEST_TRI");
+				s = (e && *e) ? atoi(e) : 0;
+			}
+			return s != 0;
 		}
 
 		// Draw an already-built interleaved vertex array with explicit
