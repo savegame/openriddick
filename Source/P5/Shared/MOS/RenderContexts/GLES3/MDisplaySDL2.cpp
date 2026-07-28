@@ -359,8 +359,12 @@ static const char* kGLES3_LFMFragSrc =
 	// This single uniform scalar (RIDDICK_LFM_SCALE, default 4.0) stands
 	// in for the whole product until that's done.
 	"uniform float uLFMScale;\n"
+	// RIDDICK_DBG_LFM: 0=off, 1=show the lightmap UV (fract as RG),
+	// 2=show the reconstructed baked colour without the diffuse multiply.
+	"uniform int uDbgLFM;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
+	"  if (uDbgLFM == 1) { oColor = vec4(fract(vUVLFM), 0.0, 1.0); return; }\n"
 	"  vec3 n_ts = (uUseNormalMap != 0)\n"
 	"      ? normalize(texture(uNormalTex, vUV).xyz * 2.0 - 1.0)\n"
 	"      : vec3(0.0, 0.0, 1.0);\n"
@@ -377,6 +381,7 @@ static const char* kGLES3_LFMFragSrc =
 	"                + lfm3.rgb * nSat0.b\n"   // +Z
 	"                + lfm4     * nSat0.g;\n"  // +Y
 	"  lfmColor *= uLFMScale;\n"
+	"  if (uDbgLFM == 2) { oColor = vec4(lfmColor, 1.0); return; }\n"
 	"  vec4 diff = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0);\n"
 	"  oColor = vec4(diff.rgb * lfmColor, diff.a);\n"
 	"}\n";
@@ -564,15 +569,55 @@ static int GLES3_FP20ModeOverride()
 // selection even when the engine hands us a LFM ext-attrib draw with all
 // four lightmap textures present. Default (unset) draws with the new
 // program whenever it qualifies.
+// LFM (baked-lightmap) program: OPT-IN, default OFF.
+//
+// The data is real -- BSP2 clusters do carry lightmap atlas pages (the
+// texture names come through as LM0_0..LM0_3, 512x64) and the engine does
+// queue XRShader_FP20_LFM passes for them. But our port has no tangent
+// basis yet, so the shader takes n_ts straight from the normal map, which
+// is sampled with the DIFFUSE uv -- and that tiles (observed v = -7.375 on
+// the first vertex of a wall cluster). The basis weights then vary at the
+// diffuse tiling frequency and the surface turns into high-frequency
+// sparkle instead of smooth baked light (screenshot, 2026-07-27).
+//
+// Riddick lights the world dynamically anyway (see Docs/FP_Reference.md
+// §4a), so this program is not on the critical path: keep the code for
+// other content/engines, keep it out of the way by default. Enable with
+// RIDDICK_LFM=1 once tangents are wired and the basis can be evaluated
+// correctly. RIDDICK_NO_LFM=1 is still honoured as an explicit override
+// for anyone who had it in a script.
 static bool GLES3_NoLFM()
 {
 	static int s = -1;
 	if (s < 0)
 	{
-		const char* e = getenv("RIDDICK_NO_LFM");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		const char* eOff = getenv("RIDDICK_NO_LFM");
+		if (eOff && *eOff && *eOff != '0') { s = 1; return s != 0; }
+		const char* eOn = getenv("RIDDICK_LFM");
+		s = (eOn && *eOn && *eOn != '0') ? 0 : 1;   // default: disabled
 	}
 	return s != 0;
+}
+
+// RIDDICK_DBG_LFM=uv|lm -- debug output of the LFM program (only meaningful
+// together with RIDDICK_LFM=1). 'uv' paints fract(vUVLFM) as RG, which shows
+// whether the lightmap UV set is a sane per-cluster atlas range (smooth
+// gradient) or the tiling diffuse UV (repeating ramps). 'lm' drops the
+// diffuse multiply and shows the reconstructed baked colour alone.
+static int GLES3_DbgLFMMode()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_LFM");
+		s = 0;
+		if (e && *e)
+		{
+			if      (strcmp(e, "uv") == 0) s = 1;
+			else if (strcmp(e, "lm") == 0) s = 2;
+		}
+	}
+	return s;
 }
 
 // RIDDICK_LFM_SCALE=<f> -- brightness multiplier for the baked-lightmap
@@ -1191,6 +1236,7 @@ public:
 		int m_LFMUNormalTexLoc = -1, m_LFMUUseNormalLoc = -1;
 		int m_LFMULFM0Loc = -1, m_LFMULFM1Loc = -1, m_LFMULFM2Loc = -1, m_LFMULFM3Loc = -1;
 		int m_LFMUScaleLoc = -1;
+		int m_LFMUDbgLoc = -1;
 		// One-shot session log (see TrySetupLFMProgram) + per-interval draw
 		// counter (reset alongside the other [GL-DBG] counters, printed as
 		// "lfm=N").
@@ -1687,6 +1733,7 @@ public:
 			m_LFMShader.SetInt(m_LFMULFM3Loc, 5);
 
 			m_LFMShader.SetFloat(m_LFMUScaleLoc, GLES3_LFMScale());
+			m_LFMShader.SetInt(m_LFMUDbgLoc, GLES3_DbgLFMMode());
 
 			// Leave the active texture unit at 0, as convention elsewhere
 			// in this file expects (see e.g. the end of the UI multitexture
@@ -1818,6 +1865,7 @@ public:
 				m_LFMULFM2Loc      = m_LFMShader.UniformLocation("uLFM2");
 				m_LFMULFM3Loc      = m_LFMShader.UniformLocation("uLFM3");
 				m_LFMUScaleLoc     = m_LFMShader.UniformLocation("uLFMScale");
+				m_LFMUDbgLoc       = m_LFMShader.UniformLocation("uDbgLFM");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
