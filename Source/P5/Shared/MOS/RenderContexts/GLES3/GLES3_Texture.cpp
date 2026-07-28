@@ -316,7 +316,21 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 			const char* e = getenv("RIDDICK_NO_MIPMAP");
 			sNoMip = (e && *e && *e != '0') ? 1 : 0;
 		}
-		if (_bGenerateMipmaps && !sNoMip)
+		// 1D lookup tables (the depth-fog ramp is 8x1) must never be
+		// mipmapped or wrapped: a ramp lookup spans the full 0..1 range
+		// across a surface, so the derivative is huge and the sampler
+		// drops to a coarse level -- which for an 8x1 texture averages
+		// the whole ramp into one flat value. That reads as uniform
+		// white-out fog regardless of distance (observed on TheDream,
+		// 2026-07-27). Clamp + no mips is what a LUT wants.
+		const bool bLUT = (W <= 1 || H <= 1);
+		if (bLUT)
+		{
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		}
+		else if (_bGenerateMipmaps && !sNoMip)
 		{
 			glGenerateMipmap(GL_TEXTURE_2D);
 			GLenum err = glGetError();
@@ -337,8 +351,14 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	// — this uncompressed path was inconsistent. Lightmaps and font
 	// atlases don't tile: they'd break under REPEAT if sampled off-edge,
 	// but engine UV for them stays in [0..1] so REPEAT is safe there too.
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+	// ...except 1D LUTs (fog ramp), which were already set to CLAMP above
+	// and must stay clamped -- wrapping a ramp turns "past the far plane"
+	// into "no fog at all".
+	if (!(W <= 1 || H <= 1))
+	{
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+	}
 
 	// Single/dual channel formats: reconstruct the classic GL semantics
 	// via texture swizzle (GLES 3.0 core). Without this a GL_R8 font

@@ -283,6 +283,12 @@ static const char* kGLES3_3DFragSrc =
 	// this behind dynamic lights + a 0.2 floor. 0.2 reproduces the old
 	// floor without any light processing.
 	"uniform float uAmbientFloor;\n"
+	// Alpha test: same CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
+	// as the UI program (see kGLES3_UIFragSrc) -- world geometry needs this
+	// too (fence wire/grate diffuse textures carry cutout alpha and were
+	// rendering as solid black quads without it).
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
 	// Debug modes (own enum, fed from m_Dbg3DShaderMode / RIDDICK_DBG_SHADER):
 	//   0=off -> diffuse texture * vertex colour
 	//   1=uv       (fract(vUV) as RG -- fract so tiled UVs stay readable)
@@ -291,6 +297,12 @@ static const char* kGLES3_3DFragSrc =
 	"uniform int uDbgMode;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
+	// uDbgMode 4 (RIDDICK_DBG_FOGUV=1): paint ONLY the passes that use
+	// CRC_TEXGENMODE_LINEAR -- in practice the depth-fog pass -- with
+	// the generated ramp coordinate as red. Everything else renders
+	// normally, so the fog density is visible in isolation instead of
+	// having to guess it from the composited image.
+	"  if (uDbgMode == 4 && uTexGenMode0 == 1) { oColor = vec4(vUV.x, 0.0, 0.0, 1.0); return; }\n"
 	"  if (uDbgMode == 1) { oColor = vec4(fract(vUV), 0.0, 1.0); return; }\n"
 	"  if (uDbgMode == 2) { vec3 N = normalize(vWorldNrm); oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 3) { oColor = vec4(fract(vWorldPos * 0.01), 1.0); return; }\n"
@@ -300,6 +312,20 @@ static const char* kGLES3_3DFragSrc =
 	"  vec3 bake = max(vCol.rgb, vec3(uAmbientFloor));\n"
 	"  vec4 c = (uNoLight != 0) ? vec4(1.0) : vec4(bake, vCol.a);\n"
 	"  if (uUseTexture != 0) c *= texture(uTex, vUV);\n"
+	// c.a here is the diffuse texture's alpha (vCol.a is normally 1) --
+	// exactly what alpha-cutout geometry needs tested, same as the UI
+	// program's final composited alpha.
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (c.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (c.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (c.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (c.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (c.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (c.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
 	"  oColor = c;\n"
 	"}\n";
 
@@ -370,6 +396,15 @@ static const char* kGLES3_LFMFragSrc =
 	// This single uniform scalar (RIDDICK_LFM_SCALE, default 4.0) stands
 	// in for the whole product until that's done.
 	"uniform float uLFMScale;\n"
+	// Alpha test: same CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
+	// as the UI/3D programs (see kGLES3_UIFragSrc). Tested against the
+	// DIFFUSE texture's alpha (the `diff` local below), not the final
+	// oColor.a -- for this program the two happen to be the same value
+	// (oColor.a is set to diff.a further down), but the diffuse alpha is
+	// the one that actually carries the cutout mask, so that's what's
+	// named in the test for clarity/consistency with the NDS program.
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
 	// RIDDICK_DBG_LFM: 0=off, 1=show the lightmap UV (fract as RG),
 	// 2=show the reconstructed baked colour without the diffuse multiply.
 	"uniform int uDbgLFM;\n"
@@ -401,6 +436,17 @@ static const char* kGLES3_LFMFragSrc =
 	"  lfmColor *= uLFMScale;\n"
 	"  if (uDbgLFM == 2) { oColor = vec4(lfmColor, 1.0); return; }\n"
 	"  vec4 diff = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0);\n"
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (diff.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (diff.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (diff.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (diff.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (diff.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (diff.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
 	"  oColor = vec4(diff.rgb * lfmColor, diff.a);\n"
 	"}\n";
 
@@ -485,14 +531,34 @@ static const char* kGLES3_NDSFragSrc =
 	"uniform vec4 uLightRange;\n"  // {1/R, R, 1/R^2, R^2}
 	"uniform vec4 uLightColor;\n"  // {r,g,b,-} (0..2 HDR-ish range)
 	"uniform vec4 uSpecColor;\n"   // {r,g,b,SpecPower}
+	// Alpha test: same CRC_COMPARE_* code (1=never..8=always, 0=off) + ref
+	// as the UI/3D/LFM programs (see kGLES3_UIFragSrc). This pass never
+	// writes a real alpha (oColor.a is forced to 1.0 below -- see the
+	// comment on that line), so the test MUST read the DIFFUSE texture's
+	// alpha (diffuseTexel.a) directly rather than the output colour's --
+	// otherwise alpha-cutout geometry (e.g. fence wire) would never get
+	// cut and this additive light pass would light up the cutout holes.
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
 	// RIDDICK_DBG_NDS: 0=off, 1=tslv (normalized light vector as RGB),
 	// 2=normal (decoded normal-map normal as RGB), 3=diffuse term only,
-	// 4=specular term only.
+	// 4=specular term only, 5=atten (distance attenuation as greyscale).
 	"uniform int uDbgMode;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
 	"  vec4 diffuseTexel = (uUseTexture   != 0) ? texture(uTex,       vUV) : vec4(1.0);\n"
 	"  vec4 normalTexel  = (uUseNormalMap != 0) ? texture(uNormalTex, vUV) : vec4(0.5, 0.5, 1.0, 1.0);\n"
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (diffuseTexel.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (diffuseTexel.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (diffuseTexel.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (diffuseTexel.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (diffuseTexel.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (diffuseTexel.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
 	// Two-channel (I8A8 / 3DC) normal map: rebuild Z from X,Y.
 	"  if (uNormalTwoCh != 0) {\n"
 	"    vec2 nxy = vec2(normalTexel.r, normalTexel.a) * 2.0 - 1.0;\n"
@@ -506,6 +572,10 @@ static const char* kGLES3_NDSFragSrc =
 	"  float attnLin = clamp(distSq * uLightRange.z, 0.0, 1.0);\n"
 	"  float attn = 1.0 - attnLin;\n"
 	"  attn = attn * attn;\n"
+	// RIDDICK_DBG_NDS=atten: shows this distance term alone (before the
+	// self-shadow multiply below) as greyscale -- lets you see whether the
+	// light even reaches the surface without guessing from the lit result.
+	"  if (uDbgMode == 5) { oColor = vec4(vec3(attn), 1.0); return; }\n"
 	// Normal map: bias/scale [0..1] -> [-1..1], normalize.
 	"  vec3 N = normalize(normalTexel.rgb * 2.0 - 1.0);\n"
 	// ARB normalizes both interpolated tangent-space vectors before use.
@@ -825,10 +895,13 @@ static bool GLES3_NDSEnabled()
 	return s != 0;
 }
 
-// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec -- debug output of the NDS
+// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten -- debug output of the NDS
 // program (only meaningful together with RIDDICK_NDS=1). 'tslv' shows the
 // normalized tangent-space light vector as RGB, 'normal' the decoded
-// normal-map normal, 'diffuse'/'spec' isolate one term of the lighting sum.
+// normal-map normal, 'diffuse'/'spec' isolate one term of the lighting sum,
+// 'atten' shows the distance attenuation term alone as greyscale (see
+// kGLES3_NDSFragSrc) -- whether the light reaches the surface at all,
+// without the diffuse/specular terms confounding the read.
 static int GLES3_DbgNDSMode()
 {
 	static int s = -1;
@@ -842,6 +915,7 @@ static int GLES3_DbgNDSMode()
 			else if (strcmp(e, "normal")  == 0) s = 2;
 			else if (strcmp(e, "diffuse") == 0) s = 3;
 			else if (strcmp(e, "spec")    == 0) s = 4;
+			else if (strcmp(e, "atten")   == 0) s = 5;
 		}
 	}
 	return s;
@@ -1432,9 +1506,12 @@ public:
 		CGLES3Shader      m_3DShader;
 		int m_3DUMVPLoc = -1, m_3DUModelLoc = -1, m_3DUTexMatLoc = -1;
 		int m_3DUTexLoc = -1, m_3DUUseTexLoc = -1, m_3DUDbgModeLoc = -1;
-		int m_Dbg3DShaderMode = 0; // 0=off, 1=uv, 2=normal, 3=worldpos
+		int m_Dbg3DShaderMode = 0; // 0=off, 1=uv, 2=normal, 3=worldpos, 4=foguv
 		int m_3DUNoLightLoc = -1;
 		int m_3DUAmbientFloorLoc = -1;
+		// Alpha test (see kGLES3_3DFragSrc) -- same uAlphaFunc/uAlphaRef
+		// contract as the UI program.
+		int m_3DUAlphaFuncLoc = -1, m_3DUAlphaRefLoc = -1;
 		// TexGen (channel 0 only -- the 3D shader has no second UV
 		// channel). See PushTexGenUniforms.
 		int m_3DUTexGenMode0Loc = -1;
@@ -1451,6 +1528,9 @@ public:
 		int m_LFMULFM0Loc = -1, m_LFMULFM1Loc = -1, m_LFMULFM2Loc = -1, m_LFMULFM3Loc = -1;
 		int m_LFMUScaleLoc = -1;
 		int m_LFMUDbgLoc = -1;
+		// Alpha test (see kGLES3_LFMFragSrc) -- same uAlphaFunc/uAlphaRef
+		// contract as the UI program.
+		int m_LFMUAlphaFuncLoc = -1, m_LFMUAlphaRefLoc = -1;
 		// One-shot session log (see TrySetupLFMProgram) + per-interval draw
 		// counter (reset alongside the other [GL-DBG] counters, printed as
 		// "lfm=N").
@@ -1471,6 +1551,10 @@ public:
 		int m_NDSULightPosLoc = -1, m_NDSULightRangeLoc = -1;
 		int m_NDSULightColorLoc = -1, m_NDSUSpecColorLoc = -1;
 		int m_NDSUDbgLoc = -1;
+		// Alpha test (see kGLES3_NDSFragSrc) -- same uAlphaFunc/uAlphaRef
+		// contract as the UI program, tested against the diffuse texture's
+		// alpha (this pass never writes a real output alpha).
+		int m_NDSUAlphaFuncLoc = -1, m_NDSUAlphaRefLoc = -1;
 		// One-shot session log (see TrySetupNDSProgram) + per-interval draw
 		// counter (reset alongside the other [GL-DBG] counters, printed as
 		// "nds=N").
@@ -1862,7 +1946,7 @@ public:
 			for (int p = 0; p < nP; ++p)
 			{
 				const CVec4Dfp32& V = _pFP->m_pParams[p];
-				fprintf(stderr, "[GLES3-FP]   param[%d] = %f %f %f %f\n",
+				fprintf(stderr, "[GLES3-FP]   param[%d] = %g %g %g %g\n",
 					p, V.k[0], V.k[1], V.k[2], V.k[3]);
 			}
 			fflush(stderr);
@@ -1997,6 +2081,13 @@ public:
 			m_LFMShader.SetFloat(m_LFMUScaleLoc, GLES3_LFMScale());
 			m_LFMShader.SetInt(m_LFMUDbgLoc, GLES3_DbgLFMMode());
 
+			{
+				int AlphaFunc; float AlphaRef;
+				GetAlphaTestParams(AlphaFunc, AlphaRef);
+				m_LFMShader.SetInt(m_LFMUAlphaFuncLoc, AlphaFunc);
+				if (AlphaFunc) m_LFMShader.SetFloat(m_LFMUAlphaRefLoc, AlphaRef);
+			}
+
 			// Leave the active texture unit at 0, as convention elsewhere
 			// in this file expects (see e.g. the end of the UI multitexture
 			// bind block in SetupCommonUniforms).
@@ -2070,6 +2161,28 @@ public:
 			++sLogged;
 			fprintf(stderr, "[GLES3-NDS] falling back to legacy shader: %s\n", _Reason);
 			fflush(stderr);
+		}
+
+		// Alpha-test (func, ref) pair for the current draw -- shared by all
+		// four fragment programs (UI/3D/LFM/NDS), which all implement the
+		// identical CRC_COMPARE_* discard logic. _Func comes back 0 (test
+		// disabled, shader takes the fast "always pass" path) when
+		// RIDDICK_NO_ALPHA is set or the attrib's compare is
+		// CRC_COMPARE_ALWAYS -- same rule this logic has always used for
+		// the UI program, just factored out so the other three programs
+		// apply it identically instead of re-deriving it.
+		void GetAlphaTestParams(int& _Func, float& _Ref) const
+		{
+			if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+			{
+				_Func = m_pCurAttrib->m_AlphaCompare;
+				_Ref  = (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f);
+			}
+			else
+			{
+				_Func = 0;
+				_Ref  = 0.0f;
+			}
 		}
 
 		// Selects and fully sets up m_NDSShader (XRShader_FP20_NDS, single
@@ -2156,7 +2269,7 @@ public:
 				for (int p = 0; p < nP && p < 6; ++p)
 				{
 					const CVec4Dfp32& V = pFP->m_pParams[p];
-					fprintf(stderr, "[GLES3-NDS]   param[%d] = %f %f %f %f\n", p, V.k[0], V.k[1], V.k[2], V.k[3]);
+					fprintf(stderr, "[GLES3-NDS]   param[%d] = %g %g %g %g\n", p, V.k[0], V.k[1], V.k[2], V.k[3]);
 				}
 				fflush(stderr);
 			}
@@ -2197,6 +2310,13 @@ public:
 			m_NDSShader.SetInt(m_NDSUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
 
 			m_NDSShader.SetInt(m_NDSUDbgLoc, GLES3_DbgNDSMode());
+
+			{
+				int AlphaFunc; float AlphaRef;
+				GetAlphaTestParams(AlphaFunc, AlphaRef);
+				m_NDSShader.SetInt(m_NDSUAlphaFuncLoc, AlphaFunc);
+				if (AlphaFunc) m_NDSShader.SetFloat(m_NDSUAlphaRefLoc, AlphaRef);
+			}
 
 			// Same convention as TrySetupLFMProgram: leave the active unit
 			// at 0.
@@ -2243,6 +2363,10 @@ public:
 				if      (strcmp(e3, "uv")       == 0) m_Dbg3DShaderMode = 1;
 				else if (strcmp(e3, "normal")   == 0) m_Dbg3DShaderMode = 2;
 				else if (strcmp(e3, "worldpos") == 0) m_Dbg3DShaderMode = 3;
+				// "fastuv" isolates the CRC_TEXGENMODE_LINEAR passes (depth fog):
+				// everything else keeps rendering normally, so the generated ramp
+				// coordinate can be read straight off the screen as red.
+				else if (strcmp(e3, "foguv")    == 0) m_Dbg3DShaderMode = 4;
 			}
 		}
 
@@ -2307,6 +2431,8 @@ public:
 				m_3DUDbgModeLoc = m_3DShader.UniformLocation("uDbgMode");
 				m_3DUNoLightLoc = m_3DShader.UniformLocation("uNoLight");
 				m_3DUAmbientFloorLoc = m_3DShader.UniformLocation("uAmbientFloor");
+				m_3DUAlphaFuncLoc = m_3DShader.UniformLocation("uAlphaFunc");
+				m_3DUAlphaRefLoc  = m_3DShader.UniformLocation("uAlphaRef");
 				m_3DUTexGenMode0Loc = m_3DShader.UniformLocation("uTexGenMode0");
 				m_3DUTexGenU0Loc    = m_3DShader.UniformLocation("uTexGenU0");
 				m_3DUTexGenV0Loc    = m_3DShader.UniformLocation("uTexGenV0");
@@ -2329,6 +2455,8 @@ public:
 				m_LFMULFM3Loc      = m_LFMShader.UniformLocation("uLFM3");
 				m_LFMUScaleLoc     = m_LFMShader.UniformLocation("uLFMScale");
 				m_LFMUDbgLoc       = m_LFMShader.UniformLocation("uDbgLFM");
+				m_LFMUAlphaFuncLoc = m_LFMShader.UniformLocation("uAlphaFunc");
+				m_LFMUAlphaRefLoc  = m_LFMShader.UniformLocation("uAlphaRef");
 			}
 
 			// FP20 NDS program (single dynamic light, world geometry -- see
@@ -2349,6 +2477,8 @@ public:
 				m_NDSULightColorLoc = m_NDSShader.UniformLocation("uLightColor");
 				m_NDSUSpecColorLoc  = m_NDSShader.UniformLocation("uSpecColor");
 				m_NDSUDbgLoc        = m_NDSShader.UniformLocation("uDbgMode");
+				m_NDSUAlphaFuncLoc  = m_NDSShader.UniformLocation("uAlphaFunc");
+				m_NDSUAlphaRefLoc   = m_NDSShader.UniformLocation("uAlphaRef");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -3763,14 +3893,15 @@ public:
 				m_UIShader.SetMat4(m_UTexMat1Loc, (const float*)&m_TexMat[1]);
 				PushLightUniforms(_bAllowFog);
 
-				// Alpha test (no fixed-function path in GLES3; done in shader)
-				if (!m_DbgNoAlpha && m_pCurAttrib && m_pCurAttrib->m_AlphaCompare != CRC_COMPARE_ALWAYS)
+				// Alpha test (no fixed-function path in GLES3; done in shader).
+				// See GetAlphaTestParams -- same helper feeds the 3D/LFM/NDS
+				// programs below/elsewhere so all four agree on the rule.
 				{
-					m_UIShader.SetInt(m_UAlphaFuncLoc, m_pCurAttrib->m_AlphaCompare);
-					m_UIShader.SetFloat(m_UAlphaRefLoc, (float)m_pCurAttrib->m_AlphaRef * (1.0f / 255.0f));
+					int AlphaFunc; float AlphaRef;
+					GetAlphaTestParams(AlphaFunc, AlphaRef);
+					m_UIShader.SetInt(m_UAlphaFuncLoc, AlphaFunc);
+					if (AlphaFunc) m_UIShader.SetFloat(m_UAlphaRefLoc, AlphaRef);
 				}
-				else
-					m_UIShader.SetInt(m_UAlphaFuncLoc, 0);
 
 				if (_bAllowFog && !GLES3_NoLight() && m_pCurAttrib && (m_pCurAttrib->m_Flags & CRC_FLAGS_FOG))
 				{
@@ -3799,6 +3930,16 @@ public:
 					sAmbFloor = e ? (float)atof(e) : 0.0f;
 				}
 				m_3DShader.SetFloat(m_3DUAmbientFloorLoc, sAmbFloor);
+
+				// Alpha test -- world geometry needs this exactly like the
+				// UI program (fence wire/grate diffuse textures rendered as
+				// solid black quads without it, see kGLES3_3DFragSrc).
+				{
+					int AlphaFunc; float AlphaRef;
+					GetAlphaTestParams(AlphaFunc, AlphaRef);
+					m_3DShader.SetInt(m_3DUAlphaFuncLoc, AlphaFunc);
+					if (AlphaFunc) m_3DShader.SetFloat(m_3DUAlphaRefLoc, AlphaRef);
+				}
 			}
 
 			// Textures. Base = channel 0; if channel 0 is empty scan
