@@ -455,9 +455,44 @@
 
 - **HACK** `RIDDICK_SKIP_CHARS=1`, `RIDDICK_SKIP_PROPS=1`,
   `RIDDICK_SKIP_SPRITES=1`, `RIDDICK_SKIP_SPOTVOL=1` (`XREngine.cpp:RenderModel`) —
-  выключают классы моделей на уровне engine (через TDynamicCast).
+  выключают классы моделей на уровне engine.
   Изоляционная диагностика для сужения источника артефактов.
-  → удалить когда все классы рендерятся правильно.
+
+  **Разделение skinned / props (исправлено 2026-07-28).** Раньше
+  `SKIP_PROPS` убивал `CXR_MODEL_CLASS_TRIMESH` целиком, а этот класс —
+  это И статичные пропсы, И персонажи: персонажи Риддика это экземпляры
+  `CXR_Model_TriangleMesh` со скелетом. (`CXR_Model_MultiTriMesh` — это
+  отдельный, редкий multi-part контейнер, и он вообще не переопределяет
+  `GetModelClass`, т.е. отдаёт `CUSTOM`.) Отсюда наблюдение: `SKIP_PROPS=1`
+  прятал заодно всех персонажей, а `SKIP_CHARS=1` не прятал почти ничего.
+  Надёжный дискриминатор на базовом интерфейсе `CXR_Model` — это
+  `GetSkeleton()`: по умолчанию NULL (`XRClass.h:863`), а
+  `CXR_Model_TriangleMesh` отдаёт `m_spSkeleton` (`WTriMesh.cpp:538`),
+  который заполнен только у мешей с костями. Теперь:
+  - `SKIP_PROPS` → TRIMESH **без** скелета (настоящие статичные пропсы);
+  - `SKIP_CHARS` → TRIMESH **со** скелетом + MultiTriMesh (скиннед).
+
+  **Почему `RIDDICK_SKIP_SKINNED` (флаг GLES3-бэкенда) их не прятал** — это
+  другая ось. Он ищет matrix palette на draw'е, а мы не заявляем
+  `CRC_CAPS_FLAGS_MATRIXPALETTE`, значит `bHWAnim=false`
+  (`WTriMesh.cpp:5443`), движок скиннит на CPU в временные массивы
+  (`Cluster_TransformBones_V_N`, `:5805`) и сразу после этого обнуляет
+  `m_pMatrixPaletteArgs` (`:5809`). Палитра до бэкенда не доходит вообще —
+  матчить нечему.
+
+  **Следствие: `RIDDICK_SKINNING` (GPU-скиннинг, коммит ac19bfb) сейчас
+  мёртвый код.** Пока мы не заявим `CRC_CAPS_FLAGS_MATRIXPALETTE`, движок
+  никогда не отдаст ни `MI0/MW0`, ни палитру — в логе это видно как
+  `skin=0` и отсутствие любых `[GLES3-SKIN]` строк. Гейт caps'ов на PC
+  (`XRApp.cpp:5362`, требует MATRIXPALETTE|CUBEMAP|TEXENVMODE_COMBINE)
+  висит под `#ifdef PLATFORM_WIN32_PC` и нам не мешает.
+
+- **DBG** `RIDDICK_DBG_MODELS=1` (`XREngine.cpp:RenderModel`) — по одной
+  строке `[MODEL] <ptr> class=<id>(<имя>) rtc=<MRTC-класс> skeleton=yes|no`
+  на каждый различный экземпляр модели, дошедший до рендера (кап 96).
+  Отвечает на вопрос «что это за геометрия» без гадания. Таблица дедупа
+  намеренно без блокировок (RenderModel зовут воркер-треды): худший
+  случай — дублирующая строка.
 
 - **HACK** `RIDDICK_SKIP_SKY=1` (`XREngine.cpp:Engine_RVC_RenderSky`) —
   выключает skybox render.

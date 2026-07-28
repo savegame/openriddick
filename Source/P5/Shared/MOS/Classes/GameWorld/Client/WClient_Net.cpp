@@ -431,6 +431,33 @@ bool CWorld_ClientCore::Net_UnpackClientRegUpdate(CWObjectUpdateBuffer* _pDeltaB
 
 	if (_pDeltaBuffer->GetDataSize())
 	{
+		// m_spNetReg is destroyed with the world (WClient_Core.cpp:801) and
+		// only recreated by World_Init, so between a failed/aborted world
+		// load and the next successful one it is legitimately NULL while
+		// the server keeps sending DeltaRegistry messages.
+		// UnpackDeltaRegistry_r does not check its registry argument -- it
+		// dereferences it immediately (SetThisUserFlags, WRegReplicator.cpp:605)
+		// -- so this used to be a hard SIGSEGV. Observed 2026-07-28,
+		// Pa1_TheDream: 'loadgame ("Checkpoint")' -> "SAVE VALIDATION:
+		// 'Player/Checkpoint' failed validation" -> "(Simulate) No WorldData"
+		// -> "Invalid object-index, aborting update" -> crash in
+		// UnpackDeltaRegistry_r via Net_OnMessage_DeltaRegistry.
+		// Dropping the update is the correct response: there is no registry
+		// to apply the delta to, and the next World_Init rebuilds it from a
+		// full state anyway.
+		if (!m_spNetReg || !_pDeltaBuffer->GetObjectBuffer())
+		{
+			static bool s_bLogged = false;
+			if (!s_bLogged)
+			{
+				s_bLogged = true;
+				fprintf(stderr, "[NET] Net_UnpackClientRegUpdate: dropping %d-byte registry delta: %s\n",
+					(int)_pDeltaBuffer->GetDataSize(),
+					!m_spNetReg ? "no client net-registry (world not initialised)" : "NULL object buffer");
+				fflush(stderr);
+			}
+			return false;
+		}
 		UnpackDeltaRegistry_r(m_spNetReg, _pDeltaBuffer->GetObjectBuffer(), _pDeltaBuffer->GetDataSize(), 0);
 	}
 
@@ -703,7 +730,7 @@ void CWorld_ClientCore::Net_OnMessage_ResourceID(const CNetMsg& _Msg)
 		if (!m_spMapData->SetResource(RcID, RcName, RcClass))
 		{
 			if(RcID != 0)
-				ConOutL(CStrF("§cf80WARNING: (CWorld_ClientCore::Net_OnMessage_ResourceID) Failed to set resource %d, Name %s, Class %d", RcID, (char*)RcName, RcClass));
+				ConOutL(CStrF("ï¿½cf80WARNING: (CWorld_ClientCore::Net_OnMessage_ResourceID) Failed to set resource %d, Name %s, Class %d", RcID, (char*)RcName, RcClass));
 		}
 	}
 }
@@ -1056,7 +1083,7 @@ void CWorld_ClientCore::Net_OnMessage(const CNetMsg& _Msg)
 		ConOutL(CStrF("%s, Msg %s, Msg %d", (char*)GetClientInfo(), Msg2Str(_Msg.m_MsgType), _Msg.m_MsgSize));
 
 	if (!Net_OnProcessMessage(_Msg))
-		ConOutL(CStrF("§cf80WARNING: Unprocessed network-msg. (Type %d, Size %d)", _Msg.m_MsgType, _Msg.m_MsgSize));
+		ConOutL(CStrF("ï¿½cf80WARNING: Unprocessed network-msg. (Type %d, Size %d)", _Msg.m_MsgType, _Msg.m_MsgSize));
 }
 
 bool CWorld_ClientCore::Net_SetClientVar(CStr _Key, CStr _Value)
@@ -1107,10 +1134,10 @@ void CWorld_ClientCore::Net_SendClientVars()
 				if (Msg.AddStr(pUser->GetName(i).Ansi()))
 				{
 					if (!Msg.AddStr(pUser->GetValue(i).Ansi()))
-						ConOutL("§cf80WARNING: Too many client user variables.");
+						ConOutL("ï¿½cf80WARNING: Too many client user variables.");
 				}
 				else
-					ConOutL("§cf80WARNING: Too many client user variables.");
+					ConOutL("ï¿½cf80WARNING: Too many client user variables.");
 			}
 		}
 
@@ -1146,7 +1173,7 @@ void CWorld_ClientCore::Net_SendControls(bool _bForced)
 		{
 			if (!Net_PutMsg(Ctrl))
 			{
-//						ConOut("§cf80WARNING: Could not send controls.");
+//						ConOut("ï¿½cf80WARNING: Could not send controls.");
 			}
 			else
 				m_LocalPlayer.m_spCmdQueue->SetLastSendTime(T);

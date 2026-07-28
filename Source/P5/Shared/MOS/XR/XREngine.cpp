@@ -1597,25 +1597,88 @@ void CXR_EngineImpl::RenderModel(CXR_VCModelInstance* _pObjInfo, CXR_ViewClipInt
 
 	// Linux port debug: granular geometry-class kill switches for hunting
 	// "garbage polygon" sources. Each env flag early-outs one model class.
+	//
+	// SKINNED vs PROPS -- the split that matters here.
+	// Until now RIDDICK_SKIP_PROPS killed CXR_MODEL_CLASS_TRIMESH wholesale,
+	// and that class covers BOTH static props AND animated characters:
+	// Riddick's characters are CXR_Model_TriangleMesh instances that carry a
+	// skeleton (CXR_Model_MultiTriMesh is a separate, rarer multi-part
+	// container that reports CXR_MODEL_CLASS_CUSTOM because it does not
+	// override GetModelClass). So "SKIP_PROPS=1" also hid every character,
+	// while "SKIP_CHARS=1" hid almost nothing -- which is exactly what the
+	// 2026-07-28 TheDream run showed.
+	//
+	// The reliable discriminator available on the base CXR_Model interface is
+	// GetSkeleton(): it returns NULL by default (XRClass.h:863) and
+	// CXR_Model_TriangleMesh returns m_spSkeleton (WTriMesh.cpp:538), which
+	// is only set for meshes authored with bones. So:
+	//     SKIP_PROPS  -> TRIMESH without skeleton  (true static props)
+	//     SKIP_CHARS  -> TRIMESH with skeleton + MultiTriMesh  (skinned)
+	//
+	// NB this is NOT the same axis as the GLES3 backend's RIDDICK_SKIP_SKINNED,
+	// and that is why the latter never hid these meshes: it tests for a
+	// matrix palette on the draw, and we do not advertise
+	// CRC_CAPS_FLAGS_MATRIXPALETTE, so bHWAnim is false (WTriMesh.cpp:5443),
+	// the engine CPU-skins into temp arrays (Cluster_TransformBones_V_N,
+	// :5805) and explicitly clears m_pMatrixPaletteArgs afterwards (:5809).
+	// No palette ever reaches the backend -> nothing for SKIP_SKINNED to
+	// match. See Docs/HacksAndHooks.md.
 	{
-		static int sSkipChars = -1, sSkipProps = -1, sSkipSprites = -1, sSkipSpotVol = -1;
+		static int sSkipChars = -1, sSkipProps = -1, sSkipSprites = -1, sSkipSpotVol = -1, sDbgModels = -1;
 		if (sSkipChars < 0)
 		{
 			const char* eC = getenv("RIDDICK_SKIP_CHARS");
 			const char* eP = getenv("RIDDICK_SKIP_PROPS");
 			const char* eS = getenv("RIDDICK_SKIP_SPRITES");
 			const char* eV = getenv("RIDDICK_SKIP_SPOTVOL");
+			const char* eD = getenv("RIDDICK_DBG_MODELS");
 			sSkipChars   = (eC && *eC && *eC != '0') ? 1 : 0;
 			sSkipProps   = (eP && *eP && *eP != '0') ? 1 : 0;
 			sSkipSprites = (eS && *eS && *eS != '0') ? 1 : 0;
 			sSkipSpotVol = (eV && *eV && *eV != '0') ? 1 : 0;
+			sDbgModels   = (eD && *eD && *eD != '0') ? 1 : 0;
 		}
 		CXR_Model* pM = _pObjInfo->m_pModel;
-		if (sSkipProps && pM->GetModelClass() == CXR_MODEL_CLASS_TRIMESH) return;
+		const int MClass = pM->GetModelClass();
+		// Only ask TRIMESH models -- that is the only class where the answer
+		// changes the routing below, and it keeps the virtual call off the
+		// BSP/sprite/custom paths entirely.
+		const bool bTriMesh = (MClass == CXR_MODEL_CLASS_TRIMESH);
+		const bool bSkinned = bTriMesh && (pM->GetSkeleton() != NULL);
+
+		// RIDDICK_DBG_MODELS=1: one line per distinct model instance that
+		// reaches rendering (capped), so "what exactly is that geometry"
+		// stops being guesswork. Runs on render worker threads; the dedup
+		// table is deliberately racy-but-bounded (same style as the flag
+		// cache above) -- worst case a duplicate line, never a crash.
+		if (sDbgModels)
+		{
+			enum { MAXDBGMODELS = 96 };
+			static const void* s_lSeen[MAXDBGMODELS] = { 0 };
+			static int s_nSeen = 0;
+			bool bSeen = false;
+			for (int k = 0; k < s_nSeen; ++k)
+				if (s_lSeen[k] == (const void*)pM) { bSeen = true; break; }
+			if (!bSeen && s_nSeen < MAXDBGMODELS)
+			{
+				s_lSeen[s_nSeen++] = (const void*)pM;
+				MRTC_CRuntimeClass* pRTC = pM->MRTC_GetRuntimeClass();
+				fprintf(stderr, "[MODEL] %p class=%d(%s) rtc=%s skeleton=%s\n",
+					(void*)pM, MClass,
+					bTriMesh ? "TRIMESH" :
+						(MClass == CXR_MODEL_CLASS_CUSTOM ? "CUSTOM" :
+						((MClass & CXR_MODEL_CLASS_ANYBSPMASK) ? "BSP" : "?")),
+					(pRTC && pRTC->m_ClassName) ? pRTC->m_ClassName : "?",
+					bSkinned ? "yes" : "no");
+				fflush(stderr);
+			}
+		}
+
+		if (sSkipProps && bTriMesh && !bSkinned) return;
 		// NB: TDynamicCast (NULL-probe), NOT safe_cast -- safe_cast throws
 		// "Invalid safe_cast" on mismatch, and on render worker threads
 		// that exception escapes -> SIGILL (run.log 2026-07-21, Pa1_Pit).
-		if (sSkipChars && TDynamicCast<CXR_Model_MultiTriMesh>(pM)) return;
+		if (sSkipChars && (bSkinned || TDynamicCast<CXR_Model_MultiTriMesh>(pM))) return;
 		if (sSkipSpotVol && TDynamicCast<CXR_Model_SpotLightVolume>(pM)) return;
 		if (sSkipSprites && TDynamicCast<CXR_Model_Sprite>(pM)) return;
 	}

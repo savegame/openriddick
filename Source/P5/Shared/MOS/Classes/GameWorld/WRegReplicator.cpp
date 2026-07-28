@@ -596,6 +596,19 @@ int UnpackDeltaRegistry_r(CRegistry* _pReg, const uint8* _pData, int _Len, int _
 	PackLog(CStrF("(Unpack) %s%s = %s, nChildren %d", (char*) Indent, (const char*)_pReg->GetThisName(), (const char*)_pReg->GetThisValue(), _pReg->GetNumChildren() ));
 
 #endif
+	// Hardening (Linux port): this function dereferences both its registry
+	// and its data pointer unconditionally on entry, and is reached straight
+	// from the network path (CWorld_ClientCore::Net_OnMessage_DeltaRegistry),
+	// i.e. from data the client does not control. A NULL registry is a real,
+	// reachable state -- m_spNetReg is destroyed with the world and only
+	// recreated by World_Init, see WClient_Net.cpp -- and it used to be a
+	// hard SIGSEGV (2026-07-28, Pa1_TheDream, failed checkpoint load).
+	// Every valid record is at least the two flag bytes read below, so
+	// _Len < 2 means the buffer is truncated: consume nothing and let the
+	// caller stop. This cannot reject well-formed data.
+	if (!_pReg || !_pData || _Len < 2)
+		return 0;
+
 	const uint8* pOrgData = _pData;
 	const uint8& UpdateFlags = *_pData;
 	_pData++;
