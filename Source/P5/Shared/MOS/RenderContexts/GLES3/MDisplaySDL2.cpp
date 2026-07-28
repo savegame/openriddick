@@ -2189,6 +2189,15 @@ public:
 		// the world -- so the two numbers together say whether the artefact is
 		// skinning or something else entirely.
 		int  m_DbgMI0Draws = 0;
+		// Same question for the two LEGACY (non-cached) vertex paths, printed
+		// as "strmMI0=N". Needed because mi0=N only observes the geometry
+		// cache: in the 2026-07-28 Pa1_TheDream log the cache had BUILT 97
+		// skinned VBIDs yet mi0 stayed 0 for the whole run, which means the
+		// character draws never came through DrawCachedVB at all. These two
+		// numbers together say WHICH path actually carries the characters,
+		// and neither legacy path applies a palette -- whatever they draw is
+		// bone-local by construction.
+		int  m_DbgStreamMI0Draws = 0;
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2439,6 +2448,7 @@ public:
 			m_DbgNDSDraws = 0;
 			m_DbgSkinDraws = 0;
 			m_DbgMI0Draws = 0;
+			m_DbgStreamMI0Draws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2525,13 +2535,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -4460,9 +4470,10 @@ public:
 					const char* e = getenv("RIDDICK_SKIP_SKINNED");
 					sSkipSk = (e && *e && *e != '0') ? 1 : 0;
 				}
-				if (sSkipSk && (m_Geom.m_pMI || m_Geom.m_pMW || m_Geom.m_nMWComp))
+				if (m_Geom.m_pMI || m_Geom.m_pMW || m_Geom.m_nMWComp)
 				{
-					_pOut = 0; _nOut = 0; return false;
+					if (sSkipSk) { _pOut = 0; _nOut = 0; return false; }
+					++m_DbgStreamMI0Draws;
 				}
 			}
 			static SUIVert sScratch[16384];
@@ -6263,13 +6274,12 @@ public:
 				const char* e = getenv("RIDDICK_SKIP_SKINNED");
 				sSkipSkinned = (e && *e && *e != '0') ? 1 : 0;
 			}
-			if (sSkipSkinned)
+			if (VBB.m_lpVReg[CRC_VREG_MI0] || VBB.m_lpVReg[CRC_VREG_MW0] ||
+			    VBB.m_lpVReg[CRC_VREG_MI1] || VBB.m_lpVReg[CRC_VREG_MW1])
 			{
-				if (VBB.m_lpVReg[CRC_VREG_MI0] || VBB.m_lpVReg[CRC_VREG_MW0] ||
-				    VBB.m_lpVReg[CRC_VREG_MI1] || VBB.m_lpVReg[CRC_VREG_MW1])
-				{
+				if (sSkipSkinned)
 					return NULL;
-				}
+				++m_DbgStreamMI0Draws;
 			}
 
 			const void* pPos = VBB.m_lpVReg[CRC_VREG_POS];
