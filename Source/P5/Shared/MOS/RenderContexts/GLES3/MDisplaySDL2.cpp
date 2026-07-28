@@ -2278,6 +2278,13 @@ public:
 		// and neither legacy path applies a palette -- whatever they draw is
 		// bone-local by construction.
 		int  m_DbgStreamMI0Draws = 0;
+		// Attribute applications that turned colour writes OFF, printed as
+		// "cwoff=N". Shadow volumes and the unified-Z prepass are the only
+		// things that ask for this, so cwoff==0 in a lit scene means their
+		// attribute is not reaching GL at all -- the exact failure the
+		// DrawCachedVB flush fixes. Counted in ApplyAttribs, i.e. per state
+		// application rather than per draw.
+		int  m_DbgColorWriteOff = 0;
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2529,6 +2536,7 @@ public:
 			m_DbgSkinDraws = 0;
 			m_DbgMI0Draws = 0;
 			m_DbgStreamMI0Draws = 0;
+			m_DbgColorWriteOff = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2615,13 +2623,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws, m_DbgColorWriteOff,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -4190,6 +4198,7 @@ public:
 			const GLboolean CW = (F & CRC_FLAGS_COLORWRITE) ? GL_TRUE : GL_FALSE;
 			const GLboolean AW = (F & CRC_FLAGS_ALPHAWRITE) ? GL_TRUE : GL_FALSE;
 			glColorMask(CW, CW, CW, AW);
+			if (!CW) ++m_DbgColorWriteOff;
 
 			// Culling. Matches retail RndrGL exactly (RndrGL:38438 =
 			// glFrontFace(GL_CCW) set once at init, :77659-77666 = CULLCW
@@ -4975,6 +4984,41 @@ public:
 		bool DrawCachedVB(const SGLES3GeomEntry& _E, const SGLES3GeomEntry& _IB, int _nIdx, intptr_t _ByteOffset)
 		{
 			if (!_E.m_VBO || !_IB.m_IBO || _nIdx <= 0) return false;
+
+			if (!m_bGLInited) InitGLResources();
+			if (!m_UIShader.IsValid() && !m_3DShader.IsValid()) return false;
+
+			// Flush deferred attrib/matrix state -- the SAME two lines
+			// DrawIndexed and DrawUserVerts already have, and the reason
+			// they are there (see the comment at the DrawIndexed copy).
+			//
+			// They were MISSING here, and this is not a cosmetic omission:
+			// the engine never applies attributes eagerly. CXR_VBManager's
+			// flush calls the virtual attribute's OnSetAttributes into a
+			// copy and then CRC_Core::Attrib_End (XRVBManager.cpp:3433-3491),
+			// which only ORs bits into m_AttribChanged -- nothing reaches
+			// GL. State is reified exclusively at draw time by these two
+			// calls. So every draw arriving through DrawCachedVB (i.e. all
+			// of Render_VertexBuffer(VBID) and
+			// Render_VertexBuffer_IndexBufferTriangles -- the whole cached
+			// path) ran with the PREVIOUS draw's GL state and, worse, with
+			// the previous draw's m_pCurAttrib, which is what
+			// SetupCommonUniforms reads for textures, alpha test and
+			// texgen.
+			//
+			// The visible consequence: BSP2 per-light shadow volumes are
+			// submitted exactly this way (pVB->Render_VertexBuffer(VBID),
+			// WBSP2Model.cpp:4469, colour 0xff100010, attribute
+			// CXR_VirtualAttributes_BSP2ShadowVolumeFront which disables
+			// COLORWRITE/ZWRITE and drives the stencil, WBSP2Model.cpp:96-142).
+			// With the flush missing, that attribute never reached GL: the
+			// volumes inherited the world pass's glColorMask(TRUE) and
+			// painted themselves as long dark ribbons stretching across the
+			// map -- the "polygons through the whole world" artefact -- while
+			// the stencil they were supposed to write stayed empty, so light
+			// leaked through walls. The engine side was correct all along.
+			if (m_AttribChanged) Attrib_Update();
+			if (m_MatrixChanged) Matrix_Update();
 
 			glBindVertexArray(m_VAO);
 			glBindBuffer(GL_ARRAY_BUFFER, _E.m_VBO);
@@ -6569,28 +6613,50 @@ public:
 			if (!pVerts) return;
 			++m_DbgDrawStreamed;
 
-			// Walk the primitive stream: header word = index count,
-			// then indices; type from the stream iterator.
-			CRCPrimStreamIterator It(VBB.m_piPrim, VBB.m_nPrim);
-			if (It.IsValid())
+			// Branch on m_PrimType FIRST. The stream iterator is only
+			// meaningful for CRC_RIP_STREAM; feeding it a raw index list
+			// makes it read the first index as a header word and walk off
+			// into nonsense -- garbage nInd, garbage indices, triangles
+			// with vertices anywhere. The cache path already branches this
+			// way (GLES3_Geometry.cpp) and so does PS3
+			// (MRenderPS3_Geometry.cpp:786-822); only this fallback did
+			// not. Latent so far (streamed=0 in the runs we have), but it
+			// fires the moment anything takes the fallback:
+			// RIDDICK_NO_VBCACHE=1, skinned geometry with RIDDICK_SKINNING=0,
+			// a VBID the cache rejected.
+			if (VBB.m_PrimType == CRC_RIP_TRIANGLES)
 			{
-				do
-				{
-					const uint16* pPrim = It.GetCurrentPointer();
-					int nInd = *pPrim;
-					GLenum Prim;
-					switch (It.GetCurrentType())
-					{
-					case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      nInd *= 3; break;
-					case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP;            break;
-					case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;              break;
-					default:                Prim = 0;                            break;
-					}
-					if (Prim && nInd > 0)
-						DrawUserVerts(Prim, pVerts, nV, pPrim + 1, nInd);
-				}
-				while (It.Next());
+				// Raw index list, no per-primitive header words -- the
+				// TriMesh default (WTriMesh.cpp:8481-8488).
+				DrawUserVerts(GL_TRIANGLES, pVerts, nV, VBB.m_piPrim, (int)VBB.m_nPrim * 3);
 			}
+			else if (VBB.m_PrimType == CRC_RIP_STREAM)
+			{
+				// Walk the primitive stream: header word = index count,
+				// then indices; type from the stream iterator.
+				CRCPrimStreamIterator It(VBB.m_piPrim, VBB.m_nPrim);
+				if (It.IsValid())
+				{
+					do
+					{
+						const uint16* pPrim = It.GetCurrentPointer();
+						int nInd = *pPrim;
+						GLenum Prim;
+						switch (It.GetCurrentType())
+						{
+						case CRC_RIP_TRIANGLES: Prim = GL_TRIANGLES;      nInd *= 3; break;
+						case CRC_RIP_TRISTRIP:  Prim = GL_TRIANGLE_STRIP;            break;
+						case CRC_RIP_TRIFAN:    Prim = GL_TRIANGLE_FAN;              break;
+						default:                Prim = 0;                            break;
+						}
+						if (Prim && nInd > 0)
+							DrawUserVerts(Prim, pVerts, nV, pPrim + 1, nInd);
+					}
+					while (It.Next());
+				}
+			}
+			// CRC_RIP_WIRES / anything else: not a triangle draw, same
+			// decision the cache path makes (it sets m_bSkip there).
 			free(pVerts);
 		}
 

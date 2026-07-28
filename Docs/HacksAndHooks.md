@@ -241,6 +241,42 @@
   отличить «неправильная математика света» от «неправильные проходы/
   геометрия/текстуры».
 
+- **FIX** flush стейта в `DrawCachedVB` (`MDisplaySDL2.cpp`) — не хак, а
+  недостающая точка применения состояния. Движок НИКОГДА не применяет
+  атрибуты сразу: флаш `CXR_VBManager` зовёт `OnSetAttributes` в копию и
+  затем `CRC_Core::Attrib_End` (`XRVBManager.cpp:3433-3491`), который лишь
+  ставит биты в `m_AttribChanged` — в GL не уходит ничего. Реификация
+  происходит только в точке draw парой
+  `if (m_AttribChanged) Attrib_Update(); if (m_MatrixChanged) Matrix_Update();`.
+  Эти две строки были в `DrawIndexed` и `DrawUserVerts`, но ОТСУТСТВОВАЛИ
+  в `DrawCachedVB` — то есть весь кэш-путь (`Render_VertexBuffer(VBID)` и
+  `Render_VertexBuffer_IndexBufferTriangles`) рисовался со стейтом
+  ПРЕДЫДУЩЕГО draw'а и, что хуже, с чужим `m_pCurAttrib`, из которого
+  `SetupCommonUniforms` берёт текстуры, альфа-тест и texgen.
+  Видимое следствие: запечённые теневые объёмы BSP2 сабмитятся именно так
+  (`pVB->Render_VertexBuffer(VBID)`, `WBSP2Model.cpp:4469`, цвет
+  `0xff100010`, атрибут `CXR_VirtualAttributes_BSP2ShadowVolumeFront`,
+  который гасит COLORWRITE/ZWRITE и ведёт стенсил, `WBSP2Model.cpp:96-142`).
+  Без флаша этот атрибут до GL не доходил: объёмы наследовали
+  `glColorMask(TRUE)` от прохода мира и рисовались тёмными лентами через
+  всю карту, а стенсил, который они должны писать, оставался пустым — свет
+  тёк сквозь стены. Движковая сторона была корректна всё это время.
+
+- **FIX** ветвление по `VBB.m_PrimType` в стриминг-фолбэке
+  `Render_VertexBuffer` (`MDisplaySDL2.cpp`). `CRCPrimStreamIterator`
+  осмыслен только для `CRC_RIP_STREAM`; на сыром списке индексов
+  (`CRC_RIP_TRIANGLES` — дефолт TriMesh, `WTriMesh.cpp:8481-8488`) он
+  читает первый индекс как заголовок и уходит в мусор. Кэш-путь и PS3
+  (`MRenderPS3_Geometry.cpp:786-822`) ветвятся, фолбэк — нет. Латентно
+  (`streamed=0` во всех имеющихся логах), но стреляет при
+  `RIDDICK_NO_VBCACHE=1`, скиннед-геометрии без `RIDDICK_SKINNING` и на
+  любом VBID, который кэш отверг.
+
+- **DBG** счётчик `cwoff=N` в `[GL-DBG]` — сколько применений атрибута за
+  интервал выключили запись цвета. Теневые объёмы и unified-Z проход —
+  единственные, кто это просит, поэтому `cwoff==0` в освещённой сцене
+  означает, что их атрибут до GL не доходит вообще.
+
 - **FIX** `invariant gl_Position;` во всех шести вершинных программах
   (`MDisplaySDL2.cpp`: UI/3D/LFM/LF/NDS/NDSP) — не хак, а обязательное
   требование конвейера. `XRShader_FP20.cpp:198` ставит
