@@ -450,6 +450,167 @@ static const char* kGLES3_LFMFragSrc =
 	"  oColor = vec4(diff.rgb * lfmColor, diff.a);\n"
 	"}\n";
 
+// --- FP20 LF shader (m_LFShader). ----------------------------------------
+// Fifth (in program-declaration order; sixth counting the legacy UI
+// fragment shader kept for reference) real fragment-program translation:
+// XRShader_FP20_LF, the last of the five forward FP20 programs the engine
+// requests (see Docs/HacksAndHooks.md "FP20 forward programs"). Unlike LFM
+// (per-texel baked lightmap) this is a per-OBJECT ambient light field: 6
+// constant colours (`CXR_ShaderParams_LightField::m_lLFAxes[6]`), one per
+// ±X/±Y/±Z hemisphere of the surface normal, weighted and summed exactly
+// like a classic ambient-cube / radiosity-normal-map probe. This is the
+// program that supplies ambient/bounce light in rooms with no direct
+// per-light pass reaching a surface -- ports of XRShader_FP20_NDS/_NDSP get
+// the direct light right (verified via RIDDICK_DBG_NDS=atten) but rooms
+// stayed black without this piece.
+//
+// Channel/texcoord contract (XRShader_LightField.cpp:2-70,193-274,
+// CXR_VirtualAttributes_ShaderFP20_LF::Create + CXR_Shader::
+// RenderShading_FP20_LF): m_TextureID[0]=Diffuse (falls back to the
+// engine's special all-white texture when the surface has none, so this
+// slot is in practice never 0); m_iTexCoordSet[0]=Mapping (diffuse UV).
+// PrepareFrame also sets up texgen channel 3 = TSLV (the surface-to-EYE
+// vector, in MODEL space -- confusingly the same texgen mode NDS uses for
+// its LIGHT vector, but here it is the only TSLV block written, and
+// RenderShading_FP20_LF feeds it the "Eye" vector, not a light position)
+// and channel 5 = BUMPCUBEENV (environment-reflection vector, feeding
+// m_TextureID[7]=Environment). Both are declared purely for a specular +
+// environment-reflection term this program is NOT implementing (see
+// SIMPLIFICATION below) -- logged for diagnostics (item 5 of the task) but
+// never consumed.
+//
+// Space note: unlike NDS/NDSP, PrepareFrame never sets up TANG_U/TANG_V
+// texgen for this program (both commented out in the source, same as LFM),
+// so there is no tangent basis at all -- the ambient-cube weighting runs
+// directly against the MODEL-space vertex normal (aNormal passed through
+// unmodified as vNrmMS below), not a tangent-space or world-space one. This
+// is consistent with RenderShading_FP20_LF's own MajorLightDir computation
+// (XRShader_LightField.cpp:311-324), which combines the raw axis vectors
+// with no basis transform, and with the "Eye in model space" formula shared
+// with NDS/BUMPCUBEENV (the `for(j) Eye[j] = -(pMat->k[3][*]·pMat->k[j][*])`
+// idiom, ibid:271-278) -- everything in this program's data lives in model
+// space. Axis-to-basis-slot mapping (params[7..12], see the report for the
+// full parameter table) verified against the SAME code that builds
+// MajorLightDir: index pairs (0,1)/(2,3)/(4,5) contribute the X/Y/Z
+// components respectively, i.e. LF_Axis0=-X, Axis1=+X, Axis2=-Y, Axis3=+Y,
+// Axis4=-Z, Axis5=+Z -- identical convention to the vertex-side
+// CRC_TEXGENMODE_LIGHTFIELD formula (Docs/VP_Reference.md §3.12) and the
+// per-texel BRDF3 lightfieldmapping sum (Docs/FP_Reference.md §5.3),
+// confirming this really is the same ambient-cube scheme at object
+// granularity rather than per-texel.
+//
+// Math: Docs/FP_Reference.md §3.5/§5.3 + VP_Reference.md §3.12 (no shipped
+// forward .fp source exists for XRShader_FP20_LF at all -- see FP_Reference
+// §2.1's own admission "нет прямого [аналога]" -- so this is reconstructed
+// from the one place the docs call "honestly" implemented, BRDF3.fp's
+// *if_lightfield branch, simplified to just the diffuse sum, same
+// precedent as TrySetupLFMProgram/kGLES3_LFMFragSrc already set for LFM):
+//   nSat0 = clamp(N, 0, 1); nSat1 = clamp(-N, 0, 1);
+//   amb = nSat1.x*Axis0 + nSat0.x*Axis1 + nSat1.y*Axis2 + nSat0.y*Axis3
+//       + nSat1.z*Axis4 + nSat0.z*Axis5;
+//   amb *= 2.0;   // the constant VP_Reference §3.12 itself uses
+// then modulated by the diffuse texture and the material's diffuse-colour
+// scale (params[2], same LightColor the shared per-light programs use).
+//
+// SIMPLIFICATION (not restored, same "leave neutral" rule as NDSEATP's
+// Environment/Attribute/Transmission):
+//  - No BRDF()/specular/Fresnel call. §5.3 is explicit that the "virtual
+//    light direction" reconstructed from the axis data (here: params[0],
+//    the CPU-computed MajorLightDir) is used ONLY to feed the specular
+//    term of BRDF() -- the diffuse ambient-cube sum above needs none of
+//    it. Since we already skip BRDF() (same call as LFM), params[0]/
+//    LightRange(params[1], always the constant {1,1,1,1} in the CPU code
+//    -- no distance attenuation at all, this is genuinely non-attenuated
+//    ambient) are read for the diagnostic dump only, never for shading.
+//  - No normal-map sampling. XRShader_LightField.cpp's PrepareFrame for
+//    _LF sets m_TextureID[2]=Normal same as LFM, but (like LFM) never
+//    wires a tangent basis to go with it -- and unlike LFM, _LF's whole
+//    scheme is explicitly OBJECT-space (see space note above), so there
+//    is no principled way to fold a tangent-space bump normal into an
+//    object-space ambient cube at all (LFM's attempt at this was already
+//    flagged there as an approximation pending real tangents; doing the
+//    same here would compound rather than improve on it). Ambient-cube
+//    weighting uses the plain per-vertex/per-pixel model-space normal.
+//  - Environment (channel 7, BUMPCUBEENV texgen channel 5), Attribute
+//    (channel 3) and Transmission (channel 4) maps are not sampled --
+//    same "no reliable source to reconstruct from" reasoning as
+//    NDSEATP's identical omission (kGLES3_NDSPFragSrc class comment).
+//  - Alpha test: NOT forced (contrast with NDSEATP's RIDDICK_ALPHA_REF
+//    force). Confirmed from the SAME base-attrib evidence used for
+//    NDSEATP (XRShader_LightField.cpp's PrepareFrame for _LF, like the
+//    FP20 base attrib, never calls Attrib_AlphaCompare either) -- but _LF's
+//    blend state (SourceBlend=ONE, DestBlend=ONE, ColorWrite on,
+//    AlphaWrite off, ibid:40-43) is the SAME additive-layered-on-top
+//    pattern as NDS/NDSP/LFM (all of which use the generic
+//    GetAlphaTestParams path, no forcing), not the "sole uber pass"
+//    pattern that made NDSEATP special -- so the generic path (alpha test
+//    off by default, same as its siblings) is the correct read here, not
+//    a guess.
+static const char* kGLES3_LFVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=4) in vec3 aNormal;\n"
+	"uniform mat4 uMVP;\n"
+	"uniform mat4 uTexMat;\n"
+	"out vec2 vUV;\n"
+	// Raw MODEL-space normal (no uModel multiply) -- see the space note
+	// in the class comment above for why this program's ambient-cube math
+	// wants model space, not world space.
+	"out vec3 vNrmMS;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Same D3D->GL NDC.z remap as every other program in this file (see
+	// kGLES3_UIVertSrc for the full comment).
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vNrmMS = aNormal;\n"
+	"}\n";
+
+static const char* kGLES3_LFFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec3 vNrmMS;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	// Material diffuse-colour scale (program.env param[2], "LightColor" in
+	// the shared FP20 constant layout -- see class comment).
+	"uniform vec4 uLightColor;\n"
+	// LF_Axis0..5: -X,+X,-Y,+Y,-Z,+Z ambient-cube basis colours
+	// (program.env params[7..12]).
+	"uniform vec3 uLFAxis[6];\n"
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
+	// RIDDICK_DBG_NDS=lf -- isolates the ambient-cube contribution alone
+	// (no diffuse texture/colour multiply), same idea as RIDDICK_DBG_NDS=
+	// atten for NDS/NDSP or RIDDICK_DBG_LFM=lm for LFM.
+	"uniform int uDbgLF;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  vec3 N = normalize(vNrmMS);\n"
+	"  vec3 nSat0 = clamp( N, 0.0, 1.0);\n"
+	"  vec3 nSat1 = clamp(-N, 0.0, 1.0);\n"
+	"  vec3 amb = uLFAxis[0]*nSat1.x + uLFAxis[1]*nSat0.x\n"
+	"           + uLFAxis[2]*nSat1.y + uLFAxis[3]*nSat0.y\n"
+	"           + uLFAxis[4]*nSat1.z + uLFAxis[5]*nSat0.z;\n"
+	"  amb *= 2.0;\n"
+	"  if (uDbgLF != 0) { oColor = vec4(amb, 1.0); return; }\n"
+	"  vec4 diffuseTexel = (uUseTexture != 0) ? texture(uTex, vUV) : vec4(1.0);\n"
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (diffuseTexel.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (diffuseTexel.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (diffuseTexel.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (diffuseTexel.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (diffuseTexel.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (diffuseTexel.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
+	"  oColor = vec4(diffuseTexel.rgb * uLightColor.rgb * amb, diffuseTexel.a);\n"
+	"}\n";
+
 // --- FP20 NDS shader (m_NDSShader). --------------------------------------
 // XRShader_FP20_NDS: single dynamic light, additive pass (diffuse + normal
 // map + Phong specular, no projection texture -- see XRShader_FP20_NDSP for
@@ -1094,8 +1255,8 @@ static bool GLES3_NDSEnabled()
 	return s != 0;
 }
 
-// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj -- debug output of
-// the NDS/NDSP/NDSEATP programs (only meaningful together with
+// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj|lf -- debug output of
+// the NDS/NDSP/NDSEATP/LF programs (only meaningful together with
 // RIDDICK_NDS=1). 'tslv' shows the normalized tangent-space light vector
 // as RGB, 'normal' the decoded normal-map normal, 'diffuse'/'spec'
 // isolate one term of the lighting sum, 'atten' shows the distance
@@ -1106,7 +1267,10 @@ static bool GLES3_NDSEnabled()
 // before it multiplies into the attenuation -- isolates the cookie
 // shape from the distance falloff; on plain NDS draws (no projection
 // map) this mode is simply unreachable, same as any mode on a program
-// that doesn't implement it.
+// that doesn't implement it. 'lf' (LF only, see kGLES3_LFFragSrc/
+// TrySetupLFProgram) shows the ambient-cube contribution alone, with no
+// diffuse texture/colour multiply -- same isolation idea as 'atten'/
+// 'proj', just for the sixth (object-ambient) program.
 static int GLES3_DbgNDSMode()
 {
 	static int s = -1;
@@ -1122,9 +1286,28 @@ static int GLES3_DbgNDSMode()
 			else if (strcmp(e, "spec")    == 0) s = 4;
 			else if (strcmp(e, "atten")   == 0) s = 5;
 			else if (strcmp(e, "proj")    == 0) s = 6;
+			else if (strcmp(e, "lf")      == 0) s = 7;
 		}
 	}
 	return s;
+}
+
+// RIDDICK_NO_LF=1 -- explicit opt-out for just the XRShader_FP20_LF program
+// (see kGLES3_LFVertSrc/FragSrc, CRC_GLES3::TrySetupLFProgram), independent
+// of the rest of the RIDDICK_NDS=1 family (LFM/NDS/NDSP keep running).
+// Default (unset): LF draws whenever RIDDICK_NDS=1 and the program
+// qualifies -- there is no separate RIDDICK_LF=1 opt-in switch, the task
+// explicitly asks for one shared flag covering the whole shading set (LF
+// included), with this as the only override.
+static bool GLES3_NoLF()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_LF");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
 }
 
 class CDisplayContextSDL2 : public CDisplayContext
@@ -1745,7 +1928,32 @@ public:
 		int  m_DbgLastLFM0 = -1;
 		int  m_DbgLFMDraws = 0;
 
-		// Fourth program: XRShader_FP20_NDS (single dynamic light: diffuse +
+		// Fourth program: XRShader_FP20_LF (per-object ambient light field --
+		// see kGLES3_LFVertSrc/FragSrc and TrySetupLFProgram, selected right
+		// after LFM in SetupCommonUniforms). Gated by the SAME RIDDICK_NDS=1
+		// as the rest of this shading family; RIDDICK_NO_LF=1 (see GLES3_NoLF)
+		// force-disables just this one program.
+		CGLES3Shader m_LFShader;
+		int m_LFUMVPLoc = -1, m_LFUTexMatLoc = -1;
+		int m_LFUTexLoc = -1, m_LFUUseTexLoc = -1;
+		int m_LFULightColorLoc = -1;
+		// uLFAxis[6] -- set with a single glUniform3fv(loc, 6, ...) rather
+		// than SetVec4 per element (see TrySetupLFProgram).
+		int m_LFUAxisLoc = -1;
+		int m_LFUDbgLoc = -1;
+		// Alpha test (see kGLES3_LFFragSrc) -- same uAlphaFunc/uAlphaRef
+		// contract as the UI/3D/LFM/NDS programs; NOT forced (unlike
+		// NDSEATP's RIDDICK_ALPHA_REF) -- see the class comment on
+		// kGLES3_LFFragSrc for why the generic path is correct here.
+		int m_LFUAlphaFuncLoc = -1, m_LFUAlphaRefLoc = -1;
+		// One-shot session log (see TrySetupLFProgram) + per-interval draw
+		// counter (reset alongside the other [GL-DBG] counters, printed as
+		// "lf=N").
+		int  m_DbgLFLogged = 0;
+		int  m_DbgLastLFTex = -1;
+		int  m_DbgLFDraws = 0;
+
+		// Fifth program: XRShader_FP20_NDS (single dynamic light: diffuse +
 		// normal map + Phong specular, see kGLES3_NDSVertSrc/FragSrc and
 		// TrySetupNDSProgram, selected ahead of LFM/UI/3D in
 		// SetupCommonUniforms). RIDDICK_NDS=1 opt-in (see GLES3_NDSEnabled).
@@ -1776,7 +1984,7 @@ public:
 		bool m_bTangentUReal = false;
 		bool m_bTangentVReal = false;
 
-		// Fifth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
+		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
 		// kGLES3_NDSPVertSrc/FragSrc and CRC_GLES3::TrySetupNDSPProgram,
 		// selected right after TrySetupNDSProgram in SetupCommonUniforms).
@@ -2018,6 +2226,7 @@ public:
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgFPDraws = 0;
 			m_DbgLFMDraws = 0;
+			m_DbgLFDraws = 0;
 			m_DbgNDSDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
@@ -2105,13 +2314,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d nds=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgNDSDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -2325,6 +2534,137 @@ public:
 			// Leave the active texture unit at 0, as convention elsewhere
 			// in this file expects (see e.g. the end of the UI multitexture
 			// bind block in SetupCommonUniforms).
+			glActiveTexture(GL_TEXTURE0);
+			return true;
+		}
+
+		// Fallback reason log for TrySetupLFProgram, same cap/pattern as
+		// DbgLogLFMFallback/DbgLogNDSFallback.
+		void DbgLogLFFallback(const char* _Reason)
+		{
+			static int sLogged = 0;
+			if (sLogged >= 4) return;
+			++sLogged;
+			fprintf(stderr, "[GLES3-LF] falling back to legacy shader: %s\n", _Reason);
+			fflush(stderr);
+		}
+
+		// Selects and fully sets up m_LFShader (XRShader_FP20_LF, per-object
+		// ambient light field) for the current draw if it qualifies -- same
+		// contract as TrySetupLFMProgram/TrySetupNDSProgram: returns true with
+		// the program bound and every uniform/texture applied (caller must
+		// skip the normal UI/3D setup), false with GL state untouched
+		// otherwise. See the kGLES3_LFVertSrc/FragSrc class comment for the
+		// full channel/texcoord/parameter contract and what is simplified/not
+		// restored (no BRDF/specular, no normal-map sampling, Environment/
+		// Attribute/Transmission left neutral, alpha test not forced).
+		bool TrySetupLFProgram()
+		{
+			if (!GLES3_NDSEnabled() || GLES3_NoLF() || !m_LFShader.IsValid()) return false;
+			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
+			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
+				return false;
+
+			const CRC_ExtAttributes_FragmentProgram20* pFP =
+				static_cast<const CRC_ExtAttributes_FragmentProgram20*>(m_pCurAttrib->m_pExtAttrib);
+
+			static const uint32 sLFHash = StringToHash("XRShader_FP20_LF");
+			if (pFP->m_ProgramNameHash != sLFHash) return false;
+			if (!pFP->m_pProgramName || strcmp(pFP->m_pProgramName, "XRShader_FP20_LF") != 0)
+				return false;
+
+			// 7 base params (LightPos/LightRange/LightColor/SpecColor/
+			// AttribScale/EnvColor/TransmissionColor) + 6 LF_Axis0..5 vec4s --
+			// see XRShader_LightField.cpp:212,301,358 and the report for what
+			// each slot means. Fewer than 13 means we can't find the axis
+			// block reliably -- fall back rather than read past the array.
+			if (pFP->m_nParams < 13)
+			{
+				DbgLogLFFallback("nParams < 13 (expected 7 base params + 6 LF_Axis0..5)");
+				return false;
+			}
+
+			// Diffuse is in practice never engine-0 for this program (Create()
+			// substitutes the special all-white texture when the surface has
+			// none, XRShader_LightField.cpp:57), but route through the same
+			// optional-texture convention as every other program here anyway.
+			const int TexDiffuseID = (int)m_pCurAttrib->m_TextureID[0];
+			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
+
+			// Informational only: this program's math (see class comment on
+			// kGLES3_LFFragSrc) doesn't need the eye/TSLV texgen the engine
+			// sets up on channel 3 or the environment texgen on channel 5 --
+			// decoded here purely so the one-shot log below can report the
+			// real channel numbers per the task's diagnostic requirement,
+			// without acting on the values.
+			int Mode0, Mode1;
+			float U0[4], V0[4], U1[4], V1[4];
+			float TSLVParam[CRC_MAXTEXCOORDS][4];
+			bool HaveTSLV[CRC_MAXTEXCOORDS];
+			float LinUVW[CRC_MAXTEXCOORDS][12];
+			bool HaveLinUVW[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV, LinUVW, HaveLinUVW);
+			(void)Mode0; (void)Mode1; (void)U0; (void)V0; (void)U1; (void)V1; (void)LinUVW; (void)HaveLinUVW;
+
+			if (m_DbgEnabled && m_DbgLFLogged < 8 && m_DbgLastLFTex != TexDiffuseID)
+			{
+				++m_DbgLFLogged;
+				m_DbgLastLFTex = TexDiffuseID;
+				const int nP = pFP->m_nParams;
+				fprintf(stderr,
+					"[GLES3-LF] diffuse=%d uvset0=%d texgenCh3(eyeTSLV)=%s texgenCh5(env)=%d nParams=%d\n",
+					TexDiffuseID, (int)m_pCurAttrib->m_iTexCoordSet[0],
+					HaveTSLV[3] ? "yes" : "no",
+					(int)m_pCurAttrib->m_lTexGenMode[5], nP);
+				for (int p = 0; p < nP && p < 13; ++p)
+				{
+					const CVec4Dfp32& V = pFP->m_pParams[p];
+					fprintf(stderr, "[GLES3-LF]   param[%d] = %g %g %g %g\n", p, V.k[0], V.k[1], V.k[2], V.k[3]);
+				}
+				fflush(stderr);
+			}
+			++m_DbgLFDraws;
+
+			m_LFShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_LFShader.SetMat4(m_LFUMVPLoc, (const float*)&MVP);
+			m_LFShader.SetMat4(m_LFUTexMatLoc, (const float*)&m_TexMat[0]);
+
+			// LightColor (param[2]): material diffuse-colour scale, same
+			// slot/meaning the shared per-light programs use.
+			const CVec4Dfp32& LightColor = pFP->m_pParams[2];
+			m_LFShader.SetVec4(m_LFULightColorLoc, LightColor.k[0], LightColor.k[1], LightColor.k[2], LightColor.k[3]);
+
+			// LF_Axis0..5 (params[7..12]) -- see kGLES3_LFFragSrc for the
+			// -X,+X,-Y,+Y,-Z,+Z basis-index convention (verified against
+			// RenderShading_FP20_LF's own MajorLightDir computation).
+			float AxisData[6 * 3];
+			for (int i = 0; i < 6; ++i)
+			{
+				const CVec4Dfp32& A = pFP->m_pParams[7 + i];
+				AxisData[i*3 + 0] = A.k[0];
+				AxisData[i*3 + 1] = A.k[1];
+				AxisData[i*3 + 2] = A.k[2];
+			}
+			glUniform3fv(m_LFUAxisLoc, 6, AxisData);
+
+			glActiveTexture(GL_TEXTURE0);
+			if (TDiffuse) glBindTexture(GL_TEXTURE_2D, TDiffuse);
+			m_LFShader.SetInt(m_LFUTexLoc, 0);
+			m_LFShader.SetInt(m_LFUUseTexLoc, TDiffuse ? 1 : 0);
+
+			m_LFShader.SetInt(m_LFUDbgLoc, GLES3_DbgNDSMode() == 7 ? 1 : 0);
+
+			{
+				int AlphaFunc; float AlphaRef;
+				GetAlphaTestParams(AlphaFunc, AlphaRef);
+				m_LFShader.SetInt(m_LFUAlphaFuncLoc, AlphaFunc);
+				if (AlphaFunc) m_LFShader.SetFloat(m_LFUAlphaRefLoc, AlphaRef);
+			}
+
+			// Same convention as TrySetupLFMProgram/TrySetupNDSProgram: leave
+			// the active unit at 0.
 			glActiveTexture(GL_TEXTURE0);
 			return true;
 		}
@@ -2937,6 +3277,21 @@ public:
 				m_LFMUDbgLoc       = m_LFMShader.UniformLocation("uDbgLFM");
 				m_LFMUAlphaFuncLoc = m_LFMShader.UniformLocation("uAlphaFunc");
 				m_LFMUAlphaRefLoc  = m_LFMShader.UniformLocation("uAlphaRef");
+			}
+
+			// FP20 LF program (per-object ambient light field, world geometry
+			// -- see TrySetupLFProgram).
+			if (m_LFShader.Build(kGLES3_LFVertSrc, kGLES3_LFFragSrc, "LF"))
+			{
+				m_LFUMVPLoc       = m_LFShader.UniformLocation("uMVP");
+				m_LFUTexMatLoc    = m_LFShader.UniformLocation("uTexMat");
+				m_LFUTexLoc       = m_LFShader.UniformLocation("uTex");
+				m_LFUUseTexLoc    = m_LFShader.UniformLocation("uUseTexture");
+				m_LFULightColorLoc = m_LFShader.UniformLocation("uLightColor");
+				m_LFUAxisLoc      = m_LFShader.UniformLocation("uLFAxis[0]");
+				m_LFUDbgLoc       = m_LFShader.UniformLocation("uDbgLF");
+				m_LFUAlphaFuncLoc = m_LFShader.UniformLocation("uAlphaFunc");
+				m_LFUAlphaRefLoc  = m_LFShader.UniformLocation("uAlphaRef");
 			}
 
 			// FP20 NDS program (single dynamic light, world geometry -- see
@@ -3563,7 +3918,23 @@ public:
 			if (m_DbgNoBlend) { glDisable(GL_BLEND); }
 
 			// Scissor
-			if (F & CRC_FLAGS_SCISSOR)
+			// RIDDICK_NO_SCISSOR=1: ignore the engine's scissor rect.
+			// Light passes carry CXR_VBFLAGS_LIGHTSCISSOR -- the engine
+			// clips each additive light pass to that light's screen-space
+			// bounding box as an optimisation. If our rect is computed in
+			// the wrong space (viewport-relative vs target-absolute, or the
+			// wrong height for the Y flip), the light gets cut by a hard
+			// axis-aligned edge that moves with the camera -- exactly what
+			// the 2026-07-27 atten screenshot shows on the gate. Turning
+			// the scissor off is only a diagnostic: a correct rect never
+			// removes visible light, it only saves fill rate.
+			static int sNoScissor = -1;
+			if (sNoScissor < 0)
+			{
+				const char* e = getenv("RIDDICK_NO_SCISSOR");
+				sNoScissor = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if ((F & CRC_FLAGS_SCISSOR) && !sNoScissor)
 			{
 				uint32 MinX, MinY, MaxX, MaxY;
 				_pAttrib->m_Scissor.GetRect(MinX, MinY, MaxX, MaxY);
@@ -4335,6 +4706,15 @@ public:
 			// missing a texture) falls through unchanged to the selection
 			// below, same as before this program existed.
 			if (TrySetupLFMProgram())
+				return;
+
+			// XRShader_FP20_LF (per-object ambient light field -- see
+			// TrySetupLFProgram / kGLES3_LFVertSrc/FragSrc). Same contract as
+			// the LFM check above: on success the program is fully bound and
+			// this draw is done. Checked right after LFM since both are
+			// "baked ambient" style passes, before the per-light NDS/NDSP
+			// programs below.
+			if (TrySetupLFProgram())
 				return;
 
 			// XRShader_FP20_NDS (single dynamic light: diffuse + normal map
