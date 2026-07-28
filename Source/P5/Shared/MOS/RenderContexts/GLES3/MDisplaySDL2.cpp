@@ -5219,6 +5219,26 @@ public:
 		// same rules as the legacy path. Returns true = drop this draw.
 		bool DrawIndexed_ShouldSkip(int _nVerts)
 		{
+			// RIDDICK_NO_FOG=1: drop the engine's depth-fog passes entirely.
+			// They are alpha-blended over everything at the end of the frame
+			// and, while they are misbehaving, they wash the picture out and
+			// make every other visual check unreadable -- a white haze over
+			// the light passes is easily mistaken for the light passes
+			// themselves. The fog pass has a unique signature: texgen mode
+			// CRC_TEXGENMODE_LINEAR on texcoord channel 0 (WBSP2Model.cpp:
+			// 1927-1929 is the only place that sets it). Nothing else in the
+			// frame uses it, so this filter is precise.
+			if (m_pCurAttrib && m_pCurAttrib->m_lTexGenMode[0] == CRC_TEXGENMODE_LINEAR)
+			{
+				static int sNoFog = -1;
+				if (sNoFog < 0)
+				{
+					const char* e = getenv("RIDDICK_NO_FOG");
+					sNoFog = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (sNoFog) return true;
+			}
+
 			// RIDDICK_ONLY_BSP=1: whitelist only BSP2 world-cluster draws.
 			// World clusters are large (nV>=500); UI/particles/tiny meshes
 			// are small. This is a positive filter — one flag instead of
