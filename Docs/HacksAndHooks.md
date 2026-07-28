@@ -951,6 +951,110 @@ TexCoord4=ProjMap» — и это совпало), а перепроверен �
   контракт условий качества, что у NDS (тангентный базис, normal map,
   проекционная текстура, нужные texgen-каналы), капа 4 раза за сессию.
 
+### FP20 LF program (2026-07-28) — пятая и последняя forward-программа, объектный ambient
+
+`XRShader_FP20_LF` — последняя из пяти FP20 forward-программ движка (см.
+§ выше по NDS/NDSP/NDSEATP/LFM — теперь все пять покрыты). В отличие от
+всех остальных четырёх это НЕ источник направленного/точечного света, а
+per-object ambient: 6 констант `CXR_ShaderParams_LightField::m_lLFAxes[6]`
+(цвет освещения по −X,+X,−Y,+Y,−Z,+Z полусферам нормали объекта — классика
+ambient-cube/radiosity-normal-map, тот же принцип, что у per-texel LFM
+выше, но одно значение на весь объект вместо текстуры на пиксель). Именно
+эта программа даёт свет в местах, куда не достаёт ни один точечный
+источник (замеры на Pa1_Arrival подтвердили, что NDS/NDSP считают
+затухание и параметры источника физически верно — `atten` даёт корректный
+градиент, — но без ambient-прохода комнаты всё равно чёрные). Реализована
+своим GL-шейдером `m_LFShader` (`kGLES3_LFVertSrc`/`kGLES3_LFFragSrc`),
+селектор `CRC_GLES3::TrySetupLFProgram()` — тот же контракт (хэш+`strcmp`,
+bind-and-return-true / untouched-and-return-false), что у LFM/NDS/NDSP,
+проверен в `SetupCommonUniforms` сразу после LFM (обе программы — «baked
+ambient», перед per-light NDS/NDSP).
+
+**Контракт «канал → карта» / texcoord-сет** (`XRShader_LightField.cpp:
+2-70` — класс `CXR_VirtualAttributes_ShaderFP20_LF`, НЕ mapping-вариант
+`_LFM` ниже в том же файле — и `RenderShading_FP20_LF`, ibid:193-274):
+
+| Что | Значение |
+|---|---|
+| Diffuse | `m_TextureID[0]` (фоллбэк на служебную белую текстуру, если у поверхности своей нет — на практике канал никогда не 0) |
+| Specular/Normal/Attribute/Transmission/Environment/AnisotropicDir | `m_TextureID[1]/[2]/[3]/[4]/[7]/[8]` заполняются, но **не сэмплируются** нашей реализацией — см. «Упрощено» |
+| Mapping UV | `m_iTexCoordSet[0]` |
+| TangentU/TangentV | `m_iTexCoordSet[2]/[3]` заполняются (из `CXR_ShaderParams_LightField`), но PrepareFrame НЕ заводит для них texgen (TANG_U/TANG_V закомментированы в исходнике, как и у LFM) — нет тангентного базиса вообще |
+| texgen-канал 2 | `CRC_TEXGENMODE_VOID` — пусто |
+| texgen-канал 3 | `CRC_TEXGENMODE_TSLV`, но несёт вектор к ГЛАЗУ (не к свету!) в MODEL space — единственный TSLV-блок, который пишет `RenderShading_FP20_LF` (`nTexGenSize` считает `TSLV*1`, не `*2`, как у NDS) |
+| texgen-канал 5 | `CRC_TEXGENMODE_BUMPCUBEENV` — вектор для env-отражения, кормит `m_TextureID[7]` |
+| texgen-каналы 6/7 | `VOID` |
+
+Оба заполненных texgen-канала (3 и 5) обслуживают термы (спекуляр,
+environment-отражение), которые наша реализация сознательно не считает —
+см. «Упрощено». Мы их всё же декодируем в `TrySetupLFProgram` (через
+существующий `DecodeTexGenChannels`) исключительно ради разового
+диагностического лога (пункт 5 задания — номера texgen-каналов), не для
+самого рендера.
+
+**13 параметров программы** (`pFP->m_nParams`, заполняются в
+`RenderShading_FP20_LF`, ibid:298-358):
+
+| Слот | Имя в коде | Назначение | Используем? |
+|---|---|---|---|
+| 0 | `LightPos` | `MajorLightDir` — единичное направление, посчитанное CPU-стороной из тех же 6 осей (взвешенная сумма разностей axis0-axis1 и т.д., см. ibid:311-324) | НЕТ — по §5.3 это «виртуальное направление света», нужное только спекулярному члену BRDF, который мы не считаем |
+| 1 | `LightRange` | Всегда константа `{1,1,1,1}` (без затухания — это и есть признак «это ambient, не точечный свет») | НЕТ (константа, нечего читать) |
+| 2 | `LightColor` | `m_DiffuseScale * pSurfParams->m_DiffuseColor` — материальный множитель диффуза, тот же слот/смысл, что у NDS/NDSP | ДА (`uLightColor`) |
+| 3 | `SpecColor` | `m_SpecularScale * pSurfParams->m_SpecularColor` (+ `SpecularForcePower` в `.k[3]`) | НЕТ (нет спекуляра в упрощённой реализации) |
+| 4 | `AttribScale` | `pSurfParams->m_AttribScale` | НЕТ — не восстановить надёжно (см. «Упрощено») |
+| 5 | `EnvColor` | `pSurfParams->m_EnvColor` | НЕТ — не восстановить надёжно |
+| 6 | `TransmissionColor` | `pSurfParams->m_TransmissionColor` | НЕТ — не восстановить надёжно |
+| 7..12 | `LF_Axis0..5` | 6 вершин ambient-cube: −X,+X,−Y,+Y,−Z,+Z (порядок подтверждён по формуле `MajorLightDir`, ibid:311-324: пары индексов (0,1)/(2,3)/(4,5) дают X/Y/Z) | ДА (`uLFAxis[6]`) |
+
+**Откуда взята математика:** готового forward `.fp` для
+`XRShader_FP20_LF` в дереве нет вообще (`Docs/FP_Reference.md` §2.1 прямо
+пишет «нет прямого [аналога]») — честная реализация того же принципа есть
+только в деферред `XRShader_BRDF3.fp`, ветка `*if_lightfield`
+(`Docs/FP_Reference.md` §3.5/§5.3), и в вершинном
+`CRC_TEXGENMODE_LIGHTFIELD` (`Docs/VP_Reference.md` §3.12) — оба честно
+описывают одну и ту же 6-направленную ambient-cube свёртку по нормали.
+Формула перенесена из VP_Reference §3.12 (`nSat0*Axis1 + nSat1*Axis0 + ...`,
+множитель `*2.0`), тот же приоритет источника, что и раньше для LFM
+(диффузная сумма без вызова полного BRDF).
+
+**Пространство:** в отличие от NDS/NDSP, PrepareFrame для `_LF` не заводит
+TANG_U/TANG_V вообще (как и у LFM) — тангентного базиса нет. Ambient-cube
+взвешивание считается прямо по MODEL-space нормали вершины (`aNormal`
+передаётся как есть, без умножения на `uModel`) — это согласуется с тем,
+что `RenderShading_FP20_LF` не применяет к осям никакого базисного
+преобразования (`MajorLightDir` считается из сырых `m_lLFAxes` без
+трансформации) и с идиомой «eye in model space», общей с BUMPCUBEENV
+(`Eye[j] = -(pMat->k[3][*]·pMat->k[j][*])`, ibid:271-278) — всё в этой
+программе живёт в object/model space, не world space и не tangent space.
+
+**Упрощено / не восстановлено:**
+
+- **Нет вызова BRDF()/спекуляра/Френеля.** По §5.3 «виртуальное»
+  направление света (`LightPos`/`MajorLightDir`) нужно ТОЛЬКО спекулярному
+  члену — диффузная ambient-cube сумма его не использует вовсе. Раз мы не
+  считаем BRDF (тот же прецедент, что и у LFM), `LightPos`/`LightRange`
+  читаются только в диагностику, не в шейдинг.
+- **Нет сэмплирования normal-мапы.** `_LF`, как и `_LFM`, заполняет
+  `m_TextureID[2]`, но тоже не заводит тангентный базис под него — а раз
+  вся схема `_LF` объектная (см. «Пространство» выше), для tangent-space
+  bump-нормали с объектным ambient cube нет вообще никакого
+  корректного способа их скомбинировать (у LFM это уже было отмечено как
+  приближение до реальных тангентов; здесь повторение той же попытки
+  только усугубило бы ошибку, а не улучшило). Используется голая
+  per-vertex/per-pixel model-space нормаль.
+- **Environment (канал 7, BUMPCUBEENV на канале 5), Attribute (канал 3),
+  Transmission (канал 4)** — не сэмплируются, та же причина «нет
+  надёжного источника», что и у NDSEATP.
+- **Alpha test НЕ форсируется** (в отличие от NDSEATP). Базовый атрибут
+  `_LF` (`XRShader_LightField.cpp` `PrepareFrame`), как и общий FP20-атрибут,
+  тоже не вызывает `Attrib_AlphaCompare` — но blend-состояние `_LF`
+  (`SourceBlend=ONE`, `DestBlend=ONE`, `ColorWrite` вкл, `AlphaWrite` выкл,
+  ibid:40-43) — тот же аддитивный «слой поверх базового прохода» паттерн,
+  что у NDS/NDSP/LFM (которые все используют общий `GetAlphaTestParams`
+  без форсинга), а не паттерн «единственный uber-проход», из-за которого
+  NDSEATP форсировал тест. Общий путь (тест выключен по умолчанию, как у
+  соседей) здесь правильное чтение контракта, а не догадка.
+
 ### Skinning не реализован
 
 - **HACK** `BuildVertsFromVBB` возвращает NULL если m_lpVReg[MI0/MW0] есть
