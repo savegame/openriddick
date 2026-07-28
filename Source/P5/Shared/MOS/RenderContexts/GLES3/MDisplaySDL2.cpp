@@ -386,6 +386,138 @@ static const char* kGLES3_LFMFragSrc =
 	"  oColor = vec4(diff.rgb * lfmColor, diff.a);\n"
 	"}\n";
 
+// --- FP20 NDS shader (m_NDSShader). --------------------------------------
+// XRShader_FP20_NDS: single dynamic light, additive pass (diffuse + normal
+// map + Phong specular, no projection texture -- see XRShader_FP20_NDSP for
+// the projected variant, not implemented). Channel/texcoord contract is
+// CXR_VirtualAttributes_ShaderFP20_COREFBB (XRShader_FP20.cpp:77-289) +
+// CXR_Shader::RenderShading_FP20_COREFBB (ibid:298-436): m_TextureID[0]=
+// Diffuse, [2]=Normal(+Specular in alpha), m_iTexCoordSet[0]/[1]=Mapping,
+// [2]/[3]=TangentU/TangentV. Texgen channel 1=MSPOS (trivial -- it is just
+// the model-space vertex position, no extra vertex data needed), channels
+// 3/4=TSLV (tangent-space light vector to the light / to the eye,
+// respectively -- see DecodeTexGenChannels). Math ported verbatim from
+// shaders/ARB_Fragment_Program/XRShader_SinglePass_Dst2_SpecNormal.fp
+// (Docs/FP_Reference.md §4 gives the same formula in pseudo-GLSL, but see
+// the self-shadow note below for one place where the assembly and that
+// doc disagree -- the assembly wins). Needs the tangent basis (locations
+// 5/6, see BindEntryAttrib) -- cache-path draws only, see
+// CRC_GLES3::TrySetupNDSProgram and Docs/HacksAndHooks.md "RIDDICK_NDS".
+static const char* kGLES3_NDSVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=4) in vec3 aNormal;\n"
+	"layout(location=5) in vec3 aTangentU;\n"
+	"layout(location=6) in vec3 aTangentV;\n"
+	"uniform mat4 uMVP;\n"
+	"uniform mat4 uTexMat;\n"
+	// TSLV texgen parameters for texcoord channels 3 (light) / 4 (eye) --
+	// CRC_TEXGENMODE_TSLV, see DecodeTexGenChannels: xyz = source position
+	// (model space), w = extra scalar scale (engine always sends 1/32.0
+	// here, XRShader_FP20.cpp:363/366).
+	"uniform vec4 uLightTS;\n"
+	"uniform vec4 uEyeTS;\n"
+	"out vec2 vUV;\n"
+	// fragment.texcoord[3]/[4] of the original program (IPTSLV/IPTSEV) --
+	// deliberately NOT normalized here (neither is the ARB source; it
+	// normalizes in the fragment stage, see kGLES3_NDSFragSrc).
+	"out vec3 vTSLV;\n"
+	"out vec3 vTSEV;\n"
+	// fragment.texcoord[1] (Animated model space pixel position, MSPOS
+	// texgen) -- trivially the model-space vertex position itself.
+	"out vec3 vPosMS;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Same D3D->GL NDC.z remap as every other program in this file (see
+	// kGLES3_UIVertSrc for the full comment).
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vPosMS = aPos;\n"
+	// CRC_TEXGENMODE_TSLV (Docs/VP_Reference.md §3.1, shaders/VP.xrg:
+	// 1565-1573): component order verified against the template's ARB
+	// assembler, NOT the CRC_TEXGENMODE_TSLV enum comment (which claims
+	// x=TangU -- the real code puts x=dot(N,L), y=dot(TV,L), z=dot(TU,L)).
+	"  vec3 Lto = uLightTS.xyz - aPos;\n"
+	"  vTSLV = vec3(dot(aNormal, Lto), dot(aTangentV, Lto), dot(aTangentU, Lto)) * uLightTS.w;\n"
+	"  vec3 Eto = uEyeTS.xyz - aPos;\n"
+	"  vTSEV = vec3(dot(aNormal, Eto), dot(aTangentV, Eto), dot(aTangentU, Eto)) * uEyeTS.w;\n"
+	"}\n";
+
+static const char* kGLES3_NDSFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec3 vTSLV;\n"
+	"in vec3 vTSEV;\n"
+	"in vec3 vPosMS;\n"
+	"uniform sampler2D uTex;\n"       // Diffuse (channel 0)
+	"uniform int uUseTexture;\n"
+	"uniform sampler2D uNormalTex;\n" // Normal+Specular(alpha) (channel 2)
+	"uniform int uUseNormalMap;\n"
+	// program.env[0..3] of the ARB program -- see CRC_GLES3::
+	// TrySetupNDSProgram / the report for what each of the engine's 6
+	// CRC_ExtAttributes_FragmentProgram20::m_pParams slots means; params
+	// [4] (EyePos) and [5] (NoiseOffset) are NOT read by this program (the
+	// ARB source has EyePosition commented out -- eye info arrives instead
+	// via vTSEV, computed vertex-side from the SAME eye position through
+	// the channel-4 TSLV texgen).
+	"uniform vec4 uLightPos;\n"    // {x,y,z,-} model space
+	"uniform vec4 uLightRange;\n"  // {1/R, R, 1/R^2, R^2}
+	"uniform vec4 uLightColor;\n"  // {r,g,b,-} (0..2 HDR-ish range)
+	"uniform vec4 uSpecColor;\n"   // {r,g,b,SpecPower}
+	// RIDDICK_DBG_NDS: 0=off, 1=tslv (normalized light vector as RGB),
+	// 2=normal (decoded normal-map normal as RGB), 3=diffuse term only,
+	// 4=specular term only.
+	"uniform int uDbgMode;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  vec4 diffuseTexel = (uUseTexture   != 0) ? texture(uTex,       vUV) : vec4(1.0);\n"
+	"  vec4 normalTexel  = (uUseNormalMap != 0) ? texture(uNormalTex, vUV) : vec4(0.5, 0.5, 1.0, 1.0);\n"
+	// Attenuation -- ARB: SUB/DP3/MUL_SAT/ADD/MUL, i.e.
+	// (1 - saturate(distSq/Range^2))^2 (matches Docs/FP_Reference.md §4.2).
+	"  vec3 toLight = uLightPos.xyz - vPosMS;\n"
+	"  float distSq = dot(toLight, toLight);\n"
+	"  float attnLin = clamp(distSq * uLightRange.z, 0.0, 1.0);\n"
+	"  float attn = 1.0 - attnLin;\n"
+	"  attn = attn * attn;\n"
+	// Normal map: bias/scale [0..1] -> [-1..1], normalize.
+	"  vec3 N = normalize(normalTexel.rgb * 2.0 - 1.0);\n"
+	// ARB normalizes both interpolated tangent-space vectors before use.
+	"  vec3 L = normalize(vTSLV);\n"
+	"  vec3 E = normalize(vTSEV);\n"
+	// Reflection of E about N (ARB literally reflects the EYE vector, not
+	// the light vector -- mathematically equivalent to the more familiar
+	// reflect(-L,N)/dot(R,E) form because reflection about N is symmetric:
+	// dot(L, reflect(E,N)) == dot(E, reflect(L,N)). Do not "fix" this.
+	"  vec3 R = 2.0 * dot(N, E) * N - E;\n"
+	// Self-shadowing: the ARB source uses the NORMALIZED L.x (i.e. after
+	// the "Normalize TSLV" block), NOT the raw interpolated IPTSLV.x that
+	// Docs/FP_Reference.md §4.2 describes -- verified against the .fp
+	// instruction order (normalize happens first, self-shadow reads the
+	// same TSLV register afterwards). Trust the assembly here.
+	"  float selfShadow = clamp((0.25 + L.x) * 4.0, 0.0, 1.0);\n"
+	"  attn *= selfShadow;\n"
+	"  if (uDbgMode == 1) { oColor = vec4(L * 0.5 + 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 2) { oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
+	"  vec3 diffuse = uLightColor.rgb * diffuseTexel.rgb * 2.0 * clamp(dot(N, L), 0.0, 1.0);\n"
+	"  if (uDbgMode == 3) { oColor = vec4(diffuse, 1.0); return; }\n"
+	// Specular: Phong (R, not half-vector), spec mask from the normal
+	// map's alpha channel (SpecNormal variant -- see FP header comment
+	// "Texture2 = Normal+Specular map").
+	"  float specDot = clamp(dot(L, R), 0.0, 1.0);\n"
+	"  float specPow = pow(specDot, uSpecColor.a);\n"
+	"  vec3 specular = uSpecColor.rgb * specPow * normalTexel.a;\n"
+	"  if (uDbgMode == 4) { oColor = vec4(specular, 1.0); return; }\n"
+	"  vec3 result = (diffuse + specular) * attn;\n"
+	// Alpha is never written by this pass in the engine (Attrib_Disable
+	// (CRC_FLAGS_ALPHAWRITE) in PrepareFrame, blend is ONE/ONE) -- the ARB
+	// program's oCol.a ends up holding leftover scratch (2*dot(N,E)) from
+	// the reflection calc, never an intentional alpha; 1.0 here is simpler
+	// and equally inert.
+	"  oColor = vec4(result, 1.0);\n"
+	"}\n";
+
 #ifdef PLATFORM_LINUX
 
 #include <SDL.h>
@@ -634,6 +766,46 @@ static float GLES3_LFMScale()
 		const char* e = getenv("RIDDICK_LFM_SCALE");
 		s = (e && *e) ? (float)atof(e) : 4.0f;
 		if (s < 0.0f) s = 4.0f;
+	}
+	return s;
+}
+
+// RIDDICK_NDS=1 -- opt-in switch for the XRShader_FP20_NDS program (single
+// dynamic light: diffuse + normal map + Phong specular, see
+// CRC_GLES3::TrySetupNDSProgram / kGLES3_NDSVertSrc/FragSrc). Unlike LFM
+// (default-on, explicit opt-out) this one defaults OFF: it is new code
+// that needs the tangent-basis plumbing (locations 5/6, cache-path draws
+// only) to have been exercised for real before flipping it on generally.
+// Default (unset) behaviour is byte-for-byte unchanged.
+static bool GLES3_NDSEnabled()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NDS");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec -- debug output of the NDS
+// program (only meaningful together with RIDDICK_NDS=1). 'tslv' shows the
+// normalized tangent-space light vector as RGB, 'normal' the decoded
+// normal-map normal, 'diffuse'/'spec' isolate one term of the lighting sum.
+static int GLES3_DbgNDSMode()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_NDS");
+		s = 0;
+		if (e && *e)
+		{
+			if      (strcmp(e, "tslv")    == 0) s = 1;
+			else if (strcmp(e, "normal")  == 0) s = 2;
+			else if (strcmp(e, "diffuse") == 0) s = 3;
+			else if (strcmp(e, "spec")    == 0) s = 4;
+		}
 	}
 	return s;
 }
@@ -1243,6 +1415,33 @@ public:
 		bool m_bDbgLFMLogged = false;
 		int  m_DbgLFMDraws = 0;
 
+		// Fourth program: XRShader_FP20_NDS (single dynamic light: diffuse +
+		// normal map + Phong specular, see kGLES3_NDSVertSrc/FragSrc and
+		// TrySetupNDSProgram, selected ahead of LFM/UI/3D in
+		// SetupCommonUniforms). RIDDICK_NDS=1 opt-in (see GLES3_NDSEnabled).
+		CGLES3Shader m_NDSShader;
+		int m_NDSUMVPLoc = -1, m_NDSUTexMatLoc = -1;
+		int m_NDSULightTSLoc = -1, m_NDSUEyeTSLoc = -1;
+		int m_NDSUTexLoc = -1, m_NDSUUseTexLoc = -1;
+		int m_NDSUNormalTexLoc = -1, m_NDSUUseNormalLoc = -1;
+		int m_NDSULightPosLoc = -1, m_NDSULightRangeLoc = -1;
+		int m_NDSULightColorLoc = -1, m_NDSUSpecColorLoc = -1;
+		int m_NDSUDbgLoc = -1;
+		// One-shot session log (see TrySetupNDSProgram) + per-interval draw
+		// counter (reset alongside the other [GL-DBG] counters, printed as
+		// "nds=N").
+		bool m_bDbgNDSLogged = false;
+		int  m_DbgNDSDraws = 0;
+		// Set by SetVertexAttribPointers/SetVertexAttribPointersFromEntry
+		// (see BindEntryAttrib) to reflect whether locations 5/6 (tangent
+		// basis) are bound to REAL per-vertex data for the draw about to
+		// happen, as opposed to the axis-aligned constant fallback. The old
+		// streaming path (SUIVert) never carries tangents at all (see
+		// Docs/HacksAndHooks.md "RIDDICK_NDS"), so these are always false
+		// there; TrySetupNDSProgram uses this as its qualification gate.
+		bool m_bTangentUReal = false;
+		bool m_bTangentVReal = false;
+
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
@@ -1457,6 +1656,7 @@ public:
 			m_DbgDrawVBID = m_DbgTexBound = m_DbgTexMissing = 0;
 			m_DbgFPDraws = 0;
 			m_DbgLFMDraws = 0;
+			m_DbgNDSDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -1543,13 +1743,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d nds=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgNDSDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -1742,6 +1942,205 @@ public:
 			return true;
 		}
 
+		// Shared texgen-channel walk: same loop/offset-advance rules as
+		// PushTexGenUniforms (below, still the sole consumer of the LINEAR
+		// outputs), factored out and extended so XRShader_FP20_NDS can pull
+		// CRC_TEXGENMODE_TSLV parameters out of the same
+		// m_pCurAttrib->m_pTexGenAttr blob without duplicating the walk.
+		// _OutTSLV[i]/_OutHaveTSLV[i] receive the raw vec4 for every
+		// channel whose mode is TSLV (GetTexGenModeAttribSize(TSLV,*) is
+		// always 4 floats = 1 vec4, regardless of _TexGenComp -- see
+		// Docs/VP_Reference.md §2.3/§3.1); every other channel's data is
+		// still walked (to keep pAttr's offset correct for channels after
+		// it) even when neither LINEAR nor TSLV, exactly like the original
+		// PushTexGenUniforms loop did.
+		void DecodeTexGenChannels(int& _Mode0, float _U0[4], float _V0[4],
+		                          int& _Mode1, float _U1[4], float _V1[4],
+		                          float _OutTSLV[CRC_MAXTEXCOORDS][4],
+		                          bool _OutHaveTSLV[CRC_MAXTEXCOORDS])
+		{
+			_Mode0 = 0; _Mode1 = 0;
+			for (int i = 0; i < 4; ++i) { _U0[i] = 0.0f; _V0[i] = 0.0f; _U1[i] = 0.0f; _V1[i] = 0.0f; }
+			for (int i = 0; i < CRC_MAXTEXCOORDS; ++i) _OutHaveTSLV[i] = false;
+
+			if (GLES3_NoTexGen() || !m_pCurAttrib || !m_pCurAttrib->m_pTexGenAttr)
+				return;
+
+			const fp32* pAttr = m_pCurAttrib->m_pTexGenAttr;
+			for (int iTxt = 0; iTxt < CRC_MAXTEXCOORDS; ++iTxt)
+			{
+				const int RawMode = m_pCurAttrib->m_lTexGenMode[iTxt];
+				const int Comp    = m_pCurAttrib->GetTexGenComp(iTxt);
+
+				if (RawMode == CRC_TEXGENMODE_LINEAR)
+				{
+					float U[4] = {0,0,0,0}, V[4] = {0,0,0,0};
+					const fp32* p = pAttr;
+					if (Comp & CRC_TEXGENCOMP_U) { U[0]=p[0]; U[1]=p[1]; U[2]=p[2]; U[3]=p[3]; p += 4; }
+					if (Comp & CRC_TEXGENCOMP_V) { V[0]=p[0]; V[1]=p[1]; V[2]=p[2]; V[3]=p[3]; p += 4; }
+					if (iTxt == 0) { _Mode0 = 1; memcpy(_U0, U, sizeof(U)); memcpy(_V0, V, sizeof(V)); }
+					else if (iTxt == 1) { _Mode1 = 1; memcpy(_U1, U, sizeof(U)); memcpy(_V1, V, sizeof(V)); }
+				}
+				else if (RawMode == CRC_TEXGENMODE_TSLV)
+				{
+					_OutTSLV[iTxt][0] = pAttr[0]; _OutTSLV[iTxt][1] = pAttr[1];
+					_OutTSLV[iTxt][2] = pAttr[2]; _OutTSLV[iTxt][3] = pAttr[3];
+					_OutHaveTSLV[iTxt] = true;
+				}
+				else if (RawMode != CRC_TEXGENMODE_TEXCOORD)
+				{
+					DbgNoteTexGenMode(RawMode, iTxt);
+				}
+
+				// Skip past this channel's attrib block regardless of
+				// whether we decoded it -- offsets must stay correct for
+				// channels after this one.
+				pAttr += CRC_Attributes::GetTexGenModeAttribSize(RawMode, Comp);
+			}
+		}
+
+		// Fallback reason log for TrySetupNDSProgram, same cap/pattern as
+		// DbgLogLFMFallback.
+		void DbgLogNDSFallback(const char* _Reason)
+		{
+			static int sLogged = 0;
+			if (sLogged >= 4) return;
+			++sLogged;
+			fprintf(stderr, "[GLES3-NDS] falling back to legacy shader: %s\n", _Reason);
+			fflush(stderr);
+		}
+
+		// Selects and fully sets up m_NDSShader (XRShader_FP20_NDS, single
+		// dynamic light) for the current draw if it qualifies -- same
+		// contract as TrySetupLFMProgram: returns true with the program
+		// bound and every uniform/texture applied (caller must skip the
+		// normal UI/3D setup), false with GL state untouched otherwise.
+		//
+		// Channel/texcoord contract (XRShader_FP20.cpp:77-436,
+		// CXR_VirtualAttributes_ShaderFP20_COREFBB::OnSetAttributes +
+		// CXR_Shader::RenderShading_FP20_COREFBB): m_TextureID[0]=Diffuse,
+		// [2]=Normal(+Specular in alpha); m_iTexCoordSet[0]/[1]=Mapping,
+		// [2]=TangentU, [3]=TangentV; texgen channel 1=MSPOS (trivial, see
+		// vertex shader), channels 3/4=TSLV (light, eye).
+		bool TrySetupNDSProgram()
+		{
+			if (!GLES3_NDSEnabled() || !m_NDSShader.IsValid()) return false;
+			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
+			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
+				return false;
+
+			const CRC_ExtAttributes_FragmentProgram20* pFP =
+				static_cast<const CRC_ExtAttributes_FragmentProgram20*>(m_pCurAttrib->m_pExtAttrib);
+
+			// Cheap prefilter on the hash (computed once from our own
+			// literal via the engine's real hash function -- see
+			// TrySetupLFMProgram for why not a copied-out constant), then
+			// confirm by name.
+			static const uint32 sNDSHash = StringToHash("XRShader_FP20_NDS");
+			if (pFP->m_ProgramNameHash != sNDSHash) return false;
+			if (!pFP->m_pProgramName || strcmp(pFP->m_pProgramName, "XRShader_FP20_NDS") != 0)
+				return false;
+
+			// Needs a real tangent basis at locations 5/6 (see
+			// BindEntryAttrib / Docs/HacksAndHooks.md "RIDDICK_NDS") --
+			// the old streaming path (SUIVert) never supplies one, and even
+			// on the cache path the source geometry may not carry tangent
+			// registers. Either way, drawing with a degenerate/placeholder
+			// basis would light the surface with the wrong orientation --
+			// fall back instead of showing that as if it were correct.
+			if (!m_bTangentUReal || !m_bTangentVReal)
+			{
+				DbgLogNDSFallback("no real tangent basis bound for this draw "
+					"(streamed path, or source geometry has no tangent registers)");
+				return false;
+			}
+
+			const int TexNormalID = (int)m_pCurAttrib->m_TextureID[2];
+			if (!TexNormalID)
+			{
+				DbgLogNDSFallback("CRC_Attributes::m_TextureID[2] (normal map) is 0");
+				return false;
+			}
+			const GLuint TNormal = TextureID_EnsureUploaded(TexNormalID);
+			if (!TNormal)
+			{
+				DbgLogNDSFallback("normal map failed to upload (see [GLES3-TEX-FAIL] above)");
+				return false;
+			}
+			const int TexDiffuseID = (int)m_pCurAttrib->m_TextureID[0];
+			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
+
+			int Mode0, Mode1;
+			float U0[4], V0[4], U1[4], V1[4];
+			float TSLVParam[CRC_MAXTEXCOORDS][4];
+			bool HaveTSLV[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV);
+			(void)Mode0; (void)Mode1; (void)U0; (void)V0; (void)U1; (void)V1;
+			if (!HaveTSLV[3] || !HaveTSLV[4])
+			{
+				DbgLogNDSFallback("no TSLV texgen on texcoord channel 3/4 (light/eye tangent-space vectors)");
+				return false;
+			}
+
+			if (m_DbgEnabled && !m_bDbgNDSLogged)
+			{
+				m_bDbgNDSLogged = true;
+				const int nP = pFP->m_nParams;
+				fprintf(stderr,
+					"[GLES3-NDS] diffuse=%d normal=%d uvset0=%d tuset=%d tvset=%d nParams=%d\n",
+					TexDiffuseID, TexNormalID,
+					(int)m_pCurAttrib->m_iTexCoordSet[0],
+					(int)m_pCurAttrib->m_iTexCoordSet[2], (int)m_pCurAttrib->m_iTexCoordSet[3], nP);
+				for (int p = 0; p < nP && p < 6; ++p)
+				{
+					const CVec4Dfp32& V = pFP->m_pParams[p];
+					fprintf(stderr, "[GLES3-NDS]   param[%d] = %f %f %f %f\n", p, V.k[0], V.k[1], V.k[2], V.k[3]);
+				}
+				fflush(stderr);
+			}
+			++m_DbgNDSDraws;
+
+			m_NDSShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_NDSShader.SetMat4(m_NDSUMVPLoc, (const float*)&MVP);
+			m_NDSShader.SetMat4(m_NDSUTexMatLoc, (const float*)&m_TexMat[0]);
+			m_NDSShader.SetVec4(m_NDSULightTSLoc, TSLVParam[3][0], TSLVParam[3][1], TSLVParam[3][2], TSLVParam[3][3]);
+			m_NDSShader.SetVec4(m_NDSUEyeTSLoc,   TSLVParam[4][0], TSLVParam[4][1], TSLVParam[4][2], TSLVParam[4][3]);
+
+			// program.env[0..3] -- see the report / class comment above for
+			// what all 6 of the engine's m_pParams slots mean; [4]/[5] are
+			// not read by this ARB program.
+			if (pFP->m_nParams > 3)
+			{
+				const CVec4Dfp32& LightPos   = pFP->m_pParams[0];
+				const CVec4Dfp32& LightRange = pFP->m_pParams[1];
+				const CVec4Dfp32& LightColor = pFP->m_pParams[2];
+				const CVec4Dfp32& SpecColor  = pFP->m_pParams[3];
+				m_NDSShader.SetVec4(m_NDSULightPosLoc,   LightPos.k[0],   LightPos.k[1],   LightPos.k[2],   LightPos.k[3]);
+				m_NDSShader.SetVec4(m_NDSULightRangeLoc, LightRange.k[0], LightRange.k[1], LightRange.k[2], LightRange.k[3]);
+				m_NDSShader.SetVec4(m_NDSULightColorLoc, LightColor.k[0], LightColor.k[1], LightColor.k[2], LightColor.k[3]);
+				m_NDSShader.SetVec4(m_NDSUSpecColorLoc,  SpecColor.k[0],  SpecColor.k[1],  SpecColor.k[2],  SpecColor.k[3]);
+			}
+
+			glActiveTexture(GL_TEXTURE0);
+			if (TDiffuse) glBindTexture(GL_TEXTURE_2D, TDiffuse);
+			m_NDSShader.SetInt(m_NDSUTexLoc, 0);
+			m_NDSShader.SetInt(m_NDSUUseTexLoc, TDiffuse ? 1 : 0);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, TNormal);
+			m_NDSShader.SetInt(m_NDSUNormalTexLoc, 1);
+			m_NDSShader.SetInt(m_NDSUUseNormalLoc, 1);
+
+			m_NDSShader.SetInt(m_NDSUDbgLoc, GLES3_DbgNDSMode());
+
+			// Same convention as TrySetupLFMProgram: leave the active unit
+			// at 0.
+			glActiveTexture(GL_TEXTURE0);
+			return true;
+		}
+
 		CRC_GLES3()
 			: m_VAO(0), m_bGLInited(false), m_UMVPLoc(-1),
 			  m_UUseTexLoc(-1), m_UTexLoc(-1), m_UDbgModeLoc(-1),
@@ -1866,6 +2265,25 @@ public:
 				m_LFMULFM3Loc      = m_LFMShader.UniformLocation("uLFM3");
 				m_LFMUScaleLoc     = m_LFMShader.UniformLocation("uLFMScale");
 				m_LFMUDbgLoc       = m_LFMShader.UniformLocation("uDbgLFM");
+			}
+
+			// FP20 NDS program (single dynamic light, world geometry -- see
+			// TrySetupNDSProgram).
+			if (m_NDSShader.Build(kGLES3_NDSVertSrc, kGLES3_NDSFragSrc, "NDS"))
+			{
+				m_NDSUMVPLoc        = m_NDSShader.UniformLocation("uMVP");
+				m_NDSUTexMatLoc     = m_NDSShader.UniformLocation("uTexMat");
+				m_NDSULightTSLoc    = m_NDSShader.UniformLocation("uLightTS");
+				m_NDSUEyeTSLoc      = m_NDSShader.UniformLocation("uEyeTS");
+				m_NDSUTexLoc        = m_NDSShader.UniformLocation("uTex");
+				m_NDSUUseTexLoc     = m_NDSShader.UniformLocation("uUseTexture");
+				m_NDSUNormalTexLoc  = m_NDSShader.UniformLocation("uNormalTex");
+				m_NDSUUseNormalLoc  = m_NDSShader.UniformLocation("uUseNormalMap");
+				m_NDSULightPosLoc   = m_NDSShader.UniformLocation("uLightPos");
+				m_NDSULightRangeLoc = m_NDSShader.UniformLocation("uLightRange");
+				m_NDSULightColorLoc = m_NDSShader.UniformLocation("uLightColor");
+				m_NDSUSpecColorLoc  = m_NDSShader.UniformLocation("uSpecColor");
+				m_NDSUDbgLoc        = m_NDSShader.UniformLocation("uDbgMode");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -2782,6 +3200,19 @@ public:
 
 		// Vertex layout for SUIVert at byte offset _Base inside the
 		// currently-bound VBO.
+		//
+		// NOTE (RIDDICK_NDS): SUIVert does NOT carry a tangent basis --
+		// extending it (locations 5/6) would touch every hardcoded byte
+		// offset in this struct's producers/consumers throughout the file
+		// (BuildVertsFromVBB, BuildInterleavedVerts, DrawUserVerts, the
+		// TEST_TRI/DumpGeomOBJ scratch data, ...), which was judged too
+		// risky for this change -- see Docs/HacksAndHooks.md "RIDDICK_NDS".
+		// Locations 5/6 are left disabled with an axis-aligned constant
+		// fallback so a shader that declares them (XRShader_FP20_NDS)
+		// still gets a well-defined, non-garbage value if it is ever bound
+		// while this path is active; m_bTangentUReal/VReal record that the
+		// data is NOT real, which is what TrySetupNDSProgram gates on to
+		// fall back instead of lighting with the wrong basis.
 		void SetVertexAttribPointers(intptr_t _Base)
 		{
 			const GLsizei S = (GLsizei)sizeof(SUIVert);
@@ -2795,6 +3226,12 @@ public:
 			glVertexAttribPointer(3, 2, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 20));
 			glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_TRUE, S, (const void*)(_Base + 28));
 			glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, S, (const void*)(_Base + 32));
+			glDisableVertexAttribArray(5);
+			glDisableVertexAttribArray(6);
+			glVertexAttrib4f(5, 1.0f, 0.0f, 0.0f, 1.0f);
+			glVertexAttrib4f(6, 0.0f, 1.0f, 0.0f, 1.0f);
+			m_bTangentUReal = false;
+			m_bTangentVReal = false;
 		}
 
 		void DisableVertexAttribPointers()
@@ -2804,6 +3241,8 @@ public:
 			glDisableVertexAttribArray(2);
 			glDisableVertexAttribArray(3);
 			glDisableVertexAttribArray(4);
+			glDisableVertexAttribArray(5);
+			glDisableVertexAttribArray(6);
 		}
 
 		// --- Phase 4 M6: cached-VBID draw path (GLES3_Geometry.h) --------
@@ -2812,8 +3251,12 @@ public:
 		// glVertexAttrib4f if the engine never supplied that register for
 		// this VBID (e.g. no per-vertex normal). Mirrors the constant
 		// defaults BuildVertsFromVBB bakes into SUIVert for the same
-		// cases (col=white, normal=+Z, uv=0).
-		void BindEntryAttrib(const SGLES3GeomEntry& _E, int _Loc, int _Reg,
+		// cases (col=white, normal=+Z, uv=0). Returns whether a real
+		// per-vertex register was bound (true) vs. the constant fallback
+		// (false) -- SetVertexAttribPointersFromEntry uses this for the
+		// tangent locations to tell TrySetupNDSProgram whether it is
+		// looking at a genuine tangent basis or a placeholder.
+		bool BindEntryAttrib(const SGLES3GeomEntry& _E, int _Loc, int _Reg,
 		                      float _Cx, float _Cy, float _Cz, float _Cw)
 		{
 			const int Off = _E.m_lRegOffset[_Reg];
@@ -2821,7 +3264,7 @@ public:
 			{
 				glDisableVertexAttribArray(_Loc);
 				glVertexAttrib4f(_Loc, _Cx, _Cy, _Cz, _Cw);
-				return;
+				return false;
 			}
 			glEnableVertexAttribArray(_Loc);
 			const int Fmt = _E.m_lRegFormat[_Reg];
@@ -2834,6 +3277,7 @@ public:
 				if (nComp <= 0) nComp = 1;
 				glVertexAttribPointer(_Loc, nComp, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)Off);
 			}
+			return true;
 		}
 
 		// Vertex layout for a cached geometry entry: same 5 attribute
@@ -2841,22 +3285,39 @@ public:
 		// sourced from whichever registers CGLES3GeometryCache::Build
 		// actually found for this VBID at ITS destination offsets, rather
 		// than our fixed SUIVert struct. UV-set selection mirrors
-		// BuildVertsFromVBB's Attrib_TexCoordSet honoring.
+		// BuildVertsFromVBB's Attrib_TexCoordSet honoring. Additionally
+		// binds the tangent basis (locations 5/6, RIDDICK_NDS) from
+		// registers CRC_VREG_TEXCOORD0 + m_iTexCoordSet[2]/[3] -- the same
+		// engine convention as the mapping UV (m_iTexCoordSet[0]/[1]), see
+		// CXR_VirtualAttributes_ShaderFP20_COREFBB::OnSetAttributes
+		// (XRShader_FP20.cpp). CGLES3GeometryCache::Build includes ANY
+		// vertex register the source geometry declares (not a fixed list),
+		// so if the source actually carries tangents these binds pick up
+		// real data automatically; if not, BindEntryAttrib's constant
+		// fallback (1,0,0)/(0,1,0) applies, same spirit as the normal's
+		// (0,0,1) default above.
 		void SetVertexAttribPointersFromEntry(const SGLES3GeomEntry& _E)
 		{
 			int UVSet0 = 0, UVSet1 = 1;
+			int TUSet = 2, TVSet = 3;
 			if (m_pCurAttrib)
 			{
 				UVSet0 = m_pCurAttrib->m_iTexCoordSet[0];
 				UVSet1 = m_pCurAttrib->m_iTexCoordSet[1];
+				TUSet  = m_pCurAttrib->m_iTexCoordSet[2];
+				TVSet  = m_pCurAttrib->m_iTexCoordSet[3];
 				if (UVSet0 >= CRC_MAXTEXCOORDS) UVSet0 = 0;
 				if (UVSet1 >= CRC_MAXTEXCOORDS) UVSet1 = 1;
+				if (TUSet < 0 || TUSet >= CRC_MAXTEXCOORDS) TUSet = 2;
+				if (TVSet < 0 || TVSet >= CRC_MAXTEXCOORDS) TVSet = 3;
 			}
 			BindEntryAttrib(_E, 0, CRC_VREG_POS,                0.0f, 0.0f, 0.0f, 1.0f);
 			BindEntryAttrib(_E, 1, CRC_VREG_TEXCOORD0 + UVSet0, 0.0f, 0.0f, 0.0f, 1.0f);
 			BindEntryAttrib(_E, 3, CRC_VREG_TEXCOORD0 + UVSet1, 0.0f, 0.0f, 0.0f, 1.0f);
 			BindEntryAttrib(_E, 2, CRC_VREG_COLOR,              1.0f, 1.0f, 1.0f, 1.0f);
 			BindEntryAttrib(_E, 4, CRC_VREG_NORMAL,             0.0f, 0.0f, 1.0f, 1.0f);
+			m_bTangentUReal = BindEntryAttrib(_E, 5, CRC_VREG_TEXCOORD0 + TUSet, 1.0f, 0.0f, 0.0f, 1.0f);
+			m_bTangentVReal = BindEntryAttrib(_E, 6, CRC_VREG_TEXCOORD0 + TVSet, 0.0f, 1.0f, 0.0f, 1.0f);
 		}
 
 		// Draw using GPU-resident buffers from m_GeomCache instead of
@@ -2979,9 +3440,10 @@ public:
 		// --- TexGen ---------------------------------------------------
 		// One-shot-per-mode diagnostic: which CRC_TEXGENMODE_* values the
 		// engine actually asks for on which channel, so unimplemented
-		// modes (LIGHTING, TSLV, REFLECTION, env maps, ...) can be
-		// prioritised next. [channel][mode]; mode values are small (see
-		// CRC_TEXGENMODE_* enum in MRender_Classes.h, currently <32).
+		// modes (LIGHTING, REFLECTION, env maps, ...) can be prioritised
+		// next. TSLV is handled by DecodeTexGenChannels (RIDDICK_NDS) and
+		// no longer reaches this log. [channel][mode]; mode values are
+		// small (see CRC_TEXGENMODE_* enum in MRender_Classes.h, <32).
 		bool m_TexGenModeLogged[CRC_MAXTEXCOORDS][32] = {};
 		void DbgNoteTexGenMode(int _Mode, int _Channel)
 		{
@@ -3009,44 +3471,17 @@ public:
 		// what BSP2's depth-fog pass uses to turn view depth into a ramp-
 		// texture lookup, see WBSP2Model.cpp / Docs/Render_Strategy.md
 		// §1). Anything else falls back to TEXCOORD and gets logged once.
+		// (The channel walk itself now lives in DecodeTexGenChannels, so
+		// XRShader_FP20_NDS's TSLV channels 3/4 can share it -- see
+		// TrySetupNDSProgram. This function is unchanged behaviourally,
+		// just no longer duplicates the walk.)
 		void PushTexGenUniforms(bool _bUI)
 		{
-			int Mode0 = 0, Mode1 = 0;
-			float U0[4] = {0,0,0,0}, V0[4] = {0,0,0,0};
-			float U1[4] = {0,0,0,0}, V1[4] = {0,0,0,0};
-
-			if (!GLES3_NoTexGen() && m_pCurAttrib && m_pCurAttrib->m_pTexGenAttr)
-			{
-				const fp32* pAttr = m_pCurAttrib->m_pTexGenAttr;
-				for (int iTxt = 0; iTxt < CRC_MAXTEXCOORDS; ++iTxt)
-				{
-					const int RawMode = m_pCurAttrib->m_lTexGenMode[iTxt];
-					const int Comp    = m_pCurAttrib->GetTexGenComp(iTxt);
-
-					if (RawMode == CRC_TEXGENMODE_LINEAR)
-					{
-						// U, V, W, Q order, one vec4 per SET bit; unset
-						// bits contribute neither data nor pointer
-						// advance (W/Q are read past but not used -- we
-						// don't do projective/3rd-coordinate texgen yet).
-						float U[4] = {0,0,0,0}, V[4] = {0,0,0,0};
-						const fp32* p = pAttr;
-						if (Comp & CRC_TEXGENCOMP_U) { U[0]=p[0]; U[1]=p[1]; U[2]=p[2]; U[3]=p[3]; p += 4; }
-						if (Comp & CRC_TEXGENCOMP_V) { V[0]=p[0]; V[1]=p[1]; V[2]=p[2]; V[3]=p[3]; p += 4; }
-						if (iTxt == 0) { Mode0 = 1; memcpy(U0, U, sizeof(U)); memcpy(V0, V, sizeof(V)); }
-						else if (iTxt == 1) { Mode1 = 1; memcpy(U1, U, sizeof(U)); memcpy(V1, V, sizeof(V)); }
-					}
-					else if (RawMode != CRC_TEXGENMODE_TEXCOORD)
-					{
-						DbgNoteTexGenMode(RawMode, iTxt);
-					}
-
-					// Skip past this channel's attrib block regardless of
-					// whether we decoded it -- offsets must stay correct
-					// for channels after this one.
-					pAttr += CRC_Attributes::GetTexGenModeAttribSize(RawMode, Comp);
-				}
-			}
+			int Mode0, Mode1;
+			float U0[4], V0[4], U1[4], V1[4];
+			float TSLVParam[CRC_MAXTEXCOORDS][4]; bool HaveTSLV[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV);
+			(void)TSLVParam; (void)HaveTSLV; // not consumed by the UI/3D programs
 
 			CGLES3Shader& Sh    = _bUI ? m_UIShader        : m_3DShader;
 			const int LocMode0  = _bUI ? m_UTexGenMode0Loc : m_3DUTexGenMode0Loc;
@@ -3164,6 +3599,14 @@ public:
 			// missing a texture) falls through unchanged to the selection
 			// below, same as before this program existed.
 			if (TrySetupLFMProgram())
+				return;
+
+			// XRShader_FP20_NDS (single dynamic light: diffuse + normal map
+			// + Phong specular -- see TrySetupNDSProgram / kGLES3_NDSVertSrc/
+			// FragSrc / Docs/HacksAndHooks.md "RIDDICK_NDS"). Same contract
+			// as the LFM check above: on success the program is fully bound
+			// and this draw is done.
+			if (TrySetupNDSProgram())
 				return;
 
 			// Pick the program for this draw: UI/2D keeps the full

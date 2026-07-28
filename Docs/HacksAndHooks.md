@@ -91,6 +91,22 @@
   Заменяет непроброшенный `4.0 * lmIntensityScale * LFM_Scale.rgb`
   оригинала одним скаляром — см. TODO в `kGLES3_LFMFragSrc`.
 
+- **KEEP** `RIDDICK_NDS=1` (`MDisplaySDL2.cpp`, `GLES3_NDSEnabled()`,
+  `CRC_GLES3::TrySetupNDSProgram`) — **opt-in** (в отличие от LFM, по
+  умолчанию ВЫКЛЮЧЕНО, не наоборот). Реализация `XRShader_FP20_NDS` —
+  однопроходный динамический источник света (diffuse + normal map +
+  Phong-спекуляр), критический путь освещения Riddick (весь видимый свет
+  в игре — этот проход). Требует тангентного базиса (локации 5/6, только
+  кэш-путь геометрии) — см. раздел ниже. Выключено по умолчанию, пока не
+  подтверждено на реальном прогоне с реальными нормал-мапами.
+  → включать после проверки на реальной карте с материалами, у которых
+  есть normal map.
+- **DBG** `RIDDICK_DBG_NDS=tslv|normal|diffuse|spec` (только вместе с
+  `RIDDICK_NDS=1`) — `tslv`: нормализованный tangent-space light vector
+  как RGB; `normal`: декодированная нормаль из normal-мапы; `diffuse`:
+  только диффузный член; `spec`: только спекулярный член. Без debug-
+  режимов отладка нового шейдера "вслепую" почти невозможна.
+
 - **HACK** BSP2 fallback (`WBSP2Model.cpp:~2340`): если
   `pSSP->m_lTextureIDs[XR_SHADERMAP_DIFFUSE]` пуст, скан по остальным
   слотам (NORMAL/SPECULAR/HEIGHT/...) — берём первый ненулевой в Tex0.
@@ -609,6 +625,124 @@
 - `oColor.a = diff.a` (альфа диффуза) — блендинг прохода ONE/ONE
   (аддитивный), альфа результата, скорее всего, не читается растровым
   конвейером, но это не проверено на реальном кадре.
+
+### Тангентный базис (локации 5/6) — предпосылка для NDS и (позже) LFM
+
+Вершинный layout расширен с 5 до 7 локаций: `0=pos, 1=uv0, 2=col, 3=uv1,
+4=normal`, добавлены **`5=TangentU, 6=TangentV`**. Источник — регистры
+`CRC_VREG_TEXCOORD0 + m_iTexCoordSet[2]`/`[3]` (та же индирекция, что у
+mapping-UV через `m_iTexCoordSet[0]`/`[1]`), контракт — engine-код
+`CXR_VirtualAttributes_ShaderFP20_COREFBB::OnSetAttributes`
+(`XRShader_FP20.cpp`).
+
+- **KEEP** Кэш-путь (`SetVertexAttribPointersFromEntry`/`BindEntryAttrib`,
+  `MDisplaySDL2.cpp`) — тангенты биндятся из
+  `CGLES3GeometryCache::Ensure(...)`'s `m_lRegOffset`/`m_lRegFormat`,
+  которые уже generic по регистрам (`GLES3_Geometry.cpp::Build` копирует
+  ЛЮБОЙ регистр, который есть у исходной геометрии, не фиксированный
+  список) — если движковая геометрия реально несёт тангенты, они
+  подхватываются без доп. правок в `GLES3_Geometry.cpp`. Если регистра
+  нет — константный фолбэк `(1,0,0)`/`(0,1,0)` (тот же дух, что дефолт
+  нормали `(0,0,1)`). `BindEntryAttrib` теперь возвращает `bool`
+  (реальный регистр vs фолбэк); `SetVertexAttribPointersFromEntry`
+  сохраняет это в `m_bTangentUReal`/`m_bTangentVReal` — на этот флаг
+  проверяется `TrySetupNDSProgram`.
+- **HACK/ограничение** Старый стриминг-путь (`SUIVert`/
+  `BuildVertsFromVBB`/`BuildInterleavedVerts`/`DrawUserVerts`/
+  `SetVertexAttribPointers`) тангенты **НЕ несёт вообще** — `SUIVert`
+  сознательно не расширен (см. следующий раздел, почему). Локации 5/6 там
+  просто дизейблятся с константным фолбэком (те же `(1,0,0)`/`(0,1,0)`) и
+  `m_bTangentUReal/VReal = false` — так что любой draw через этот путь
+  автоматически проваливает гейт `TrySetupNDSProgram` и рисуется старым
+  шейдером.
+- **KEEP** `DisableVertexAttribPointers` дизейблит и локации 5/6 (симметрично
+  с 0-4).
+
+### FP20 NDS program (2026-07-28) — критический путь освещения Riddick
+
+`XRShader_FP20_NDS` — однопроходный динамический свет (diffuse + normal
+map + Phong-спекуляр), аддитивный (`ONE/ONE`, `ZCompare EQUAL`). Разбор
+контракта — `Source/P5/Shared/MOS/XR/XRShader_FP20.cpp:77-436`
+(`CXR_VirtualAttributes_ShaderFP20_COREFBB` + `RenderShading_FP20_COREFBB`),
+математика — портирована дословно из
+`shaders/ARB_Fragment_Program/XRShader_SinglePass_Dst2_SpecNormal.fp`
+(133 строки ARB-ассемблера, прочитан целиком — не только псевдо-GLSL из
+`Docs/FP_Reference.md` §4, см. расхождение ниже).
+
+- **KEEP** Четвёртая GLSL ES 3.00 программа `m_NDSShader`
+  (`kGLES3_NDSVertSrc`/`kGLES3_NDSFragSrc`). Вершинный шейдер добавляет
+  `aTangentU`/`aTangentV` (локации 5/6) и считает `CRC_TEXGENMODE_TSLV`
+  прямо в VS для двух наборов (канал 3 = к источнику света, канал 4 = к
+  глазу) — `vec3(dot(N,L), dot(TV,L), dot(TU,L)) * scale`, порядок
+  компонент сверен с шаблоном `VP.xrg:1565-1573`
+  (`Docs/VP_Reference.md` §3.1), НЕ с комментарием enum
+  `CRC_TEXGENMODE_TSLV` (тот утверждает `x=TangU`, реальный код — иначе).
+  `MSPOS` (канал 1, модельная позиция) вообще не требует отдельного
+  регистра — это буквально `aPos`, поэтому передан как `vPosMS = aPos`.
+- **KEEP** Выбор программы — `CRC_GLES3::TrySetupNDSProgram()`, вызывается
+  в `SetupCommonUniforms` сразу после `TrySetupLFMProgram()` (по тому же
+  контракту: хэш `StringToHash("XRShader_FP20_NDS")` посчитан из
+  литерала, не хардкод; имя подтверждено `strcmp`). Дополнительные условия
+  качества (в отличие от LFM): реальный тангентный базис
+  (`m_bTangentUReal && m_bTangentVReal`), непустой normal map
+  (`m_TextureID[2]`), и оба TSLV-канала (3 и 4) реально присутствуют в
+  `m_pTexGenAttr` (`DecodeTexGenChannels`, см. ниже). Любое несоответствие
+  — тихий откат на `m_UIShader`/`m_3DShader` с логом причины
+  (`DbgLogNDSFallback`, капа 4 раза за сессию).
+- **KEEP** `DecodeTexGenChannels` — общий разбор `m_pCurAttrib->
+  m_pTexGenAttr` вынесен из `PushTexGenUniforms` в отдельный метод (тот же
+  цикл по всем `CRC_MAXTEXCOORDS` каналам с тем же продвижением указателя
+  через `GetTexGenModeAttribSize`), расширен так, чтобы параллельно с
+  `LINEAR` (для UI/3D-шейдеров) отдавать и сырой `vec4` для любого канала
+  в режиме `TSLV`. Чистый рефакторинг + добавление — поведение
+  `PushTexGenUniforms` для существующих UI/3D-путей не изменилось.
+- **DBG** Лог `[GLES3-NDS] diffuse=.. normal=.. uvset0=.. tuset=.. tvset=..
+  nParams=..` + до 6 векторов параметров — один раз за сессию при первом
+  успешном применении. Счётчик `nds=N` в строке `[GL-DBG]`.
+- **HACK** `[GLES3-NDS] falling back to legacy shader: ...` — см. условия
+  качества выше; капа 4 раза за сессию.
+
+**Назначение 6 параметров `CRC_ExtAttributes_FragmentProgram20::m_pParams`**
+(сверено с `RenderShading_FP20_COREFBB`, `XRShader_FP20.cpp:376-400`):
+
+| # | Имя в движке | `program.env[]` | Что содержит | Читается ли ARB-программой |
+|---|---|---|---|---|
+| 0 | `LightPos` | `[0]` | позиция источника, model space, `.w=1` | да — `SUB r1, LightPosition, PixelPosition` (attenuation) |
+| 1 | `LightRange` | `[1]` | `{1/R, R, 1/R², R²}` | да — `.z` (`1/R²`) в attenuation |
+| 2 | `LightColor` | `[2]` | intensity×diffuseScale×diffuseColor, `.a`=SpecularAnisotrophy (не используется этой программой) | да — `MUL r1.rgb, LightColor, DiffuseTexel` |
+| 3 | `SpecColor` | `[3]` | intensity×specularScale×specColor, `.a`=Phong-степень (`1+(specAlpha-1)*0.5`, либо `m_SpecularForcePower`) | да — `POW ...SpecColor1.a`, `MAD r0.rgb, SpecColor1, r1, r0` |
+| 4 | `EyePos` | `[4]` (закомментирован в `.fp`!) | позиция глаза, model space | **нет** — ARB-исходник имеет `#PARAM EyePosition = program.env[4]` буквально закомментированным; глаз попадает в фрагмент иначе — через `vTSEV`, который VS считает из ТОГО ЖЕ значения Eye, переданного как texgen-параметр канала 4 (TSLV), а не как fragment-uniform |
+| 5 | `NoiseOffset` | — | всегда `(0,0,0,0)`, кроме одного хардкод-light-GUID (`0x2346`) в движке | **нет** — ARB-исходник вообще не объявляет такой `PARAM`; мёртвый слот для этой конкретной программы (возможно, используется другим шейдер-вариантом с той же раскладкой struct) |
+
+**Расхождения ассемблера с `Docs/FP_Reference.md` §4.2 (доверять
+ассемблеру, см. код `kGLES3_NDSFragSrc`):**
+
+1. **Self-shadow использует НОРМАЛИЗОВАННЫЙ `TSLV.x`**, а не сырой
+   `IPTSLV.x`, как написано в §4.2. В ARB-файле блок "Normalize TSLV"
+   (`MUL TSLV.xyz, IPTSLV, TSLV.a`) идёт РАНЬШЕ блока self-shadow
+   (`SUB r0.a, const_val2.y, -TSLV.x`), и оба читают один и тот же temp-
+   регистр `TSLV` — т.е. self-shadow видит уже нормализованный вектор.
+   Мелкая, но не нулевая разница в весе (нормализация меняет `.x` в общем
+   случае).
+2. Остальная математика (attenuation, нормализация нормали/TSLV/TSEV,
+   reflection, диффуз, спекуляр, финальное умножение на attn) совпадает
+   с §4.2 один-в-один — расхождений не найдено.
+
+**Не реализовано / упрощено:**
+
+- **`XRShader_FP20_NDSP`** (тот же проход + проекционная текстура на
+  канале 4, `..._Proj_SpecNormal.fp`) — НЕ реализован, объём не
+  укладывался в эту задачу. Селектор (`TrySetupNDSProgram`) сверяет только
+  имя `XRShader_FP20_NDS`, так что `NDSP`-драйвы просто не qualify'ятся и
+  рисуются старым путём — без дополнительного кода для отличения.
+- Дефолтная normal-мапа при отсутствующей текстуре — константа
+  `(0.5,0.5,1.0,1.0)` (плоская +Z-нормаль после анпака), а не настоящий
+  `m_TextureID_DefaultNormal` движка (мы не знаем его точное содержимое
+  без реального прогона).
+- Как и у LFM, `oColor.a` не воспроизводит буквальное содержимое ARB
+  `r0.a` (мусорный остаток от reflection-расчёта) — альфа-запись всё
+  равно отключена движком (`Attrib_Disable(CRC_FLAGS_ALPHAWRITE)`), так
+  что это не наблюдаемая разница.
 
 ### Skinning не реализован
 
