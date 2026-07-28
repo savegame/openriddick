@@ -1213,12 +1213,30 @@ GPU-резидентный кэш по VBID (`GLES3_Geometry.h/.cpp`, `DrawCache
   `Docs/VP_Reference.md` §5.3 (`MWComp0..8`) подтверждает диапазон из
   `shaders/VP.xrg`.
 - `CRC_MatrixPalette` (`MRender_Classes.h:162-182`) — `m_pMatrices` (`const
-  void*`, интерпретируется как `CMat43fp32*` через `Index()`), `m_piMatrices`
-  (опциональная remap-таблица `uint16*`; `NULL` в общем случае), `m_nMatrices`.
-  `CMat43fp32` (`typedef TMatrix43<fp32>`, `MMath.h:1591,1605-1622`) — union
-  из 3 `vec128`-строк (`v[3]`) = ТОЧНО раскладка, которую движковый
-  `VP.xrg`-шаблон грузит в GPU-константы как 3 vec4-регистра на кость (без
-  4-й строки `(0,0,0,1)`) — см. `Docs/VP_Reference.md` §5.2. Выставляется
+  void*`), `m_piMatrices` (remap-таблица `uint16*`), `m_nMatrices`.
+  **ВНИМАНИЕ, ловушка (разобрано 2026-07-28).** `CRC_MatrixPalette::Index()`
+  кастует `m_pMatrices` к `CMat43fp32*` (48 байт на матрицу) и ничего не
+  транспонирует — и этот каст НЕ описывает буфер, который движок реально
+  туда кладёт. `Cluster_SetMatrixPalette` (`WTriMesh.cpp:1069-1120`)
+  сохраняет `CXR_SkeletonInstance::GetBoneTransforms()` как есть, а это
+  массив `CMat4Dfp32` — настоящая 4x4, 64 байта на матрицу
+  (`XRSkeleton.cpp:673`). Чтение с шагом 48 байт начиная с кости №1
+  попадает в середину следующей матрицы. Эталон раскладки — не `Index()`,
+  а путь PS3: `CRC_VPFormat::SetRegisters_MatrixPalette`
+  (`Classes/Render/MRenderVPGen.h:1196-1222`) читает `const CMat4Dfp32*` и
+  ТРАНСПОНИРУЕТ 4x4 → 3 vec4 (три столбца; постоянный `(0,0,0,1)`
+  четвёртый отбрасывается) — это и есть 3 vec4-регистра на кость, которые
+  грузит `VP.xrg` (`Docs/VP_Reference.md` §5.2). `Index()` в шипнутой
+  PS3-сборке дёргает только CPU-фолбэк скиннинга, который там не
+  выполняется, поэтому расхождение осталось незамеченным.
+  Индексы костей в вершинных данных — КЛАСТЕР-ЛОКАЛЬНЫЕ байты; remap
+  кластер→скелет это `m_piMatrices` (чанк `BONEMATRIXMAP` кластера,
+  `XMDCommn.cpp:3081`).
+  И ещё: матрицы костей уже несут мировое положение объекта (выходят из
+  `EvalAnim`, засеянного мировой матрицей), поэтому для анимированных
+  draw'ов движок ставит в MODEL-матрицу рендер-контекста ГОЛУЮ view-матрицу
+  (`WTriMesh.cpp:5585-5591`). Правильная композиция — `uMVP * (BoneMat * v)`,
+  никакого дополнительного world-преобразования сверху. Выставляется
   синхронно перед каждым draw через `CXR_VertexBuffer`'s render-setup
   (`Matrix_SetPalette`, `XRVertexBuffer.cpp:226`) → `CRC_Core::
   Matrix_SetPalette` (`MRender.cpp:3646`) хранит указатель в
@@ -1278,13 +1296,15 @@ GPU-резидентный кэш по VBID (`GLES3_Geometry.h/.cpp`, `DrawCache
   `TrySetupNDSProgram`, `TrySetupNDSPProgram`); `m_UIShader`/`m_LFMShader`/
   `m_LFShader` не вызывают её вообще (UI и BSP2-лайтмап-геометрия никогда
   не скиннед). Читает `Matrix_GetState().m_pMatrixPaletteArgs`,
-  `nBones = Min(pMP->m_nMatrices, GLES3_MAX_BONES)`; если `m_piMatrices`
-  задан (remap) — собирает плотный массив через `pMP->Index(i)` (ТОТ ЖЕ
-  accessor, которым уже пользуется CPU-скин-путь движка,
-  `WTriMesh.cpp::Cluster_TransformBones_V_N`) в scratch-буфер и заливает
-  `glUniform4fv`; иначе (обычный случай) льёт `pMP->m_pMatrices` напрямую
-  без переформатирования — раскладка `CMat43fp32` УЖЕ является 3
-  vec4-строками. Если палитра не выставлена или `m_nMatrices==0` —
+  `nBones = Min(pMP->m_nMatrices, GLES3_MAX_BONES)`; собирает плотный
+  scratch-массив, повторяя `SetRegisters_MatrixPalette` один в один:
+  `m_pMatrices` читается как `const CMat4Dfp32*`, индекс прогоняется через
+  `m_piMatrices` (identity, если он `NULL`), матрица транспонируется в 3
+  vec4 (`D.k[c] = M.k[c][r]`), заливка одним `glUniform4fv`. ИСПРАВЛЕНО
+  2026-07-28: раньше здесь использовался `pMP->Index(i)` / прямая заливка
+  `m_pMatrices` — неверный шаг (48 vs 64 байта) и без транспонирования,
+  см. запись про `CRC_MatrixPalette` выше. Если палитра не выставлена,
+  `m_pMatrices==NULL` или `m_nMatrices==0` —
   `uBoneCount=0` (тот же откат на "не скиннить") + разовый лог
   `[GLES3-SKIN] falling back: ...` с причиной.
 - **DBG** Разовый лог `[GLES3-SKIN] first skinned draw: paletteBones=..

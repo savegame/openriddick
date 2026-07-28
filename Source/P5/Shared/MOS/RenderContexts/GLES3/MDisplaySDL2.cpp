@@ -4815,29 +4815,65 @@ public:
 				fflush(stderr);
 			}
 
-			if (pMP->m_piMatrices)
+			// Palette -> uniform packing. This MUST mirror the engine's own
+			// hardware-verified conversion, CRC_VPFormat::SetRegisters_MatrixPalette
+			// (Classes/Render/MRenderVPGen.h:1196-1222) -- NOT CRC_MatrixPalette::Index().
+			//
+			// Index() casts m_pMatrices to CMat43fp32* (48 bytes per matrix) and
+			// does no transpose. That cast does not describe the buffer the
+			// engine actually installs: Cluster_SetMatrixPalette
+			// (WTriMesh.cpp:1069-1120) stores CXR_SkeletonInstance::
+			// GetBoneTransforms() verbatim, and that array is CMat4Dfp32 -- a
+			// true 4x4, 64 bytes per matrix (XRSkeleton.cpp:673). Reading it at
+			// a 48-byte stride lands mid-matrix from bone 1 onward, which puts
+			// garbage transforms on every bone but the first. The PS3 path is
+			// the proof of the real layout: it reads `const CMat4Dfp32*` and
+			// TRANSPOSES 4x4 -> 3 vec4 (the three columns; the constant
+			// (0,0,0,1) fourth is dropped). Index() is only ever exercised by
+			// the engine's CPU-skin fallback, which the shipped PS3 build does
+			// not take -- so the mismatch stayed latent there.
+			//
+			// The transposed form is exactly what dot(uBoneMat[base+n],
+			// vec4(pos,1)) needs, and it agrees with the CPU reference's
+			// row-vector math (Cluster_TransformBones_V_N, WTriMesh.cpp:3629-3642:
+			// out.x = M.k[0][0]*x + M.k[1][0]*y + M.k[2][0]*z + M.k[3][0]).
+			//
+			// Bone indices in the vertex data are CLUSTER-LOCAL bytes; the
+			// cluster->skeleton remap is m_piMatrices (CTM_Cluster's
+			// BONEMATRIXMAP chunk, XMDCommn.cpp:3081), applied here so
+			// uBoneMat[] ends up dense over the same 0..nBones-1 range those
+			// bytes address. PS3 dereferences the remap unconditionally; we keep
+			// the identity fallback for the NULL case Cluster_SetMatrixPalette
+			// can still produce.
+			//
+			// NB the bone matrices already carry the object's world placement
+			// (they come out of EvalAnim seeded with the object's world matrix),
+			// which is why the engine sets the render-context MODEL matrix to
+			// the bare VIEW matrix for animated draws (WTriMesh.cpp:5585-5591).
+			// So uMVP * (BoneMat * v) is the right composition -- do NOT add a
+			// world transform on top.
+			if (!pMP->m_pMatrices)
 			{
-				// Index remap present -- gather through CRC_MatrixPalette::
-				// Index() (the SAME accessor the engine's own CPU-skin path,
-				// WTriMesh.cpp Cluster_TransformBones_V_N, uses) into a
-				// scratch buffer: the uniform upload needs a DENSE array at
-				// contiguous slots 0..nBones-1, matching the raw bone-index
-				// range the vertex data addresses (see kGLES3_SkinningGLSL).
+				_Sh.SetInt(_LocBoneCount, 0);
+				return;
+			}
+			{
 				static CVec4Dfp32 sScratch[GLES3_MAX_BONES * 3];
+				const CMat4Dfp32* pMatArray = (const CMat4Dfp32*)pMP->m_pMatrices;
+				const uint16* piMat = pMP->m_piMatrices;
 				for (int i = 0; i < nBones; ++i)
 				{
-					const CMat43fp32& M = pMP->Index(i);
-					memcpy(&sScratch[i * 3], &M, sizeof(CVec4Dfp32) * 3);
+					const CMat4Dfp32& M = pMatArray[piMat ? piMat[i] : i];
+					for (int r = 0; r < 3; ++r)
+					{
+						CVec4Dfp32& D = sScratch[i * 3 + r];
+						D.k[0] = M.k[0][r];
+						D.k[1] = M.k[1][r];
+						D.k[2] = M.k[2][r];
+						D.k[3] = M.k[3][r];
+					}
 				}
 				glUniform4fv(_LocBoneMat, nBones * 3, (const float*)sScratch);
-			}
-			else
-			{
-				// Direct array (the common case): CRC_MatrixPalette::
-				// m_pMatrices already IS an array of CMat43fp32 (3 vec4 rows
-				// each, see the kGLES3_SkinningGLSL header comment) -- upload
-				// as-is, no reformatting.
-				glUniform4fv(_LocBoneMat, nBones * 3, (const float*)pMP->m_pMatrices);
 			}
 
 			_Sh.SetInt(_LocBoneCount, m_DrawBoneCount);
