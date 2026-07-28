@@ -1185,6 +1185,25 @@ static bool GLES3_ZEqualToLEqual()
 	return s != 0;
 }
 
+// RIDDICK_DIFFUSE_ONLY=1 -- baseline debug mode: no lighting of any kind.
+// Every FP20 shading program (NDS/NDSP/NDSEATP/LF/LFM) is bypassed so the
+// draw falls back to the plain diffuse shader, and the additive ONE/ONE
+// blend those passes carry is forced off, so the last pass simply replaces
+// the pixel instead of accumulating. The result is the world with its
+// diffuse textures and nothing else -- the reference picture to compare
+// every lighting experiment against, and a quick way to tell "the lighting
+// math is wrong" from "the geometry/textures/passes are wrong".
+static bool GLES3_DiffuseOnly()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DIFFUSE_ONLY");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_NoLFM()
 {
 	static int s = -1;
@@ -2424,6 +2443,7 @@ public:
 		// m_iTexCoordSet[0]=Mapping (diffuse UV), [1]=LFM (lightmap UV).
 		bool TrySetupLFMProgram()
 		{
+			if (GLES3_DiffuseOnly()) return false;
 			if (GLES3_NoLFM() || !m_LFMShader.IsValid()) return false;
 			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
 			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
@@ -2560,6 +2580,7 @@ public:
 		// Attribute/Transmission left neutral, alpha test not forced).
 		bool TrySetupLFProgram()
 		{
+			if (GLES3_DiffuseOnly()) return false;
 			if (!GLES3_NDSEnabled() || GLES3_NoLF() || !m_LFShader.IsValid()) return false;
 			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
 			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
@@ -2793,6 +2814,7 @@ public:
 		// vertex shader), channels 3/4=TSLV (light, eye).
 		bool TrySetupNDSProgram()
 		{
+			if (GLES3_DiffuseOnly()) return false;
 			if (!GLES3_NDSEnabled() || !m_NDSShader.IsValid()) return false;
 			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
 			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
@@ -2943,6 +2965,7 @@ public:
 		// Environment/Attribute/Transmission left neutral).
 		bool TrySetupNDSPProgram()
 		{
+			if (GLES3_DiffuseOnly()) return false;
 			if (!GLES3_NDSEnabled() || !m_NDSPShader.IsValid()) return false;
 			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
 			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
@@ -3854,7 +3877,13 @@ public:
 			glDepthMask((F & CRC_FLAGS_ZWRITE) ? GL_TRUE : GL_FALSE);
 
 			// Blend
-			if (F & CRC_FLAGS_BLEND)
+			// RIDDICK_DIFFUSE_ONLY: the shading passes are additive
+			// (ONE/ONE); with the programs bypassed they would accumulate
+			// the same diffuse texture N times and blow out. Force blend
+			// off for them so the pixel is simply replaced.
+			const bool bDiffOnlyFP = GLES3_DiffuseOnly() && _pAttrib->m_pExtAttrib &&
+				_pAttrib->m_pExtAttrib->m_AttribType == CRC_ATTRIBTYPE_FP20;
+			if ((F & CRC_FLAGS_BLEND) && !bDiffOnlyFP)
 			{
 				glEnable(GL_BLEND);
 				const uint16 SD = _pAttrib->m_SourceDestBlend;
