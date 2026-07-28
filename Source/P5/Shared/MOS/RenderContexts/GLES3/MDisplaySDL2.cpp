@@ -42,6 +42,85 @@
 // color+ambient scalar, direction+type (unused for POINT).
 #define GLES3_MAX_LIGHTS 8
 
+// --- Skinning (RIDDICK_SKINNING, opt-in) ---------------------------------
+// Shared GLSL block, textually inserted into every vertex program that may
+// receive matrix-palette (skinned) geometry from the cached-VBID draw path
+// (DrawCachedVB / SetVertexAttribPointersFromEntry): kGLES3_3DVertSrc,
+// kGLES3_NDSVertSrc, kGLES3_NDSPVertSrc. One shared string instead of three
+// copies -- see task instructions / Docs/HacksAndHooks.md.
+//
+// Bone palette layout: GLES3_MAX_BONES*3 vec4 "rows", 3 consecutive rows
+// per bone. This is exactly CRC_MatrixPalette::Index()'s own return type
+// (CMat43fp32, a union of 3 TRowIntrinsic/vec128 -- MMath.h:1605-1622) and
+// the SAME per-bone register stride (3) the engine's own VP.xrg template
+// uses for the real hardware (Docs/VP_Reference.md §5.2: "each bone
+// matrix occupies 3 vec4 registers -- a transposed 4x3 matrix, without the
+// last row (0,0,0,1)") -- so CRC_GLES3::ApplySkinningUniforms uploads
+// CRC_MatrixPalette::Index(i) straight through, 3 vec4s at a time, no
+// reformatting. Position uses w=1 (translation contributes); normal/tangent
+// use w=0 (translation dropped, only the linear part applies) -- same
+// distinction the original VP template makes between its position and
+// normal/tangent skinning blocks (Docs/VP_Reference.md §5.3).
+//
+// Bone indices (aBoneIdx0/1) arrive as raw UNNORMALIZED bytes (0..255) via
+// glVertexAttribIPointer (see BindEntryAttribInt in MDisplaySDL2.cpp) --
+// NOT the normalized-float round-trip the PS3 GPU path performs internally
+// (VP.xrg's "c8.w = 3*255.0001" trick, Docs/VP_Reference.md §5.2 explicitly
+// recommends a plain int attribute for a GLSL port instead of reproducing
+// that).
+//
+// Weights are consumed in STREAM order -- aBoneWeight0.x..w then
+// aBoneWeight1.x..w -- up to uBoneCount total (0 = skinning off for this
+// draw, either because RIDDICK_SKINNING=0, the source geometry has no
+// matrix-palette registers, or no palette was set for this draw -- see
+// ApplySkinningUniforms). Weights are NEVER renormalized, matching the
+// engine ("veca not normalized by the VP code", Docs/VP_Reference.md §5.3)
+// -- content is assumed to already sum to 1.
+//
+// GLES3_MAX_BONES=64 (-> 64*3=192 vec4 uniforms for uBoneMat, hardcoded to
+// match the literal array size below) is a deliberate cap: GLES3 only
+// guarantees GL_MAX_VERTEX_UNIFORM_VECTORS >= 256 vec4-equivalents for the
+// WHOLE vertex shader, and the NDS/NDSP programs already spend a couple
+// dozen on MVP/texgen/light uniforms. A skeleton with more bones than this
+// silently has its extra palette entries clamped away by
+// ApplySkinningUniforms (Min(pMP->m_nMatrices, GLES3_MAX_BONES)) --
+// vertices whose bone index lands beyond the uploaded range read stale/
+// zeroed uBoneMat rows (visible glitch, not a crash). See
+// Docs/HacksAndHooks.md for the real (currently unmeasured) bone counts in
+// Riddick's character rigs.
+#define GLES3_MAX_BONES 64
+// Object-like macro (NOT a static const char*) so it expands to a run of
+// adjacent string literals that the compiler concatenates at compile time,
+// same as the surrounding "..."."..." lines in each shader source below --
+// no runtime std::string building, no extra lifetime to manage. Note:
+// deliberately no "//" comments inside the macro body -- a trailing
+// backslash-newline splice happens BEFORE comment stripping, so a "//"
+// comment ending a continued line would silently swallow the next line.
+#define kGLES3_SkinningGLSL \
+	"layout(location=7) in ivec4 aBoneIdx0;\n" \
+	"layout(location=8) in vec4 aBoneWeight0;\n" \
+	"layout(location=9) in ivec4 aBoneIdx1;\n" \
+	"layout(location=10) in vec4 aBoneWeight1;\n" \
+	"uniform int uBoneCount;\n" \
+	"uniform vec4 uBoneMat[192];\n" \
+	"vec3 GLES3_SkinGeneric(vec3 _V, float _PosW){\n" \
+	"  if (uBoneCount <= 0) return _V;\n" \
+	"  vec4 P = vec4(_V, _PosW);\n" \
+	"  int idx[8] = int[8](aBoneIdx0.x, aBoneIdx0.y, aBoneIdx0.z, aBoneIdx0.w,\n" \
+	"                       aBoneIdx1.x, aBoneIdx1.y, aBoneIdx1.z, aBoneIdx1.w);\n" \
+	"  float w[8] = float[8](aBoneWeight0.x, aBoneWeight0.y, aBoneWeight0.z, aBoneWeight0.w,\n" \
+	"                        aBoneWeight1.x, aBoneWeight1.y, aBoneWeight1.z, aBoneWeight1.w);\n" \
+	"  vec3 r = vec3(0.0);\n" \
+	"  for (int i = 0; i < 8; ++i) {\n" \
+	"    if (i >= uBoneCount) break;\n" \
+	"    int base = idx[i] * 3;\n" \
+	"    r += w[i] * vec3(dot(uBoneMat[base+0], P), dot(uBoneMat[base+1], P), dot(uBoneMat[base+2], P));\n" \
+	"  }\n" \
+	"  return r;\n" \
+	"}\n" \
+	"vec3 GLES3_SkinPos(vec3 _P){ return GLES3_SkinGeneric(_P, 1.0); }\n" \
+	"vec3 GLES3_SkinDir(vec3 _D){ return GLES3_SkinGeneric(_D, 0.0); }\n"
+
 static const char* kGLES3_UIVertSrc =
 	"#version 300 es\n"
 	"layout(location=0) in vec3 aPos;\n"
@@ -245,23 +324,29 @@ static const char* kGLES3_3DVertSrc =
 	"uniform int uTexGenMode0;\n"
 	"uniform vec4 uTexGenU0;\n"
 	"uniform vec4 uTexGenV0;\n"
+	kGLES3_SkinningGLSL
 	"out vec2 vUV;\n"
 	"out vec4 vCol;\n"
 	"out vec3 vWorldPos;\n"
 	"out vec3 vWorldNrm;\n"
 	"void main(){\n"
-	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Skinning (RIDDICK_SKINNING): no-op passthrough when uBoneCount==0 --
+	// see kGLES3_SkinningGLSL. Every subsequent use of the raw position/
+	// normal in this shader reads the (possibly skinned) local instead.
+	"  vec3 SkPos = GLES3_SkinPos(aPos);\n"
+	"  vec3 SkNrm = GLES3_SkinDir(aNormal);\n"
+	"  gl_Position = uMVP * vec4(SkPos, 1.0);\n"
 	// Same NDC.z remap as the UI VS: engine projection produces [0..1]
 	// (D3D convention), GL wants [-1..+1] (see kGLES3_UIVertSrc).
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
-	"  vec4 posH = vec4(aPos, 1.0);\n"
+	"  vec4 posH = vec4(SkPos, 1.0);\n"
 	// Same clamp as the UI program (see comment there).
 	"  vec2 uv0 = (uTexGenMode0 == 1) ? clamp(vec2(dot(posH, uTexGenU0), dot(posH, uTexGenV0)), 0.0, 1.0) : aUV;\n"
 	"  vUV = (uTexMat * vec4(uv0, 0.0, 1.0)).xy;\n"
 	"  vCol = aCol;\n"
 	// Row-vector convention: worldPos = v * Model (same layout for GL).
-	"  vWorldPos = (uModel * vec4(aPos, 1.0)).xyz;\n"
-	"  vWorldNrm = mat3(uModel) * aNormal;\n"
+	"  vWorldPos = (uModel * vec4(SkPos, 1.0)).xyz;\n"
+	"  vWorldNrm = mat3(uModel) * SkNrm;\n"
 	"}\n";
 
 static const char* kGLES3_3DFragSrc =
@@ -643,6 +728,7 @@ static const char* kGLES3_NDSVertSrc =
 	// here, XRShader_FP20.cpp:363/366).
 	"uniform vec4 uLightTS;\n"
 	"uniform vec4 uEyeTS;\n"
+	kGLES3_SkinningGLSL
 	"out vec2 vUV;\n"
 	// fragment.texcoord[3]/[4] of the original program (IPTSLV/IPTSEV) --
 	// deliberately NOT normalized here (neither is the ARB source; it
@@ -653,20 +739,30 @@ static const char* kGLES3_NDSVertSrc =
 	// texgen) -- trivially the model-space vertex position itself.
 	"out vec3 vPosMS;\n"
 	"void main(){\n"
-	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Skinning (RIDDICK_SKINNING): applied in model space, BEFORE uMVP --
+	// this whole program already works in model space (no separate uModel
+	// uniform, uLightTS/uEyeTS are model-space too), same space the engine's
+	// own CPU matrix-palette blend (WTriMesh.cpp Cluster_TransformBones_V)
+	// produces. No-op passthrough when uBoneCount==0 (see kGLES3_SkinningGLSL).
+	// Tangents are directions -- GLES3_SkinDir drops translation (w=0).
+	"  vec3 SkPos  = GLES3_SkinPos(aPos);\n"
+	"  vec3 SkNrm  = GLES3_SkinDir(aNormal);\n"
+	"  vec3 SkTanU = GLES3_SkinDir(aTangentU);\n"
+	"  vec3 SkTanV = GLES3_SkinDir(aTangentV);\n"
+	"  gl_Position = uMVP * vec4(SkPos, 1.0);\n"
 	// Same D3D->GL NDC.z remap as every other program in this file (see
 	// kGLES3_UIVertSrc for the full comment).
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
-	"  vPosMS = aPos;\n"
+	"  vPosMS = SkPos;\n"
 	// CRC_TEXGENMODE_TSLV (Docs/VP_Reference.md §3.1, shaders/VP.xrg:
 	// 1565-1573): component order verified against the template's ARB
 	// assembler, NOT the CRC_TEXGENMODE_TSLV enum comment (which claims
 	// x=TangU -- the real code puts x=dot(N,L), y=dot(TV,L), z=dot(TU,L)).
-	"  vec3 Lto = uLightTS.xyz - aPos;\n"
-	"  vTSLV = vec3(dot(aNormal, Lto), dot(aTangentV, Lto), dot(aTangentU, Lto)) * uLightTS.w;\n"
-	"  vec3 Eto = uEyeTS.xyz - aPos;\n"
-	"  vTSEV = vec3(dot(aNormal, Eto), dot(aTangentV, Eto), dot(aTangentU, Eto)) * uEyeTS.w;\n"
+	"  vec3 Lto = uLightTS.xyz - SkPos;\n"
+	"  vTSLV = vec3(dot(SkNrm, Lto), dot(SkTanV, Lto), dot(SkTanU, Lto)) * uLightTS.w;\n"
+	"  vec3 Eto = uEyeTS.xyz - SkPos;\n"
+	"  vTSEV = vec3(dot(SkNrm, Eto), dot(SkTanV, Eto), dot(SkTanU, Eto)) * uEyeTS.w;\n"
 	"}\n";
 
 static const char* kGLES3_NDSFragSrc =
@@ -870,21 +966,29 @@ static const char* kGLES3_NDSPVertSrc =
 	"uniform vec4 uProjU;\n"
 	"uniform vec4 uProjV;\n"
 	"uniform vec4 uProjW;\n"
+	kGLES3_SkinningGLSL
 	"out vec2 vUV;\n"
 	"out vec3 vTSLV;\n"
 	"out vec3 vTSEV;\n"
 	"out vec3 vPosMS;\n"
 	"out vec3 vProjUVW;\n"
 	"void main(){\n"
-	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	// Skinning (RIDDICK_SKINNING) -- same model-space treatment as plain
+	// NDS (kGLES3_NDSVertSrc), plus the projection texgen below now reads
+	// the skinned position too.
+	"  vec3 SkPos  = GLES3_SkinPos(aPos);\n"
+	"  vec3 SkNrm  = GLES3_SkinDir(aNormal);\n"
+	"  vec3 SkTanU = GLES3_SkinDir(aTangentU);\n"
+	"  vec3 SkTanV = GLES3_SkinDir(aTangentV);\n"
+	"  gl_Position = uMVP * vec4(SkPos, 1.0);\n"
 	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
 	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
-	"  vPosMS = aPos;\n"
-	"  vec3 Lto = uLightTS.xyz - aPos;\n"
-	"  vTSLV = vec3(dot(aNormal, Lto), dot(aTangentV, Lto), dot(aTangentU, Lto)) * uLightTS.w;\n"
-	"  vec3 Eto = uEyeTS.xyz - aPos;\n"
-	"  vTSEV = vec3(dot(aNormal, Eto), dot(aTangentV, Eto), dot(aTangentU, Eto)) * uEyeTS.w;\n"
-	"  vec4 posH = vec4(aPos, 1.0);\n"
+	"  vPosMS = SkPos;\n"
+	"  vec3 Lto = uLightTS.xyz - SkPos;\n"
+	"  vTSLV = vec3(dot(SkNrm, Lto), dot(SkTanV, Lto), dot(SkTanU, Lto)) * uLightTS.w;\n"
+	"  vec3 Eto = uEyeTS.xyz - SkPos;\n"
+	"  vTSEV = vec3(dot(SkNrm, Eto), dot(SkTanV, Eto), dot(SkTanU, Eto)) * uEyeTS.w;\n"
+	"  vec4 posH = vec4(SkPos, 1.0);\n"
 	"  vProjUVW = vec3(dot(posH, uProjU), dot(posH, uProjV), dot(posH, uProjW));\n"
 	"}\n";
 
@@ -1269,6 +1373,32 @@ static bool GLES3_NDSEnabled()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_NDS");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_SKINNING=1 -- opt-in GPU vertex skinning (matrix palette), default
+// OFF (see Docs/HacksAndHooks.md "Skinning (matrix palette)"). Gates THREE
+// independent things that must all move together or a half-enabled state
+// draws garbage:
+//  1. GLES3_Geometry.cpp::Build() letting matrix-palette VBIDs through the
+//     GPU cache instead of permanently m_bSkip-ing them (its own copy of
+//     this same env check -- GLES3Geom_SkinningEnabled -- that TU has no
+//     visibility into this class).
+//  2. SetVertexAttribPointersFromEntry binding the bone-index/weight
+//     attributes (locations 7-10) instead of leaving them disabled.
+//  3. ApplySkinningUniforms uploading uBoneCount/uBoneMat instead of
+//     forcing uBoneCount=0 (which makes kGLES3_SkinningGLSL's helpers a
+//     no-op pass-through even if the attributes were somehow bound).
+// Default OFF like RIDDICK_NDS: new code, needs real-content verification
+// before it can safely replace RIDDICK_SKIP_SKINNED as the default path.
+static bool GLES3_SkinningEnabled()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_SKINNING");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -1924,6 +2054,9 @@ public:
 		// channel). See PushTexGenUniforms.
 		int m_3DUTexGenMode0Loc = -1;
 		int m_3DUTexGenU0Loc = -1, m_3DUTexGenV0Loc = -1;
+		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
+		// ApplySkinningUniforms.
+		int m_3DUBoneCountLoc = -1, m_3DUBoneMatLoc = -1;
 
 		// Third program: XRShader_FP20_LFM (baked lightmap, world geometry
 		// only -- see kGLES3_LFMVertSrc/FragSrc and TrySetupLFMProgram,
@@ -1988,6 +2121,9 @@ public:
 		// contract as the UI program, tested against the diffuse texture's
 		// alpha (this pass never writes a real output alpha).
 		int m_NDSUAlphaFuncLoc = -1, m_NDSUAlphaRefLoc = -1;
+		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
+		// ApplySkinningUniforms.
+		int m_NDSUBoneCountLoc = -1, m_NDSUBoneMatLoc = -1;
 		// One-shot session log (see TrySetupNDSProgram) + per-interval draw
 		// counter (reset alongside the other [GL-DBG] counters, printed as
 		// "nds=N").
@@ -2002,6 +2138,25 @@ public:
 		// there; TrySetupNDSProgram uses this as its qualification gate.
 		bool m_bTangentUReal = false;
 		bool m_bTangentVReal = false;
+
+		// Skinning (RIDDICK_SKINNING). Set by SetVertexAttribPointersFromEntry
+		// (cache-path draws only, same restriction as the tangent basis
+		// above): total valid weight components for this draw's vertex
+		// format (nComp(MW0) + nComp(MW1), 0..8), i.e. how many of the 8
+		// index/weight slots kGLES3_SkinningGLSL's loop should actually
+		// read -- NOT the number of bones in the palette (that is
+		// CRC_MatrixPalette::m_nMatrices, read fresh every draw in
+		// ApplySkinningUniforms). 0 = this draw's geometry has no
+		// matrix-palette registers (or the streaming SUIVert path, which
+		// never sets this and leaves it 0 via SetVertexAttribPointers).
+		int m_DrawBoneCount = 0;
+		// One-shot session logs, see ApplySkinningUniforms: what the first
+		// skinned draw's palette/vertex format looked like, and (only if it
+		// ever happens) why skinning had to fall back for a draw that
+		// otherwise qualified (no palette set, empty palette).
+		bool m_bDbgSkinLogged = false;
+		bool m_bDbgSkinFallbackLogged = false;
+		int  m_DbgSkinDraws = 0; // per-interval counter, printed as "skin=N" in [GL-DBG]
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2023,6 +2178,9 @@ public:
 		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
 		int m_NDSPUDbgLoc = -1;
 		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
+		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
+		// ApplySkinningUniforms.
+		int m_NDSPUBoneCountLoc = -1, m_NDSPUBoneMatLoc = -1;
 		// One-shot session logs (one per engine program name, see
 		// TrySetupNDSPProgram) + shared per-interval draw counter --
 		// folded into the same "nds=N" [GL-DBG] total as plain NDS (task
@@ -2247,6 +2405,7 @@ public:
 			m_DbgLFMDraws = 0;
 			m_DbgLFDraws = 0;
 			m_DbgNDSDraws = 0;
+			m_DbgSkinDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2333,13 +2492,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -2898,6 +3057,7 @@ public:
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_NDSShader.SetMat4(m_NDSUMVPLoc, (const float*)&MVP);
 			m_NDSShader.SetMat4(m_NDSUTexMatLoc, (const float*)&m_TexMat[0]);
+			ApplySkinningUniforms(m_NDSShader, m_NDSUBoneCountLoc, m_NDSUBoneMatLoc);
 			m_NDSShader.SetVec4(m_NDSULightTSLoc, TSLVParam[3][0], TSLVParam[3][1], TSLVParam[3][2], TSLVParam[3][3]);
 			m_NDSShader.SetVec4(m_NDSUEyeTSLoc,   TSLVParam[4][0], TSLVParam[4][1], TSLVParam[4][2], TSLVParam[4][3]);
 
@@ -3087,6 +3247,7 @@ public:
 			m_ModelMat.Multiply(m_ProjMat, MVP);
 			m_NDSPShader.SetMat4(m_NDSPUMVPLoc, (const float*)&MVP);
 			m_NDSPShader.SetMat4(m_NDSPUTexMatLoc, (const float*)&m_TexMat[0]);
+			ApplySkinningUniforms(m_NDSPShader, m_NDSPUBoneCountLoc, m_NDSPUBoneMatLoc);
 			m_NDSPShader.SetVec4(m_NDSPULightTSLoc, TSLVParam[iLight][0], TSLVParam[iLight][1], TSLVParam[iLight][2], TSLVParam[iLight][3]);
 			m_NDSPShader.SetVec4(m_NDSPUEyeTSLoc,   TSLVParam[iEye][0],   TSLVParam[iEye][1],   TSLVParam[iEye][2],   TSLVParam[iEye][3]);
 			m_NDSPShader.SetVec4(m_NDSPUProjULoc, LinUVW[iProj][0],  LinUVW[iProj][1],  LinUVW[iProj][2],  LinUVW[iProj][3]);
@@ -3279,6 +3440,8 @@ public:
 				m_3DUTexGenMode0Loc = m_3DShader.UniformLocation("uTexGenMode0");
 				m_3DUTexGenU0Loc    = m_3DShader.UniformLocation("uTexGenU0");
 				m_3DUTexGenV0Loc    = m_3DShader.UniformLocation("uTexGenV0");
+				m_3DUBoneCountLoc   = m_3DShader.UniformLocation("uBoneCount");
+				m_3DUBoneMatLoc     = m_3DShader.UniformLocation("uBoneMat[0]");
 			}
 
 			// FP20 LFM program (baked lightmap, world geometry -- see
@@ -3337,6 +3500,8 @@ public:
 				m_NDSUDbgLoc        = m_NDSShader.UniformLocation("uDbgMode");
 				m_NDSUAlphaFuncLoc  = m_NDSShader.UniformLocation("uAlphaFunc");
 				m_NDSUAlphaRefLoc   = m_NDSShader.UniformLocation("uAlphaRef");
+				m_NDSUBoneCountLoc  = m_NDSShader.UniformLocation("uBoneCount");
+				m_NDSUBoneMatLoc    = m_NDSShader.UniformLocation("uBoneMat[0]");
 			}
 
 			// FP20 NDSP/NDSEATP program (single dynamic light + projection
@@ -3366,6 +3531,8 @@ public:
 				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
 				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
 				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
+				m_NDSPUBoneCountLoc  = m_NDSPShader.UniformLocation("uBoneCount");
+				m_NDSPUBoneMatLoc    = m_NDSPShader.UniformLocation("uBoneMat[0]");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -4367,6 +4534,16 @@ public:
 			glVertexAttrib4f(6, 0.0f, 1.0f, 0.0f, 1.0f);
 			m_bTangentUReal = false;
 			m_bTangentVReal = false;
+			// Skinning (RIDDICK_SKINNING): SUIVert carries no bone data --
+			// same limitation as the tangent basis above (see the NOTE).
+			// Locations 7-10 stay disabled and uBoneCount goes out as 0 via
+			// m_DrawBoneCount, so kGLES3_SkinningGLSL is a no-op passthrough
+			// for every draw on this (streaming) path.
+			glDisableVertexAttribArray(7);
+			glDisableVertexAttribArray(8);
+			glDisableVertexAttribArray(9);
+			glDisableVertexAttribArray(10);
+			m_DrawBoneCount = 0;
 		}
 
 		void DisableVertexAttribPointers()
@@ -4378,6 +4555,10 @@ public:
 			glDisableVertexAttribArray(4);
 			glDisableVertexAttribArray(5);
 			glDisableVertexAttribArray(6);
+			glDisableVertexAttribArray(7);
+			glDisableVertexAttribArray(8);
+			glDisableVertexAttribArray(9);
+			glDisableVertexAttribArray(10);
 		}
 
 		// --- Phase 4 M6: cached-VBID draw path (GLES3_Geometry.h) --------
@@ -4412,6 +4593,30 @@ public:
 				if (nComp <= 0) nComp = 1;
 				glVertexAttribPointer(_Loc, nComp, GL_FLOAT, GL_FALSE, S, (const void*)(intptr_t)Off);
 			}
+			return true;
+		}
+
+		// Integer counterpart of BindEntryAttrib, for the skinning bone-
+		// index registers (RIDDICK_SKINNING) only -- MI0/MI1 land in the
+		// interleaved buffer as raw unnormalized N4_UI8_P32(_NORM) bytes
+		// (see GLES3_Geometry.cpp Build's passthrough special-case), so
+		// they must be read with glVertexAttribIPointer into an ivec4
+		// (NOT glVertexAttribPointer/GL_TRUE, which would normalize into
+		// [0,1] floats and destroy the integer bone index). Returns
+		// whether a real per-vertex register was bound, same contract as
+		// BindEntryAttrib.
+		bool BindEntryAttribInt(const SGLES3GeomEntry& _E, int _Loc, int _Reg)
+		{
+			const int Off = _E.m_lRegOffset[_Reg];
+			if (Off < 0)
+			{
+				glDisableVertexAttribArray(_Loc);
+				glVertexAttribI4i(_Loc, 0, 0, 0, 0);
+				return false;
+			}
+			glEnableVertexAttribArray(_Loc);
+			const GLsizei S = (GLsizei)_E.m_Stride;
+			glVertexAttribIPointer(_Loc, 4, GL_UNSIGNED_BYTE, S, (const void*)(intptr_t)Off);
 			return true;
 		}
 
@@ -4453,6 +4658,131 @@ public:
 			BindEntryAttrib(_E, 4, CRC_VREG_NORMAL,             0.0f, 0.0f, 1.0f, 1.0f);
 			m_bTangentUReal = BindEntryAttrib(_E, 5, CRC_VREG_TEXCOORD0 + TUSet, 1.0f, 0.0f, 0.0f, 1.0f);
 			m_bTangentVReal = BindEntryAttrib(_E, 6, CRC_VREG_TEXCOORD0 + TVSet, 0.0f, 1.0f, 0.0f, 1.0f);
+
+			// Skinning (RIDDICK_SKINNING, opt-in, default off -- see
+			// GLES3_SkinningEnabled). MI0/MW0/MI1/MW1 only ever reach this
+			// entry's register table when GLES3_Geometry.cpp::Build let them
+			// through (same flag, its own copy -- GLES3Geom_SkinningEnabled),
+			// so gating on the flag here too is redundant for correctness
+			// but kept explicit: it's what makes m_DrawBoneCount=0 (and
+			// therefore kGLES3_SkinningGLSL's no-op passthrough) the
+			// guaranteed outcome the instant the flag goes off, without
+			// depending on every VBID having already been rebuilt.
+			m_DrawBoneCount = 0;
+			if (GLES3_SkinningEnabled() && BindEntryAttribInt(_E, 7, CRC_VREG_MI0))
+			{
+				int nW0 = 0, nW1 = 0;
+				if (BindEntryAttrib(_E, 8, CRC_VREG_MW0, 0.0f, 0.0f, 0.0f, 0.0f))
+					nW0 = CRC_VertexFormat::GetRegisterComponents(_E.m_lRegFormat[CRC_VREG_MW0]);
+				if (BindEntryAttribInt(_E, 9, CRC_VREG_MI1))
+				{
+					if (BindEntryAttrib(_E, 10, CRC_VREG_MW1, 0.0f, 0.0f, 0.0f, 0.0f))
+						nW1 = CRC_VertexFormat::GetRegisterComponents(_E.m_lRegFormat[CRC_VREG_MW1]);
+				}
+				else
+				{
+					BindEntryAttrib(_E, 10, CRC_VREG_MW1, 0.0f, 0.0f, 0.0f, 0.0f); // disables loc 10
+				}
+				// Total weight-stream components actually present, in the
+				// order kGLES3_SkinningGLSL's idx[]/w[] arrays read them
+				// (MW0.x..w then MW1.x..w) -- see Docs/VP_Reference.md §5.3.
+				// Deliberately NOT the same thing as the palette's bone
+				// count (CRC_MatrixPalette::m_nMatrices) -- see the
+				// m_DrawBoneCount field comment.
+				m_DrawBoneCount = Min(nW0 + nW1, 8);
+			}
+			else
+			{
+				BindEntryAttribInt(_E, 7, CRC_VREG_MI0);   // disables loc 7 (no MI0, or flag off)
+				BindEntryAttrib(_E, 8, CRC_VREG_MW0, 0.0f, 0.0f, 0.0f, 0.0f);  // disables loc 8
+				BindEntryAttribInt(_E, 9, CRC_VREG_MI1);   // disables loc 9
+				BindEntryAttrib(_E, 10, CRC_VREG_MW1, 0.0f, 0.0f, 0.0f, 0.0f); // disables loc 10
+			}
+		}
+
+		// Skinning (RIDDICK_SKINNING): uploads uBoneCount + the current
+		// draw's bone-matrix palette (uBoneMat[]) to whichever program was
+		// just Use()'d, or forces uBoneCount=0 (kGLES3_SkinningGLSL becomes
+		// a no-op passthrough) if any precondition isn't met. Call sites:
+		// SetupCommonUniforms's 3D branch, TrySetupNDSProgram,
+		// TrySetupNDSPProgram -- right after Sh.Use()/MVP setup. m_UIShader/
+		// m_LFMShader/m_LFShader never receive skinned draws in practice
+		// (UI and BSP2-lightmap content are never matrix-palette geometry)
+		// so they don't declare these uniforms and are not call sites --
+		// _LocBoneCount < 0 (uniform not found/optimized out) is treated the
+		// same as "not a skinning-capable program", just returns.
+		//
+		// Palette source: Matrix_GetState().m_pMatrixPaletteArgs (CRC_Core,
+		// MRCCore.h:365) -- set synchronously right before the corresponding
+		// draw by CXR_VertexBuffer's own render setup (Matrix_SetPalette,
+		// XRVertexBuffer.cpp:226), so by the time this runs it already
+		// reflects THIS draw's palette, not a stale one from a previous VB.
+		void ApplySkinningUniforms(CGLES3Shader& _Sh, int _LocBoneCount, int _LocBoneMat)
+		{
+			if (_LocBoneCount < 0) return;
+
+			if (!GLES3_SkinningEnabled() || m_DrawBoneCount <= 0)
+			{
+				_Sh.SetInt(_LocBoneCount, 0);
+				return;
+			}
+
+			const CRC_MatrixPalette* pMP = Matrix_GetState().m_pMatrixPaletteArgs;
+			if (!pMP || pMP->m_nMatrices == 0)
+			{
+				_Sh.SetInt(_LocBoneCount, 0);
+				if (!m_bDbgSkinFallbackLogged)
+				{
+					m_bDbgSkinFallbackLogged = true;
+					fprintf(stderr,
+						"[GLES3-SKIN] falling back for this draw: vertex format has %d bone weight(s) "
+						"but %s -- drawing unskinned (bone-local) positions\n",
+						m_DrawBoneCount, pMP ? "the palette has 0 matrices" : "no palette is set (Matrix_SetPalette(NULL))");
+					fflush(stderr);
+				}
+				return;
+			}
+
+			const int nBones = Min((int)pMP->m_nMatrices, GLES3_MAX_BONES);
+
+			if (m_DbgEnabled && !m_bDbgSkinLogged)
+			{
+				m_bDbgSkinLogged = true;
+				fprintf(stderr,
+					"[GLES3-SKIN] first skinned draw: paletteBones=%d (capped to %d, GLES3_MAX_BONES=%d) "
+					"weightsPerVertex=%d indirectRemap(m_piMatrices)=%s\n",
+					(int)pMP->m_nMatrices, nBones, GLES3_MAX_BONES,
+					m_DrawBoneCount, pMP->m_piMatrices ? "yes" : "no");
+				fflush(stderr);
+			}
+
+			if (pMP->m_piMatrices)
+			{
+				// Index remap present -- gather through CRC_MatrixPalette::
+				// Index() (the SAME accessor the engine's own CPU-skin path,
+				// WTriMesh.cpp Cluster_TransformBones_V_N, uses) into a
+				// scratch buffer: the uniform upload needs a DENSE array at
+				// contiguous slots 0..nBones-1, matching the raw bone-index
+				// range the vertex data addresses (see kGLES3_SkinningGLSL).
+				static CVec4Dfp32 sScratch[GLES3_MAX_BONES * 3];
+				for (int i = 0; i < nBones; ++i)
+				{
+					const CMat43fp32& M = pMP->Index(i);
+					memcpy(&sScratch[i * 3], &M, sizeof(CVec4Dfp32) * 3);
+				}
+				glUniform4fv(_LocBoneMat, nBones * 3, (const float*)sScratch);
+			}
+			else
+			{
+				// Direct array (the common case): CRC_MatrixPalette::
+				// m_pMatrices already IS an array of CMat43fp32 (3 vec4 rows
+				// each, see the kGLES3_SkinningGLSL header comment) -- upload
+				// as-is, no reformatting.
+				glUniform4fv(_LocBoneMat, nBones * 3, (const float*)pMP->m_pMatrices);
+			}
+
+			_Sh.SetInt(_LocBoneCount, m_DrawBoneCount);
+			++m_DbgSkinDraws;
 		}
 
 		// Draw using GPU-resident buffers from m_GeomCache instead of
@@ -4849,6 +5179,7 @@ public:
 			// 0.2 reproduces the old everything-shader's floor.
 			else
 			{
+				ApplySkinningUniforms(m_3DShader, m_3DUBoneCountLoc, m_3DUBoneMatLoc);
 				m_3DShader.SetInt(m_3DUNoLightLoc, GLES3_NoLight() ? 1 : 0);
 				static float sAmbFloor = -1.0f;
 				if (sAmbFloor < 0.0f)

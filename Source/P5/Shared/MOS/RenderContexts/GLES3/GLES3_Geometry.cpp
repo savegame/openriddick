@@ -42,6 +42,27 @@ static bool GLES3Geom_DbgEnabled()
 	return s != 0;
 }
 
+// RIDDICK_SKINNING=1 (opt-in, default OFF) -- see Docs/HacksAndHooks.md
+// "Skinning (matrix palette)". Same gate MDisplaySDL2.cpp's
+// GLES3_SkinningEnabled() checks; duplicated here (rather than shared)
+// because this TU has no visibility into the CRC_GLES3 class nested in
+// that file, same reasoning as GLES3Geom_SwapBR above. When off, Build()
+// keeps the pre-existing behaviour: any VBID carrying matrix-palette
+// registers is permanently skipped (m_bSkip), same as before this feature
+// existed -- RIDDICK_SKIP_SKINNED remains the emergency killswitch on top
+// of that (see MDisplaySDL2.cpp's own copies of the skip check for the
+// non-cached streaming path, which this flag does NOT affect).
+static bool GLES3Geom_SkinningEnabled()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_SKINNING");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 CGLES3GeometryCache::CGLES3GeometryCache()
 	: m_pVBCtx(0), m_pRC(0), m_VBIDCapacity(0), m_nBuilt(0), m_nBytesV(0), m_nBytesI(0)
 {
@@ -188,19 +209,33 @@ bool CGLES3GeometryCache::Build(int _VBID)
 		return false;
 	}
 
-	// Skinned meshes (matrix-palette blend regs present): our cache
-	// doesn't apply the palette (same limitation as the existing
-	// BuildVertsFromVBB scalar path under RIDDICK_SKIP_SKINNED). Skip
-	// permanently -- skinning support is a separate task.
+	// Skinned meshes (matrix-palette blend regs present). RIDDICK_SKINNING=1
+	// (opt-in, default off): let these through -- the MI0/MI1 registers get
+	// the passthrough DstFormat fix just below (so bone-index bytes survive
+	// the interleave untouched) and MW0/MW1 already flow through the
+	// generic float-register path unchanged; the actual palette blend
+	// happens GPU-side in the vertex shader (see MDisplaySDL2.cpp
+	// SetVertexAttribPointersFromEntry / kGLES3_SkinningGLSL). Default
+	// (flag off): unchanged pre-existing behaviour -- permanently skip, same
+	// limitation as the streaming BuildVertsFromVBB path under
+	// RIDDICK_SKIP_SKINNED.
+	const bool bSkinning = GLES3Geom_SkinningEnabled();
 	if (VBB.m_nV > 0 &&
 	    (VBB.m_lpVReg[CRC_VREG_MI0] || VBB.m_lpVReg[CRC_VREG_MW0] ||
 	     VBB.m_lpVReg[CRC_VREG_MI1] || VBB.m_lpVReg[CRC_VREG_MW1]))
 	{
+		if (!bSkinning)
+		{
+			if (GLES3Geom_DbgEnabled())
+				fprintf(stderr, "[GLES3-GEOM] VBID=%d skip (skinned, RIDDICK_SKINNING=0)\n", _VBID);
+			E.m_bSkip = true;
+			m_pVBCtx->VB_Release(_VBID);
+			return false;
+		}
 		if (GLES3Geom_DbgEnabled())
-			fprintf(stderr, "[GLES3-GEOM] VBID=%d skip (skinned)\n", _VBID);
-		E.m_bSkip = true;
-		m_pVBCtx->VB_Release(_VBID);
-		return false;
+			fprintf(stderr, "[GLES3-GEOM] VBID=%d skinned: MI0=%d MW0=%d MI1=%d MW1=%d\n",
+				_VBID, VBB.m_lpVReg[CRC_VREG_MI0] ? 1 : 0, VBB.m_lpVReg[CRC_VREG_MW0] ? 1 : 0,
+				VBB.m_lpVReg[CRC_VREG_MI1] ? 1 : 0, VBB.m_lpVReg[CRC_VREG_MW1] ? 1 : 0);
 	}
 
 	void* pMem = NULL;
@@ -232,6 +267,26 @@ bool CGLES3GeometryCache::Build(int _VBID)
 			int DstFormat;
 			if (reg == CRC_VREG_COLOR && SrcFmt == CRC_VREGFMT_N4_COL)
 				DstFormat = CRC_VREGFMT_N4_COL;
+			else if ((reg == CRC_VREG_MI0 || reg == CRC_VREG_MI1) &&
+			         (SrcFmt == CRC_VREGFMT_N4_UI8_P32 || SrcFmt == CRC_VREGFMT_N4_UI8_P32_NORM))
+			{
+				// Passthrough, same trick as the CRC_VREG_COLOR case above:
+				// CRC_VertexFormat::ConvertRegisterFormat decodes N4_UI8_P32
+				// to a raw 0..255 float and N4_UI8_P32_NORM to a 0..1 float
+				// (byte/255), then re-encodes on the way out -- picking the
+				// SAME enum for Dst as Src makes decode+encode an identity
+				// on the underlying byte, whichever convention the model
+				// used (the engine's own Geometry_MatrixIndex0 setter always
+				// uses the _NORM tag -- MRender_Classes.h:1150 -- but forcing
+				// one specific DstFormat here regardless of SrcFmt would NOT
+				// round-trip for the other convention: encoding a 0..1 float
+				// as _P32 rounds every index down to 0 or 1). The result is
+				// that our vertex buffer always ends up holding the raw
+				// unnormalized bone-index bytes, read back as an unsigned
+				// integer attribute (see BindEntryAttrib/glVertexAttribIPointer
+				// in MDisplaySDL2.cpp) -- see Docs/VP_Reference.md §5.2.
+				DstFormat = SrcFmt;
+			}
 			else
 			{
 				int nComp = CRC_VertexFormat::GetRegisterComponents(SrcFmt);

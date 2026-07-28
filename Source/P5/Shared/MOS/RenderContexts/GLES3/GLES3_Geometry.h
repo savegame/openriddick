@@ -45,7 +45,7 @@ struct SGLES3GeomEntry
 	int    m_lRegOffset[CRC_MAXVERTEXREG];  // byte offset inside vertex, -1 = absent
 	uint8  m_lRegFormat[CRC_MAXVERTEXREG];  // destination CRC_VREGFMT_*, VOID if absent
 	bool   m_bValid = false; // GPU buffers reflect the current source data
-	bool   m_bSkip  = false; // permanently unsupported (skinned / bad prim type) -- never draw, never rebuild
+	bool   m_bSkip  = false; // permanently unsupported (bad prim type, or skinned while RIDDICK_SKINNING=0) -- never draw, never rebuild
 
 	SGLES3GeomEntry()
 	{
@@ -74,8 +74,9 @@ public:
 	// Returns the ready-to-draw entry for _VBID, (re)building it first if
 	// the engine's CRC_VBIDInfo::m_Fresh bit 0 is clear or it was never
 	// built. Returns NULL if _VBID is out of range, the VBID currently
-	// carries no data, the geometry is permanently unsupported (skinned
-	// mesh, exotic primitive type -- m_bSkip), or GL buffer creation had
+	// carries no data, the geometry is permanently unsupported (exotic
+	// primitive type, or a skinned mesh while RIDDICK_SKINNING=0 -- see
+	// GLES3Geom_SkinningEnabled in the .cpp -- m_bSkip either way), or GL buffer creation had
 	// to be deferred (no current GL context on this thread; retried on
 	// the next Ensure() call -- the draw path only calls this from the
 	// GL thread, so it always succeeds there once data is available).

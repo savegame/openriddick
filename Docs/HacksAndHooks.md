@@ -128,6 +128,20 @@
   `atten`/`proj`, но для шестой (объектно-амбиентной) программы. Без
   debug-режимов отладка нового шейдера "вслепую" почти невозможна.
 
+- **KEEP** `RIDDICK_SKINNING=1` (`MDisplaySDL2.cpp`, `GLES3_SkinningEnabled()`;
+  `GLES3_Geometry.cpp`, `GLES3Geom_SkinningEnabled()` — own copy of the same
+  env check, that TU can't see this class) — **opt-in**, default OFF, same
+  pattern as `RIDDICK_NDS`. Enables GPU matrix-palette (vertex) skinning for
+  the cached-VBID draw path: `GLES3_Geometry.cpp::Build()` stops permanently
+  `m_bSkip`-ping VBIDs that carry `CRC_VREG_MI0/MW0/MI1/MW1`, the cache path
+  binds bone-index/weight attributes (locations 7-10,
+  `SetVertexAttribPointersFromEntry`), and `m_3DShader`/`m_NDSShader`/
+  `m_NDSPShader` blend the vertex through `uBoneMat[]` (shared GLSL block
+  `kGLES3_SkinningGLSL`, `CRC_GLES3::ApplySkinningUniforms`) — see the
+  "Скиннинг" section below for the full writeup. `RIDDICK_SKIP_SKINNED`
+  remains as an emergency killswitch on top of this (streaming/SUIVert path
+  never carries bone data regardless of this flag; see its own entry).
+  → включать после проверки на реальном персонаже с реальной анимацией.
 - **DBG** `RIDDICK_ZEQ_LEQUAL=1` (`GLES3_ZEqualToLEqual()`, применяется в
   `ApplyAttribs`) — заменяет `ZCompare EQUAL` на `LESSEQUAL` для всех
   проходов. FP20-проходы света/лайтмапы рисуются аддитивно поверх
@@ -386,8 +400,18 @@
 
 - **HACK** `RIDDICK_SKIP_SKINNED=1` (`BuildVertsFromVBB`, `BuildInterleavedVerts`)
   — скипает draws с CRC_VREG_MI0/MW0/MI1/MW1 или m_Geom.m_pMI/pMW/nMWComp.
-  Character-меши не рендерятся т.к. skinning pipeline не реализован.
-  → **надо реализовать skinning** и удалить.
+  ОБНОВЛЕНО 2026-07-28: skinning теперь реализован (см. `RIDDICK_SKINNING`
+  выше + раздел "Скиннинг" ниже), но ТОЛЬКО на кэш-путь геометрии по VBID
+  (`GLES3_Geometry.h/.cpp` + `DrawCachedVB`) — этот флаг гасит два ДРУГИХ
+  пути (скалярный `BuildVertsFromVBB` для VBID и `BuildInterleavedVerts` для
+  `CRC_VertexBuffer`/`m_Geom`), которые никогда не несут bone-данные в
+  `SUIVert` и палитру не применяют вообще. Теперь это чисто аварийный
+  выключатель для геометрии, которая почему-то не попала в GPU-кэш (VBID
+  вне диапазона кэша, экзотический `CRC_RIP_*` и т.п.), а не единственный
+  способ спрятать «шипы» — при включённом `RIDDICK_SKINNING=1` основной путь
+  персонажей рисуется через кэш и этот флаг для него не актуален.
+  → удалить вместе с `BuildVertsFromVBB`/`BuildInterleavedVerts` fallback'ом,
+  когда VBID-кэш подтверждён покрывающим всю скиннед-геометрию в игре.
 
 - **HACK** `RIDDICK_SKIP_CHARS=1`, `RIDDICK_SKIP_PROPS=1`,
   `RIDDICK_SKIP_SPRITES=1`, `RIDDICK_SKIP_SPOTVOL=1` (`XREngine.cpp:RenderModel`) —
@@ -1065,12 +1089,143 @@ TANG_U/TANG_V вообще (как и у LFM) — тангентного баз�
   NDSEATP форсировал тест. Общий путь (тест выключен по умолчанию, как у
   соседей) здесь правильное чтение контракта, а не догадка.
 
-### Skinning не реализован
+### Скиннинг (matrix palette) (2026-07-28) — GPU vertex skinning на кэш-пути
 
-- **HACK** `BuildVertsFromVBB` возвращает NULL если m_lpVReg[MI0/MW0] есть
-  (когда RIDDICK_SKIP_SKINNED=1). Иначе character-меши рендерятся с
-  bone-local позициями = «шипы».
-  → реализовать vertex skinning с matrix palette.
+`RIDDICK_SKINNING=1` (opt-in, default OFF — см. запись в "Диагностика
+рендера" выше). Реализует GPU-скиннинг для геометрии, идущей через
+GPU-резидентный кэш по VBID (`GLES3_Geometry.h/.cpp`, `DrawCachedVB`) — это
+единственный путь, куда попадают скиннед-персонажи/оружие в текущем
+рендер-пайплайне; старый скалярный стриминг-путь (`BuildVertsFromVBB`/
+`BuildInterleavedVerts`) продолжает их безусловно скипать под
+`RIDDICK_SKIP_SKINNED` (теперь это чисто аварийный выключатель, см. запись
+выше).
+
+**Контракт (что реально нашлось в коде, не додумано):**
+
+- Вершинные регистры — `MRender_Classes.h:1150-1161`, подтверждено
+  `Docs/VP_Reference.md` §5.1: `CRC_VREG_MI0`/`MI1` (индексы, 4 байта
+  каждый регистр — `CRC_VREGFMT_N4_UI8_P32_NORM`, движковый сеттер
+  `Geometry_MatrixIndex0/1` всегда использует именно этот, "нормализованный"
+  тег, не `..._P32`/`MatrixIndex0Int`), `CRC_VREG_MW0`/`MW1` (веса, `V1..
+  V4_F32` — 1-4 float на регистр). Реальный emitter,
+  `WTriMesh.cpp:8280-8360` (используется и обычным рендером, и extrusion'ом
+  теневых объёмов) — единственное место, где до 8 костей на вершину
+  (`MI0`+`MI1`, `MW0`+`MW1`) реально собираются и проверены построчно;
+  `Docs/VP_Reference.md` §5.3 (`MWComp0..8`) подтверждает диапазон из
+  `shaders/VP.xrg`.
+- `CRC_MatrixPalette` (`MRender_Classes.h:162-182`) — `m_pMatrices` (`const
+  void*`, интерпретируется как `CMat43fp32*` через `Index()`), `m_piMatrices`
+  (опциональная remap-таблица `uint16*`; `NULL` в общем случае), `m_nMatrices`.
+  `CMat43fp32` (`typedef TMatrix43<fp32>`, `MMath.h:1591,1605-1622`) — union
+  из 3 `vec128`-строк (`v[3]`) = ТОЧНО раскладка, которую движковый
+  `VP.xrg`-шаблон грузит в GPU-константы как 3 vec4-регистра на кость (без
+  4-й строки `(0,0,0,1)`) — см. `Docs/VP_Reference.md` §5.2. Выставляется
+  синхронно перед каждым draw через `CXR_VertexBuffer`'s render-setup
+  (`Matrix_SetPalette`, `XRVertexBuffer.cpp:226`) → `CRC_Core::
+  Matrix_SetPalette` (`MRender.cpp:3646`) хранит указатель в
+  `Matrix_GetState().m_pMatrixPaletteArgs` — публичный accessor, `CRC_GLES3`
+  не переопределяет `Matrix_SetPalette` вообще, читает то же поле базового
+  класса.
+
+**Реализация:**
+
+- **KEEP** `GLES3_Geometry.cpp::Build()` — `GLES3Geom_SkinningEnabled()`
+  снимает безусловный `m_bSkip` для VBID с `MI0/MW0/MI1/MW1` (при флаге
+  включённом; при выключенном — прежнее поведение байт-в-байт). Добавлен
+  passthrough-кейс для `MI0`/`MI1` (по образцу уже существующего кейса для
+  `CRC_VREG_COLOR`): `ConvertRegisterFormat` декодирует
+  `N4_UI8_P32_NORM`→float `[0..1]` и `N4_UI8_P32`→float `[0..255]` ПО-РАЗНОМУ,
+  так что принудительный единый DstFormat сломал бы одну из двух конвенций
+  (округление `0..1`→`P32` даёт индекс `0` или `1` для любой кости) — вместо
+  этого `DstFormat = SrcFmt`, что делает decode+encode идентичностью
+  независимо от того, какую конвенцию использовала модель, и оставляет в
+  интерливленном буфере ИСХОДНЫЕ небайт-нормализованные индексы костей
+  (`0..255`). `MW0`/`MW1` не потребовали спецкейса вообще — уже шли через
+  типовой float-путь (`V1..V4_F32`).
+- **KEEP** `BindEntryAttribInt` (`MDisplaySDL2.cpp`) — целочисленный аналог
+  `BindEntryAttrib`: `glVertexAttribIPointer(loc, 4, GL_UNSIGNED_BYTE, ...)`
+  в `ivec4`, БЕЗ нормализации (`GL_TRUE` тут дал бы `[0,1]` float и убил бы
+  целый индекс кости). `SetVertexAttribPointersFromEntry` биндит локации
+  7 (`aBoneIdx0`←MI0), 8 (`aBoneWeight0`←MW0), 9 (`aBoneIdx1`←MI1), 10
+  (`aBoneWeight1`←MW1) и считает `m_DrawBoneCount` = сумма реальных
+  компонент MW0+MW1 (0..8) — именно ЭТО число, а не число костей в
+  палитре, ограничивает цикл в шейдере, что защищает от footgun'а GL:
+  `glVertexAttribPointer` с `size<4` для `vec4`-атрибута молча
+  доливает `(0,0,1)` в недостающие компоненты, и если бы шейдер читал
+  ВСЕ 4 компоненты веса независимо от реального числа костей, лишний вес
+  `1.0` в компоненте `.w` подмешал бы кость с индексом `aBoneIdx0.w` даже
+  когда на вершину влияет только 1-2 кости.
+  Старый стриминг-путь (`SetVertexAttribPointers`, `SUIVert`) и
+  `DisableVertexAttribPointers` явно гасят локации 7-10 и обнуляют
+  `m_DrawBoneCount` — `SUIVert` не несёт bone-данных вообще (тот же
+  аргумент, что уже был для тангентов 5/6, см. ниже).
+- **KEEP** `kGLES3_SkinningGLSL` (`MDisplaySDL2.cpp`) — общий GLSL-блок,
+  **макрос препроцессора** (не `static const char*`, чтобы влиться в
+  соседние строковые литералы шейдера без runtime-конкатенации строк),
+  вставлен в `kGLES3_3DVertSrc`, `kGLES3_NDSVertSrc`, `kGLES3_NDSPVertSrc`
+  (задача явно просит минимум 3D+NDS/NDSP — персонажи освещаются именно
+  NDS/NDSP). Палитра — `uniform vec4 uBoneMat[192]`
+  (`GLES3_MAX_BONES(64)*3`), индексация `idx[i]*3 + {0,1,2}` — 3
+  vec4-строки на кость, dot-произведение с позицией (`w=1`, трансляция
+  участвует) или направлением (`w=0`, трансляция откинута — для нормали и
+  ОБОИХ тангентов, не только позиции). Веса читаются в порядке потока
+  (`aBoneWeight0.x..w`, затем `aBoneWeight1.x..w`) до `uBoneCount`, БЕЗ
+  перенормировки (движок сам их не нормализует — см.
+  `Docs/VP_Reference.md` §5.3, "переносить как есть"). `uBoneCount==0` —
+  гарантированный no-op passthrough (return исходного вектора), это и есть
+  общий "выключено" путь для всех непроверенных случаев.
+- **KEEP** `CRC_GLES3::ApplySkinningUniforms` — вызывается сразу после
+  `Sh.Use()` в трёх местах (`SetupCommonUniforms` 3D-ветка,
+  `TrySetupNDSProgram`, `TrySetupNDSPProgram`); `m_UIShader`/`m_LFMShader`/
+  `m_LFShader` не вызывают её вообще (UI и BSP2-лайтмап-геометрия никогда
+  не скиннед). Читает `Matrix_GetState().m_pMatrixPaletteArgs`,
+  `nBones = Min(pMP->m_nMatrices, GLES3_MAX_BONES)`; если `m_piMatrices`
+  задан (remap) — собирает плотный массив через `pMP->Index(i)` (ТОТ ЖЕ
+  accessor, которым уже пользуется CPU-скин-путь движка,
+  `WTriMesh.cpp::Cluster_TransformBones_V_N`) в scratch-буфер и заливает
+  `glUniform4fv`; иначе (обычный случай) льёт `pMP->m_pMatrices` напрямую
+  без переформатирования — раскладка `CMat43fp32` УЖЕ является 3
+  vec4-строками. Если палитра не выставлена или `m_nMatrices==0` —
+  `uBoneCount=0` (тот же откат на "не скиннить") + разовый лог
+  `[GLES3-SKIN] falling back: ...` с причиной.
+- **DBG** Разовый лог `[GLES3-SKIN] first skinned draw: paletteBones=..
+  (capped to ..) weightsPerVertex=.. indirectRemap=..` (первый успешный
+  скиннед-draw за сессию) + разовый лог для каждого VBID в
+  `[GLES3-GEOM] VBID=.. skinned: MI0=.. MW0=.. MI1=.. MW1=..` (под
+  `RIDDICK_DBG_GL=1`, диагностирует какие именно регистры реально
+  присутствуют по VBID). Счётчик `skin=N` в строке `[GL-DBG]`.
+
+**Число поддержанных костей и почему:**
+
+- До 8 костей/весов на вершину (MI0+MI1, MW0+MW1) — контракт вершинных
+  регистров это позволяет и `WTriMesh.cpp` реально это использует (хоть и
+  прежде всего для extrusion теневых объёмов; обычный skinned-рендер,
+  предположительно, чаще использует 1-4).
+- Палитра ограничена `GLES3_MAX_BONES=64` (192 vec4-юниформа) — GLES3
+  гарантирует лишь `GL_MAX_VERTEX_UNIFORM_VECTORS >= 256` на ВЕСЬ
+  вершинный шейдер, а у NDS/NDSP уже есть десяток-другой юниформов
+  (MVP/texgen/свет). Скелет с бОльшим числом костей молча обрезается
+  (`Min(m_nMatrices, 64)`) — вершины с индексом кости за пределами
+  залитого диапазона читают устаревшие/нулевые строки `uBoneMat`
+  (визуальный дефект, не краш). Реальное число костей в скелетах Riddick
+  не измерено на этом этапе — если разойдётся с 64 на практике, поднять
+  константу (и проверить бюджет юниформов остальных программ).
+
+**Не сделано / не проверено:**
+
+- Не проверено на реальном персонаже с реальной анимацией (флаг
+  выключен по умолчанию именно поэтому).
+- Квaтернионный вариант палитры (`MPQuat`, `Docs/VP_Reference.md` §5.3) —
+  не перенесён, он мёртвый код в текущем шаблоне движка (`CRC_QUATMATRIXPALETTE`
+  никогда не определён).
+- Не сделан отдельный путь для `m_UIShader`/`m_LFMShader`/`m_LFShader` —
+  предполагается (по факту происхождения геометрии), что они никогда не
+  получают скиннед-draw; если это предположение неверно, для них тоже
+  понадобится `kGLES3_SkinningGLSL` + `ApplySkinningUniforms`.
+- Защитный код предполагает, что движок всегда шлёт `MI0`/`MW0` парой и
+  `MI1`/`MW1` парой (так и делает `WTriMesh.cpp`) — если когда-нибудь
+  найдётся VBID с `MI0` без `MW0` (или наоборот), подсчёт
+  `m_DrawBoneCount` собьётся на количество компонент из другого потока.
 
 ### Missing user clip planes
 
