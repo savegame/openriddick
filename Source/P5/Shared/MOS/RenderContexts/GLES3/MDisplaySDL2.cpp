@@ -2775,6 +2775,27 @@ public:
 			{
 				int AlphaFunc; float AlphaRef;
 				GetAlphaTestParams(AlphaFunc, AlphaRef);
+				// The "A" in XRShader_FP20_NDSEATP is AlphaTest, and the
+				// engine does NOT put it in the attribute: the FP20 base
+				// attrib (XRShader_FP20.cpp:100-120) never calls
+				// Attrib_AlphaCompare, so m_AlphaCompare stays ALWAYS and
+				// the generic path above disables the test. The cutout is
+				// the program's own job -- exactly what the original ARB
+				// program would do with KIL. Force GREATEREQUAL against
+				// the diffuse alpha for this variant; the threshold is
+				// tunable because the original constant is not in the data
+				// (no NDSEATP .fp shipped).
+				if (bEATP && !m_DbgNoAlpha && AlphaFunc == 0)
+				{
+					static float sRef = -1.0f;
+					if (sRef < 0.0f)
+					{
+						const char* e = getenv("RIDDICK_ALPHA_REF");
+						sRef = e ? (float)atof(e) : 0.5f;
+					}
+					AlphaFunc = CRC_COMPARE_GREATEREQUAL;
+					AlphaRef  = sRef;
+				}
 				m_NDSPShader.SetInt(m_NDSPUAlphaFuncLoc, AlphaFunc);
 				if (AlphaFunc) m_NDSPShader.SetFloat(m_NDSPUAlphaRefLoc, AlphaRef);
 			}
