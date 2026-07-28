@@ -1413,6 +1413,8 @@ public:
 		// counter (reset alongside the other [GL-DBG] counters, printed as
 		// "lfm=N").
 		bool m_bDbgLFMLogged = false;
+		int  m_DbgLFMLogged = 0;
+		int  m_DbgLastLFM0 = -1;
 		int  m_DbgLFMDraws = 0;
 
 		// Fourth program: XRShader_FP20_NDS (single dynamic light: diffuse +
@@ -1794,13 +1796,23 @@ public:
 				Src = SD & 0xff;
 				Dst = (SD >> 8) & 0xff;
 			}
+			// Channels 8..15 matter: the LFM program parks its four
+			// lightmap pages in 10..13 (XRShader_LightField.cpp:542-545)
+			// and the shading programs put noise textures in 14/15, so a
+			// log that stops at channel 7 hides exactly the interesting
+			// half of the attribute.
+			int TexHi[8] = {0,0,0,0,0,0,0,0};
+			for (int c = 8; c < 16 && c < CRC_MAXTEXTURES; ++c)
+				TexHi[c - 8] = (int)m_pCurAttrib->m_TextureID[c];
 			fprintf(stderr,
 				"[GLES3-FP] prog='%s' hash=0x%08x nParams=%d "
-				"tex=[%d %d %d %d %d %d %d %d] texgen=[%d %d %d %d %d %d %d %d] "
+				"tex=[%d %d %d %d %d %d %d %d] texHi=[%d %d %d %d %d %d %d %d] "
+				"texgen=[%d %d %d %d %d %d %d %d] "
 				"flags=0x%08x blend=%d/%d\n",
 				_pFP->m_pProgramName ? _pFP->m_pProgramName : "?",
 				Hash, _pFP->m_nParams,
 				Tex[0], Tex[1], Tex[2], Tex[3], Tex[4], Tex[5], Tex[6], Tex[7],
+				TexHi[0], TexHi[1], TexHi[2], TexHi[3], TexHi[4], TexHi[5], TexHi[6], TexHi[7],
 				TexGen[0], TexGen[1], TexGen[2], TexGen[3], TexGen[4], TexGen[5], TexGen[6], TexGen[7],
 				Flags, Src, Dst);
 			int nP = _pFP->m_nParams;
@@ -1894,8 +1906,15 @@ public:
 			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
 			const GLuint TNormal  = TexNormalID  ? TextureID_EnsureUploaded(TexNormalID)  : 0;
 
-			if (!m_bDbgLFMLogged)
+			// Log the first few DISTINCT lightmap sets, not just the very
+			// first draw: a single sample turned out to be misleading --
+			// it caught a draw whose channels 10..13 held ordinary material
+			// textures (Console_02_*) rather than an LM* atlas page, which
+			// is exactly the bug we are chasing (2026-07-27 log).
+			if (m_DbgLFMLogged < 8 && m_DbgLastLFM0 != TexLFM_ID[0])
 			{
+				++m_DbgLFMLogged;
+				m_DbgLastLFM0 = TexLFM_ID[0];
 				m_bDbgLFMLogged = true;
 				fprintf(stderr,
 					"[GLES3-LFM] diffuse=%d normal=%d lfm=[%d %d %d %d] uvset0=%d uvset1=%d scale=%f\n",
