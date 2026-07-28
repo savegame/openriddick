@@ -92,23 +92,31 @@
   оригинала одним скаляром — см. TODO в `kGLES3_LFMFragSrc`.
 
 - **KEEP** `RIDDICK_NDS=1` (`MDisplaySDL2.cpp`, `GLES3_NDSEnabled()`,
-  `CRC_GLES3::TrySetupNDSProgram`) — **opt-in** (в отличие от LFM, по
-  умолчанию ВЫКЛЮЧЕНО, не наоборот). Реализация `XRShader_FP20_NDS` —
-  однопроходный динамический источник света (diffuse + normal map +
-  Phong-спекуляр), критический путь освещения Riddick (весь видимый свет
-  в игре — этот проход). Требует тангентного базиса (локации 5/6, только
-  кэш-путь геометрии) — см. раздел ниже. Выключено по умолчанию, пока не
-  подтверждено на реальном прогоне с реальными нормал-мапами.
+  `CRC_GLES3::TrySetupNDSProgram`/`TrySetupNDSPProgram`) — **opt-in** (в
+  отличие от LFM, по умолчанию ВЫКЛЮЧЕНО, не наоборот). Один флаг
+  включает ВСЮ семью однопроходных динамических источников света
+  (diffuse + normal map + Phong-спекуляр): `XRShader_FP20_NDS` (свой GL-
+  шейдер `m_NDSShader`) и `XRShader_FP20_NDSP`/`XRShader_FP20_NDSEATP`
+  (общий GL-шейдер `m_NDSPShader` с проекционной картой(-ами), см. раздел
+  ниже) — критический путь освещения Riddick (весь видимый динамический
+  свет в игре — эти проходы). Требует тангентного базиса (локации 5/6,
+  только кэш-путь геометрии) — см. раздел ниже. Выключено по умолчанию,
+  пока не подтверждено на реальном прогоне с реальными нормал-мапами.
+  Не реализовано: `XRShader_FP20_LF` (без нормал-мапы/M-суффикса — другой
+  контракт атрибутов, отдельная задача).
   → включать после проверки на реальной карте с материалами, у которых
   есть normal map.
-- **DBG** `RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten` (только вместе с
-  `RIDDICK_NDS=1`) — `tslv`: нормализованный tangent-space light vector
-  как RGB; `normal`: декодированная нормаль из normal-мапы; `diffuse`:
-  только диффузный член; `spec`: только спекулярный член; `atten`:
-  затухание по расстоянию `(1 - saturate(distSq * uLightRange.z))^2`
-  (до умножения на self-shadow) как оттенки серого — видно, добивает ли
-  источник до поверхности вообще, без гадания по итоговому освещённому
-  результату. Без debug-режимов отладка нового шейдера "вслепую" почти
+- **DBG** `RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj` (только вместе
+  с `RIDDICK_NDS=1`, общий для всех трёх программ NDS/NDSP/NDSEATP) —
+  `tslv`: нормализованный tangent-space light vector как RGB; `normal`:
+  декодированная нормаль из normal-мапы; `diffuse`: только диффузный
+  член; `spec`: только спекулярный член; `atten`: затухание по расстоянию
+  `(1 - saturate(distSq * uLightRange.z))^2` (до умножения на self-shadow)
+  как оттенки серого — видно, добивает ли источник до поверхности вообще,
+  без гадания по итоговому освещённому результату; `proj` (только
+  NDSP/NDSEATP): комбинированный множитель проекционной карты(-т) один,
+  до умножения в attn — изолирует форму «печенья»/cookie от затухания по
+  расстоянию. Без debug-режимов отладка нового шейдера "вслепую" почти
   невозможна.
 
 - **DBG** `RIDDICK_ZEQ_LEQUAL=1` (`GLES3_ZEqualToLEqual()`, применяется в
@@ -798,13 +806,8 @@ map + Phong-спекуляр), аддитивный (`ONE/ONE`, `ZCompare EQUAL`
    reflection, диффуз, спекуляр, финальное умножение на attn) совпадает
    с §4.2 один-в-один — расхождений не найдено.
 
-**Не реализовано / упрощено:**
+**Не реализовано / упрощено (для `XRShader_FP20_NDS`):**
 
-- **`XRShader_FP20_NDSP`** (тот же проход + проекционная текстура на
-  канале 4, `..._Proj_SpecNormal.fp`) — НЕ реализован, объём не
-  укладывался в эту задачу. Селектор (`TrySetupNDSProgram`) сверяет только
-  имя `XRShader_FP20_NDS`, так что `NDSP`-драйвы просто не qualify'ятся и
-  рисуются старым путём — без дополнительного кода для отличения.
 - Дефолтная normal-мапа при отсутствующей текстуре — константа
   `(0.5,0.5,1.0,1.0)` (плоская +Z-нормаль после анпака), а не настоящий
   `m_TextureID_DefaultNormal` движка (мы не знаем его точное содержимое
@@ -813,6 +816,95 @@ map + Phong-спекуляр), аддитивный (`ONE/ONE`, `ZCompare EQUAL`
   `r0.a` (мусорный остаток от reflection-расчёта) — альфа-запись всё
   равно отключена движком (`Attrib_Disable(CRC_FLAGS_ALPHAWRITE)`), так
   что это не наблюдаемая разница.
+
+### FP20 NDSP / NDSEATP programs (2026-07-28) — проекционные варианты NDS
+
+`XRShader_FP20_NDSP` и `XRShader_FP20_NDSEATP` — тот же однопроходный
+динамический свет, что и `XRShader_FP20_NDS`, плюс одна или две
+проекционные текстуры (spotlight cookie), умножающие затухание света.
+Реализованы ОДНОЙ GL-программой `m_NDSPShader`
+(`kGLES3_NDSPVertSrc`/`kGLES3_NDSPFragSrc`) с юниформом-переключателем
+`uUseProj2` вместо трёх похожих шейдеров — по прямому указанию задачи.
+Селектор `CRC_GLES3::TrySetupNDSPProgram()` матчит ОБА имени по хэшу +
+`strcmp` (тот же контракт, что `TrySetupNDSProgram`) и определяет
+`bEATP`, откуда берутся текстурные каналы и texgen-каналы.
+
+**Контракт «канал → карта»:**
+
+| | `XRShader_FP20_NDSP` (COREFBB, `XRShader_FP20.cpp:77-289/298-436`) | `XRShader_FP20_NDSEATP` (класс `CXR_VirtualAttributes_ShaderFP20`, ibid:441-639/643-862+) |
+|---|---|---|
+| Diffuse | `m_TextureID[0]` | `m_TextureID[0]` |
+| Normal(+Specular в alpha) | `m_TextureID[2]` | `m_TextureID[2]` |
+| Attribute | — | `m_TextureID[3]` — **не читается** ни одним найденным `.fp` для этой программы, не сэмплируется |
+| Transmission | — | `m_TextureID[4]` — **не читается**, `TransmissionColor`-параметр существует (`pParams[6]`), но ни один файл в `shaders/` его не использует; не сэмплируется |
+| Projection 1 | `m_TextureID[4]`, UV из texgen-канала **7** (`LINEAR U\|V\|W`, `CreateProjMapTexGenAttr`, ibid:52-72) | `m_TextureID[5]`, UV из texgen-канала **4** (`LINEAR U\|V\|W`, `RenderShading_FP20:749-767`) |
+| Projection 2 | — | `m_TextureID[6]` — **тот же движковый TextureID**, что Projection1 на этом call site (`RenderShading_FP20:855` передаёт `TextureIDProj` в оба аргумента `Create()`), тот же texgen-канал 4 |
+| Environment | — | `m_TextureID[7]`, texgen-канал 5 (`BUMPCUBEENV`) — **не читается**, вклад = 0 (явно разрешено заданием) |
+| TSLV → свет | texgen-канал 3 | texgen-канал **2** (другая нумерация!) |
+| TSLV → глаз | texgen-канал 4 | texgen-канал **3** |
+| Mapping UV / TangentU / TangentV | `m_iTexCoordSet[0]`/`[2]`/`[3]`, как у NDS | то же |
+
+Номер texgen-канала для TSLV/проекции у NDSEATP выведен не из
+комментария (там написано «TexCoord2=IPTSLV, TexCoord3=IPTSEV,
+TexCoord4=ProjMap» — и это совпало), а перепроверен по порядку
+последовательной записи в `pTexGenAttr` в `RenderShading_FP20`
+(`nTexGenPos` растёт по буферу, `GetTexGenModeAttribSize` даёт 0 для
+каналов 0/1 — TEXCOORD/MSPOS — так что первый блок TSLV ложится в канал
+2, не в 0/1).
+
+**Откуда взята математика:**
+
+- Diffuse+Normal+Specular+Attenuation+Self-shadow — дословно тот же
+  `shaders/ARB_Fragment_Program/XRShader_SinglePass_Dst2_SpecNormal.fp`,
+  что и у обычного NDS (см. секцию выше).
+- Умножение затухания на альфу проекционной карты — дословно из
+  `shaders/ARB_Fragment_Program/XRShader_SinglePass_Dst2_Proj_SpecNormal.fp`
+  (тот же файл + `TEX ProjMapTexel, ProjMapTexCoord, texture[1], CUBE;` /
+  `MUL r1.w, r1.w, ProjMapTexel.a;`, между attenuation и self-shadow —
+  порядок сохранён). Также сверено с общей схемой `attn *= textureCube(
+  proj).rgb` в `shaders/HL_Shading/XRShader_BRDF3.fp:789-803` (другая,
+  более поздняя deferred/materialmask-система — не транскрибирован
+  дословно, использован только для проверки паттерна).
+- Для `XRShader_FP20_NDSEATP` дословного `.fp`-аналога в дереве нет
+  (задание это допускало) — контракт «канал → карта» восстановлен
+  напрямую из `CXR_VirtualAttributes_ShaderFP20`/`RenderShading_FP20`
+  (C++ — тоже источник истины, не только `.fp`), математика лампинга
+  переиспользована как у NDS/NDSP.
+
+**Упрощено / не восстановлено:**
+
+- **Проекционная карта как CUBEMAP.** Оригинал сэмплирует её как
+  настоящий `CUBE` (направление, не делённое на глубину). Наш
+  `GLES3_Texture.{h,cpp}` (вне периметра этой задачи — редактировать
+  нельзя) реализует только `Upload2D`, кубической загрузки нет. Замена:
+  те же 3 плоскости `LINEAR U|V|W` (`CreateProjMapTexGenAttr`) — это
+  классическая однородная проективная текстурная координата (U/V уже
+  промасштабированы на `1/SpotWidth,1/SpotHeight`, W — сырая глубина в
+  пространстве света), а `textureProj(sampler2D, vec3)` в GLSL ES 3.00
+  считает ровно `texture(sampler, P.xy/P.z)` — стандартный 2D-вырожденный
+  случай той же плоскостной математики для переднего полупространства
+  (spotlight cookie), т.е. именно то, для чего используется
+  `m_TextureID_DefaultLens`/projmap-фоллбэк на практике. Осознанная,
+  задокументированная замена, а не догадка — но не воспроизведёт
+  боковые/обратные кубические выборки, которые дал бы настоящий cubemap.
+- **Environment (канал 7 у NDSEATP), Attribute (канал 3), Transmission
+  (канал 4)** — НЕ сэмплируются вообще: ни один `.fp` в `shaders/` не
+  ссылается на `XRShader_FP20_NDSEATP` по имени и не читает
+  `TransmissionColor`/атрибут-текстуру для именно этой программы,
+  восстановить надёжно нельзя — оставлено нейтральным (вклад 0), как
+  прямо разрешено заданием, вместо того чтобы выдумывать формулу.
+- Общий с NDS список (дефолтная normal-мапа, `oColor.a`) — см. выше.
+
+- **KEEP** Диагностика — разовый лог `[GLES3-NDSP] prog=... diffuse=..
+  normal=.. proj1=.. proj2=.. uvset0=.. tuset=.. tvset=.. lightCh=..
+  eyeCh=.. projCh=..` один раз за сессию НА КАЖДОЕ из двух имён программ
+  (`m_bDbgNDSPLogged`/`m_bDbgNDSEATPLogged`, независимые флаги — так в
+  логе видна разбивка по программам). Счётчик кадров общий с обычным NDS
+  (`nds=N` в `[GL-DBG]`), как и просило задание (один общий счётчик,
+  разбивка — в разовых логах).
+- **HACK** `[GLES3-NDSP] falling back to legacy shader: ...` — тот же
+  контракт условий качества, что у NDS (тангентный базис, normal map,
+  проекционная текстура, нужные texgen-каналы), капа 4 раза за сессию.
 
 ### Skinning не реализован
 

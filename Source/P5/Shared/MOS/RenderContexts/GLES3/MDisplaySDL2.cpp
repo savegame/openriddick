@@ -613,6 +613,205 @@ static const char* kGLES3_NDSFragSrc =
 	"  oColor = vec4(result, 1.0);\n"
 	"}\n";
 
+// --- FP20 NDSP / NDSEATP shader (m_NDSPShader). --------------------------
+// One combined program for XRShader_FP20_NDSP and XRShader_FP20_NDSEATP --
+// both are the SAME single-light diffuse+normal+Phong pass as XRShader_
+// FP20_NDS above, plus one or two projection-map (spotlight cookie)
+// samples multiplying the light's attenuation. They differ only in which
+// texgen/texcoord channels feed them and whether a second projection
+// sample is present, so CRC_GLES3::TrySetupNDSPProgram (below) selects
+// between them at the C++ level and this is one GL program with
+// uUseProj2 as the on/off switch (task explicitly prefers this over three
+// near-identical programs).
+//
+// Channel/texcoord contract:
+//  - XRShader_FP20_NDSP: CXR_VirtualAttributes_ShaderFP20_COREFBB (same
+//    class as plain NDS, XRShader_FP20.cpp:77-289) + RenderShading_FP20_
+//    COREFBB (ibid:298-436) with m_TextureID_Projection != 0: m_TextureID
+//    [4]=Projection, texgen channel 7 = CRC_TEXGENMODE_LINEAR U|V|W
+//    (CreateProjMapTexGenAttr, ibid:52-72) feeds its texcoord; TSLV
+//    channels are the SAME as plain NDS (3=light, 4=eye).
+//  - XRShader_FP20_NDSEATP: CXR_VirtualAttributes_ShaderFP20 (the "big"
+//    class, ibid:441-639) + RenderShading_FP20 (ibid:643-862+): m_TextureID
+//    [5]=Projection1, [6]=Projection2 (both are literally the SAME engine
+//    texture ID at this call site -- RenderShading_FP20 passes
+//    TextureIDProj to both Create() arguments, ibid:855), fed by ONE
+//    shared texgen channel 4 (LINEAR U|V|W, ibid:749-767); TSLV channels
+//    are DIFFERENT from NDS/NDSP here: 2=light, 3=eye (PrepareFrame,
+//    ibid:472-474, and the sequential texgen-attr write order in
+//    RenderShading_FP20, ibid:727-746 -- channel 0/1 contribute zero
+//    attrib bytes, so the first TSLV block written lands on channel 2).
+//    m_TextureID[7]=Environment (BUMPCUBEENV texgen channel 5, ibid:476,
+//    771-784) and m_TextureID[3]/[4]=Attribute/Transmission are NOT
+//    referenced by this program -- see the "not restored" note below.
+//
+// Math for the shared diffuse/normal/specular/attenuation/self-shadow
+// core: verbatim from shaders/ARB_Fragment_Program/XRShader_SinglePass_
+// Dst2_SpecNormal.fp, same as plain NDS (see kGLES3_NDSFragSrc). The
+// projection-map addition is verbatim from shaders/ARB_Fragment_Program/
+// XRShader_SinglePass_Dst2_Proj_SpecNormal.fp (identical file, plus:
+// `TEX ProjMapTexel, ProjMapTexCoord, texture[1], CUBE;` /
+// `MUL r1.w, r1.w, ProjMapTexel.a;`, inserted right after the attenuation
+// square and BEFORE self-shadow -- same position here). NOTE: the ARB
+// source's "texture[1]" is that file's OWN internal unit numbering, not
+// an engine CRC_Attributes::m_TextureID index (compare: its "texture[0]"/
+// "texture[2]" DO match the engine's diffuse(0)/normal(2) channels, but
+// engine channel 1 is Specular, not Projection) -- what carries over
+// verbatim is the ROLE (a CUBE-sampled cookie multiplying attenuation by
+// its alpha channel), bound here to whichever engine channel actually
+// holds the projection texture for each program (4 for NDSP, 5+6 for
+// NDSEATP), per the contract above.
+//
+// SIMPLIFICATION (not restored): the original samples the projection map
+// as a genuine CUBEMAP (`CUBE` in the .fp, `texCube_12..14` in BRDF3.fp's
+// generic multi-projmap scheme -- shaders/HL_Shading/XRShader_BRDF3.fp:
+// 262-264,789-803, cross-checked for the general "attn *= textureCube(
+// proj).rgb" pattern since Riddick's own .fp files have no NDSEATP-named
+// source). Our GLES3_Texture.{h,cpp} uploader (out of scope for this
+// file) only implements Upload2D, no cubemap path -- adding one is a
+// separate piece of work. Standing in: the same LINEAR U|V|W plane data
+// (CreateProjMapTexGenAttr) is a classic homogeneous projective-texture
+// coordinate (U,V prescaled by 1/SpotWidth,1/SpotHeight, W the raw
+// light-space depth) -- GLSL's textureProj(sampler2D, vec3) computes
+// exactly texture(sampler, P.xy/P.z), the standard 2D degenerate case of
+// this same plane math for the forward-hemisphere (spotlight cookie)
+// case, which is what m_TextureID_DefaultLens/the projmap fallback are
+// used for in practice. This is a deliberate, documented substitution,
+// not a guess -- but it will not reproduce sideways/backward cube
+// lookups a true cubemap would.
+//
+// Environment (channel 7, NDSEATP only), Attribute (channel 3) and
+// Transmission (channel 4) maps are NOT sampled at all: no .fp source in
+// shaders/ references XRShader_FP20_NDSEATP or reads TransmissionColor/
+// an "attribute" texture for this exact program, so their contribution
+// cannot be reconstructed reliably -- left at a neutral 0 contribution
+// per task instructions rather than invented. XRShader_BRDF3.fp (HL_
+// Shading) does show environment as a real cubemap reflection term, but
+// it belongs to a different, later deferred/materialmask shading system,
+// not this tangent-space FP20 program -- consulted for context only, not
+// transcribed.
+static const char* kGLES3_NDSPVertSrc =
+	"#version 300 es\n"
+	"layout(location=0) in vec3 aPos;\n"
+	"layout(location=1) in vec2 aUV;\n"
+	"layout(location=4) in vec3 aNormal;\n"
+	"layout(location=5) in vec3 aTangentU;\n"
+	"layout(location=6) in vec3 aTangentV;\n"
+	"uniform mat4 uMVP;\n"
+	"uniform mat4 uTexMat;\n"
+	"uniform vec4 uLightTS;\n"
+	"uniform vec4 uEyeTS;\n"
+	// CRC_TEXGENMODE_LINEAR U|V|W planes for the projection texcoord --
+	// CreateProjMapTexGenAttr's 3 plane equations (ax+by+cz+d, stored as
+	// (xyz, d) with d already negated -- XRShader_FP20.cpp:58-71). Fed
+	// from texgen channel 7 (NDSP) or channel 4 (NDSEATP) depending on
+	// which program CRC_GLES3::TrySetupNDSPProgram matched.
+	"uniform vec4 uProjU;\n"
+	"uniform vec4 uProjV;\n"
+	"uniform vec4 uProjW;\n"
+	"out vec2 vUV;\n"
+	"out vec3 vTSLV;\n"
+	"out vec3 vTSEV;\n"
+	"out vec3 vPosMS;\n"
+	"out vec3 vProjUVW;\n"
+	"void main(){\n"
+	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
+	"  gl_Position.z = 2.0 * gl_Position.z - gl_Position.w;\n"
+	"  vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy;\n"
+	"  vPosMS = aPos;\n"
+	"  vec3 Lto = uLightTS.xyz - aPos;\n"
+	"  vTSLV = vec3(dot(aNormal, Lto), dot(aTangentV, Lto), dot(aTangentU, Lto)) * uLightTS.w;\n"
+	"  vec3 Eto = uEyeTS.xyz - aPos;\n"
+	"  vTSEV = vec3(dot(aNormal, Eto), dot(aTangentV, Eto), dot(aTangentU, Eto)) * uEyeTS.w;\n"
+	"  vec4 posH = vec4(aPos, 1.0);\n"
+	"  vProjUVW = vec3(dot(posH, uProjU), dot(posH, uProjV), dot(posH, uProjW));\n"
+	"}\n";
+
+static const char* kGLES3_NDSPFragSrc =
+	"#version 300 es\n"
+	"precision mediump float;\n"
+	"in vec2 vUV;\n"
+	"in vec3 vTSLV;\n"
+	"in vec3 vTSEV;\n"
+	"in vec3 vPosMS;\n"
+	"in vec3 vProjUVW;\n"
+	"uniform sampler2D uTex;\n"
+	"uniform int uUseTexture;\n"
+	"uniform sampler2D uNormalTex;\n"
+	"uniform int uUseNormalMap;\n"
+	"uniform int uNormalTwoCh;\n"
+	"uniform vec4 uLightPos;\n"
+	"uniform vec4 uLightRange;\n"
+	"uniform vec4 uLightColor;\n"
+	"uniform vec4 uSpecColor;\n"
+	"uniform int uAlphaFunc;\n"
+	"uniform float uAlphaRef;\n"
+	// Projection map 1 (NDSP's only cookie; NDSEATP's first of two --
+	// same texcoord/plane data feeds both samples in the NDSEATP case,
+	// see the class comment above).
+	"uniform sampler2D uProjTex1;\n"
+	"uniform int uUseProj1;\n"
+	// Projection map 2 -- NDSEATP only; uUseProj2=0 collapses this
+	// program back to the NDSP behaviour (single cookie).
+	"uniform sampler2D uProjTex2;\n"
+	"uniform int uUseProj2;\n"
+	// RIDDICK_DBG_NDS: same enum as plain NDS (1=tslv,2=normal,3=diffuse,
+	// 4=spec,5=atten) plus 6=proj (the combined projection-map factor,
+	// BEFORE it is multiplied into the attenuation -- isolates the cookie
+	// shape/shadowing from the distance falloff).
+	"uniform int uDbgMode;\n"
+	"out vec4 oColor;\n"
+	"void main(){\n"
+	"  vec4 diffuseTexel = (uUseTexture   != 0) ? texture(uTex,       vUV) : vec4(1.0);\n"
+	"  vec4 normalTexel  = (uUseNormalMap != 0) ? texture(uNormalTex, vUV) : vec4(0.5, 0.5, 1.0, 1.0);\n"
+	"  if (uAlphaFunc != 0 && uAlphaFunc != 8) {\n"
+	"    bool pass = true;\n"
+	"    if      (uAlphaFunc == 1) pass = false;\n"
+	"    else if (uAlphaFunc == 2) pass = (diffuseTexel.a <  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 3) pass = (diffuseTexel.a == uAlphaRef);\n"
+	"    else if (uAlphaFunc == 4) pass = (diffuseTexel.a <= uAlphaRef);\n"
+	"    else if (uAlphaFunc == 5) pass = (diffuseTexel.a >  uAlphaRef);\n"
+	"    else if (uAlphaFunc == 6) pass = (diffuseTexel.a != uAlphaRef);\n"
+	"    else if (uAlphaFunc == 7) pass = (diffuseTexel.a >= uAlphaRef);\n"
+	"    if (!pass) discard;\n"
+	"  }\n"
+	"  if (uNormalTwoCh != 0) {\n"
+	"    vec2 nxy = vec2(normalTexel.r, normalTexel.a) * 2.0 - 1.0;\n"
+	"    float nz = sqrt(max(0.0, 1.0 - dot(nxy, nxy)));\n"
+	"    normalTexel = vec4(nxy * 0.5 + 0.5, nz * 0.5 + 0.5, 1.0);\n"
+	"  }\n"
+	"  vec3 toLight = uLightPos.xyz - vPosMS;\n"
+	"  float distSq = dot(toLight, toLight);\n"
+	"  float attnLin = clamp(distSq * uLightRange.z, 0.0, 1.0);\n"
+	"  float attn = 1.0 - attnLin;\n"
+	"  attn = attn * attn;\n"
+	// Projection map(s): ARB `MUL r1.w, r1.w, ProjMapTexel.a` -- see the
+	// SIMPLIFICATION note above for textureProj() standing in for CUBE.
+	"  float projFactor = 1.0;\n"
+	"  if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1, vProjUVW).a;\n"
+	"  if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2, vProjUVW).a;\n"
+	"  if (uDbgMode == 6) { oColor = vec4(vec3(projFactor), 1.0); return; }\n"
+	"  attn *= projFactor;\n"
+	"  if (uDbgMode == 5) { oColor = vec4(vec3(attn), 1.0); return; }\n"
+	"  vec3 N = normalize(normalTexel.rgb * 2.0 - 1.0);\n"
+	"  vec3 L = normalize(vTSLV);\n"
+	"  vec3 E = normalize(vTSEV);\n"
+	"  vec3 R = 2.0 * dot(N, E) * N - E;\n"
+	"  float selfShadow = clamp((0.25 + L.x) * 4.0, 0.0, 1.0);\n"
+	"  attn *= selfShadow;\n"
+	"  if (uDbgMode == 1) { oColor = vec4(L * 0.5 + 0.5, 1.0); return; }\n"
+	"  if (uDbgMode == 2) { oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
+	"  vec3 diffuse = uLightColor.rgb * diffuseTexel.rgb * 2.0 * clamp(dot(N, L), 0.0, 1.0);\n"
+	"  if (uDbgMode == 3) { oColor = vec4(diffuse, 1.0); return; }\n"
+	"  float specDot = clamp(dot(L, R), 0.0, 1.0);\n"
+	"  float specPow = pow(specDot, uSpecColor.a);\n"
+	"  vec3 specular = uSpecColor.rgb * specPow * normalTexel.a;\n"
+	"  if (uDbgMode == 4) { oColor = vec4(specular, 1.0); return; }\n"
+	"  vec3 result = (diffuse + specular) * attn;\n"
+	// Environment/Attribute/Transmission NOT sampled -- see class comment.
+	"  oColor = vec4(result, 1.0);\n"
+	"}\n";
+
 #ifdef PLATFORM_LINUX
 
 #include <SDL.h>
@@ -895,13 +1094,19 @@ static bool GLES3_NDSEnabled()
 	return s != 0;
 }
 
-// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten -- debug output of the NDS
-// program (only meaningful together with RIDDICK_NDS=1). 'tslv' shows the
-// normalized tangent-space light vector as RGB, 'normal' the decoded
-// normal-map normal, 'diffuse'/'spec' isolate one term of the lighting sum,
-// 'atten' shows the distance attenuation term alone as greyscale (see
-// kGLES3_NDSFragSrc) -- whether the light reaches the surface at all,
-// without the diffuse/specular terms confounding the read.
+// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj -- debug output of
+// the NDS/NDSP/NDSEATP programs (only meaningful together with
+// RIDDICK_NDS=1). 'tslv' shows the normalized tangent-space light vector
+// as RGB, 'normal' the decoded normal-map normal, 'diffuse'/'spec'
+// isolate one term of the lighting sum, 'atten' shows the distance
+// attenuation term alone as greyscale (see kGLES3_NDSFragSrc) -- whether
+// the light reaches the surface at all, without the diffuse/specular
+// terms confounding the read. 'proj' (NDSP/NDSEATP only, see
+// kGLES3_NDSPFragSrc) shows the combined projection-map factor alone,
+// before it multiplies into the attenuation -- isolates the cookie
+// shape from the distance falloff; on plain NDS draws (no projection
+// map) this mode is simply unreachable, same as any mode on a program
+// that doesn't implement it.
 static int GLES3_DbgNDSMode()
 {
 	static int s = -1;
@@ -916,6 +1121,7 @@ static int GLES3_DbgNDSMode()
 			else if (strcmp(e, "diffuse") == 0) s = 3;
 			else if (strcmp(e, "spec")    == 0) s = 4;
 			else if (strcmp(e, "atten")   == 0) s = 5;
+			else if (strcmp(e, "proj")    == 0) s = 6;
 		}
 	}
 	return s;
@@ -1570,6 +1776,34 @@ public:
 		bool m_bTangentUReal = false;
 		bool m_bTangentVReal = false;
 
+		// Fifth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
+		// dynamic light + one or two projection-map/cookie samples -- see
+		// kGLES3_NDSPVertSrc/FragSrc and CRC_GLES3::TrySetupNDSPProgram,
+		// selected right after TrySetupNDSProgram in SetupCommonUniforms).
+		// One GL program serves both engine shader names (uUseProj2 toggles
+		// the second sample) -- gated by the SAME RIDDICK_NDS=1 as plain
+		// NDS (task explicitly asks for one flag covering the whole family,
+		// not one per program).
+		CGLES3Shader m_NDSPShader;
+		int m_NDSPUMVPLoc = -1, m_NDSPUTexMatLoc = -1;
+		int m_NDSPULightTSLoc = -1, m_NDSPUEyeTSLoc = -1;
+		int m_NDSPUProjULoc = -1, m_NDSPUProjVLoc = -1, m_NDSPUProjWLoc = -1;
+		int m_NDSPUTexLoc = -1, m_NDSPUUseTexLoc = -1;
+		int m_NDSPUNormalTexLoc = -1, m_NDSPUUseNormalLoc = -1, m_NDSPUNormalTwoChLoc = -1;
+		int m_NDSPULightPosLoc = -1, m_NDSPULightRangeLoc = -1;
+		int m_NDSPULightColorLoc = -1, m_NDSPUSpecColorLoc = -1;
+		int m_NDSPUProjTex1Loc = -1, m_NDSPUUseProj1Loc = -1;
+		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
+		int m_NDSPUDbgLoc = -1;
+		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
+		// One-shot session logs (one per engine program name, see
+		// TrySetupNDSPProgram) + shared per-interval draw counter --
+		// folded into the same "nds=N" [GL-DBG] total as plain NDS (task
+		// asks for one shared counter, with the per-program breakdown
+		// living in the one-shot logs instead).
+		bool m_bDbgNDSPLogged = false;
+		bool m_bDbgNDSEATPLogged = false;
+
 		int m_UTexMat1Loc = -1, m_UTex1Loc = -1, m_UUseTex1Loc = -1;
 		int m_UTexMatLoc = -1, m_UAlphaFuncLoc = -1, m_UAlphaRefLoc = -1;
 		int m_UFogEnableLoc = -1, m_UFogColorLoc = -1, m_UFogStartLoc = -1, m_UFogEndLoc = -1;
@@ -2097,8 +2331,8 @@ public:
 
 		// Shared texgen-channel walk: same loop/offset-advance rules as
 		// PushTexGenUniforms (below, still the sole consumer of the LINEAR
-		// outputs), factored out and extended so XRShader_FP20_NDS can pull
-		// CRC_TEXGENMODE_TSLV parameters out of the same
+		// U/V-only outputs), factored out and extended so XRShader_FP20_NDS
+		// can pull CRC_TEXGENMODE_TSLV parameters out of the same
 		// m_pCurAttrib->m_pTexGenAttr blob without duplicating the walk.
 		// _OutTSLV[i]/_OutHaveTSLV[i] receive the raw vec4 for every
 		// channel whose mode is TSLV (GetTexGenModeAttribSize(TSLV,*) is
@@ -2107,14 +2341,25 @@ public:
 		// still walked (to keep pAttr's offset correct for channels after
 		// it) even when neither LINEAR nor TSLV, exactly like the original
 		// PushTexGenUniforms loop did.
+		//
+		// _OutLinUVW[i]/_OutHaveLinUVW[i]: full 3-plane (U,V,W, no Q) LINEAR
+		// data for ANY channel -- added for XRShader_FP20_NDSP/NDSEATP's
+		// projection texcoord (CreateProjMapTexGenAttr, XRShader_FP20.cpp:
+		// 52-72/749-767, always exactly U|V|W, never Q). Kept separate from
+		// _Mode0/_Mode1/_U0/_V0 (which stay U/V-only, channel-0/1-only, for
+		// the UI/3D depth-fog consumer) rather than folding W into those --
+		// same LINEAR branch, just an additional, independent capture so
+		// neither existing consumer changes behaviour.
 		void DecodeTexGenChannels(int& _Mode0, float _U0[4], float _V0[4],
 		                          int& _Mode1, float _U1[4], float _V1[4],
 		                          float _OutTSLV[CRC_MAXTEXCOORDS][4],
-		                          bool _OutHaveTSLV[CRC_MAXTEXCOORDS])
+		                          bool _OutHaveTSLV[CRC_MAXTEXCOORDS],
+		                          float _OutLinUVW[CRC_MAXTEXCOORDS][12],
+		                          bool _OutHaveLinUVW[CRC_MAXTEXCOORDS])
 		{
 			_Mode0 = 0; _Mode1 = 0;
 			for (int i = 0; i < 4; ++i) { _U0[i] = 0.0f; _V0[i] = 0.0f; _U1[i] = 0.0f; _V1[i] = 0.0f; }
-			for (int i = 0; i < CRC_MAXTEXCOORDS; ++i) _OutHaveTSLV[i] = false;
+			for (int i = 0; i < CRC_MAXTEXCOORDS; ++i) { _OutHaveTSLV[i] = false; _OutHaveLinUVW[i] = false; }
 
 			if (GLES3_NoTexGen() || !m_pCurAttrib || !m_pCurAttrib->m_pTexGenAttr)
 				return;
@@ -2127,12 +2372,21 @@ public:
 
 				if (RawMode == CRC_TEXGENMODE_LINEAR)
 				{
-					float U[4] = {0,0,0,0}, V[4] = {0,0,0,0};
+					float U[4] = {0,0,0,0}, V[4] = {0,0,0,0}, W[4] = {0,0,0,0};
 					const fp32* p = pAttr;
 					if (Comp & CRC_TEXGENCOMP_U) { U[0]=p[0]; U[1]=p[1]; U[2]=p[2]; U[3]=p[3]; p += 4; }
 					if (Comp & CRC_TEXGENCOMP_V) { V[0]=p[0]; V[1]=p[1]; V[2]=p[2]; V[3]=p[3]; p += 4; }
+					if (Comp & CRC_TEXGENCOMP_W) { W[0]=p[0]; W[1]=p[1]; W[2]=p[2]; W[3]=p[3]; p += 4; }
 					if (iTxt == 0) { _Mode0 = 1; memcpy(_U0, U, sizeof(U)); memcpy(_V0, V, sizeof(V)); }
 					else if (iTxt == 1) { _Mode1 = 1; memcpy(_U1, U, sizeof(U)); memcpy(_V1, V, sizeof(V)); }
+					if ((Comp & (CRC_TEXGENCOMP_U | CRC_TEXGENCOMP_V | CRC_TEXGENCOMP_W)) ==
+					    (CRC_TEXGENCOMP_U | CRC_TEXGENCOMP_V | CRC_TEXGENCOMP_W))
+					{
+						_OutHaveLinUVW[iTxt] = true;
+						memcpy(&_OutLinUVW[iTxt][0], U, sizeof(U));
+						memcpy(&_OutLinUVW[iTxt][4], V, sizeof(V));
+						memcpy(&_OutLinUVW[iTxt][8], W, sizeof(W));
+					}
 				}
 				else if (RawMode == CRC_TEXGENMODE_TSLV)
 				{
@@ -2249,8 +2503,10 @@ public:
 			float U0[4], V0[4], U1[4], V1[4];
 			float TSLVParam[CRC_MAXTEXCOORDS][4];
 			bool HaveTSLV[CRC_MAXTEXCOORDS];
-			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV);
-			(void)Mode0; (void)Mode1; (void)U0; (void)V0; (void)U1; (void)V1;
+			float LinUVW[CRC_MAXTEXCOORDS][12];
+			bool HaveLinUVW[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV, LinUVW, HaveLinUVW);
+			(void)Mode0; (void)Mode1; (void)U0; (void)V0; (void)U1; (void)V1; (void)LinUVW; (void)HaveLinUVW;
 			if (!HaveTSLV[3] || !HaveTSLV[4])
 			{
 				DbgLogNDSFallback("no TSLV texgen on texcoord channel 3/4 (light/eye tangent-space vectors)");
@@ -2320,6 +2576,209 @@ public:
 
 			// Same convention as TrySetupLFMProgram: leave the active unit
 			// at 0.
+			glActiveTexture(GL_TEXTURE0);
+			return true;
+		}
+
+		// Fallback reason log for TrySetupNDSPProgram -- same cap/pattern as
+		// DbgLogNDSFallback, its own tag so NDS vs NDSP/NDSEATP fallbacks are
+		// distinguishable in the log.
+		void DbgLogNDSPFallback(const char* _Reason)
+		{
+			static int sLogged = 0;
+			if (sLogged >= 4) return;
+			++sLogged;
+			fprintf(stderr, "[GLES3-NDSP] falling back to legacy shader: %s\n", _Reason);
+			fflush(stderr);
+		}
+
+		// Selects and fully sets up m_NDSPShader for the current draw if it
+		// qualifies as EITHER XRShader_FP20_NDSP or XRShader_FP20_NDSEATP --
+		// same contract as TrySetupNDSProgram/TrySetupLFMProgram: returns
+		// true with the program bound and every uniform/texture applied
+		// (caller must skip UI/3D setup), false with GL state untouched
+		// otherwise. See the kGLES3_NDSPVertSrc/FragSrc class comment for
+		// the full channel/texcoord contract and what is simplified/not
+		// restored (projection cubemap -> textureProj 2D substitute,
+		// Environment/Attribute/Transmission left neutral).
+		bool TrySetupNDSPProgram()
+		{
+			if (!GLES3_NDSEnabled() || !m_NDSPShader.IsValid()) return false;
+			if (!m_pCurAttrib || !m_pCurAttrib->m_pExtAttrib ||
+			    m_pCurAttrib->m_pExtAttrib->m_AttribType != CRC_ATTRIBTYPE_FP20)
+				return false;
+
+			const CRC_ExtAttributes_FragmentProgram20* pFP =
+				static_cast<const CRC_ExtAttributes_FragmentProgram20*>(m_pCurAttrib->m_pExtAttrib);
+
+			static const uint32 sNDSPHash    = StringToHash("XRShader_FP20_NDSP");
+			static const uint32 sNDSEATPHash = StringToHash("XRShader_FP20_NDSEATP");
+			bool bEATP;
+			if (pFP->m_ProgramNameHash == sNDSPHash &&
+			    pFP->m_pProgramName && strcmp(pFP->m_pProgramName, "XRShader_FP20_NDSP") == 0)
+				bEATP = false;
+			else if (pFP->m_ProgramNameHash == sNDSEATPHash &&
+			         pFP->m_pProgramName && strcmp(pFP->m_pProgramName, "XRShader_FP20_NDSEATP") == 0)
+				bEATP = true;
+			else
+				return false;
+
+			// Same tangent-basis requirement as plain NDS (cache-path draws
+			// only -- BindEntryAttrib/Docs/HacksAndHooks.md "RIDDICK_NDS").
+			if (!m_bTangentUReal || !m_bTangentVReal)
+			{
+				DbgLogNDSPFallback("no real tangent basis bound for this draw "
+					"(streamed path, or source geometry has no tangent registers)");
+				return false;
+			}
+
+			const int TexNormalID = (int)m_pCurAttrib->m_TextureID[2];
+			if (!TexNormalID)
+			{
+				DbgLogNDSPFallback("CRC_Attributes::m_TextureID[2] (normal map) is 0");
+				return false;
+			}
+			const GLuint TNormal = TextureID_EnsureUploaded(TexNormalID);
+			if (!TNormal)
+			{
+				DbgLogNDSPFallback("normal map failed to upload (see [GLES3-TEX-FAIL] above)");
+				return false;
+			}
+			const int TexDiffuseID = (int)m_pCurAttrib->m_TextureID[0];
+			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
+
+			// Projection texture channel(s) + TSLV texcoord channels differ
+			// between the two engine programs -- see the class comment.
+			const int TexProj1ID = bEATP ? (int)m_pCurAttrib->m_TextureID[5]
+			                              : (int)m_pCurAttrib->m_TextureID[4];
+			const int TexProj2ID = bEATP ? (int)m_pCurAttrib->m_TextureID[6] : 0;
+			if (!TexProj1ID)
+			{
+				DbgLogNDSPFallback(bEATP
+					? "CRC_Attributes::m_TextureID[5] (projection map 1) is 0"
+					: "CRC_Attributes::m_TextureID[4] (projection map) is 0");
+				return false;
+			}
+			const GLuint TProj1 = TextureID_EnsureUploaded(TexProj1ID);
+			if (!TProj1)
+			{
+				DbgLogNDSPFallback("projection map 1 failed to upload (see [GLES3-TEX-FAIL] above)");
+				return false;
+			}
+			GLuint TProj2 = 0;
+			if (bEATP && TexProj2ID)
+			{
+				TProj2 = TextureID_EnsureUploaded(TexProj2ID);
+				if (!TProj2)
+				{
+					DbgLogNDSPFallback("projection map 2 failed to upload (see [GLES3-TEX-FAIL] above)");
+					return false;
+				}
+			}
+
+			int Mode0, Mode1;
+			float U0[4], V0[4], U1[4], V1[4];
+			float TSLVParam[CRC_MAXTEXCOORDS][4];
+			bool HaveTSLV[CRC_MAXTEXCOORDS];
+			float LinUVW[CRC_MAXTEXCOORDS][12];
+			bool HaveLinUVW[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV, LinUVW, HaveLinUVW);
+			(void)Mode0; (void)Mode1; (void)U0; (void)V0; (void)U1; (void)V1;
+
+			// NDSP: light/eye TSLV on channels 3/4 (same as plain NDS,
+			// COREFBB), projection UVW on channel 7.
+			// NDSEATP: light/eye TSLV on channels 2/3, projection UVW on
+			// channel 4 (shared by both projection texture samples).
+			const int iLight = bEATP ? 2 : 3;
+			const int iEye   = bEATP ? 3 : 4;
+			const int iProj  = bEATP ? 4 : 7;
+			if (!HaveTSLV[iLight] || !HaveTSLV[iEye])
+			{
+				DbgLogNDSPFallback("no TSLV texgen on the expected light/eye texcoord channels");
+				return false;
+			}
+			if (!HaveLinUVW[iProj])
+			{
+				DbgLogNDSPFallback("no LINEAR U|V|W texgen on the expected projection texcoord channel");
+				return false;
+			}
+
+			bool* pLogged = bEATP ? &m_bDbgNDSEATPLogged : &m_bDbgNDSPLogged;
+			if (m_DbgEnabled && !*pLogged)
+			{
+				*pLogged = true;
+				fprintf(stderr,
+					"[GLES3-NDSP] prog=%s diffuse=%d normal=%d proj1=%d proj2=%d "
+					"uvset0=%d tuset=%d tvset=%d lightCh=%d eyeCh=%d projCh=%d\n",
+					bEATP ? "XRShader_FP20_NDSEATP" : "XRShader_FP20_NDSP",
+					TexDiffuseID, TexNormalID, TexProj1ID, TexProj2ID,
+					(int)m_pCurAttrib->m_iTexCoordSet[0],
+					(int)m_pCurAttrib->m_iTexCoordSet[2], (int)m_pCurAttrib->m_iTexCoordSet[3],
+					iLight, iEye, iProj);
+				fflush(stderr);
+			}
+			++m_DbgNDSDraws;
+
+			m_NDSPShader.Use();
+			CMat4Dfp32 MVP;
+			m_ModelMat.Multiply(m_ProjMat, MVP);
+			m_NDSPShader.SetMat4(m_NDSPUMVPLoc, (const float*)&MVP);
+			m_NDSPShader.SetMat4(m_NDSPUTexMatLoc, (const float*)&m_TexMat[0]);
+			m_NDSPShader.SetVec4(m_NDSPULightTSLoc, TSLVParam[iLight][0], TSLVParam[iLight][1], TSLVParam[iLight][2], TSLVParam[iLight][3]);
+			m_NDSPShader.SetVec4(m_NDSPUEyeTSLoc,   TSLVParam[iEye][0],   TSLVParam[iEye][1],   TSLVParam[iEye][2],   TSLVParam[iEye][3]);
+			m_NDSPShader.SetVec4(m_NDSPUProjULoc, LinUVW[iProj][0],  LinUVW[iProj][1],  LinUVW[iProj][2],  LinUVW[iProj][3]);
+			m_NDSPShader.SetVec4(m_NDSPUProjVLoc, LinUVW[iProj][4],  LinUVW[iProj][5],  LinUVW[iProj][6],  LinUVW[iProj][7]);
+			m_NDSPShader.SetVec4(m_NDSPUProjWLoc, LinUVW[iProj][8],  LinUVW[iProj][9],  LinUVW[iProj][10], LinUVW[iProj][11]);
+
+			if (pFP->m_nParams > 3)
+			{
+				const CVec4Dfp32& LightPos   = pFP->m_pParams[0];
+				const CVec4Dfp32& LightRange = pFP->m_pParams[1];
+				const CVec4Dfp32& LightColor = pFP->m_pParams[2];
+				const CVec4Dfp32& SpecColor  = pFP->m_pParams[3];
+				m_NDSPShader.SetVec4(m_NDSPULightPosLoc,   LightPos.k[0],   LightPos.k[1],   LightPos.k[2],   LightPos.k[3]);
+				m_NDSPShader.SetVec4(m_NDSPULightRangeLoc, LightRange.k[0], LightRange.k[1], LightRange.k[2], LightRange.k[3]);
+				m_NDSPShader.SetVec4(m_NDSPULightColorLoc, LightColor.k[0], LightColor.k[1], LightColor.k[2], LightColor.k[3]);
+				m_NDSPShader.SetVec4(m_NDSPUSpecColorLoc,  SpecColor.k[0],  SpecColor.k[1],  SpecColor.k[2],  SpecColor.k[3]);
+			}
+
+			glActiveTexture(GL_TEXTURE0);
+			if (TDiffuse) glBindTexture(GL_TEXTURE_2D, TDiffuse);
+			m_NDSPShader.SetInt(m_NDSPUTexLoc, 0);
+			m_NDSPShader.SetInt(m_NDSPUUseTexLoc, TDiffuse ? 1 : 0);
+
+			glActiveTexture(GL_TEXTURE1);
+			glBindTexture(GL_TEXTURE_2D, TNormal);
+			m_NDSPShader.SetInt(m_NDSPUNormalTexLoc, 1);
+			m_NDSPShader.SetInt(m_NDSPUUseNormalLoc, 1);
+			m_NDSPShader.SetInt(m_NDSPUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
+
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, TProj1);
+			m_NDSPShader.SetInt(m_NDSPUProjTex1Loc, 2);
+			m_NDSPShader.SetInt(m_NDSPUUseProj1Loc, 1);
+
+			if (TProj2)
+			{
+				glActiveTexture(GL_TEXTURE3);
+				glBindTexture(GL_TEXTURE_2D, TProj2);
+				m_NDSPShader.SetInt(m_NDSPUProjTex2Loc, 3);
+				m_NDSPShader.SetInt(m_NDSPUUseProj2Loc, 1);
+			}
+			else
+			{
+				m_NDSPShader.SetInt(m_NDSPUUseProj2Loc, 0);
+			}
+
+			m_NDSPShader.SetInt(m_NDSPUDbgLoc, GLES3_DbgNDSMode());
+
+			{
+				int AlphaFunc; float AlphaRef;
+				GetAlphaTestParams(AlphaFunc, AlphaRef);
+				m_NDSPShader.SetInt(m_NDSPUAlphaFuncLoc, AlphaFunc);
+				if (AlphaFunc) m_NDSPShader.SetFloat(m_NDSPUAlphaRefLoc, AlphaRef);
+			}
+
 			glActiveTexture(GL_TEXTURE0);
 			return true;
 		}
@@ -2479,6 +2938,35 @@ public:
 				m_NDSUDbgLoc        = m_NDSShader.UniformLocation("uDbgMode");
 				m_NDSUAlphaFuncLoc  = m_NDSShader.UniformLocation("uAlphaFunc");
 				m_NDSUAlphaRefLoc   = m_NDSShader.UniformLocation("uAlphaRef");
+			}
+
+			// FP20 NDSP/NDSEATP program (single dynamic light + projection
+			// map(s), world geometry -- see TrySetupNDSPProgram).
+			if (m_NDSPShader.Build(kGLES3_NDSPVertSrc, kGLES3_NDSPFragSrc, "NDSP"))
+			{
+				m_NDSPUMVPLoc        = m_NDSPShader.UniformLocation("uMVP");
+				m_NDSPUTexMatLoc     = m_NDSPShader.UniformLocation("uTexMat");
+				m_NDSPULightTSLoc    = m_NDSPShader.UniformLocation("uLightTS");
+				m_NDSPUEyeTSLoc      = m_NDSPShader.UniformLocation("uEyeTS");
+				m_NDSPUProjULoc      = m_NDSPShader.UniformLocation("uProjU");
+				m_NDSPUProjVLoc      = m_NDSPShader.UniformLocation("uProjV");
+				m_NDSPUProjWLoc      = m_NDSPShader.UniformLocation("uProjW");
+				m_NDSPUTexLoc        = m_NDSPShader.UniformLocation("uTex");
+				m_NDSPUUseTexLoc     = m_NDSPShader.UniformLocation("uUseTexture");
+				m_NDSPUNormalTexLoc  = m_NDSPShader.UniformLocation("uNormalTex");
+				m_NDSPUUseNormalLoc  = m_NDSPShader.UniformLocation("uUseNormalMap");
+				m_NDSPUNormalTwoChLoc = m_NDSPShader.UniformLocation("uNormalTwoCh");
+				m_NDSPULightPosLoc   = m_NDSPShader.UniformLocation("uLightPos");
+				m_NDSPULightRangeLoc = m_NDSPShader.UniformLocation("uLightRange");
+				m_NDSPULightColorLoc = m_NDSPShader.UniformLocation("uLightColor");
+				m_NDSPUSpecColorLoc  = m_NDSPShader.UniformLocation("uSpecColor");
+				m_NDSPUProjTex1Loc   = m_NDSPShader.UniformLocation("uProjTex1");
+				m_NDSPUUseProj1Loc   = m_NDSPShader.UniformLocation("uUseProj1");
+				m_NDSPUProjTex2Loc   = m_NDSPShader.UniformLocation("uProjTex2");
+				m_NDSPUUseProj2Loc   = m_NDSPShader.UniformLocation("uUseProj2");
+				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
+				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
+				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
 			}
 
 			glGenVertexArrays(1, &m_VAO);
@@ -3706,8 +4194,9 @@ public:
 			int Mode0, Mode1;
 			float U0[4], V0[4], U1[4], V1[4];
 			float TSLVParam[CRC_MAXTEXCOORDS][4]; bool HaveTSLV[CRC_MAXTEXCOORDS];
-			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV);
-			(void)TSLVParam; (void)HaveTSLV; // not consumed by the UI/3D programs
+			float LinUVW[CRC_MAXTEXCOORDS][12]; bool HaveLinUVW[CRC_MAXTEXCOORDS];
+			DecodeTexGenChannels(Mode0, U0, V0, Mode1, U1, V1, TSLVParam, HaveTSLV, LinUVW, HaveLinUVW);
+			(void)TSLVParam; (void)HaveTSLV; (void)LinUVW; (void)HaveLinUVW; // not consumed by the UI/3D programs
 
 			CGLES3Shader& Sh    = _bUI ? m_UIShader        : m_3DShader;
 			const int LocMode0  = _bUI ? m_UTexGenMode0Loc : m_3DUTexGenMode0Loc;
@@ -3833,6 +4322,14 @@ public:
 			// as the LFM check above: on success the program is fully bound
 			// and this draw is done.
 			if (TrySetupNDSProgram())
+				return;
+
+			// XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (same single-light
+			// pass plus one or two projection-map cookies -- see
+			// TrySetupNDSPProgram / kGLES3_NDSPVertSrc/FragSrc). Checked
+			// right after plain NDS since they share the same gate
+			// (RIDDICK_NDS=1) and fallback contract.
+			if (TrySetupNDSPProgram())
 				return;
 
 			// Pick the program for this draw: UI/2D keeps the full
