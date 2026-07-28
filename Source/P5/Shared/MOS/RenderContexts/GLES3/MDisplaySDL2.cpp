@@ -202,6 +202,16 @@ static const char* kGLES3_UIVertSrc =
 static const char* kGLES3_UIFragSrc_Legacy =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec2 vUV1;\n"
 	"in vec4 vCol;\n"
@@ -299,6 +309,16 @@ static const char* kGLES3_UIFragSrc_Legacy =
 static const char* kGLES3_UIFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec4 vCol;\n"
 	"uniform sampler2D uTex;\n"
@@ -364,6 +384,16 @@ static const char* kGLES3_3DVertSrc =
 static const char* kGLES3_3DFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec4 vCol;\n"
 	"in vec3 vWorldPos;\n"
@@ -474,6 +504,16 @@ static const char* kGLES3_LFMVertSrc =
 static const char* kGLES3_LFMFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec2 vUVLFM;\n"
 	"in vec4 vCol;\n"
@@ -677,6 +717,16 @@ static const char* kGLES3_LFVertSrc =
 static const char* kGLES3_LFFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec3 vNrmMS;\n"
 	"uniform sampler2D uTex;\n"
@@ -791,6 +841,16 @@ static const char* kGLES3_NDSVertSrc =
 static const char* kGLES3_NDSFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec3 vTSLV;\n"
 	"in vec3 vTSEV;\n"
@@ -1019,6 +1079,16 @@ static const char* kGLES3_NDSPVertSrc =
 static const char* kGLES3_NDSPFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"in vec3 vTSLV;\n"
 	"in vec3 vTSEV;\n"
@@ -1161,6 +1231,16 @@ static const char* kGLES3_CompVertSrc =
 static const char* kGLES3_CompFragSrc =
 	"#version 300 es\n"
 	"precision mediump float;\n"
+	// ESSL 3.00 default int precision differs per stage: highp in the
+	// vertex language, mediump in the fragment language. Any uniform of
+	// integer type declared in BOTH stages therefore fails to LINK with
+	// "declarations for uniform `X' have mismatching precision
+	// qualifiers" -- which is exactly what killed m_3DShader over
+	// uTexGenMode0 (log 2026-07-28, after the missing-declaration fix
+	// turned the compile error into a link error). Pinning int to highp
+	// here matches the vertex default and makes the whole class of bug
+	// impossible, whichever uniforms get shared later.
+	"precision highp int;\n"
 	"in vec2 vUV;\n"
 	"uniform sampler2D uTex;\n"
 	"out vec4 oColor;\n"
