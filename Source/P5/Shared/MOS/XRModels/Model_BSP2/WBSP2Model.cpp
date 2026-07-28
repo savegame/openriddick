@@ -298,6 +298,31 @@ CXR_Model_BSP2::CXR_Model_BSP2()
 		m_RenderZBuffer.Attrib_Enable(CRC_FLAGS_ZWRITE | CRC_FLAGS_STENCIL | CRC_FLAGS_ZCOMPARE | CRC_FLAGS_CULL);
 	#ifdef PLATFORM_CONSOLE
 		m_RenderZBuffer.Attrib_Disable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
+	#elif defined(PLATFORM_LINUX)
+		// GLES3 port: follow the PLATFORM_CONSOLE branch above -- the
+		// unified-Z pass must be a PURE depth+stencil prepass.
+		//
+		// Why this matters: on PC (no PLATFORM_CONSOLE) this attribute keeps
+		// COLORWRITE, so the UNIFIED_ZBUFFER pass paints the whole visible
+		// world once in flat m_UnifiedAmbience ("into z-buffer, black", see
+		// VB_RenderFaces:1580) -- untextured for the non-USEZEQUAL chains
+		// (:2466) and diffuse*Ambience for the USEZEQUAL queue (:2363).
+		// The FP20 shading queue then draws the SAME geometry at the SAME
+		// depth on top. Any difference between the two draws (a shading
+		// program we do not implement yet, a skipped texture format, an
+		// early-out in DrawIndexed) leaves the black base pass visible, and
+		// where both draws survive they fight at equal depth -- exactly the
+		// "black copy vs textured copy" artefact.
+		// The console pipeline does not have this problem because ambient
+		// comes from the shading programs themselves (XRShader_FP20_LF /
+		// _LFM), not from the Z pass -- and we run that same FP20 pipeline
+		// (RIDDICK_FP20=1), so we want the console behaviour.
+		// RIDDICK_ZPREPASS_COLOR=1 restores the PC behaviour for A/B tests.
+		// The bNoShaderPipeline fallback (:2371) re-enables COLORWRITE on
+		// its own copy of this attribute, so the "no FP20" path still shows
+		// a textured world.
+		if (!getenv("RIDDICK_ZPREPASS_COLOR"))
+			m_RenderZBuffer.Attrib_Disable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
 	#endif
 		m_RenderZBuffer.Attrib_StencilRef(128, 255);
 		m_RenderZBuffer.Attrib_StencilFrontOp(CRC_COMPARE_ALWAYS, CRC_STENCILOP_NONE, CRC_STENCILOP_NONE, CRC_STENCILOP_REPLACE);

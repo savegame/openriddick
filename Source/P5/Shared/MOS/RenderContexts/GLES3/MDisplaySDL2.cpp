@@ -150,6 +150,17 @@ static const char* kGLES3_UIVertSrc =
 	"out vec3 vWorldNrm;\n"
 	"out vec3 vNrmRaw;\n"
 	"out vec3 vPosLocal;\n"
+	// invariant gl_Position: the engine renders nearly every shading pass
+	// with CRC_COMPARE_EQUAL against the unified-Z prepass
+	// (XRShader_FP20.cpp:198 -- ZCompare is EQUAL unless XR_SHADERFLAGS_USEZLESS).
+	// The prepass and the shading pass are DIFFERENT GL programs drawing the
+	// SAME vertices, and GLSL does not guarantee that the same expression
+	// compiled into two programs yields bit-identical results -- the driver
+	// is free to fuse/reorder per program. Without this qualifier the depth
+	// values disagree in the last bits, EQUAL fails on a moving subset of
+	// pixels and the pass drops out (or fights) per-triangle. Every vertex
+	// program that can take part in a depth-equal multipass must declare it.
+	"invariant gl_Position;\n"
 	"void main(){\n"
 	"  vNrmRaw = aNormal;\n"
 	"  vPosLocal = aPos;\n"
@@ -329,6 +340,7 @@ static const char* kGLES3_3DVertSrc =
 	"out vec4 vCol;\n"
 	"out vec3 vWorldPos;\n"
 	"out vec3 vWorldNrm;\n"
+	"invariant gl_Position;\n"   // depth-equal multipass -- see kGLES3_UIVertSrc
 	"void main(){\n"
 	// Skinning (RIDDICK_SKINNING): no-op passthrough when uBoneCount==0 --
 	// see kGLES3_SkinningGLSL. Every subsequent use of the raw position/
@@ -436,6 +448,7 @@ static const char* kGLES3_LFMVertSrc =
 	"out vec2 vUV;\n"
 	"out vec2 vUVLFM;\n"
 	"out vec4 vCol;\n"
+	"invariant gl_Position;\n"   // depth-equal multipass -- see kGLES3_UIVertSrc
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	// Same NDC.z remap as kGLES3_UIVertSrc/kGLES3_3DVertSrc -- engine
@@ -643,6 +656,7 @@ static const char* kGLES3_LFVertSrc =
 	// in the class comment above for why this program's ambient-cube math
 	// wants model space, not world space.
 	"out vec3 vNrmMS;\n"
+	"invariant gl_Position;\n"   // depth-equal multipass -- see kGLES3_UIVertSrc
 	"void main(){\n"
 	"  gl_Position = uMVP * vec4(aPos, 1.0);\n"
 	// Same D3D->GL NDC.z remap as every other program in this file (see
@@ -738,6 +752,7 @@ static const char* kGLES3_NDSVertSrc =
 	// fragment.texcoord[1] (Animated model space pixel position, MSPOS
 	// texgen) -- trivially the model-space vertex position itself.
 	"out vec3 vPosMS;\n"
+	"invariant gl_Position;\n"   // depth-equal multipass -- see kGLES3_UIVertSrc
 	"void main(){\n"
 	// Skinning (RIDDICK_SKINNING): applied in model space, BEFORE uMVP --
 	// this whole program already works in model space (no separate uModel
@@ -972,6 +987,7 @@ static const char* kGLES3_NDSPVertSrc =
 	"out vec3 vTSEV;\n"
 	"out vec3 vPosMS;\n"
 	"out vec3 vProjUVW;\n"
+	"invariant gl_Position;\n"   // depth-equal multipass -- see kGLES3_UIVertSrc
 	"void main(){\n"
 	// Skinning (RIDDICK_SKINNING) -- same model-space treatment as plain
 	// NDS (kGLES3_NDSVertSrc), plus the projection texgen below now reads
