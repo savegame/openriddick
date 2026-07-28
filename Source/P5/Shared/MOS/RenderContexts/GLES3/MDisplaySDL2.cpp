@@ -344,6 +344,7 @@ static const char* kGLES3_LFMFragSrc =
 	// basis (lfm3) contributes, a correct (if flat) degradation.
 	"uniform sampler2D uNormalTex;\n"
 	"uniform int uUseNormalMap;\n"
+	"uniform int uNormalTwoCh;\n"
 	// Four lightmap-cluster textures (CRC_Attributes::m_TextureID[10..13]
 	// = LFM0..3). lfm1/lfm2/lfm3's alpha channels secretly carry the RGB
 	// of the sixth (+Y) basis direction -- ported as-is from the engine's
@@ -365,9 +366,16 @@ static const char* kGLES3_LFMFragSrc =
 	"out vec4 oColor;\n"
 	"void main(){\n"
 	"  if (uDbgLFM == 1) { oColor = vec4(fract(vUVLFM), 0.0, 1.0); return; }\n"
-	"  vec3 n_ts = (uUseNormalMap != 0)\n"
-	"      ? normalize(texture(uNormalTex, vUV).xyz * 2.0 - 1.0)\n"
-	"      : vec3(0.0, 0.0, 1.0);\n"
+	// Same two-channel (I8A8 / 3DC) normal decode as the NDS program:
+	// X in .r, Y in .a, Z reconstructed. See uNormalTwoCh there.
+	"  vec3 n_ts = vec3(0.0, 0.0, 1.0);\n"
+	"  if (uUseNormalMap != 0) {\n"
+	"    vec4 nt = texture(uNormalTex, vUV);\n"
+	"    if (uNormalTwoCh != 0) {\n"
+	"      vec2 nxy = vec2(nt.r, nt.a) * 2.0 - 1.0;\n"
+	"      n_ts = vec3(nxy, sqrt(max(0.0, 1.0 - dot(nxy, nxy))));\n"
+	"    } else n_ts = normalize(nt.xyz * 2.0 - 1.0);\n"
+	"  }\n"
 	"  vec4 lfm0 = texture(uLFM0, vUVLFM);\n"
 	"  vec4 lfm1 = texture(uLFM1, vUVLFM);\n"
 	"  vec4 lfm2 = texture(uLFM2, vUVLFM);\n"
@@ -455,6 +463,7 @@ static const char* kGLES3_NDSFragSrc =
 	"uniform int uUseTexture;\n"
 	"uniform sampler2D uNormalTex;\n" // Normal+Specular(alpha) (channel 2)
 	"uniform int uUseNormalMap;\n"
+	"uniform int uNormalTwoCh;\n"
 	// program.env[0..3] of the ARB program -- see CRC_GLES3::
 	// TrySetupNDSProgram / the report for what each of the engine's 6
 	// CRC_ExtAttributes_FragmentProgram20::m_pParams slots means; params
@@ -474,6 +483,12 @@ static const char* kGLES3_NDSFragSrc =
 	"void main(){\n"
 	"  vec4 diffuseTexel = (uUseTexture   != 0) ? texture(uTex,       vUV) : vec4(1.0);\n"
 	"  vec4 normalTexel  = (uUseNormalMap != 0) ? texture(uNormalTex, vUV) : vec4(0.5, 0.5, 1.0, 1.0);\n"
+	// Two-channel (I8A8 / 3DC) normal map: rebuild Z from X,Y.
+	"  if (uNormalTwoCh != 0) {\n"
+	"    vec2 nxy = vec2(normalTexel.r, normalTexel.a) * 2.0 - 1.0;\n"
+	"    float nz = sqrt(max(0.0, 1.0 - dot(nxy, nxy)));\n"
+	"    normalTexel = vec4(nxy * 0.5 + 0.5, nz * 0.5 + 0.5, 1.0);\n"
+	"  }\n"
 	// Attenuation -- ARB: SUB/DP3/MUL_SAT/ADD/MUL, i.e.
 	// (1 - saturate(distSq/Range^2))^2 (matches Docs/FP_Reference.md §4.2).
 	"  vec3 toLight = uLightPos.xyz - vPosMS;\n"
@@ -718,6 +733,18 @@ static int GLES3_FP20ModeOverride()
 // RIDDICK_LFM=1 once tangents are wired and the basis can be evaluated
 // correctly. RIDDICK_NO_LFM=1 is still honoured as an explicit override
 // for anyone who had it in a script.
+// RIDDICK_ZEQ_LEQUAL=1 -- see the comment at its use in ApplyAttribs.
+static bool GLES3_ZEqualToLEqual()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_ZEQ_LEQUAL");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_NoLFM()
 {
 	static int s = -1;
@@ -1004,6 +1031,11 @@ public:
 		// M2: engine TextureID -> GLuint. Sparse; 0 means "not
 		// uploaded yet"; the vector grows on first touch.
 		TArray<GLuint> m_lGLTex;
+		// Source CImage format per texture ID, captured at upload time.
+		// Needed because the shaders must know whether a normal map is a
+		// two-channel I8A8/3DC texture (X,Y stored, Z reconstructed) or a
+		// plain RGB one -- see uNormalTwoCh in the NDS/LFM programs.
+		TArray<uint32> m_lTexFmt;
 
 		// 1x1 magenta placeholder handed back for texture IDs the
 		// texture context can't produce (typically CTextureContainer_
@@ -1405,7 +1437,7 @@ public:
 		CGLES3Shader m_LFMShader;
 		int m_LFMUMVPLoc = -1, m_LFMUTexMatLoc = -1;
 		int m_LFMUTexLoc = -1, m_LFMUUseTexLoc = -1;
-		int m_LFMUNormalTexLoc = -1, m_LFMUUseNormalLoc = -1;
+		int m_LFMUNormalTexLoc = -1, m_LFMUUseNormalLoc = -1, m_LFMUNormalTwoChLoc = -1;
 		int m_LFMULFM0Loc = -1, m_LFMULFM1Loc = -1, m_LFMULFM2Loc = -1, m_LFMULFM3Loc = -1;
 		int m_LFMUScaleLoc = -1;
 		int m_LFMUDbgLoc = -1;
@@ -1425,7 +1457,7 @@ public:
 		int m_NDSUMVPLoc = -1, m_NDSUTexMatLoc = -1;
 		int m_NDSULightTSLoc = -1, m_NDSUEyeTSLoc = -1;
 		int m_NDSUTexLoc = -1, m_NDSUUseTexLoc = -1;
-		int m_NDSUNormalTexLoc = -1, m_NDSUUseNormalLoc = -1;
+		int m_NDSUNormalTexLoc = -1, m_NDSUUseNormalLoc = -1, m_NDSUNormalTwoChLoc = -1;
 		int m_NDSULightPosLoc = -1, m_NDSULightRangeLoc = -1;
 		int m_NDSULightColorLoc = -1, m_NDSUSpecColorLoc = -1;
 		int m_NDSUDbgLoc = -1;
@@ -1941,6 +1973,7 @@ public:
 			if (TNormal) glBindTexture(GL_TEXTURE_2D, TNormal);
 			m_LFMShader.SetInt(m_LFMUNormalTexLoc, 1);
 			m_LFMShader.SetInt(m_LFMUUseNormalLoc, TNormal ? 1 : 0);
+			m_LFMShader.SetInt(m_LFMUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
 
 			glActiveTexture(GL_TEXTURE2); glBindTexture(GL_TEXTURE_2D, LFM[0]);
 			m_LFMShader.SetInt(m_LFMULFM0Loc, 2);
@@ -2151,6 +2184,7 @@ public:
 			glBindTexture(GL_TEXTURE_2D, TNormal);
 			m_NDSShader.SetInt(m_NDSUNormalTexLoc, 1);
 			m_NDSShader.SetInt(m_NDSUUseNormalLoc, 1);
+			m_NDSShader.SetInt(m_NDSUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
 
 			m_NDSShader.SetInt(m_NDSUDbgLoc, GLES3_DbgNDSMode());
 
@@ -2278,6 +2312,7 @@ public:
 				m_LFMUUseTexLoc    = m_LFMShader.UniformLocation("uUseTexture");
 				m_LFMUNormalTexLoc = m_LFMShader.UniformLocation("uNormalTex");
 				m_LFMUUseNormalLoc = m_LFMShader.UniformLocation("uUseNormalMap");
+				m_LFMUNormalTwoChLoc = m_LFMShader.UniformLocation("uNormalTwoCh");
 				m_LFMULFM0Loc      = m_LFMShader.UniformLocation("uLFM0");
 				m_LFMULFM1Loc      = m_LFMShader.UniformLocation("uLFM1");
 				m_LFMULFM2Loc      = m_LFMShader.UniformLocation("uLFM2");
@@ -2298,6 +2333,7 @@ public:
 				m_NDSUUseTexLoc     = m_NDSShader.UniformLocation("uUseTexture");
 				m_NDSUNormalTexLoc  = m_NDSShader.UniformLocation("uNormalTex");
 				m_NDSUUseNormalLoc  = m_NDSShader.UniformLocation("uUseNormalMap");
+				m_NDSUNormalTwoChLoc = m_NDSShader.UniformLocation("uNormalTwoCh");
 				m_NDSULightPosLoc   = m_NDSShader.UniformLocation("uLightPos");
 				m_NDSULightRangeLoc = m_NDSShader.UniformLocation("uLightRange");
 				m_NDSULightColorLoc = m_NDSShader.UniformLocation("uLightColor");
@@ -2361,6 +2397,15 @@ public:
 			fflush(stderr);
 		}
 
+		// True when the texture was uploaded from a two-channel I8A8 image
+		// (MImage.h:63) -- the 3DC/BC5 normal-map layout the engine's own
+		// decompressor produces. Valid only after the ID has been uploaded.
+		bool TextureID_IsTwoChannel(int _TextureID) const
+		{
+			if (_TextureID < 0 || _TextureID >= m_lTexFmt.Len()) return false;
+			return m_lTexFmt[_TextureID] == (uint32)IMAGE_FORMAT_I8A8;
+		}
+
 		GLuint TextureID_EnsureUploaded(int _TextureID)
 		{
 			if (_TextureID < 0 || !m_pTC) return 0;
@@ -2415,6 +2460,14 @@ public:
 			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
 			m_lGLTex[_TextureID] = T;
+			if (_TextureID >= m_lTexFmt.Len())
+			{
+				const int OldF = m_lTexFmt.Len();
+				m_lTexFmt.SetLen(_TextureID + 1);
+				for (int i = OldF; i < m_lTexFmt.Len(); ++i)
+					m_lTexFmt[i] = 0;
+			}
+			m_lTexFmt[_TextureID] = (uint32)pImg->GetFormat();
 			const bool bLogged = m_lTexLogged[_TextureID] != 0;
 			m_lTexLogged[_TextureID] = 1;
 			if (T)
@@ -2774,7 +2827,21 @@ public:
 			if (F & CRC_FLAGS_ZCOMPARE)
 			{
 				glEnable(GL_DEPTH_TEST);
-				glDepthFunc(GLES3_MapCompare(_pAttrib->m_ZCompare));
+				// RIDDICK_ZEQ_LEQUAL=1: relax the shading passes'
+				// ZCompare EQUAL to LESSEQUAL. The FP20 light/lightmap
+				// passes are drawn additively against the depth written
+				// by an earlier pass and rely on exact depth equality.
+				// Our two vertex-supply paths (GPU geometry cache vs the
+				// legacy scalar streamer) can produce bit-different
+				// positions for the same surface, and any mismatch makes
+				// the whole light pass vanish -- which matches the
+				// observed "only some polygons get lit" (2026-07-27).
+				// Diagnostic switch: if the world lights up under it, the
+				// real fix is making both paths agree bit-for-bit.
+				int ZCmp = _pAttrib->m_ZCompare;
+				if (ZCmp == CRC_COMPARE_EQUAL && GLES3_ZEqualToLEqual())
+					ZCmp = CRC_COMPARE_LESSEQUAL;
+				glDepthFunc(GLES3_MapCompare(ZCmp));
 			}
 			else
 			{
