@@ -2173,6 +2173,14 @@ public:
 		bool m_bDbgSkinLogged = false;
 		bool m_bDbgSkinFallbackLogged = false;
 		int  m_DbgSkinDraws = 0; // per-interval counter, printed as "skin=N" in [GL-DBG]
+		// Draws whose CACHED geometry entry carries bone indices (CRC_VREG_MI0),
+		// printed as "mi0=N". Deliberately separate from skin=N: mi0 counts
+		// "this draw is matrix-palette geometry", skin counts "we actually
+		// transformed it by a palette". mi0>0 with skin==0 is exactly the state
+		// that puts bone-LOCAL vertices on screen -- polygons scattered across
+		// the world -- so the two numbers together say whether the artefact is
+		// skinning or something else entirely.
+		int  m_DbgMI0Draws = 0;
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2422,6 +2430,7 @@ public:
 			m_DbgLFDraws = 0;
 			m_DbgNDSDraws = 0;
 			m_DbgSkinDraws = 0;
+			m_DbgMI0Draws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2508,13 +2517,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -4685,11 +4694,26 @@ public:
 			// guaranteed outcome the instant the flag goes off, without
 			// depending on every VBID having already been rebuilt.
 			m_DrawBoneCount = 0;
+			if (_E.m_lRegOffset[CRC_VREG_MI0] >= 0)
+				++m_DbgMI0Draws;
 			if (GLES3_SkinningEnabled() && BindEntryAttribInt(_E, 7, CRC_VREG_MI0))
 			{
 				int nW0 = 0, nW1 = 0;
-				if (BindEntryAttrib(_E, 8, CRC_VREG_MW0, 0.0f, 0.0f, 0.0f, 0.0f))
+				// MI0 present but NO weight stream = rigid attachment: one
+				// bone per vertex, weight implicitly 1.0. This is the common
+				// shape in Riddick's data -- the geometry log from
+				// Pa1_TheDream (2026-07-28) shows every skinned VBID as
+				// "MI0=1 MW0=0 MI1=0 MW1=0". Counting weight components
+				// literally gave m_DrawBoneCount = 0, which turned skinning
+				// off for exactly the meshes that need it, so their
+				// bone-LOCAL vertex positions went to the GPU untransformed
+				// -- that is the "polygons scattered across the whole scene"
+				// artefact, not a palette or a props/skinned mix-up.
+				// Bind the constant (1,0,0,0) so slot 0 carries full weight.
+				if (BindEntryAttrib(_E, 8, CRC_VREG_MW0, 1.0f, 0.0f, 0.0f, 0.0f))
 					nW0 = CRC_VertexFormat::GetRegisterComponents(_E.m_lRegFormat[CRC_VREG_MW0]);
+				else
+					nW0 = 1;   // constant (1,0,0,0) bound above -> exactly one weighted bone
 				if (BindEntryAttribInt(_E, 9, CRC_VREG_MI1))
 				{
 					if (BindEntryAttrib(_E, 10, CRC_VREG_MW1, 0.0f, 0.0f, 0.0f, 0.0f))

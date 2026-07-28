@@ -63,6 +63,30 @@ static bool GLES3Geom_SkinningEnabled()
 	return s != 0;
 }
 
+// RIDDICK_SKIP_SKINNED=1 -- the killswitch that hides matrix-palette
+// geometry outright.
+//
+// It used to work because EVERY draw went through MDisplaySDL2.cpp's
+// streaming paths (BuildVertsFromVBB / the m_Geom path), each of which
+// checks this flag itself. Since the VBID geometry cache (R0) took over
+// the hot path, those checks stopped covering the draws that matter, and
+// the flag silently became a no-op for exactly the geometry it exists to
+// hide -- with RIDDICK_SKINNING=1 the cache built and drew palette meshes
+// regardless (observed 2026-07-28, Pa1_TheDream: the flag no longer
+// removed the scattered polygons). Honour it here too, and independently
+// of RIDDICK_SKINNING: "skip skinned" must mean skip, whether or not GPU
+// skinning is compiled into the draw.
+static bool GLES3Geom_SkipSkinned()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_SKIP_SKINNED");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 CGLES3GeometryCache::CGLES3GeometryCache()
 	: m_pVBCtx(0), m_pRC(0), m_VBIDCapacity(0), m_nBuilt(0), m_nBytesV(0), m_nBytesI(0)
 {
@@ -224,10 +248,11 @@ bool CGLES3GeometryCache::Build(int _VBID)
 	    (VBB.m_lpVReg[CRC_VREG_MI0] || VBB.m_lpVReg[CRC_VREG_MW0] ||
 	     VBB.m_lpVReg[CRC_VREG_MI1] || VBB.m_lpVReg[CRC_VREG_MW1]))
 	{
-		if (!bSkinning)
+		if (!bSkinning || GLES3Geom_SkipSkinned())
 		{
 			if (GLES3Geom_DbgEnabled())
-				fprintf(stderr, "[GLES3-GEOM] VBID=%d skip (skinned, RIDDICK_SKINNING=0)\n", _VBID);
+				fprintf(stderr, "[GLES3-GEOM] VBID=%d skip (skinned, %s)\n", _VBID,
+					!bSkinning ? "RIDDICK_SKINNING=0" : "RIDDICK_SKIP_SKINNED=1");
 			E.m_bSkip = true;
 			m_pVBCtx->VB_Release(_VBID);
 			return false;
