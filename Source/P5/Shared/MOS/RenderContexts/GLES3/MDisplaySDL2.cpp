@@ -392,6 +392,14 @@ static const char* kGLES3_3DFragSrc =
 	//   2=normal   (world normal as RGB, (N+1)*0.5)
 	//   3=worldpos (fract(worldPos * 0.01) as RGB -- 100-unit repeat)
 	"uniform int uDbgMode;\n"
+	// uDbgMode 4 reads this below. It was MISSING here while the vertex
+	// stage declared it, so this fragment shader never compiled -- and a
+	// dead FS means the whole m_3DShader program never links, which
+	// silently took every 3D draw down the fallback path (no skinning, no
+	// world normal). Symptom in the log: "[GLES3] 3D: FS compile failed:
+	// 0:16(23): error: `uTexGenMode0' undeclared" at startup, then skin=0
+	// and mi0=0 in every [GL-DBG] line for the whole run (2026-07-28).
+	"uniform int uTexGenMode0;\n"
 	"out vec4 oColor;\n"
 	"void main(){\n"
 	// uDbgMode 4 (RIDDICK_DBG_FOGUV=1): paint ONLY the passes that use
