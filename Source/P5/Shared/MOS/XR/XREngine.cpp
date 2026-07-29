@@ -1041,51 +1041,22 @@ void CXR_ViewContextImpl::Clear(const CMat4Dfp32& _CameraWMat, const CMat4Dfp32&
 //		m_dCameraWMat.InverseOrthogonal(m_dW2VMat);
 	}
 
-	// IMPORTANT: compute m_bIsMirrored BEFORE the Linux camera fix.
-	// Our X-negate below flips det -> MACRO_ISMIRRORED would always say
-	// "true" and the engine would pick reversed-cull attribs for every
-	// draw (m_RenderZBufferCullCW etc), producing z-fighting between
-	// base-diffuse (CULLCW) and detail-decal (default cull) passes.
-	// The engine's real "is this a mirror-portal view?" answer must come
-	// from the UN-flipped matrix.
-	m_bIsMirrored = MACRO_ISMIRRORED(m_W2VMat);
-
-#ifdef PLATFORM_LINUX
-	// GLES3 port camera fix: negate view-space X column of W2V. Applied
-	// once here so downstream CPU consumers (BSP portal culling, frustum)
-	// AND the GPU render pipeline see the same corrected camera
-	// orientation. Without this the world renders X-mirrored AND
-	// front-of-camera geometry is culled as if behind (single handedness
-	// mismatch between engine-authored _CameraWMat and GL RH expectation).
-	// The winding compensation lives in the GLES3 backend
-	// (glFrontFace(GL_CW), see MDisplaySDL2.cpp) because negating X
-	// reverses det -> CCW becomes CW in view space.
+	// Was: m_bIsMirrored had to be computed BEFORE a Linux-only X-negate of
+	// m_W2VMat, and that negate then had to be undone by a reversed winding
+	// convention in the GLES3 backend. Both are gone (2026-07-29) -- the
+	// world was mirrored because the projection's x scale was negative, and
+	// that came from CRC_Viewport::m_AspectRatio == -1: the shipped profile
+	// stores VIDEO_DISPLAY_PIXELASPECT = -1 (the retail "auto" sentinel) and
+	// nothing on this path rejected it, so CRC_Viewport::Update divided
+	// m_xScale by a negative number. Proof: [VPCALC] xScale=-879.678
+	// yScale=879.678 ... AspectRatio=-1 for the 3D viewport, against
+	// AspectRatio=1 for every other one; and after guarding the sentinel
+	// (CRC_Viewport::SetAspectRatio + XRApp.cpp) the same run reports
+	// xScale=+879.678 and renders correctly with the retail winding
+	// convention (glFrontFace(GL_CCW), RIDDICK_CULL_MODE=0).
 	//
-	// RIDDICK_NO_CAMFLIP=1: skip the X-negate (A/B for the camera-mirror
-	// research, see Docs/Research_CameraMirror_Report.md). Static audit
-	// showed the GLES3 transform chain is element-identical to PC-retail
-	// RndrGL and PS3GCM, so WITHOUT this block the world should render
-	// exactly like retail; the run with this flag is the decisive test.
-	static int sNoCamFlip = -1;
-	if (sNoCamFlip < 0)
-	{
-		const char* e = getenv("RIDDICK_NO_CAMFLIP");
-		sNoCamFlip = (e && atoi(e)) ? 1 : 0;
-	}
-	if (!sNoCamFlip)
-	{
-		fp32* K = (fp32*)&m_W2VMat;
-		K[0*4 + 0] = -K[0*4 + 0];
-		K[1*4 + 0] = -K[1*4 + 0];
-		K[2*4 + 0] = -K[2*4 + 0];
-		K[3*4 + 0] = -K[3*4 + 0];
-		fp32* Kd = (fp32*)&m_dW2VMat;
-		Kd[0*4 + 0] = -Kd[0*4 + 0];
-		Kd[1*4 + 0] = -Kd[1*4 + 0];
-		Kd[2*4 + 0] = -Kd[2*4 + 0];
-		Kd[3*4 + 0] = -Kd[3*4 + 0];
-	}
-#endif
+	// The camera is platform-neutral again: no flip, no compensation.
+	m_bIsMirrored = MACRO_ISMIRRORED(m_W2VMat);
 
 //	m_CameraWMat.Multiply(_W2VMat, m_dW2VMat);	// Camera should be last frame's w2vmat-inverse (hack)
 
