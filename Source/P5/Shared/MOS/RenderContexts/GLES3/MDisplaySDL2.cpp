@@ -1401,6 +1401,20 @@ static bool GLES3_ZEqualToLEqual()
 // diffuse textures and nothing else -- the reference picture to compare
 // every lighting experiment against, and a quick way to tell "the lighting
 // math is wrong" from "the geometry/textures/passes are wrong".
+// RIDDICK_SCISSOR_MIRRORX=1 -- mirror engine scissor rects about the
+// vertical axis when applying them. Diagnostic; see the call site in
+// ApplyAttribs for the evidence that motivated it.
+static bool GLES3_ScissorMirrorX()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_SCISSOR_MIRRORX");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_DiffuseOnly()
 {
 	static int s = -1;
@@ -4344,7 +4358,33 @@ public:
 				if (W > 0 && Hgt > 0)
 				{
 					glEnable(GL_SCISSOR_TEST);
-					glScissor((int)MinX, H - (int)MaxY, W, Hgt);
+					// RIDDICK_SCISSOR_MIRRORX=1: mirror the rect horizontally
+					// (x0' = ScreenW - x1). Diagnostic for the "left part of
+					// the frame is black" report, and the evidence for it is
+					// in the [GL-VIEW] log of 2026-07-29: viewport, FBO and
+					// window all agree (1280x720, vp=(0,0..1280,720), glY=0,
+					// clear rect empty = full-target), no degenerate rects
+					// (empty=0) -- but the UNION of every scissor rect applied
+					// in an interval repeatedly sits in a narrow right-hand
+					// strip, e.g. union=(1088,0..1280,720), while maxX is
+					// ALWAYS exactly the screen width. That is the signature
+					// of rects mirrored about the vertical axis: content that
+					// belongs on the left ends up scissored to the right, and
+					// the left stays black.
+					// The suspected origin is the X-negate camera fix
+					// (XREngine.cpp, m_W2VMat X column) -- the rendered image
+					// and the projected scissor box end up in opposite
+					// handedness. If this flag fixes the picture, the real
+					// fix is to remove the double mirror at its source, not
+					// to keep this switch.
+					int SX = (int)MinX;
+					if (GLES3_ScissorMirrorX() && m_pDisplayContext)
+					{
+						const int SW = GLES3_DirectRender() ? m_pDisplayContext->m_WinWidth
+						                                    : m_pDisplayContext->m_Width;
+						SX = SW - (int)MaxX;
+					}
+					glScissor(SX, H - (int)MaxY, W, Hgt);
 				}
 				else
 				{
