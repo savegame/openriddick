@@ -43,6 +43,94 @@ static bool PathDbg_Enabled()
 	return s_On != 0;
 }
 
+// RIDDICK_DBG_PATH=1: hex-dump a poshistory resource so the PC layout can be
+// reverse-engineered.
+//
+// Needed because the PC data uses poshistory version 1002, which this PS3
+// snapshot does not know: it only handles POSHISTORY_RESOURCEID (1000,
+// every keyframe a full 32-byte CFileKeyframe) and
+// POSHISTORY_PACKED_RESOURCEID (1001, first and last keyframe full, the
+// middle ones 16-byte CFileKeyframe_Packed). LoadPath() drops anything else
+// silently, so EVERY mover in the level ends up with zero sequences -- which
+// is why doors, gates and chains never move while their scripts run
+// perfectly.
+//
+// The dump prints the resource length together with the first words, and the
+// two sizes the known layouts would imply for the same keyframe count. If
+// len matches one of them, 1002 is an existing layout under a new version
+// number; if it matches neither, the keyframe record itself changed and the
+// hex bytes are what is left to read it from.
+static void PathDbg_DumpResource(const char* _pName, int _iObj, int _iRes,
+	const uint8* _pData, int _Len)
+{
+	// LoadPath() is retried every time GetDuration() is called as long as the
+	// path stays invalid, so the same resource comes past here every frame.
+	// Dump distinct resource indices only, and few of them.
+	static int s_lSeen[6] = { -1, -1, -1, -1, -1, -1 };
+	static int s_nDumped = 0;
+	for (int i = 0; i < s_nDumped; i++)
+		if (s_lSeen[i] == _iRes)
+			return;
+	if (s_nDumped >= (int)(sizeof(s_lSeen) / sizeof(s_lSeen[0])))
+		return;
+	s_lSeen[s_nDumped++] = _iRes;
+
+	const uint32* w = (const uint32*)_pData;
+	const int nWords = _Len / 4;
+
+	fprintf(stderr, "[PATH] dump obj=%d '%s' iRes=%d len=%d\n", _iObj, _pName, _iRes, _Len);
+	if (nWords >= 4)
+	{
+		// The tag is optional: XWC writes 'PATH' in front so it can recognise
+		// paths inside resource data. Report both readings so the log states
+		// which word the version actually came from.
+		fprintf(stderr, "[PATH] dump   w0=0x%08x w1=0x%08x w2=0x%08x w3=0x%08x  tag='%c%c%c%c'\n",
+			(unsigned)w[0], (unsigned)w[1], (unsigned)w[2], (unsigned)w[3],
+			_pData[0] >= 32 && _pData[0] < 127 ? _pData[0] : '.',
+			_pData[1] >= 32 && _pData[1] < 127 ? _pData[1] : '.',
+			_pData[2] >= 32 && _pData[2] < 127 ? _pData[2] : '.',
+			_pData[3] >= 32 && _pData[3] < 127 ? _pData[3] : '.');
+
+		// Try both "version at w0" and "version at w1" (tag present).
+		for (int iBase = 0; iBase <= 1 && iBase + 2 < nWords; iBase++)
+		{
+			const uint32 Ver = w[iBase];
+			const uint32 nSeq = w[iBase + 1];
+			const uint32 nKeys = w[iBase + 2];
+			if ((Ver & 0xffff) < 900 || (Ver & 0xffff) > 1100)
+				continue;
+			const int HdrWords = iBase + 2;			// version + nSeq (+ tag)
+			const int Size1000 = HdrWords * 4 + 4 + (int)nKeys * 32;
+			const int Size1001 = HdrWords * 4 + 4 + (nKeys >= 2 ? 64 + ((int)nKeys - 2) * 16
+			                                                    : (int)nKeys * 32);
+			fprintf(stderr, "[PATH] dump   as ver@w%d: ver=%u(id=%u,flags=%u) nSeq=%u nKeys0=%u"
+				"  size_if_1000=%d size_if_1001=%d\n",
+				iBase, (unsigned)Ver, (unsigned)(Ver & 0xffff), (unsigned)((Ver >> 16) & 1),
+				(unsigned)nSeq, (unsigned)nKeys, Size1000, Size1001);
+		}
+	}
+
+	const int nShow = Min(_Len, 320);
+	for (int i = 0; i < nShow; i += 16)
+	{
+		char Hex[16 * 3 + 1];
+		char Asc[17];
+		int n = Min(16, nShow - i);
+		for (int j = 0; j < n; j++)
+		{
+			const uint8 b = _pData[i + j];
+			Hex[j * 3 + 0] = "0123456789abcdef"[b >> 4];
+			Hex[j * 3 + 1] = "0123456789abcdef"[b & 15];
+			Hex[j * 3 + 2] = ' ';
+			Asc[j] = (b >= 32 && b < 127) ? (char)b : '.';
+		}
+		Hex[n * 3] = 0;
+		Asc[n] = 0;
+		fprintf(stderr, "[PATH] hex %04x: %-48s |%s|\n", i, Hex, Asc);
+	}
+	fflush(stderr);
+}
+
 #ifdef COMPILER_MSVC
 #pragma warning(disable : 4756)	// warning C4756: overflow in constant arithmetic, (Pack32/Unpack32, fix someday -JA)
 #endif
@@ -961,9 +1049,20 @@ void CWObject_Attach::OnRefresh()
 	// object never moves server-side at all.
 	if(PathDbg_Enabled() && (m_ClientFlags & CLIENTFLAGS_RUN))
 	{
-		static int s_nLogged = 0;
-		if(s_nLogged++ < 400)
+		// Per-object budget, not a global one: the map's always-running script
+		// loops (MAPSTARTSCRIPT, SUPERSCRIPTLOOP) otherwise eat the whole
+		// allowance before a door is ever touched.
+		static int16 s_lObj[24] = { 0 };
+		static uint8 s_lCount[24] = { 0 };
+		int iSlot = -1;
+		for(int i = 0; i < 24; i++)
 		{
+			if(s_lObj[i] == m_iObject) { iSlot = i; break; }
+			if(s_lObj[i] == 0) { s_lObj[i] = m_iObject; iSlot = i; break; }
+		}
+		if(iSlot >= 0 && s_lCount[iSlot] < 8)
+		{
+			s_lCount[iSlot]++;
 			CMat4Dfp32 Want = GetRenderMatrix(m_pWServer, Time, m_pWServer->GetGameTick(), 0);
 			const CVec3Dfp32 WantPos = CVec3Dfp32::GetRow(Want, 3);
 			const CVec3Dfp32 CurPos = GetPosition();
@@ -3004,7 +3103,14 @@ void CWObject_Engine_Path::LoadPath(CWorld_PhysState* _pPhysState, CWObject_Core
 	{
 		TAP<const uint8> pData = _pPhysState->GetMapData()->GetResource_XWData(pCD->m_iXWData, _iIndex);
 		if (pData.GetBasePtr())
+		{
+			if (PathDbg_Enabled())
+				// CWObject_CoreData has no GetName(); the object index is
+				// enough to pair this with the "[PATH] run" line.
+				PathDbg_DumpResource("?", _pObj->m_iObject, _iIndex,
+					pData.GetBasePtr(), pData.Len());
 			GetClientData(_pObj)->LoadPath(pData.GetBasePtr(), pCD->m_TransformMat);
+		}
 	}
 }
 

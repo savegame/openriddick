@@ -119,6 +119,47 @@ uint16 iPortalLeaf; uint16 pad;
 - Часть архивов текстур DA — XTC2 (`IMAGEDIRECTORY5`) — отдельный будущий парсер
   (см. CLAUDE.md).
 
+## 5.1 POSHISTORY (engine-path'ы) — PC пишет версию 1002, снапшот знает только 1000/1001
+
+**Это причина того, что в игре не открывается ни одна дверь.**
+
+`CWO_PosHistory::LoadPath` (`WObj_PosHistory.cpp`) принимает только две версии:
+
+| ID | Константа | Укладка |
+|---|---|---|
+| 1000 | `POSHISTORY_RESOURCEID` | `[nKeys][CFileKeyframe × nKeys]` — каждый кадр 32 байта (`fp32 time`, `CVec3Dfp32 pos`, `CQuatfp32 rot`) |
+| 1001 | `POSHISTORY_PACKED_RESOURCEID` | `[nKeys][CFileKeyframe #0][CFileKeyframe #last][CFileKeyframe_Packed × (nKeys−2)]` — середина по 16 байт (`uint8 time[2]`, поз. 27+27+26 бит, кватернион 11+11+10 бит) |
+
+Заголовок ресурса: необязательный тег `'PATH'` (его пишет XWC, чтобы узнавать
+пути в resource-data), затем слово версии (`ver & 0xffff` = ID, бит `0x10000` =
+`POSHISTORY_FLAGS`, тогда после кадров идёт по байту флагов на кадр,
+выровненных до слова), затем `nSeq`, затем последовательности.
+
+Всё остальное `LoadPath` **отбрасывает молча** — ни исключения, ни сообщения.
+Результат: `m_lSequences` пустой → `IsValid()` false → `GetDuration()` = −1 →
+`CWObject_Attach::OnRefresh` получает от `GetRenderMatrix` константу, условие
+`!Mat.AlmostEqual(Old)` никогда не выполняется, и мувер не двигается. При этом
+скрипты, таймеры и timed-сообщения пути работают штатно, поэтому симптом
+выглядит как «сломанные скрипты», хотя скрипты ни при чём.
+
+Прогон `Pa1_Pit` 2026-07-29 (`RIDDICK_DBG_PATH=1`):
+
+```
+[PATH] LoadPath: unknown poshistory version 0x3ea (id=1002, expected 1000 or 1001)
+[PATH] run obj=95 'XTRAGATE' iAnim0=12 nSeq=0 dur=-1.000 travel=-1.00 cflags=0xb8010
+[PATH] run obj=462 'CHAIN1'  iAnim0=97 nSeq=0 dur=-1.000 travel=-1.00 cflags=0x98010
+[PATH] run obj=456 'CHAIN2'  iAnim0=94 nSeq=0 dur=-1.000 travel=-1.00 cflags=0x98010
+```
+
+`nSeq=0` у **всех** путей карты, включая AI-пути (их же читают
+`AI_Behaviour_Patrol`/`_Lead` через `OBJMSG_HOOK_GETRENDERMATRIX`) — то есть
+это же расхождение объясняет и странное поведение NPC.
+
+Что нужно: укладка версии 1002. `RIDDICK_DBG_PATH=1` теперь печатает hex-дамп
+ресурса (`[PATH] dump` / `[PATH] hex`) вместе с его длиной и размерами, которые
+дали бы известные укладки при том же числе кадров — по совпадению длины сразу
+видно, 1002 это старая укладка под новым номером или новая запись кадра.
+
 ## 6. Как дебажили (процесс)
 
 - gdb `bt` от пользователя — основной инструмент локализации (глубина стека

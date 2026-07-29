@@ -363,6 +363,11 @@
   timed-сообщения chain1 (звук движения `dor_metal_move03` на +0.06 с и
   `WaitImpulse` ровно на +1.0 с). Timed-сообщения тикают от часов пути,
   значит часы идут. А геометрия при этом не двигается.
+  **НАЙДЕНО (прогон 2026-07-29):** `[PATH] LoadPath: unknown poshistory
+  version 0x3ea (id=1002)` и `nSeq=0` у ВСЕХ путей карты. PC-контент пишет
+  POSHISTORY версии 1002, а снапшот знает только 1000/1001 и отбрасывает
+  остальное молча. Подробности и укладки известных версий —
+  `Docs/BSP_PC_Format.md` §5.1.
 
 - **DBG** `RIDDICK_DBG_PHYS=1` (`WPhysState_Obj.cpp`,
   `CWorld_PhysState::Object_SetPhysics`) — при отказе постановки физики
