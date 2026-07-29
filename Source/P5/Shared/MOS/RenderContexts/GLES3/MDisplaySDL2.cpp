@@ -4279,12 +4279,16 @@ public:
 			if ((F & CRC_FLAGS_CULL) && !m_DbgNoCull)
 			{
 				glEnable(GL_CULL_FACE);
-				// RIDDICK_CULL_MODE (0..3): empirical picker for the
-				// FrontFace + CULLCW → GL_CULL_FACE combination. Default
-				// retail mapping should have been "right" after our
-				// W2V.X flip in XREngine.cpp, but derivations kept
-				// disagreeing with what the user sees on screen. Pick
-				// the one that shows outward faces:
+				// RIDDICK_CULL_MODE (0..3): picker for the FrontFace +
+				// CULLCW -> GL_CULL_FACE combination. Default 0 is the retail
+				// mapping and is now known to be CORRECT. It was only ever in
+				// doubt while TWO mirrors cancelled each other: the projection
+				// carried a negative x scale (AspectRatio == -1) and the camera
+				// hack negated W2V.X to hide it, which together made det(MVP)
+				// positive and demanded the reversed convention. With the aspect
+				// sentinel guarded and the hack gone, det(Proj) < 0 (the single
+				// baked Y flip) and GL_CCW is right, exactly as in RndrGL.
+				// Kept as a diagnostic, not as a compensation:
 				//   0: GL_CCW + (CULLCW ? BACK  : FRONT)  retail
 				//   1: GL_CCW + (CULLCW ? FRONT : BACK)   inv cull
 				//   2: GL_CW  + (CULLCW ? BACK  : FRONT)  inv front
