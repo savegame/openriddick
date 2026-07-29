@@ -5,6 +5,11 @@
 #include "../MSystem.h"
 #include "../../XR/XRVBContext.h"		// Hmm...  move it to MSystem/Raster/ ???
 
+#ifdef PLATFORM_LINUX
+#include <stdio.h>   // RIDDICK_DBG_VPCALC diagnostic below
+#include <stdlib.h>
+#endif
+
 // -------------------------------------------------------------------
 #if !defined(COMPILER_CODEWARRIOR) && !defined(COMPILER_GNU)
 #pragma warning(disable : 4244)		// Sl�r av varning f�r float = int, int = float.
@@ -416,6 +421,48 @@ void CRC_Viewport::Update()
 
 	m_xScale *= m_PixelAspect.k[0];
 	m_yScale *= m_PixelAspect.k[1];
+
+	// RIDDICK_DBG_VPCALC=1 (Linux port diagnostic): dump every factor that
+	// feeds m_xScale/m_yScale, once per distinct result.
+	//
+	// Why: the runtime projection has a NEGATIVE x scale -- the [MVP] dump
+	// of 2026-07-29 shows Proj row0 = (-0.75, ...) with row1 = (-1.333, ...).
+	// Row 1 is built as -m_yScale/2, so a negative row1 means m_yScale > 0,
+	// and m_yScale is copied from m_xScale on the first line above -- i.e.
+	// m_xScale is still POSITIVE at that point and turns negative in one of
+	// the two operations right here. Everything feeding them reads positive
+	// in the source (FOV scale, m_FOVAspect, the [0.01,1] clamp on
+	// VID_VIEWSCALEX, the 1.0f default of m_fPixelAspect), so the culprit
+	// has to be seen at runtime rather than reasoned about.
+	//
+	// That negative x is what mirrors the world, and the X-negate camera
+	// hack in XREngine.cpp exists only to cancel it -- at the cost of
+	// breaking every CPU-side screen-space calculation (scissor) and the
+	// skybox. Find which factor is negative here and the hack can go.
+	{
+		static int sDbgVPCalc = -1;
+		if (sDbgVPCalc < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_VPCALC");
+			sDbgVPCalc = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (sDbgVPCalc)
+		{
+			static fp32 sLastX = 0, sLastY = 0;
+			if (m_xScale != sLastX || m_yScale != sLastY)
+			{
+				sLastX = m_xScale; sLastY = m_yScale;
+				fprintf(stderr,
+					"[VPCALC] xScale=%g yScale=%g | mode=%d FOV=%g FOVAspect=%g Scale=%g "
+					"AspectRatio=%g PixelAspect=(%g,%g) Rect=(%d,%d..%d,%d) w=%d h=%d\n",
+					m_xScale, m_yScale, (int)m_Mode, m_FOV, m_FOVAspect, m_Scale,
+					m_AspectRatio, m_PixelAspect.k[0], m_PixelAspect.k[1],
+					m_Rect.p0.x, m_Rect.p0.y, m_Rect.p1.x, m_Rect.p1.y,
+					m_Rect.GetWidth(), m_Rect.GetHeight());
+				fflush(stderr);
+			}
+		}
+	}
 
 	// Calc projection matrix...
 	{
