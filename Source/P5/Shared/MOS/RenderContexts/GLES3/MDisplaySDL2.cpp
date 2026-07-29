@@ -4908,19 +4908,17 @@ public:
 			// hardware-verified conversion, CRC_VPFormat::SetRegisters_MatrixPalette
 			// (Classes/Render/MRenderVPGen.h:1196-1222) -- NOT CRC_MatrixPalette::Index().
 			//
-			// Index() casts m_pMatrices to CMat43fp32* (48 bytes per matrix) and
-			// does no transpose. That cast does not describe the buffer the
-			// engine actually installs: Cluster_SetMatrixPalette
-			// (WTriMesh.cpp:1069-1120) stores CXR_SkeletonInstance::
-			// GetBoneTransforms() verbatim, and that array is CMat4Dfp32 -- a
-			// true 4x4, 64 bytes per matrix (XRSkeleton.cpp:673). Reading it at
-			// a 48-byte stride lands mid-matrix from bone 1 onward, which puts
-			// garbage transforms on every bone but the first. The PS3 path is
-			// the proof of the real layout: it reads `const CMat4Dfp32*` and
+			// Index() does no transpose, so it is still not the accessor to
+			// copy here (its element type was also wrong until 2026-07-28 --
+			// it claimed CMat43fp32, 48 bytes, over an array of CMat4Dfp32,
+			// 64 bytes; see the comment on CRC_MatrixPalette::Index in
+			// MRender_Classes.h). The buffer the engine installs comes from
+			// Cluster_SetMatrixPalette (WTriMesh.cpp:1069-1120), which stores
+			// CXR_SkeletonInstance::GetBoneTransforms() verbatim -- a true
+			// 4x4 CMat4Dfp32 array (XRSkeleton.cpp:673). The PS3 path is the
+			// proof of what the GPU wants: it reads `const CMat4Dfp32*` and
 			// TRANSPOSES 4x4 -> 3 vec4 (the three columns; the constant
-			// (0,0,0,1) fourth is dropped). Index() is only ever exercised by
-			// the engine's CPU-skin fallback, which the shipped PS3 build does
-			// not take -- so the mismatch stayed latent there.
+			// (0,0,0,1) fourth is dropped).
 			//
 			// The transposed form is exactly what dot(uBoneMat[base+n],
 			// vec4(pos,1)) needs, and it agrees with the CPU reference's

@@ -172,12 +172,40 @@ public:
 	uint16 m_Flags;
 	uint16 m_VpuTaskId;
 
-	const CMat43fp32 &Index(int _Index) const
+	// NB the element type is CMat4Dfp32 (a true 4x4, 64 bytes), NOT
+	// CMat43fp32 (48 bytes) as this accessor originally claimed.
+	//
+	// For skeleton skinning the buffer is installed verbatim by
+	// CXR_Model_TriangleMesh::Cluster_SetMatrixPalette (WTriMesh.cpp:1069-1120)
+	// from CXR_SkeletonInstance::GetBoneTransforms(), which is
+	// `DNew(CMat4Dfp32) CMat4Dfp32[nNodes+1]` (XRSkeleton.cpp:673). The
+	// hardware path agrees: CRC_VPFormat::SetRegisters_MatrixPalette
+	// (Classes/Render/MRenderVPGen.h:1199) reads it as `const CMat4Dfp32*`
+	// and transposes 4x4 -> 3 vec4 itself.
+	//
+	// With the old 48-byte cast every bone from index 1 onward was read
+	// straddling two matrices, so the CPU skinning path produced garbage
+	// transforms that still moved with the animation -- character meshes
+	// came out as polygons scattered across the level, animating. This
+	// stayed latent in the shipped PS3 build because hardware T&L is
+	// always on there and Index() is only ever called by the CPU-skin
+	// fallback (Cluster_TransformBones_V_N / _V_N_TgU_TgV). On this port
+	// that fallback is the ONLY path, because the GLES3 backend does not
+	// advertise CRC_CAPS_FLAGS_MATRIXPALETTE.
+	//
+	// The k[row][col] math at the call sites is unchanged by this: the
+	// meaning of every element is the same, only the row stride differs.
+	//
+	// Palettes that are NOT skeleton bone transforms (CCube's
+	// CMatrixPaletteEntry, BSP4Glass) never reach this accessor -- they go
+	// through their own SetRegisters_MatrixPalette* overloads selected by
+	// m_Flags, which cast m_pMatrices to their own element type.
+	const CMat4Dfp32 &Index(int _Index) const
 	{
 		if (m_piMatrices)
-			return ((const CMat43fp32*)m_pMatrices)[m_piMatrices[_Index]];
+			return ((const CMat4Dfp32*)m_pMatrices)[m_piMatrices[_Index]];
 		else
-			return ((const CMat43fp32*)m_pMatrices)[_Index];
+			return ((const CMat4Dfp32*)m_pMatrices)[_Index];
 	}
 };
 

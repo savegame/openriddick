@@ -3626,7 +3626,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 			//---------------------------------------
 			// 1 Bone, 18 Muls.
 
-			const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 x = pV->k[0];
 			fp32 y = pV->k[1];
 			fp32 z = pV->k[2];
@@ -3646,9 +3646,9 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 			//---------------------------------------
 			// 2 Bones, 18 + 24 Muls.
 
-			const CMat43fp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 s1 = pBI[iBI].m_Influence;
-			const CMat43fp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
+			const CMat4Dfp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
 			fp32 s2 = pBI[iBI+1].m_Influence;
 
 			{
@@ -3686,7 +3686,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][0]*s; my += pM->k[1][0]*s; mz += pM->k[2][0]*s; mt += pM->k[3][0]*s;
 				}
@@ -3698,7 +3698,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][1]*s; my += pM->k[1][1]*s; mz += pM->k[2][1]*s; mt += pM->k[3][1]*s;
 				}
@@ -3710,7 +3710,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][2]*s; my += pM->k[1][2]*s; mz += pM->k[2][2]*s; mt += pM->k[3][2]*s;
 				}
@@ -3777,7 +3777,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 			//---------------------------------------
 			// 1 Bone, 18 Muls.
 
-			const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 x = pV->k[0];
 			fp32 y = pV->k[1];
 			fp32 z = pV->k[2];
@@ -3811,9 +3811,9 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 			//---------------------------------------
 			// 2 Bones, 18 + 24 Muls.
 
-			const CMat43fp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 s1 = pBI[iBI].m_Influence;
-			const CMat43fp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
+			const CMat4Dfp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
 			fp32 s2 = pBI[iBI+1].m_Influence;
 
 			{
@@ -3857,7 +3857,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][0]*s; my += pM->k[1][0]*s; mz += pM->k[2][0]*s; mt += pM->k[3][0]*s;
 				}
@@ -3871,7 +3871,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][1]*s; my += pM->k[1][1]*s; mz += pM->k[2][1]*s; mt += pM->k[3][1]*s;
 				}
@@ -3885,7 +3885,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][2]*s; my += pM->k[1][2]*s; mz += pM->k[2][2]*s; mt += pM->k[3][2]*s;
 				}
