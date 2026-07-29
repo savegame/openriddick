@@ -600,7 +600,25 @@ void CRC_Viewport::SetScale(fp32 _Scale)
 void CRC_Viewport::SetAspectRatio(fp32 _Aspect)
 {
 	MAUTOSTRIP(CRC_Viewport_SetAspectRatio, MAUTOSTRIP_VOID);
-	m_AspectRatio = _Aspect;
+	// A non-positive aspect ratio is never meaningful: Update() divides
+	// m_xScale by it, so a negative value silently MIRRORS the world along
+	// X (and a zero one blows the projection up). The engine already treats
+	// <= 0 as "not set" everywhere it reads such a value -- see the
+	// `if (ForcePixelAspect > 0)` guard in MSystem_Win32.cpp:1383.
+	//
+	// This fired for real: the game's stored VIDEO_DISPLAY_PIXELASPECT is
+	// -1 (the retail "auto" sentinel), which travels VID_PIXELASPECT ->
+	// CDisplayContext::SetPixelAspect -> GetPixelAspect() ->
+	// CGameContext::GetViewport -> here, and produced
+	// `[VPCALC] xScale=-879.678 yScale=879.678 ... AspectRatio=-1` in the
+	// 2026-07-29 run -- i.e. the negative x scale in the projection that
+	// the X-negate camera hack in XREngine.cpp was compensating for.
+	// Only the 3D game viewport goes through this call, which is why the
+	// GUI viewport kept AspectRatio=1 and the menu looked un-mirrored.
+	if (_Aspect > 0.0f)
+		m_AspectRatio = _Aspect;
+	else
+		m_AspectRatio = 1.0f;
 	m_bVPChanged = true;
 }
 

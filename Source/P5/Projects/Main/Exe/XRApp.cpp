@@ -6379,6 +6379,13 @@ void CXRealityApp::CommitOptions()
 		}
 
 		fp32 PixelAspect = pEnv->GetValuef("vid_pixelaspect", 1.0);
+		// -1 is the retail "auto/unset" sentinel and is what the shipped
+		// profile actually stores. Feeding it through unchanged makes
+		// CRC_Viewport::Update divide m_xScale by a negative number and
+		// mirror the world along X. Same guard the engine uses for
+		// VID_FORCEPIXELASPECT (MSystem_Win32.cpp:1383).
+		if (PixelAspect <= 0.0f)
+			PixelAspect = 1.0f;
 		//		if(!pDisplay->IsFullScreen())
 		//			pDisplay->SetScreenAspect(1.0f);
 		//		else

@@ -286,6 +286,23 @@
   правильное решение — убрать двойное зеркало в источнике, а не оставлять
   этот переключатель.
 
+- **FIX** гард `_Aspect > 0` в `CRC_Viewport::SetAspectRatio`
+  (`MRender.cpp`) + отсечка `vid_pixelaspect <= 0` при чтении
+  (`XRApp.cpp:~6381`). **Это и есть причина зеркала мира по X**, ради
+  которого жил костыль с негированием X во view-матрице.
+  Цепочка: в профиле игры `VIDEO_DISPLAY_PIXELASPECT = -1` (ретейловый
+  сентинел «авто»), он идёт `VID_PIXELASPECT` → `SetPixelAspect` →
+  `GetPixelAspect()` → `CGameContext::GetViewport` → `SetAspectRatio(-1)`,
+  а `CRC_Viewport::Update` делает `m_xScale /= m_AspectRatio` — и x-масштаб
+  проекции становится отрицательным. Доказательство из прогона 2026-07-29:
+  `[VPCALC] xScale=-879.678 yScale=879.678 ... AspectRatio=-1` для игрового
+  вьюпорта (FOV=95) против `xScale=960 ... AspectRatio=1` для остальных.
+  Отсюда же и «на мгновение картинка инвертируется при выходе в меню»:
+  через `SetAspectRatio` проходит только 3D-вьюпорт игры, GUI-вьюпорт
+  остаётся с `AspectRatio=1` и потому не зеркалится.
+  Движок сам трактует `<= 0` как «не задано» — см. `if (ForcePixelAspect > 0)`
+  в `MSystem_Win32.cpp:1383`; гард просто распространяет эту же трактовку.
+
 - **DBG** `RIDDICK_DBG_VPCALC=1` (`MRender.cpp`, `CRC_Viewport::Update`,
   сразу после вычисления `m_xScale`/`m_yScale`) — печатает `[VPCALC]` со
   всеми множителями, которые в них входят: режим, FOV, `m_FOVAspect`,
