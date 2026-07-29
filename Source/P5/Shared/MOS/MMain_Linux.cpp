@@ -63,6 +63,7 @@ static void Linux_LogActiveDebugFlags()
 		"RIDDICK_ONLY_BSP", "RIDDICK_FORCE_TEX", "RIDDICK_ZPREPASS_COLOR",
 		// gameplay / scripts
 		"RIDDICK_DBG_USE", "RIDDICK_DBG_MSG", "RIDDICK_LOG_MSG", "RIDDICK_DBG_AG2FX",
+		"RIDDICK_DBG_PHYS",
 		// misc
 		"RIDDICK_STARTMAP",
 	};
