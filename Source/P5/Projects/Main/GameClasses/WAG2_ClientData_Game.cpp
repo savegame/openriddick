@@ -2,6 +2,9 @@
 
 #include "PCH.h"
 
+#include <stdio.h>    // RIDDICK_DBG_AG2FX diagnostic
+#include <stdlib.h>   // getenv
+
 #include "WObj_Char.h"
 #include "WObj_CharMsg.h"
 #include "WAG2_ClientData_Game.h"
@@ -1443,6 +1446,33 @@ void CWO_Clientdata_Character_AnimGraph2::Effect_ActionCutsceneSwitch(const CWAG
 
 	// Get type of action to perform from the animgraph
 	ACSActionType = _pParams->GetParam(0);
+
+	// RIDDICK_DBG_AG2FX=1: which action-cutscene action the animgraph asked
+	// for, and on which ACS object. The door-opening path is
+	// AG2_ACSACTIONTYPE_DOTRIGGER (and _ONCHANGEVALVESTATE for valves) --
+	// if the animation plays but this never reports that type, the trigger
+	// key is simply never reached.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2FX");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static int s_nLogged = 0;
+			if (s_nLogged < 400)
+			{
+				++s_nLogged;
+				fprintf(stderr, "[AG2FX] acs type=%d iACS=%d client=%d obj=%d\n",
+					ACSActionType, iACS,
+					(int)_pContext->m_pWPhysState->IsClient(),
+					(int)_pContext->m_pObj->m_iObject);
+				fflush(stderr);
+			}
+		}
+	}
 
 	if (_pContext->m_pWPhysState->IsClient())
 	{

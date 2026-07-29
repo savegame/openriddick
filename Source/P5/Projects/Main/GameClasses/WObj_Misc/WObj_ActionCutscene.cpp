@@ -14,6 +14,9 @@ History:
 \*____________________________________________________________________________________________*/
 
 #include "PCH.h"
+
+#include <stdio.h>    // RIDDICK_DBG_AG2FX diagnostic
+#include <stdlib.h>   // getenv
 #include "WObj_ActionCutScene.h"
 #include "../WObj_Char.h"
 #include "../WObj_Game/WObj_GameMod.h"
@@ -21,6 +24,22 @@ History:
 #include "../../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
 #include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "../WRPG/WRPGChar.h"
+
+// RIDDICK_DBG_AG2FX=1: action-cutscene trigger tracing (see the probes in
+// OBJMSG_ACTIONCUTSCENE_DOTRIGGER and CWObject_ValveActionCutscene::
+// OnChangeState). Shares the flag with the AnimGraph2 effect trace, because
+// the two are useless apart: the effect trace shows that the animgraph asked
+// for the trigger, these probes show what the ACS did with the request.
+static bool ACS_DbgEnabled()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_AG2FX");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
 
 static CVec3Dfp32 ACSTempDefinedDirection;
 // Static offset positions from normal
@@ -820,6 +839,19 @@ aint CWObject_ActionCutscene::OnMessage(const CWObject_Message& _Msg)
 
 			int32 Mode = pCDChar->m_ControlMode_Param4;
 
+			// RIDDICK_DBG_AG2FX=1: the last gate before the script messages
+			// that actually open the door. Three separate reasons nothing
+			// happens are distinguishable here: ISSUCCESS/ISFAIL missing from
+			// Mode, TRIGGERSUCCESS missing from the ACS's own CutsceneFlags,
+			// or an empty trigger-message list (nothing authored / not loaded).
+			if (ACS_DbgEnabled())
+			{
+				fprintf(stderr, "[ACS] dotrigger obj=%d mode=0x%x csFlags=0x%x nSucc=%d nFail=%d\n",
+					(int)m_iObject, (unsigned)Mode, (unsigned)pCD->m_CutsceneFlags,
+					(int)m_lMsg_TriggerSuccess.Len(), (int)m_lMsg_TriggerFail.Len());
+				fflush(stderr);
+			}
+
 			if (Mode & ACTIONCUTSCENE_FLAGS_ISSUCCESS)
 			{
 				if (pCD->m_CutsceneFlags & ACTIONCUTSCENE_OPERATION_TRIGGERSUCCESS)
@@ -1240,16 +1272,45 @@ bool CWObject_ActionCutscene::CanActivate(int _iCharacter)
 	}
 
 	// Check so that characters look direction is within "arc" and position is within arc as well
-	if (m_pWServer->Object_GetPositionMatrix(_iCharacter).GetRow(0) * -GetPositionMatrix().GetRow(0) >= pCDACS->m_ActivationArc)
+	//
+	// RIDDICK_DBG_AG2FX=1: this arc test is the gate that decides
+	// SELECTION_ACTIONCUTSCENE vs SELECTION_ACTIONCUTSCENELOCKED in
+	// Char_FindStuff, and a LOCKED result makes OBJMSG_ACTIONCUTSCENE_ACTIVATE
+	// a no-op -- the player can stand right in front of a valve and nothing
+	// happens. In Pa1_Pit the player's use press does report selType=0x8
+	// (LOCKED), so the two dot products below are exactly what needs to be
+	// seen: both are computed against the ACS object's own -X axis, i.e. they
+	// depend on the entity orientation matrix being loaded correctly. If
+	// dotLook/dotPos come out near -1 instead of near +1, the ACS matrices
+	// (not the scripts) are what is wrong.
 	{
-		CVec3Dfp32 Dir = GetPosition() - m_pWServer->Object_GetPositionMatrix(_iCharacter).GetRow(3);
-		Dir.k[2] = 0.0f;
-		Dir.Normalize();
-		if (Dir * -GetPositionMatrix().GetRow(0) < pCDACS->m_ActivationArc)
+		const fp32 dotLook = m_pWServer->Object_GetPositionMatrix(_iCharacter).GetRow(0) * -GetPositionMatrix().GetRow(0);
+		CVec3Dfp32 DbgDir = GetPosition() - m_pWServer->Object_GetPositionMatrix(_iCharacter).GetRow(3);
+		DbgDir.k[2] = 0.0f;
+		DbgDir.Normalize();
+		const fp32 dotPos = DbgDir * -GetPositionMatrix().GetRow(0);
+		// CanActivate() runs from the per-frame focus-frame scan as well as
+		// from the use press, so the trace is capped.
+		static int s_nCanActLogged = 0;
+		if (ACS_DbgEnabled() && s_nCanActLogged++ < 300)
+		{
+			fprintf(stderr, "[ACS] canact obj=%d arc=%.3f dotLook=%.3f dotPos=%.3f "
+				"csFlags=0x%x disabled=%d dependItem=%d dependMsg=%d retry=%d tick=%d\n",
+				(int)m_iObject, pCDACS->m_ActivationArc, dotLook, dotPos,
+				(unsigned)pCDACS->m_CutsceneFlags, (int)pCDACS->m_bDisabled,
+				(int)((pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_OPERATION_DEPENDSONITEM) != 0),
+				(int)m_DependMessage.IsValid(),
+				(int)pCDACS->m_ActionRetryCountdown, (int)GameTick);
+			fflush(stderr);
+		}
+		if (dotLook >= pCDACS->m_ActivationArc)
+		{
+			if (dotPos < pCDACS->m_ActivationArc)
+				return false;
+		}
+		else
 			return false;
 	}
-	else
-		return false;
 
 	if ((pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_OPERATION_DEPENDSONITEM) || 
 		/*(pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_OPERATION_LOCKED) ||*/
@@ -1267,12 +1328,41 @@ bool CWObject_ActionCutscene::CanActivate(int _iCharacter)
 		if(m_DependMessage.IsValid())
 			bCanActivate = m_DependMessage.SendMessage(m_iObject, _iCharacter, m_pWServer) != 0;
 
+		// The depend-message result IS a script result: if the target of that
+		// message resolves to nothing, SendMessage returns 0 and the ACS reads
+		// as locked. Worth telling apart from a genuinely locked object.
+		if (ACS_DbgEnabled())
+		{
+			static int s_nDepLogged = 0;
+			if (s_nDepLogged++ < 200)
+			{
+				fprintf(stderr, "[ACS] canact-dep obj=%d -> %d (locked=%d dependMsg=%d)\n",
+					(int)m_iObject, (int)bCanActivate,
+					(int)((pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_OPERATION_LOCKED) != 0),
+					(int)m_DependMessage.IsValid());
+				fflush(stderr);
+			}
+		}
+
 		return bCanActivate;
 	}
 	else
 	{
 		if (pCDACS->m_bDisabled || (pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_FLAGS_WAITSPAWN))
+		{
+			if (ACS_DbgEnabled())
+			{
+				static int s_nBlkLogged = 0;
+				if (s_nBlkLogged++ < 200)
+				{
+					fprintf(stderr, "[ACS] canact-blocked obj=%d disabled=%d waitspawn=%d\n",
+						(int)m_iObject, (int)pCDACS->m_bDisabled,
+						(int)((pCDACS->m_CutsceneFlags & ACTIONCUTSCENE_FLAGS_WAITSPAWN) != 0));
+					fflush(stderr);
+				}
+			}
 			return false;
+		}
 
 		// No restrictions, just do the successaction
 		return true;
@@ -2793,6 +2883,19 @@ void CWObject_ValveActionCutscene::OnChangeState(int32 _iTarget)
 		return;
 
 	//	int32 Mode = pCD->m_ControlMode_Param4;
+
+	// RIDDICK_DBG_AG2FX=1: the valve variant of the trigger gate. Note the
+	// asymmetry the original code has: CANACTIVATELEFT/RIGHT are derived in
+	// OnFinishEvalKeys() from the ACS's TRIGGERSUCCESS/TRIGGERFAIL flags, so
+	// a valve whose flags did not survive loading turns forever without ever
+	// reaching a SendMessage.
+	if (ACS_DbgEnabled())
+	{
+		fprintf(stderr, "[ACS] valve obj=%d valveFlags=0x%x csFlags=0x%x nSucc=%d nFail=%d target=%d\n",
+			(int)m_iObject, (unsigned)m_ValveFlags, (unsigned)(pCDACS ? pCDACS->m_CutsceneFlags : 0),
+			(int)m_lMsg_TriggerSuccess.Len(), (int)m_lMsg_TriggerFail.Len(), (int)_iTarget);
+		fflush(stderr);
+	}
 
 	if ((m_ValveFlags & VALVESTATE_CANACTIVATELEFT) && !(m_ValveFlags & VALVESTATE_ISRIGHT))
 	{

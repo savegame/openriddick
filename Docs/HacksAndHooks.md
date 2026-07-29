@@ -330,6 +330,47 @@
   NB: этот путь — про использование ИГРОКОМ. Если вентиль на карте крутит
   NPC по скрипту, `[USE]` не появится вообще, и это не дефект.
 
+- **DBG** `RIDDICK_DBG_AG2FX=1` — трассировка AnimGraph2-эффектов и
+  action-cutscene'ов. Пять строк, вместе они покрывают всю цепочку
+  «анимация доиграла → дверь открылась»:
+  * `[AG2FX] effect id=… nParams=… p0=… obj=…`
+    (`WAG2I_Interface.cpp`, `CWAG2I::InvokeEffects`) — каждый вызов
+    AG2-эффекта. Через это место проходит ВСЁ, что игра делает «по
+    скрипту» на кадре анимации: `Effect_ActionCutsceneSwitch`,
+    `Effect_SwitchWeapon`, `Effect_ActivateItem`, `Effect_SendImpulse`…
+    Если строк нет, а анимации играют — ломается раньше, до диспетчера
+    эффектов; если ID печатаются — ломается внутри конкретного эффекта.
+  * `[AG2FX] acs type=… iACS=… client=… obj=…`
+    (`WAG2_ClientData_Game.cpp`, `Effect_ActionCutsceneSwitch`) — какое
+    ACS-действие запросил анимграф. Дверь открывает
+    `AG2_ACSACTIONTYPE_DOTRIGGER` (для вентилей — `_ONCHANGEVALVESTATE`).
+  * `[ACS] canact obj=… arc=… dotLook=… dotPos=… csFlags=… disabled=…
+    dependItem=… dependMsg=… retry=… tick=…`
+    (`WObj_ActionCutscene.cpp`, `CanActivate`) — это ГЛАВНЫЙ гейт:
+    `Char_FindStuff` по его результату ставит `SELECTION_ACTIONCUTSCENE`
+    либо `SELECTION_ACTIONCUTSCENELOCKED`, а при LOCKED
+    `OBJMSG_ACTIONCUTSCENE_ACTIVATE` — no-op. В прогоне `Pa1_Pit`
+    2026-07-29 нажатие на вентиль давало ровно `selType=0x8` = LOCKED.
+    Оба dot-произведения считаются от оси -X самого ACS-объекта, то есть
+    зависят от матрицы ориентации сущности: если `dotLook/dotPos` около
+    -1 вместо +1, виноваты матрицы ACS, а не скрипты. NB: `m_ActivationArc`
+    по умолчанию -1.0 — тогда дуговой тест проходит всегда, и LOCKED
+    приходит из depend-item / depend-message / disabled / WAITSPAWN.
+  * `[ACS] canact-dep obj=… -> … (locked=… dependMsg=…)` и
+    `[ACS] canact-blocked obj=… disabled=… waitspawn=…` — какая именно из
+    этих причин сработала. `canact-dep` важен тем, что результат
+    depend-сообщения — это уже результат СКРИПТА: если цель сообщения не
+    разрешается ни в один объект, `SendMessage` вернёт 0 и объект
+    прочитается как запертый.
+  * `[ACS] dotrigger obj=… mode=… csFlags=… nSucc=… nFail=…` и
+    `[ACS] valve obj=… valveFlags=… csFlags=… nSucc=… nFail=… target=…` —
+    последний гейт перед самими скриптовыми сообщениями. Различает три
+    причины немого отказа: нет ISSUCCESS/ISFAIL в `mode`, нет
+    TRIGGERSUCCESS в `csFlags` ACS'а, либо пустой список
+    trigger-сообщений (не заавторено / не загрузилось).
+  Все строки лимитированы по количеству (300–600), `CanActivate`
+  вызывается и из по-кадрового focus-frame скана.
+
 - **DBG** `RIDDICK_LOG_MSG=1` (`WServer_Core.cpp`, конструктор
   `CWorld_ServerCore`) — включает СОБСТВЕННУЮ трассировку скриптовых
   сообщений движка (`m_bConsoleLogMessages`). Она сильно лучше самодельной:
