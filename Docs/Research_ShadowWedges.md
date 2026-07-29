@@ -33,12 +33,37 @@
 Строка запуска прогона, давшего этот кадр:
 
 ```
-RIDDICK_SKINNING=1 RIDDICK_DIFFUSE_ONLY=1 RIDDICK_NO_FOG=1
+RIDDICK_DBG_MODELS=1 RIDDICK_SKINNING=1 RIDDICK_DIFFUSE_ONLY=1
+RIDDICK_NO_SCISSOR=1 RIDDICK_NO_FOG=1
 RIDDICK_DBG_NDS=0 RIDDICK_NDS=1 RIDDICK_LFM=1 RIDDICK_LFM_SCALE=8
 RIDDICK_FP20=1 RIDDICK_DBG_GL=1 RIDDICK_DBG_SHADER=0
-RIDDICK_SKIP_PROPS=0 RIDDICK_SKIP_CHARS=0
+RIDDICK_SKIP_PROPS=1 RIDDICK_SKIP_CHARS=0
 RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=Pa1_TheDream
 ```
+
+**Что этот набор флагов уже исключает** (важно, не переигрывать эти
+эксперименты заново):
+
+- `RIDDICK_SKIP_PROPS=1` — статичные TRIMESH-модели (без скелета) в кадр
+  НЕ попадали, а клинья есть. Значит клинья — не статичные пропсы. С
+  учётом разделения из `XREngine.cpp::RenderModel` (`SKIP_PROPS` = TRIMESH
+  без скелета, `SKIP_CHARS` = TRIMESH со скелетом + MultiTriMesh)
+  остаются: скиннед-модели, классы `CUSTOM` (`CXR_Model_LaserBeam`,
+  `CXR_Model_Particles`, `CXR_Model_Flare`), BSP2 и не-модельная
+  геометрия (теневые объёмы, световые проходы).
+- `RIDDICK_NO_SCISSOR=1` — движковый scissor игнорируется, то есть
+  артефакт не связан с обрезкой и не маскируется ею. Заодно: у атрибутов
+  теневых объёмов scissor стоит (`WTriMesh.cpp:5092-5101`) исключительно
+  ради fill rate, на видимость он влиять не должен.
+- `RIDDICK_SKIP_CHARS=0` — персонажи рисовались. Самый дешёвый следующий
+  эксперимент: тот же прогон с `RIDDICK_SKIP_CHARS=1`. Если клинья
+  исчезают вместе с персонажами — источник в скиннед-ветке
+  (`CXR_Model_TriangleMesh` со скелетом, включая её теневые объёмы);
+  если остаются — искать среди `CUSTOM`-классов и не-модельных проходов.
+- `RIDDICK_DIFFUSE_ONLY=1` — все FP20-программы обходятся и аддитивный
+  бленд ИХ проходов гасится. Гашение бленда гейтится на наличие
+  FP20-ext-attrib, поэтому проходы БЕЗ него (в том числе теневые объёмы с
+  `CRC_RASTERMODE_ADD`) свой бленд сохраняют.
 
 ---
 
