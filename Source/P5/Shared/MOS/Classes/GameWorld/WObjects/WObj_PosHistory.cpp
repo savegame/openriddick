@@ -39,6 +39,17 @@ void CWO_PosHistory::LoadPath(const void* __pData, const CMat4Dfp32 &_Transform)
 	int32 nVersion = _pData[0];
 	SwapLE(nVersion);
 	int Version = nVersion & POSHISTORY_IDMASK;
+
+	// PC content writes version 1002 with the same layout as 1000 (see the
+	// enum in WObj_PosHistory.h for the byte-level evidence). Normalise the ID
+	// here so the dozen "GetVersion() == POSHISTORY_RESOURCEID" tests in
+	// CSequence keep working untouched; the flags bit is preserved.
+	if(Version == POSHISTORY_PC_RESOURCEID)
+	{
+		Version = POSHISTORY_RESOURCEID;
+		nVersion = (nVersion & ~POSHISTORY_IDMASK) | POSHISTORY_RESOURCEID;
+	}
+
 	if(Version == POSHISTORY_RESOURCEID || Version == POSHISTORY_PACKED_RESOURCEID)
 	{
 		m_Transform = _Transform;
@@ -605,6 +616,12 @@ int CPosHistory_EditData::Load(const void* __pData)
 
 	int Ver = _piData[0];
 	int VerID = Ver & POSHISTORY_IDMASK;
+	// Same normalisation as in CWO_PosHistory::LoadPath: 1002 is 1000's layout.
+	if (VerID == POSHISTORY_PC_RESOURCEID)
+	{
+		VerID = POSHISTORY_RESOURCEID;
+		Ver = (Ver & ~POSHISTORY_IDMASK) | POSHISTORY_RESOURCEID;
+	}
 	if (VerID == POSHISTORY_RESOURCEID || VerID == POSHISTORY_PACKED_RESOURCEID)
 	{
 		int nSeq = _piData[1];
