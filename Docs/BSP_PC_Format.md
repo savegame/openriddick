@@ -51,8 +51,13 @@ uint32 extra[2];           // НОВОЕ в 0x0204: индексы в LIGHTMAPRE
 
 Проверка полей по данным: `iiEdges == iiVertices`, `iSurface <` числа SURFACES
 модели, счётчик в старших 4 битах LightInfoIO. Поддержка добавлена во все
-четыре ридера: `CBSP_CoreFace::Read`, `CBSP2_CoreFace::Read`,
-`CBSP3_CoreFace::Read`, `CBSP4_CoreFace::Read` (кейс 0x0204 = 0x0203 + skip 8).
+пять ридеров: `CBSP_CoreFace::Read`, `CBSP2_CoreFace::Read`,
+`CBSP3_CoreFace::Read`, `CBSP4_CoreFace::Read` (кейс 0x0204 = 0x0203 + skip 8),
+а также `CXR_Model_BSP4Glass::ReadFaceMapping` (WBSP4GlassLoader.cpp) — glass
+из FACES нужен только `m_iMapping`, хвост из двух uint32 скипается после
+каждого фейса. Поведение подтверждено декомпилем MXR.dll (FUN_1019ec60,
+`MXR_dll_decomp.c:277722`): case 0x204 читает 0x28 (40) байт/фейс, `iMapping`
+(uint16) берётся по смещению 8, хвост игнорируется.
 
 Попутный баг снапшота: ветки 0x0203/0x0202 в BSP1 не присваивали считанный
 `m_iFrontMedium` — исправлено.

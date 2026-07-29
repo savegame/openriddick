@@ -348,6 +348,11 @@ void CXR_Model_BSP4Glass::ReadFaceMapping(const int& _nFaces, CCFile* _pFile, in
 {
 	switch(_Version)
 	{
+		case 0x0204:
+		// 0x0204 (PC world files): identical to 0x0203 plus two trailing
+		// uint32 (lightmap-atlas indices used by the PC renderer; unused
+		// by this engine snapshot). The extra 8 bytes are skipped after
+		// each face below.
 		case 0x0203:
 		{
 			struct
@@ -372,6 +377,12 @@ void CXR_Model_BSP4Glass::ReadFaceMapping(const int& _nFaces, CCFile* _pFile, in
 				_pFile->Read(&TempRead, sizeof(TempRead));
 				::SwapLE(TempRead.m_iMapping);
 				m_liFaceMapping[i] = TempRead.m_iMapping;
+
+				if(_Version == 0x0204)
+				{
+					uint32 lSkip[2];
+					_pFile->Read(lSkip, sizeof(lSkip));
+				}
 			}
 		}
 		break;
