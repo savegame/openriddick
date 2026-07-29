@@ -40,9 +40,55 @@ static void Linux_InstallCrashHandler()
 
 #define MOSMain_ShowError(Err) fprintf(stderr, "%s\n", (const char*)(Err))
 
+// Every RIDDICK_* switch this build knows about, printed at startup so a
+// log always states which diagnostics were actually compiled in and armed.
+// Reason this exists: a run whose flag produced no output is ambiguous --
+// it can mean "the flag did nothing" or "this binary predates the flag" --
+// and telling those apart cost two round-trips with the person running the
+// game. Now the banner answers it before the first frame.
+static void Linux_LogActiveDebugFlags()
+{
+	static const char* s_lNames[] =
+	{
+		// render
+		"RIDDICK_DBG_GL", "RIDDICK_DBG_VIEW", "RIDDICK_DBG_VPCALC", "RIDDICK_DBG_MVP",
+		"RIDDICK_DBG_SHADER", "RIDDICK_DBG_NDS", "RIDDICK_DBG_LFM", "RIDDICK_DBG_MODELS",
+		"RIDDICK_DBG_SURF", "RIDDICK_DBG_XTC", "RIDDICK_DBG_VP",
+		"RIDDICK_FP20", "RIDDICK_NDS", "RIDDICK_LFM", "RIDDICK_LFM_SCALE",
+		"RIDDICK_DIFFUSE_ONLY", "RIDDICK_NO_FOG", "RIDDICK_NO_SCISSOR", "RIDDICK_NO_LIGHT",
+		"RIDDICK_NO_VBCACHE", "RIDDICK_DIRECT_RENDER", "RIDDICK_CULL_MODE",
+		"RIDDICK_SKINNING", "RIDDICK_SKIP_SKINNED", "RIDDICK_SKIP_SHADOWVOL",
+		"RIDDICK_SKIP_CHARS", "RIDDICK_SKIP_PROPS", "RIDDICK_SKIP_SPRITES",
+		"RIDDICK_SKIP_SPOTVOL", "RIDDICK_SKIP_SKY", "RIDDICK_SKIP_PARTICLES",
+		"RIDDICK_ONLY_BSP", "RIDDICK_FORCE_TEX", "RIDDICK_ZPREPASS_COLOR",
+		// gameplay / scripts
+		"RIDDICK_DBG_USE", "RIDDICK_DBG_MSG", "RIDDICK_LOG_MSG",
+		// misc
+		"RIDDICK_STARTMAP",
+	};
+	const int nNames = (int)(sizeof(s_lNames) / sizeof(s_lNames[0]));
+
+	fprintf(stderr, "[FLAGS] active:");
+	int nOn = 0;
+	for (int i = 0; i < nNames; i++)
+	{
+		const char* v = getenv(s_lNames[i]);
+		if (v && *v && !(v[0] == '0' && v[1] == 0))
+		{
+			fprintf(stderr, " %s=%s", s_lNames[i], v);
+			++nOn;
+		}
+	}
+	if (!nOn)
+		fprintf(stderr, " (none)");
+	fprintf(stderr, "\n");
+	fflush(stderr);
+}
+
 int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 {
 	Linux_InstallCrashHandler();
+	Linux_LogActiveDebugFlags();
 	// -datapath <dir>: run the engine from the game-resource directory
 	// (the engine loads everything relative to the working directory,
 	// e.g. Content\, Environment.cfg, Sbz1/...)

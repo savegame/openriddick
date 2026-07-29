@@ -589,6 +589,30 @@ void CWObject_Character::OnPress()
 	{
 		if(ControlPress & CONTROLBITS_BUTTON0 && !(pCD->m_Disable & PLAYER_DISABLE_ACTIVATE) && bPlayerView)
 		{
+			// RIDDICK_DBG_USE: the press itself, logged BEFORE the pile of
+			// gating conditions below (fighting, dialogue, in-air, control
+			// mode, queued relative animation) and before target selection.
+			// Without this line a missing "[USE] tick=... -> obj" is
+			// ambiguous: it can mean the button never got here, a gate
+			// rejected it, or nothing was under the crosshair.
+			{
+				static int sDbgUsePress = -1;
+				if (sDbgUsePress < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_USE");
+					sDbgUsePress = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (sDbgUsePress)
+				{
+					fprintf(stderr, "[USE] press tick=%d fight=%d dlg=%d air=%d mode=%d\n",
+						(int)m_pWServer->GetGameTick(),
+						(int)pCD->m_iFightingCharacter,
+						(int)((m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE) != 0),
+						(int)pCD->m_Phys_bInAir,
+						(int)Char_GetControlMode(this));
+					fflush(stderr);
+				}
+			}
 			if(pCD->m_iFightingCharacter == -1 && !(m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE) &&
 				!pCD->m_Phys_bInAir && (Char_GetControlMode(this) == PLAYER_CONTROLMODE_FREE) && 
 				!pCD->m_RelAnimPos.HasQueued(pCD->m_GameTick))
