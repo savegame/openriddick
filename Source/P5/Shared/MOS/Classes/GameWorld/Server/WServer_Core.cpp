@@ -146,6 +146,23 @@ CWorld_ServerCore::CWorld_ServerCore()
 #ifndef M_RTM
 	m_bLogMessages = false;
 	m_bConsoleLogMessages = false;
+
+	// RIDDICK_LOG_MSG=1: turn on the engine's OWN script-message tracing.
+	// It is far better than anything we could bolt on: CWO_SimpleMessage::
+	// SendMessage builds a readable "to" string per message and prints
+	// "No such target! (<name>)" when the selection comes back empty
+	// (WObj_SimpleMessage.cpp:281-311), which is exactly the silent failure
+	// we are hunting -- a valve that animates while the door it targets
+	// never gets the message.
+	// Normally this is only reachable through AI debug command 27
+	// (AICore.cpp:20686), which needs a debug path we do not have wired.
+	// Guarded by #ifndef M_RTM upstream, and M_RTM is not defined for this
+	// target (Target_Linux_SDL2.h:65), so the tracing really is compiled in.
+	{
+		const char* e = getenv("RIDDICK_LOG_MSG");
+		if (e && *e && *e != '0')
+			m_bConsoleLogMessages = true;
+	}
 #endif
 
 #ifdef	SERVER_STATS

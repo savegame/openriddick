@@ -285,6 +285,18 @@
   вообще. Проверено прогоном 2026-07-29 (`Pa1_TheDream`): мир, управление,
   широкоэкранные полосы и winding корректны.
 
+- **DBG** `RIDDICK_LOG_MSG=1` (`WServer_Core.cpp`, конструктор
+  `CWorld_ServerCore`) — включает СОБСТВЕННУЮ трассировку скриптовых
+  сообщений движка (`m_bConsoleLogMessages`). Она сильно лучше самодельной:
+  `CWO_SimpleMessage::SendMessage` формирует читаемую строку «кому» на
+  каждое сообщение и печатает `No such target! (<имя>)`, когда выборка
+  пустая (`WObj_SimpleMessage.cpp:281-311`) — ровно тот немой отказ, что мы
+  ищем. Штатно включается только AI-debug командой 27
+  (`AICore.cpp:20686`), путь к которой у нас не проброшен. Блок логирования
+  под `#ifndef M_RTM`, а `M_RTM` для этого таргета не определён
+  (`Target_Linux_SDL2.h:65`), так что трассировка действительно
+  скомпилирована.
+
 - **DBG** `RIDDICK_DBG_MSG=1` (`WServer_Core.cpp`,
   `CWorld_ServerCore::Message_SendToTarget`) — сообщает о целях, которые
   разрешились в НОЛЬ объектов: `[MSG] target hash=0x… UNRESOLVED (0 objects)
