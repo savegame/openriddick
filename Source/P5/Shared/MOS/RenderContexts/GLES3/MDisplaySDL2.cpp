@@ -2615,6 +2615,8 @@ public:
 				m_DbgVBBLogArm   = 32;
 				m_DbgDrawLogArm  = 32;
 				m_DbgDrawPostArm = 32;
+				const char* e = getenv("RIDDICK_DBG_MVP");
+				m_MvpLog = e ? atoi(e) : 0;
 				fprintf(stderr, "[GL-DBG] F10: VBB+DRAW logs armed (next 32 draws)\n");
 			}
 			s_PrevF10 = F10;
@@ -5475,15 +5477,9 @@ public:
 			// the first dump. See Docs/Research_CameraMirror_Report.md: the
 			// static claim is det(Proj3x3) < 0 (baked Y-flip), det(Model) > 0
 			// with the camflip hack removed, < 0 with it.
-			static int sMvpLog = -1;
-			if (sMvpLog < 0)
+			if (m_MvpLog > 0 && !bUI)
 			{
-				const char* e = getenv("RIDDICK_DBG_MVP");
-				sMvpLog = e ? atoi(e) : 0;
-			}
-			if (sMvpLog > 0 && !bUI)
-			{
-				--sMvpLog;
+				--m_MvpLog;
 				static int sMvpDumpedFull = 0;
 				auto Det3 = [](const CMat4Dfp32& M) -> fp32 {
 					return M.k[0][0]*(M.k[1][1]*M.k[2][2] - M.k[1][2]*M.k[2][1])
@@ -5672,6 +5668,7 @@ public:
 		// Independent counter so both logs run to completion.
 		int    m_DbgDrawLogArm   = 0;
 		int    m_DbgDrawPostArm  = 0;   // post-uniform outcome for same draws
+		int    m_MvpLog = 0; // MVP log by F10
 
 		// Geometry dumper: on RIDDICK_DUMP_OBJ=<dir>, writes each unique
 		// drawn mesh to <dir>/geom_XXXX.obj. Keyed by nV + first-vertex
