@@ -689,6 +689,46 @@ void CWObject_Character::OnPress()
 					}
 				}
 
+				// RIDDICK_DBG_USE: what the selection actually produced, and
+				// -- if it produced something -- the value of every term in
+				// the gate below. The 2026-07-29 Pa1_Pit run had 16
+				// "[USE] press" lines with all outer gates open and NOT ONE
+				// "[USE] ... -> obj", so the chain dies either here (nothing
+				// selected) or in that gate. These two lines tell which.
+				//
+				// Watch the last term in particular:
+				//   (pCDTarget ? !...ISSLEEPING : false)
+				// When the target is NOT a character, pCDTarget is NULL and
+				// the whole condition evaluates to FALSE -- i.e. as written,
+				// using any non-character object (valve, lever, door) can
+				// never pass. Whether that is the real behaviour depends on
+				// what GetClientData() returns for a non-character, which is
+				// exactly what tgtCD below reports.
+				{
+					static int sDbgUseSel = -1;
+					if (sDbgUseSel < 0)
+					{
+						const char* e = getenv("RIDDICK_DBG_USE");
+						sDbgUseSel = (e && *e && *e != '0') ? 1 : 0;
+					}
+					if (sDbgUseSel)
+					{
+						CWObject* pT = (iBest != -1) ? m_pWServer->Object_Get(iBest) : NULL;
+						CWO_Character_ClientData* pTCD = pT ? GetClientData(pT) : NULL;
+						fprintf(stderr,
+							"[USE] select iBest=%d name='%s' focusType=0x%x darkMask=%d "
+							"lastPress=%d tick=%d cutscene=%d tgtCD=%s\n",
+							iBest, pT ? CFStr(pT->GetName()).Str() : "<none>",
+							(unsigned)pCD->m_FocusFrameType,
+							(int)((pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_NOUSEMASK) != 0),
+							(int)m_Player.m_LastInfoscreenPress,
+							(int)m_pWServer->GetGameTick(),
+							(int)m_PendingCutsceneTick,
+							pTCD ? "yes" : "NULL");
+						fflush(stderr);
+					}
+				}
+
 				if (iBest != -1)
 				{
 					// Never allow to enter many screens at once
