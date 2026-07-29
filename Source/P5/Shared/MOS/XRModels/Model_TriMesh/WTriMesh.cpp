@@ -1156,7 +1156,18 @@ void CXR_Model_TriangleMesh::Cluster_Render(CTriMesh_RenderInstanceParamters* _p
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// m_nIBPrim counts INDICES, Render_IndexedTriangles wants TRIANGLES.
+			// The VBID branch a few lines up already divides (see the
+			// Render_VertexBuffer_IndexBufferTriangles call), and the engine
+			// itself divides everywhere else it derives a triangle count from
+			// this field (:318, :7490). Without the /3 the draw reads three
+			// times the indices that belong to this cluster: first the
+			// neighbouring clusters of the same mesh, then past the end of
+			// the index array. Latent in the shipped build -- that one always
+			// took the VBID/hardware path; this CPU branch is the only one we
+			// have, because the GLES3 backend does not advertise
+			// CRC_CAPS_FLAGS_MATRIXPALETTE and so bHWAnim stays false.
 		}
 		else
 			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -1411,7 +1422,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderProjLight(CTriMesh_RenderInstancePara
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 		}
 		else
 			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -1819,7 +1831,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderUnified(CTriMesh_RenderInstanceParamt
 			else if(_pC->m_nIBPrim)
 			{
 				CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 			}
 			else
 				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -2726,7 +2739,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderSingleColor(CTriMesh_RenderInstancePa
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			VB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			VB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 		}
 		else
 			VB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
