@@ -2285,6 +2285,14 @@ public:
 		// DrawCachedVB flush fixes. Counted in ApplyAttribs, i.e. per state
 		// application rather than per draw.
 		int  m_DbgColorWriteOff = 0;
+		// Draws whose texgen channel 0 asks for CRC_TEXGENMODE_SHADOWVOLUME or
+		// _SHADOWVOLUME2, printed as "svol=N". That mode is set by exactly one
+		// place -- the TriMesh stencil shadow-volume pass
+		// (WTriMesh.cpp:5121-5124) -- so this is a direct "are character
+		// shadow volumes being drawn at all" readout. We do not implement the
+		// vertex extrusion that mode drives, so a non-zero svol means we are
+		// putting un-extruded volume geometry into the stencil buffer.
+		int  m_DbgShadowVolDraws = 0;
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2537,6 +2545,7 @@ public:
 			m_DbgMI0Draws = 0;
 			m_DbgStreamMI0Draws = 0;
 			m_DbgColorWriteOff = 0;
+			m_DbgShadowVolDraws = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2623,13 +2632,13 @@ public:
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d svol=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws, m_DbgColorWriteOff,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws, m_DbgColorWriteOff, m_DbgShadowVolDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -3047,6 +3056,13 @@ public:
 				}
 				else if (RawMode != CRC_TEXGENMODE_TEXCOORD)
 				{
+					// Shadow-volume texgen on channel 0: count it (svol=N in
+					// [GL-DBG]). Set only by WTriMesh.cpp:5121-5124, so it
+					// identifies the character shadow-volume pass exactly.
+					if (iTxt == 0 &&
+					    (RawMode == CRC_TEXGENMODE_SHADOWVOLUME ||
+					     RawMode == CRC_TEXGENMODE_SHADOWVOLUME2))
+						++m_DbgShadowVolDraws;
 					DbgNoteTexGenMode(RawMode, iTxt);
 				}
 

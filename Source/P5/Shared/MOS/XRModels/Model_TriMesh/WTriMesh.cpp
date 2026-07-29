@@ -5615,7 +5615,28 @@ bAnim = false;
 #endif
 	}
 
+	// RIDDICK_SKIP_SHADOWVOL=1 -- drop character stencil shadow volumes.
+	// Without the shadow prim-data CullCluster rejects the SW shadow-volume
+	// clusters outright (:4893-4894), so nothing is drawn AND the silhouette
+	// CPU work is skipped. BSP2 world shadows are a separate path
+	// (WBSP2Light.cpp) and are unaffected.
+	// Why this exists: the volume index lists deliberately address a DOUBLED
+	// vertex buffer -- caps use `... + nRealVBV` (:4312-4314) and edge quads
+	// mix iv0/iv1 with iv0+nRealVBV/iv1+nRealVBV (:4336-4351) -- but the
+	// doubling is only done on the VBID/hardware path (:8247-8306), which
+	// skinned meshes never take here (bHWAnim=false, :5443), while on the CPU
+	// path both the doubling and the extrusion are commented out
+	// (:5789, :5807-5808). So the draw indexes past the end of the vertex
+	// array. Diagnostic switch until that is fixed properly.
+	static int s_SkipShadowVol = -1;
+	if (s_SkipShadowVol < 0)
+	{
+		const char* pEnvSSV = getenv("RIDDICK_SKIP_SHADOWVOL");
+		s_SkipShadowVol = (pEnvSSV && *pEnvSSV && *pEnvSSV != '0') ? 1 : 0;
+	}
+
 	if (m_spShadowData && 
+		!s_SkipShadowVol &&
 		RenderParams.m_bRender_Unified && 
 		!(RenderParams.m_RenderInfo.m_Flags & CXR_RENDERINFO_NOSHADOWVOLUMES) &&
 		!(RenderParams.m_OnRenderFlags & CXR_MODEL_ONRENDERFLAGS_NOSHADOWS) &&
