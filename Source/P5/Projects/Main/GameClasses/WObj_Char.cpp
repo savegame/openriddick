@@ -8,6 +8,11 @@
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 
+#ifdef PLATFORM_LINUX
+#include <stdio.h>   // RIDDICK_DBG_USE diagnostic
+#include <stdlib.h>
+#endif
+
 #include "WObj_Char.h"
 #include "../GameWorld/WClientMod_Defines.h"
 #include "WObj_Game/WObj_GameMod.h"
@@ -672,7 +677,29 @@ void CWObject_Character::OnPress()
 					if(!(pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_NOUSEMASK) && m_Player.m_LastInfoscreenPress < int(m_pWServer->GetGameTick()) - 5 
 						&& m_PendingCutsceneTick == -1 && (pCDTarget ? !pCDTarget->m_AnimGraph2.GetPropertyBool(PROPERTY_BOOL_ISSLEEPING) : false)) 
 					{
-						//M_TRACEALWAYS(CStrF("%i. OnUse %s", m_pWServer->GetGameTick(), pTarget->GetName()));
+						// RIDDICK_DBG_USE=1: the original author's own trace,
+						// revived behind an env flag. It answers the first
+						// question of any "I pressed use and nothing
+						// happened" report: did the use even reach an
+						// object, and which one. Everything downstream
+						// (OBJMSG_CHAR_USE -> the object's OnMessage ->
+						// whatever SimpleMessage it fires) only matters if
+						// this line appears.
+						{
+							static int sDbgUse = -1;
+							if (sDbgUse < 0)
+							{
+								const char* e = getenv("RIDDICK_DBG_USE");
+								sDbgUse = (e && *e && *e != '0') ? 1 : 0;
+							}
+							if (sDbgUse)
+							{
+								fprintf(stderr, "[USE] tick=%d -> obj %d '%s'\n",
+									(int)m_pWServer->GetGameTick(), iBest,
+									pTarget ? CFStr(pTarget->GetName()).Str() : "<null>");
+								fflush(stderr);
+							}
+						}
 						m_Player.m_LastInfoscreenPress = m_pWServer->GetGameTick();
 						CWObject_Message Msg(OBJMSG_CHAR_USE);
 						Msg.m_iSender = m_iObject;

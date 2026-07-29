@@ -161,7 +161,15 @@ CWorld_ServerCore::CWorld_ServerCore()
 	{
 		const char* e = getenv("RIDDICK_LOG_MSG");
 		if (e && *e && *e != '0')
+		{
 			m_bConsoleLogMessages = true;
+			// Print a marker so a run can be told apart from one built
+			// before this flag existed: a log with the flag set but WITHOUT
+			// this line simply predates the feature. Cost us a round-trip
+			// once already.
+			fprintf(stderr, "[MSG] script message logging ON (RIDDICK_LOG_MSG)\n");
+			fflush(stderr);
+		}
 	}
 #endif
 
