@@ -2816,10 +2816,16 @@ public:
 				(int)m_pCurAttrib->m_TextureID[10], (int)m_pCurAttrib->m_TextureID[11],
 				(int)m_pCurAttrib->m_TextureID[12], (int)m_pCurAttrib->m_TextureID[13],
 			};
-			if (!TexLFM_ID[0] || !TexLFM_ID[1] || !TexLFM_ID[2] || !TexLFM_ID[3])
+			// Validate all four IDs without throwing: a non-zero garbage ID
+			// (stale attribs, out-of-bounds lightmap info) passes a plain
+			// !=0 check but makes GetTexture() Error() further down.
+			for (int i = 0; i < 4; ++i)
 			{
-				DbgLogLFMFallback("CRC_Attributes::m_TextureID[10..13] not all populated");
-				return false;
+				if (!TextureID_IsValidTC(TexLFM_ID[i]))
+				{
+					DbgLogLFMFallback("invalid texture ID in channels 10..13 (garbage lightmap info?)");
+					return false;
+				}
 			}
 
 			GLuint LFM[4];
@@ -2839,8 +2845,8 @@ public:
 			// failure there behaves like everywhere else (placeholder
 			// texture handed back, one-time [GLES3-TEX-FAIL] log) instead
 			// of a second bespoke failure path.
-			const GLuint TDiffuse = TexDiffuseID ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
-			const GLuint TNormal  = TexNormalID  ? TextureID_EnsureUploaded(TexNormalID)  : 0;
+			const GLuint TDiffuse = TextureID_IsValidTC(TexDiffuseID) ? TextureID_EnsureUploaded(TexDiffuseID) : 0;
+			const GLuint TNormal  = TextureID_IsValidTC(TexNormalID)  ? TextureID_EnsureUploaded(TexNormalID)  : 0;
 
 			// Log the first few DISTINCT lightmap sets, not just the very
 			// first draw: a single sample turned out to be misleading --
@@ -3793,6 +3799,18 @@ public:
 		{
 			if (_TextureID < 0 || _TextureID >= m_lTexFmt.Len()) return false;
 			return m_lTexFmt[_TextureID] == (uint32)IMAGE_FORMAT_I8A8;
+		}
+
+		// Non-throwing validity check against the texture context.
+		// CTextureContext::GetTexture() Error()s (throws) on a garbage ID,
+		// and corrupt lightmap info once fed us exactly that in the LFM
+		// channels (Pa1_Arrival, 2026-07-29) -- gate before EnsureUploaded.
+		// IsValidID itself indexes m_lTxtIDInfo unchecked, hence the
+		// GetIDCapacity() pre-check (capacity == m_lTxtIDInfo.Len()).
+		bool TextureID_IsValidTC(int _TextureID) const
+		{
+			if (!m_pTC || _TextureID <= 0 || _TextureID >= m_pTC->GetIDCapacity()) return false;
+			return m_pTC->IsValidID(_TextureID);
 		}
 
 		GLuint TextureID_EnsureUploaded(int _TextureID)

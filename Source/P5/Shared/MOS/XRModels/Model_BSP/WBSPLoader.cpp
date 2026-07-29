@@ -2266,7 +2266,10 @@ void CXR_Model_BSP::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, con
 			int Version = _pDFile->GetUserData2();
 			if(Version == 0) Version = 2;	// Patch to get old maps working
 			m_lLightMapInfo.SetLen(nLightMapInfo);
-			if(Version == XW_LIGHTMAPINFO_VERSION)
+			// Same as the BSP2 loader: PC files carry version 5 (retail raw-
+			// dumps it; v5 layout == v4 layout). Raw-dump v4 and up so an
+			// unknown version never leaves the array uninitialized.
+			if(Version >= XW_LIGHTMAPINFO_VERSION)
 			{
 				M_ASSERT(m_lLightMapInfo.ListSize() == _pDFile->GetEntrySize(), "!");
 				pFile->Read(m_lLightMapInfo.GetBasePtr(), m_lLightMapInfo.ListSize());

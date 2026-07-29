@@ -912,17 +912,25 @@ void CXR_Model_BSP2::Tesselate(const uint32* _piFaces, int _nFaces, int _nV, CVe
 			if (bUseLM && pLMTV)
 			{
 				int iLM = pF->m_iLightInfo;
-				pLMI = &m_lLightMapInfo[iLM];
-				int iLMC = m_lLightMapInfo[iLM].m_iLMC * 4;
+				// Per-face clamp, same invariant as PrepareVertexBuffer:
+				// never index m_lLightMapInfo/m_lLMDimensions out of bounds.
+				// On rejection pLMI stays NULL and the fallback below maps
+				// pLMTV to the diffuse UVs.
+				if (iLM >= 0 && (aint)iLM < (aint)m_lLightMapInfo.Len() &&
+					(aint)(m_lLightMapInfo[iLM].m_iLMC * 4) < (aint)m_lLMDimensions.Len())
+				{
+					pLMI = &m_lLightMapInfo[iLM];
+					int iLMC = m_lLightMapInfo[iLM].m_iLMC * 4;
 
-				LMWidth = pLMI->m_LMCWidthHalf*2;
-				LMHeight= pLMI->m_LMCHeightHalf*2;
+					LMWidth = pLMI->m_LMCWidthHalf*2;
+					LMHeight= pLMI->m_LMCHeightHalf*2;
 
-				InvLMScale = 1.0f / (1 << pLMI->m_ScaleShift);
-				TxtWidthInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].x);
-				TxtHeightInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].y);
-//				MidPixelAdjustLM = MidPixelAdjust*LMScale;
-				MidPixelAdjustLM = 0.5f;
+					InvLMScale = 1.0f / (1 << pLMI->m_ScaleShift);
+					TxtWidthInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].x);
+					TxtHeightInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].y);
+//					MidPixelAdjustLM = MidPixelAdjust*LMScale;
+					MidPixelAdjustLM = 0.5f;
+				}
 			}
 
 			fp32 lUProj[CRC_MAXPOLYGONVERTICES];
@@ -2444,7 +2452,11 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 					while((iInner + nLFMBatch < nShadingQueue) && (iLMTexture == pQueues[liShadingQueue[iInner + nLFMBatch]].m_iLMTexture))
 						nLFMBatch++;
 
-					if (iLMTexture != -1)
+					// Cheap insurance against a garbage queue lightmap
+					// index: keep it inside m_lLMTextureIDs (4 pages per
+					// cluster) before handing &m_lLMTextureIDs[iLMTexture*4]
+					// to CreateLFM.
+					if (iLMTexture != -1 && (aint)(iLMTexture + 1) * 4 <= (aint)m_lLMTextureIDs.Len())
 					{
 						CXR_ShaderParams_LightFieldMapping LFMParams;
 						LFMParams.CreateLFM(_pRenderParams->m_pVBMatrixM2W, _pRenderParams->m_pVBMatrixW2V, &m_lLMTextureIDs[iLMTexture*4], 3, 4);

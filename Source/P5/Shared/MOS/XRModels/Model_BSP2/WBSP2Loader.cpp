@@ -466,8 +466,31 @@ void CXR_Model_BSP2::PrepareVertexBuffer(uint32* _piFaces, int _nFaces, int& _iV
 #ifndef IGNORE_LIGHTMAP
 		if (m_spLMTC != NULL && m_lLMDimensions.Len() && m_lLMTextureIDs.Len())
 		{
-			iLMC = (m_lFaces[_piFaces[0]].m_Flags & XW_FACE_LIGHTMAP) ? 
-					m_lLightMapInfo[m_lFaces[_piFaces[0]].m_iLightInfo].m_iLMC : -1;
+			if (m_lFaces[_piFaces[0]].m_Flags & XW_FACE_LIGHTMAP)
+			{
+				int iLMI = m_lFaces[_piFaces[0]].m_iLightInfo;
+				// Validate before trusting the index: a LIGHTMAPINFO2 chunk
+				// our reader doesn't understand leaves the array
+				// uninitialized, and a garbage m_iLMC later indexes
+				// m_lLMTextureIDs out of bounds -> garbage texture IDs
+				// (Pa1_Arrival crash, 2026-07-29).
+				if (iLMI >= 0 && (aint)iLMI < (aint)m_lLightMapInfo.Len())
+				{
+					iLMC = m_lLightMapInfo[iLMI].m_iLMC;
+					if ((aint)(iLMC + 1) * 4 > (aint)m_lLMTextureIDs.Len())
+						iLMC = -1;
+				}
+				if (iLMC < 0)
+				{
+					static int sLMIRejected = 0;
+					if (!sLMIRejected)
+					{
+						sLMIRejected = 1;
+						fprintf(stderr, "[BSP2-LM] rejected lightmap ref: iLMI=%d nLMI=%d nLMIDs=%d\n",
+							iLMI, (int)m_lLightMapInfo.Len(), (int)m_lLMTextureIDs.Len());
+					}
+				}
+			}
 		}
 #endif
 		iSurf = m_lFaces[_piFaces[0]].m_iSurface;
@@ -2699,8 +2722,13 @@ void CXR_Model_BSP2::Create(const char* _pParam, CDataFile* _pDFile, CCFile*, co
 			int nLightMapInfo = _pDFile->GetUserData();
 			int Version = _pDFile->GetUserData2();
 			if(Version == 0) Version = 2;	// Patch to get old maps working
-			m_lLightMapInfo.SetLen(nLightMapInfo); 
-			if(Version == XW_LIGHTMAPINFO_VERSION)
+			m_lLightMapInfo.SetLen(nLightMapInfo);
+			// PC files carry version 5 (retail MXR raw-dumps exactly v5; its
+			// per-element case 5 reads the same 8-byte layout as v4, only
+			// skipping the v3 Log2 fixup). Raw-dump v4 and up: a version the
+			// per-element Read() doesn't know would otherwise leave the
+			// array uninitialized -> garbage m_iLMC -> OOB texture IDs.
+			if(Version >= XW_LIGHTMAPINFO_VERSION)
 			{
 				M_ASSERT(m_lLightMapInfo.ListSize() == _pDFile->GetEntrySize(), "!");
 				pFile->Read(m_lLightMapInfo.GetBasePtr(), m_lLightMapInfo.ListSize());
