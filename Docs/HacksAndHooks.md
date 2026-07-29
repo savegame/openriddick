@@ -1025,6 +1025,28 @@
   advance, потому что объект может удалить сам себя в OnClientRefresh
   (SIGSEGV на Pa1_Pit) (c9d6e2d).
 
+### Guard'ы в AnimGraph2 state instance
+
+- **KEEP** `WAG2I_StateInst.cpp` — во всей группе методов
+  (`GetAnimLayers`, `GetValueCompareLayers`, `GetAnimLayerSeqs`,
+  `GetEventLayers`, `GetSpecificAnimLayer`, `HasSpecificAnimation`,
+  `EnterState_InitSyncVelocity/InitSyncAnims/AdaptiveTimeScale`,
+  `FindBreakoutSequence`, `GetLoopTimeScale`) результат
+  `GetAnimGraph()/GetState()/GetAnimLayer()` проверялся только
+  `M_ASSERT`, а разыменовывался безусловно. `M_ASSERT` печатает и
+  продолжает, `CXRAG2::GetState()` штатно возвращает NULL для индекса вне
+  диапазона → гарантированный SIGSEGV. Именно так падает Pa1_Pit:
+  `OnClientRender` (поток пула) → `Char_GetAnimLayers` →
+  `GetAnimLayers` → `CXRAG2_State::GetBaseAnimLayerIndex()` с this=NULL.
+- **FIX** там же — `UnpackSIP()` и `OnClientUpdate()` перезаписывают
+  `m_iState` из move-токена, но при неразрешимом состоянии оставляли
+  `m_bHasAnimation` от предыдущего состояния; теперь флаг сбрасывается —
+  рендер-путь больше не считает, что анимацию надо доставать.
+- **DBG** там же — `AG2_ReportBadState()` печатает `[AG2] <метод>: state
+  not found -- iAnimGraph=.. iState=.. nStates=.. ag='..'` (первые 32
+  случая). Если `nStates=0` — ресурс анимграфа не загрузился; если
+  `nStates>0`, а `iState` вне диапазона — индекс от другого анимграфа.
+
 ### BSP2 PVS диагностика
 
 - **DBG** `WBSP2Loader.cpp` — разовый log `[BSP2] PVS entries: N`. Если

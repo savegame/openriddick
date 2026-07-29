@@ -1,5 +1,7 @@
 #include "PCH.h"
 
+#include <stdio.h>	// AG2_ReportBadState() logs to stderr
+
 //--------------------------------------------------------------------------------
 
 #ifdef	AG2_DEBUG
@@ -9,6 +11,41 @@ static bool bDebug = false;
 
 #define DEFAULT_INVBLENDINDURATION	(0.0f)
 #define DEFAULT_INVBLENDOUTDURATION	(0.0f)
+
+//--------------------------------------------------------------------------------
+// Linux-port hardening: invalid (animgraph, state) pairs must not be fatal.
+//
+// A dozen places below fetch the state description with nothing but an
+// M_ASSERT and then dereference the result unconditionally.  M_ASSERT only
+// prints and continues, and CXRAG2::GetState() legitimately returns NULL for
+// an out-of-range index, so such a pair is a plain SIGSEGV -- which is what
+// happens in Pa1_Pit, on a render worker thread inside
+// CWObject_Character::OnClientRender -> ... -> GetAnimLayers().
+//
+// Two ways the pair goes bad:
+//  * the animgraph resource failed to load, so it has zero states while the
+//    state index stayed at whatever the previous animgraph handed out;
+//  * UnpackSIP()/OnClientUpdate() overwrite m_iState from the move token but
+//    leave m_bHasAnimation set from the previous state when the new state
+//    does not resolve -- so the render path believes there is animation to
+//    fetch and walks straight into the NULL.
+// The second one is fixed at the source (both sites now clear the flag), the
+// first can only be diagnosed from a log: AG2_ReportBadState() prints the
+// animgraph name and its state count, so an empty resource is recognisable.
+static void AG2_ReportBadState(const char* _pWhere, const CXRAG2* _pAnimGraph, int _iAnimGraph, int _iState)
+{
+	static int s_nReported = 0;
+	if (s_nReported >= 32)
+		return;
+	++s_nReported;
+
+	CXRAG2* pAG = (CXRAG2*)_pAnimGraph;	// GetName()/GetNumStates() are non-const
+	fprintf(stderr, "[AG2] %s: state not found -- iAnimGraph=%d iState=%d nStates=%d ag='%s'\n",
+		_pWhere, _iAnimGraph, _iState,
+		pAG ? (int)pAG->GetNumStates() : -1,
+		pAG ? pAG->GetName().Str() : "<null>");
+	fflush(stderr);
+}
 
 #define PROPERTY_BOOL_GUNPLAYDISABLED 19
 #define CHAR_STATEFLAG_LAYERADJUSTFOROFFSET	0x01000000
@@ -283,6 +320,8 @@ fp32 CWAG2I_StateInstance::GetLoopTimeScale(const CWAG2I_Context* _pContext) con
 
 	const CXRAG2_AnimLayer* pAnimLayer = m_pAG2I->GetAnimLayer(pState->GetBaseAnimLayerIndex() + m_iLoopControlAnimLayer,m_iAnimGraph);
 	M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetLoopTimeScale: INVALID ANIMLAYER");
+	if (!pAnimLayer)
+		return 1.0f;
 
 	return pAnimLayer->GetTimeScale();
 }
@@ -379,8 +418,10 @@ void CWAG2I_StateInstance::FindBreakoutSequence(const CWAG2I_Context* _pContext,
 		return;
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return;
 	const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(pState->GetBaseAnimLayerIndex());
-	if (pAnimLayer && pAnimGraph && (pState->GetNumAnimLayers() > 0))
+	if (pAnimLayer && (pState->GetNumAnimLayers() > 0))
 	{
 		int16 iAnim = pAnimLayer->GetAnimIndex();
 
@@ -432,13 +473,21 @@ void CWAG2I_StateInstance::EnterState_InitSyncVelocity(const CWAG2I_Context* _pC
 	// For primary animation check what speed it has in the end and match state timescale to it
 	const CXRAG2* pAG = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAG,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID ANIMGRAPH");
+	if (!pAG)
+		return;
 	const CXRAG2_State* pState = pAG->GetState(m_iState);
-	M_ASSERT(pAG,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID STATE");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_InitSyncVelocity", pAG, m_iAnimGraph, m_iState);
+		return;
+	}
 	if (!pState->GetNumAnimLayers())
 		return;
 
 	const CXRAG2_AnimLayer* pAnimLayer = m_pAG2I->GetAnimLayer(pState->GetBaseAnimLayerIndex() + m_iLoopControlAnimLayer,m_iAnimGraph);
 	M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID ANIMLAYER");
+	if (!pAnimLayer)
+		return;
 	const CXR_Anim_SequenceData* pAnimLayerSeq = pAG->GetAnimSequenceData(_pContext->m_pWorldData, pAnimLayer->GetAnimIndex());
 	if (!pAnimLayerSeq)
 		return;
@@ -474,8 +523,14 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	// Assumes state init correctly
 	m_bHasSyncAnim = true;
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState,"CWAG2I_StateInstance::EnterState_InitSyncAnims State invalid");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_InitSyncAnims", pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 	// Make sure we have 2 animations in this state
 	if (pState->m_nAnimLayers < 2)
 		return false;
@@ -484,6 +539,8 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	const CXRAG2_AnimLayer* pLayer1 = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer);
 	const CXRAG2_AnimLayer* pLayer2 = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer+1);
 	M_ASSERT(pLayer1 && pLayer2,"CWAG2I_StateInstance::EnterState_InitSyncAnims Animations invalid");
+	if (!pLayer1 || !pLayer2)
+		return false;
 	// Anim might not be cached
 	const CXR_Anim_SequenceData* pAnimLayerSeq1 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer1->m_iAnim);
 	const CXR_Anim_SequenceData* pAnimLayerSeq2 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer2->m_iAnim);
@@ -641,15 +698,25 @@ void CWAG2I_StateInstance::GetSyncAnimTime(const CWAG2I_Context* _pContext, int3
 bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _pContext)
 {
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale State invalid");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_AdaptiveTimeScale", pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	// Get animation
 	const CXRAG2_AnimLayer* pLayer = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer);
 	M_ASSERT(pLayer,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale Animation invalid");
+	if (!pLayer)
+		return false;
 	// Anim might not be cached
 	const CXR_Anim_SequenceData* pAnimLayerSeq1 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer->m_iAnim);
 	M_ASSERT(pAnimLayerSeq1,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale Animation invalid");
+	if (!pAnimLayerSeq1)
+		return false;
 
 	// Set "global" timescale for both layers (get from first layer)
 	m_bHasAdaptiveTimeScale = true;
@@ -1019,6 +1086,14 @@ void CWAG2I_StateInstance::UnpackSIP(const CWAG2I_Context* _pContext, const CWAG
 	m_iAnimGraph = _pSIP->GetAnimGraphIndex();
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+	{
+		// Nothing below can run without the graph, and m_bHasAnimation must
+		// not stay set from the previous state -- the render path would then
+		// walk into GetAnimLayers() with an unresolvable state.
+		m_bHasAnimation = false;
+		return;
+	}
 
 	//const CXRAG2_Action* pEnterAction = m_pAG2I->GetAction(m_iEnterAction);
 	const CXRAG2_MoveToken* pMoveToken = m_pAG2I->GetMoveToken(m_iEnterMoveToken, m_iAnimGraph);
@@ -1058,6 +1133,14 @@ void CWAG2I_StateInstance::UnpackSIP(const CWAG2I_Context* _pContext, const CWAG
 				EnterState_InitSyncAnims(_pContext);
 
 			m_Priority = pState->GetPriority();
+		}
+		else
+		{
+			// m_iState was just overwritten from the move token and does not
+			// resolve in this animgraph.  Leaving m_bHasAnimation set would
+			// let the render thread dereference the NULL state.
+			AG2_ReportBadState("UnpackSIP", pAnimGraph, m_iAnimGraph, m_iState);
+			m_bHasAnimation = false;
 		}
 
 		if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) != 0)
@@ -1188,7 +1271,7 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 		M_ASSERT(pAnimGraph,"Invalid animgraph");
 		// If entermovetoken is present, setup the rest
 		const CXRAG2_MoveToken* pMoveToken = m_pAG2I->GetMoveToken(m_iEnterMoveToken, m_iAnimGraph);
-		if (pMoveToken)
+		if (pMoveToken && pAnimGraph)
 		{
 			m_Enter_AnimBlendDuration = pMoveToken->GetAnimBlendDuration();
 			m_Enter_AnimBlendDelay = pMoveToken->GetAnimBlendDelay();
@@ -1225,6 +1308,14 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 
 				m_Priority = pState->GetPriority();
 			}
+			else
+			{
+				// Same as in UnpackSIP: an unresolvable state must clear the
+				// "has animation" flag, otherwise the client render path
+				// dereferences NULL.
+				AG2_ReportBadState("OnClientUpdate", pAnimGraph, m_iAnimGraph, m_iState);
+				m_bHasAnimation = false;
+			}
 
 			if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) != 0)
 			{
@@ -1258,7 +1349,7 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 		const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 		M_ASSERT(pAnimGraph,"Invalid animgraph");
 		// If leavemovetoken is present, setup the rest
-		const CXRAG2_MoveToken* pLeaveMoveToken = pAnimGraph->GetMoveToken(m_iLeaveMoveToken);
+		const CXRAG2_MoveToken* pLeaveMoveToken = pAnimGraph ? pAnimGraph->GetMoveToken(m_iLeaveMoveToken) : NULL;
 		if (pLeaveMoveToken)
 		{
 			m_Leave_AnimBlendDuration = pLeaveMoveToken->GetAnimBlendDuration();
@@ -1570,9 +1661,15 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1630,6 +1727,8 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayers : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		// Check if it's a "grip" layer
 		CAG2AnimFlags Flags = pAnimLayer->GetAnimFlags();
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1726,9 +1825,15 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1785,6 +1890,8 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1865,9 +1972,15 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1882,6 +1995,8 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1964,9 +2079,15 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1988,6 +2109,8 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -2085,8 +2208,14 @@ bool CWAG2I_StateInstance::GetSpecificAnimLayer(const CWAG2I_Context* _pContext,
 
 	CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return false;
@@ -2194,8 +2323,14 @@ bool CWAG2I_StateInstance::HasSpecificAnimation(int32 _iAnim) const
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid State");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return false;
