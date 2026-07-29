@@ -2293,6 +2293,18 @@ public:
 		// vertex extrusion that mode drives, so a non-zero svol means we are
 		// putting un-extruded volume geometry into the stencil buffer.
 		int  m_DbgShadowVolDraws = 0;
+		// RIDDICK_DBG_VIEW: everything that can blank part of the frame,
+		// gathered in one line so scissor / viewport / FBO composition can be
+		// told apart instead of guessed at (the "left half of the screen is
+		// black, and turning the camera blacks out the rest" report). Reset
+		// with the other [GL-DBG] counters.
+		int m_DbgVPx0 = 0, m_DbgVPy0 = 0, m_DbgVPx1 = 0, m_DbgVPy1 = 0; // last BeginScene view area (engine, top-left)
+		int m_DbgVPGLy = 0;                       // the Y we actually passed to glViewport
+		int m_DbgScissorOn = 0, m_DbgScissorEmpty = 0;  // attribs with SCISSOR set / with a degenerate rect
+		int m_DbgScissorMinX = 1 << 30, m_DbgScissorMinY = 1 << 30;
+		int m_DbgScissorMaxX = -1, m_DbgScissorMaxY = -1;
+		int m_DbgClears = 0;
+		int m_DbgClearX0 = -1, m_DbgClearY0 = -1, m_DbgClearX1 = -1, m_DbgClearY1 = -1;
 
 		// Sixth program: XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (single
 		// dynamic light + one or two projection-map/cookie samples -- see
@@ -2546,6 +2558,10 @@ public:
 			m_DbgStreamMI0Draws = 0;
 			m_DbgColorWriteOff = 0;
 			m_DbgShadowVolDraws = 0;
+			m_DbgScissorOn = 0; m_DbgScissorEmpty = 0;
+			m_DbgScissorMinX = 1 << 30; m_DbgScissorMinY = 1 << 30;
+			m_DbgScissorMaxX = -1; m_DbgScissorMaxY = -1;
+			m_DbgClears = 0;
 			m_DbgVBIDSkipFmt = 0;
 			m_DbgDrawCached = m_DbgDrawStreamed = 0;
 			m_DbgVConv = m_DbgVMemo = 0;
@@ -2646,6 +2662,36 @@ public:
 				m_DbgVConv, m_DbgVMemo,
 				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
 			fflush(stderr);
+
+			// RIDDICK_DBG_VIEW=1: one line with every value that can blank
+			// part of the frame. fbo/win differ whenever the Phase 5
+			// compositor is active; vp is the engine's view area (top-left
+			// origin) plus the Y we handed to glViewport; scissor is the
+			// union of all rects applied this interval, so a union that
+			// covers only half the target means the engine is asking for
+			// that, while a full-target union with a black half means the
+			// cause is elsewhere (viewport or composition).
+			if (DbgEnvFlag("RIDDICK_DBG_VIEW"))
+			{
+				fprintf(stderr,
+					"[GL-VIEW] fbo=%dx%d win=%dx%d direct=%d screenH=%d "
+					"vp=(%d,%d..%d,%d) glY=%d "
+					"sciss{n=%d empty=%d union=(%d,%d..%d,%d)} "
+					"clear{n=%d last=(%d,%d..%d,%d)}\n",
+					m_pDisplayContext ? m_pDisplayContext->m_Width : -1,
+					m_pDisplayContext ? m_pDisplayContext->m_Height : -1,
+					m_pDisplayContext ? m_pDisplayContext->m_WinWidth : -1,
+					m_pDisplayContext ? m_pDisplayContext->m_WinHeight : -1,
+					GLES3_DirectRender() ? 1 : 0, ScreenH(),
+					m_DbgVPx0, m_DbgVPy0, m_DbgVPx1, m_DbgVPy1, m_DbgVPGLy,
+					m_DbgScissorOn, m_DbgScissorEmpty,
+					(m_DbgScissorMaxX < 0) ? -1 : m_DbgScissorMinX,
+					(m_DbgScissorMaxX < 0) ? -1 : m_DbgScissorMinY,
+					m_DbgScissorMaxX, m_DbgScissorMaxY,
+					m_DbgClears, m_DbgClearX0, m_DbgClearY0, m_DbgClearX1, m_DbgClearY1);
+				fflush(stderr);
+			}
+
 			m_DbgFrames = 0;
 			DbgResetCounters();
 		}
@@ -4139,6 +4185,9 @@ public:
 			// Empty rect => full target clear. Otherwise clip via scissor.
 			const int w = _ClearRect.p1.x - _ClearRect.p0.x;
 			const int h = _ClearRect.p1.y - _ClearRect.p0.y;
+			++m_DbgClears;
+			m_DbgClearX0 = _ClearRect.p0.x; m_DbgClearY0 = _ClearRect.p0.y;
+			m_DbgClearX1 = _ClearRect.p1.x; m_DbgClearY1 = _ClearRect.p1.y;
 			if (w > 0 && h > 0 && m_pDisplayContext)
 			{
 				glEnable(GL_SCISSOR_TEST);
@@ -4285,6 +4334,13 @@ public:
 				const int H = ScreenH();
 				const int W = (int)(MaxX - MinX);
 				const int Hgt = (int)(MaxY - MinY);
+				// RIDDICK_DBG_VIEW bookkeeping -- see the member comments.
+				++m_DbgScissorOn;
+				if (W <= 0 || Hgt <= 0) ++m_DbgScissorEmpty;
+				if ((int)MinX < m_DbgScissorMinX) m_DbgScissorMinX = (int)MinX;
+				if ((int)MinY < m_DbgScissorMinY) m_DbgScissorMinY = (int)MinY;
+				if ((int)MaxX > m_DbgScissorMaxX) m_DbgScissorMaxX = (int)MaxX;
+				if ((int)MaxY > m_DbgScissorMaxY) m_DbgScissorMaxY = (int)MaxY;
 				if (W > 0 && Hgt > 0)
 				{
 					glEnable(GL_SCISSOR_TEST);
@@ -4477,6 +4533,9 @@ public:
 			{
 				const int Y = ScreenH() - R.p1.y;
 				glViewport(R.p0.x, Y, W, H);
+				m_DbgVPx0 = R.p0.x; m_DbgVPy0 = R.p0.y;
+				m_DbgVPx1 = R.p1.x; m_DbgVPy1 = R.p1.y;
+				m_DbgVPGLy = Y;
 			}
 
 			// RIDDICK_DBG_VP=1: log every viewport change with its
