@@ -17,6 +17,8 @@
 #include "MImage.h"
 #include "MImageIO.h"
 
+#define	IMAGE_IO_CTX
+
 #ifdef	IMAGE_IO_CTX
 /*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:			Calculates required memory for CTX compressed image
