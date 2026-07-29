@@ -12,6 +12,26 @@ static bool bDebug = false;
 #define DEFAULT_INVBLENDINDURATION	(0.0f)
 #define DEFAULT_INVBLENDOUTDURATION	(0.0f)
 
+#define PROPERTY_BOOL_GUNPLAYDISABLED 19
+#define CHAR_STATEFLAG_LAYERADJUSTFOROFFSET	0x01000000
+#define CHAR_STATEFLAG_TAGUSEANIMCAMERA 0x04000000
+#define CHAR_STATEFLAG_NOBLENDOUT		0x00004000
+#define CHAR_STATEFLAGHI_SKIPFORCEKEEP 0x00004000
+#define CHAR_STATEFLAGHI_SYNCANIM	0x00000004
+#define CHAR_STATEFLAGHI_ADJUSTSTATETIMESCALE	0x00000020
+#define CHAR_STATEFLAGHI_PERFECTMOVEMENT	(0x00000040|0x00000080)
+#define CHAR_STATEFLAGHI_IKSYSTEM_SKIPANIMATION		0x00080000
+#define CHAR_STATEFLAGHI_DISABLEREFRESH		0x00200000
+#define CHAR_STATEFLAGHI_ADAPTIVETIMESCALE	0x10000000
+#define CHAR_STATEFLAGHI_RANDOMIZE_ENTER	0x80000000
+//--------------------------------------------------------------------------------
+
+#include "WAG2I_StateInst.h"
+#include "WAG2I.h"
+#include "WAG2I_Context.h"
+#include "WAG2I_StateInstPacked.h"
+#include "WAG2_ClientData.h"
+
 //--------------------------------------------------------------------------------
 // Linux-port hardening: invalid (animgraph, state) pairs must not be fatal.
 //
@@ -32,6 +52,8 @@ static bool bDebug = false;
 // The second one is fixed at the source (both sites now clear the flag), the
 // first can only be diagnosed from a log: AG2_ReportBadState() prints the
 // animgraph name and its state count, so an empty resource is recognisable.
+// NOTE: must sit AFTER the WAG2I includes above -- CXRAG2 is only declared
+// there; before them the name is unknown and GCC degrades it to int.
 static void AG2_ReportBadState(const char* _pWhere, const CXRAG2* _pAnimGraph, int _iAnimGraph, int _iState)
 {
 	static int s_nReported = 0;
@@ -46,26 +68,6 @@ static void AG2_ReportBadState(const char* _pWhere, const CXRAG2* _pAnimGraph, i
 		pAG ? pAG->GetName().Str() : "<null>");
 	fflush(stderr);
 }
-
-#define PROPERTY_BOOL_GUNPLAYDISABLED 19
-#define CHAR_STATEFLAG_LAYERADJUSTFOROFFSET	0x01000000
-#define CHAR_STATEFLAG_TAGUSEANIMCAMERA 0x04000000
-#define CHAR_STATEFLAG_NOBLENDOUT		0x00004000
-#define CHAR_STATEFLAGHI_SKIPFORCEKEEP 0x00004000
-#define CHAR_STATEFLAGHI_SYNCANIM	0x00000004
-#define CHAR_STATEFLAGHI_ADJUSTSTATETIMESCALE	0x00000020
-#define CHAR_STATEFLAGHI_PERFECTMOVEMENT	(0x00000040|0x00000080)
-#define CHAR_STATEFLAGHI_IKSYSTEM_SKIPANIMATION		0x00080000
-#define CHAR_STATEFLAGHI_DISABLEREFRESH		0x00200000
-#define CHAR_STATEFLAGHI_ADAPTIVETIMESCALE	0x10000000
-#define CHAR_STATEFLAGHI_RANDOMIZE_ENTER	0x80000000
-//--------------------------------------------------------------------------------
-
-#include "WAG2I_StateInst.h"
-#include "WAG2I.h"
-#include "WAG2I_Context.h"
-#include "WAG2I_StateInstPacked.h"
-#include "WAG2_ClientData.h"
 
 static fp32 Sinc(fp32 _x)
 {
