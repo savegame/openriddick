@@ -1060,6 +1060,19 @@ void CXR_ViewContextImpl::Clear(const CMat4Dfp32& _CameraWMat, const CMat4Dfp32&
 	// The winding compensation lives in the GLES3 backend
 	// (glFrontFace(GL_CW), see MDisplaySDL2.cpp) because negating X
 	// reverses det -> CCW becomes CW in view space.
+	//
+	// RIDDICK_NO_CAMFLIP=1: skip the X-negate (A/B for the camera-mirror
+	// research, see Docs/Research_CameraMirror_Report.md). Static audit
+	// showed the GLES3 transform chain is element-identical to PC-retail
+	// RndrGL and PS3GCM, so WITHOUT this block the world should render
+	// exactly like retail; the run with this flag is the decisive test.
+	static int sNoCamFlip = -1;
+	if (sNoCamFlip < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_CAMFLIP");
+		sNoCamFlip = (e && atoi(e)) ? 1 : 0;
+	}
+	if (!sNoCamFlip)
 	{
 		fp32* K = (fp32*)&m_W2VMat;
 		K[0*4 + 0] = -K[0*4 + 0];

@@ -10,6 +10,11 @@
 #include "../../XR/XRVBUtil.h"
 #include "../../../mcc/MRTC_VPUManager.h"
 #include "MMath_Vec128.h"
+
+#ifdef PLATFORM_LINUX
+#include <stdio.h>
+#include <stdlib.h>
+#endif
 #ifdef	PLATFORM_PS2
 #include "../../RndrPS2/MRndrPS2.h"
 #endif
@@ -1024,6 +1029,24 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 	VPMid[0] = (ViewRect.p0.x + ViewRect.p1.x) >> 1;
 	VPMid[1] = (ViewRect.p0.y + ViewRect.p1.y) >> 1;
 
+#ifdef PLATFORM_LINUX
+	// RIDDICK_DBG_SCISSOR=N: dump first N box-scissor projections
+	// (camera-mirror research, Docs/Research_CameraMirror_Report.md).
+	static int sScLogTM = -1;
+	if (sScLogTM < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_SCISSOR");
+		sScLogTM = e ? atoi(e) : 0;
+	}
+	const bool bScDump = (sScLogTM > 0);
+	if (bScDump)
+	{
+		--sScLogTM;
+		fprintf(stderr, "[SCISSOR-TM] ViewRect=(%d,%d..%d,%d) VPScale=(%.2f,%.2f) VPMid=(%.2f,%.2f)\n",
+			ScrX, ScrY, ScrX + ScrW, ScrY + ScrH, VPScale[0], VPScale[1], VPMid[0], VPMid[1]);
+	}
+#endif
+
 	CVec3Dfp32 BoxV[8];
 	_Box.GetVertices(BoxV);
 
@@ -1038,6 +1061,11 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		fp32 z = _pVMat->k[0][2]*vx + _pVMat->k[1][2]*vy + _pVMat->k[2][2]*vz + _pVMat->k[3][2];
 		if (z < 0.1f) 
 		{ 
+#ifdef PLATFORM_LINUX
+			if (bScDump)
+				fprintf(stderr, "[SCISSOR-TM]   c%d w=(%.2f,%.2f,%.2f) z=%.3f < 0.1 -> FULL VIEWPORT\n",
+					v, vx, vy, vz, z);
+#endif
 			_Scissor.SetRect(ScrX, ScrY, ScrX + ScrW, ScrY + ScrH);
 			return;
 		}
@@ -1048,6 +1076,11 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		fp32 y = (_pVMat->k[0][1]*vx + _pVMat->k[1][1]*vy + _pVMat->k[2][1]*vz + _pVMat->k[3][1]) * zinv;
 		VMin.k[1] = Min(VMin.k[1], y);
 		VMax.k[1] = Max(VMax.k[1], y);
+#ifdef PLATFORM_LINUX
+		if (bScDump)
+			fprintf(stderr, "[SCISSOR-TM]   c%d w=(%.2f,%.2f,%.2f) z=%.3f scr=(%.1f,%.1f)\n",
+				v, vx, vy, vz, z, x * VPScale[0] + VPMid[0], y * VPScale[1] + VPMid[1]);
+#endif
 	}
 
 	{
@@ -1062,6 +1095,10 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		int max1 = Max(ScrY, Min(ScrY + ScrH, ymax));
 
 		_Scissor.SetRect(min0, min1, Max(min0, max0), Max(min1, max1));
+#ifdef PLATFORM_LINUX
+		if (bScDump)
+			fflush(stderr);
+#endif
 	}
 };
 

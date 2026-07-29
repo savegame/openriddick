@@ -309,6 +309,29 @@
     причина не в scissor, а в вьюпорте или композиции;
   - `clear` — последний прямоугольник `RenderTarget_Clear` и их число.
 
+- **DBG** `RIDDICK_NO_CAMFLIP=1` (`XREngine.cpp`, `CXR_ViewContextImpl::Clear`)
+  — пропускает негирование X-столбца `m_W2VMat`/`m_dW2VMat` (костыль
+  «camera fix»). A/B-тест исследования `Docs/Research_CameraMirror_Report.md`:
+  статически доказано, что трансформ-цепочка порта поэлементно = PC-retail
+  RndrGL и PS3GCM (зеркала X нет нигде, кроме самого костыля), поэтому без
+  костыля мир должен рендериться как в retail, skybox — совпасть с миром,
+  а дефолтный `RIDDICK_CULL_MODE=0` — стать корректным по winding.
+
+- **DBG** `RIDDICK_DBG_MVP=N` (`MDisplaySDL2.cpp`, `SetupCommonUniforms`) —
+  маркер `[MVP]`: det(Model/Proj/MVP) первых N 3D-draw'ов + полные матрицы
+  на первом. Ожидание: `det(Proj) < 0` (запечённый Y-флип проекции),
+  `det(Model) > 0` без костыля и `< 0` с ним.
+
+- **DBG** `RIDDICK_DBG_SCISSOR=N` — дамп первых N проекций боксов в
+  scissor: `[SCISSOR]` (BSP2, `WBSP2Portal.cpp`, `CalcBoxScissor`) и
+  `[SCISSOR-TM]` (TriMesh, `WTriMesh.cpp`, `CalcBoxScissor`). Печатает
+  бокс в world, углы в view-space, экранные координаты ДО клампа,
+  VPScale/VPMid/VPRect и явный early-out `z<0.1 -> FULL VIEWPORT`.
+  Локализация «чёрной полосы»: отвечает, узкие боксы на входе или ломается
+  проекция. NB: `RIDDICK_SCISSOR_MIRRORX` гипотезу «rect зеркален» НЕ
+  подтвердил (полоса переехала слева направо, 2026-07-29) — rect узкий
+  по-настоящему, см. отчёт `Docs/Research_CameraMirror_Report.md`.
+
 - **DBG** `RIDDICK_SKIP_SHADOWVOL=1` (`WTriMesh.cpp:~5618`, условие
   генерации `m_pppShadowPrimData`) — выключает стенсильные теневые объёмы
   персонажей (TriMesh). Без prim-data `CullCluster` отсекает SW-теневые

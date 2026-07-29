@@ -5469,6 +5469,42 @@ public:
 			Sh.Use();
 			CMat4Dfp32 MVP;
 			m_ModelMat.Multiply(m_ProjMat, MVP);
+
+			// RIDDICK_DBG_MVP=N: one-shot chirality audit -- dump det() of
+			// Model/Proj/MVP for the first N 3D draws, plus full matrices on
+			// the first dump. See Docs/Research_CameraMirror_Report.md: the
+			// static claim is det(Proj3x3) < 0 (baked Y-flip), det(Model) > 0
+			// with the camflip hack removed, < 0 with it.
+			static int sMvpLog = -1;
+			if (sMvpLog < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MVP");
+				sMvpLog = e ? atoi(e) : 0;
+			}
+			if (sMvpLog > 0 && !bUI)
+			{
+				--sMvpLog;
+				static int sMvpDumpedFull = 0;
+				auto Det3 = [](const CMat4Dfp32& M) -> fp32 {
+					return M.k[0][0]*(M.k[1][1]*M.k[2][2] - M.k[1][2]*M.k[2][1])
+					     - M.k[0][1]*(M.k[1][0]*M.k[2][2] - M.k[1][2]*M.k[2][0])
+					     + M.k[0][2]*(M.k[1][0]*M.k[2][1] - M.k[1][1]*M.k[2][0]);
+				};
+				fprintf(stderr, "[MVP] det(Model)=%.6g det(Proj)=%.6g det(MVP)=%.6g\n",
+					Det3(m_ModelMat), Det3(m_ProjMat), Det3(MVP));
+				if (!sMvpDumpedFull)
+				{
+					sMvpDumpedFull = 1;
+					for (int r = 0; r < 4; ++r)
+						fprintf(stderr, "[MVP] Proj row%d = (%.6g, %.6g, %.6g, %.6g)\n",
+							r, m_ProjMat.k[r][0], m_ProjMat.k[r][1], m_ProjMat.k[r][2], m_ProjMat.k[r][3]);
+					for (int r = 0; r < 4; ++r)
+						fprintf(stderr, "[MVP] Model row%d = (%.6g, %.6g, %.6g, %.6g)\n",
+							r, m_ModelMat.k[r][0], m_ModelMat.k[r][1], m_ModelMat.k[r][2], m_ModelMat.k[r][3]);
+				}
+				fflush(stderr);
+			}
+
 			Sh.SetMat4(LocMVP, (const float*)&MVP);
 			Sh.SetMat4(LocModel, (const float*)&m_ModelMat);
 			Sh.SetMat4(LocTexM,  (const float*)&m_TexMat[0]);
