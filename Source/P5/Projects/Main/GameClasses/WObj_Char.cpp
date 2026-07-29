@@ -657,6 +657,36 @@ void CWObject_Character::OnPress()
 						CWObject_Character::Char_FindStuff(m_pWServer,this,pCD,iSel,
 							iCloseSel, SelType,bCurrentNoPrio);
 
+						// RIDDICK_DBG_USE: THIS is the branch that activates
+						// non-character objects -- valves, levers, doors --
+						// via Char_ActivateStuff below. The iBest path above
+						// it only ever handles characters (dialogue), which
+						// is why the earlier "[USE] select" line reported
+						// iBest=-1 focusType=0 on every press in the
+						// 2026-07-29 Pa1_Pit run: it was watching the wrong
+						// branch. Char_FindStuff is the real selector, so its
+						// result is the fork in the road -- iSel == -1 means
+						// nothing usable was found at all (a selection /
+						// physics-query problem, nothing to do with scripts),
+						// while iSel != -1 means the chain lives on into
+						// Char_ActivateStuff and the next probe goes there.
+						{
+							static int sDbgFind = -1;
+							if (sDbgFind < 0)
+							{
+								const char* e = getenv("RIDDICK_DBG_USE");
+								sDbgFind = (e && *e && *e != '0') ? 1 : 0;
+							}
+							if (sDbgFind)
+							{
+								CWObject* pS = (iSel != -1) ? m_pWServer->Object_Get(iSel) : NULL;
+								fprintf(stderr,
+									"[USE] find iSel=%d iClose=%d selType=0x%x name='%s'\n",
+									(int)iSel, (int)iCloseSel, (unsigned)(uint8)SelType,
+									pS ? CFStr(pS->GetName()).Str() : "<none>");
+								fflush(stderr);
+							}
+						}
 
 						if (iSel != -1)
 						{
