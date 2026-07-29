@@ -8,6 +8,41 @@
 #include "../../../../Projects/Main/GameClasses/WObj_Misc/WObj_ScenePoint.h"
 #include "../WDynamicsEngine.h"
 
+#include <stdio.h>	// RIDDICK_DBG_PATH diagnostic
+#include <stdlib.h>	// getenv
+
+// RIDDICK_DBG_PATH=1: trace the engine-path movers -- the objects that
+// actually open doors, raise gates and drive chains.
+//
+// Why here: the Pa1_Pit log proves the script side is healthy. The valve's
+// action cutscene fires, OBJMSG_ACTIONCUTSCENE_DOTRIGGER arrives, and the
+// whole authored chain runs with Result: 1 on every hop --
+//   valveacs -> VALVEOFF -> CHAIN1 / CHAIN2, then XTRAGATE,
+// including chain1's own timed messages (the dor_metal_move03 movement
+// sound at +0.06s and a WaitImpulse at exactly +1.0s). Timed messages are
+// driven off the path clock, so the path clock runs. Yet the geometry does
+// not move and characters are still blocked by it.
+//
+// That leaves three candidates, and these probes separate them:
+//  * the path resource parsed to nothing -- CWO_PosHistory::LoadPath()
+//    returns silently when the version word does not match
+//    POSHISTORY_RESOURCEID/_PACKED, leaving zero sequences and therefore no
+//    motion and no error;
+//  * the path is there but evaluates to a constant matrix (mis-parsed
+//    keyframes: wrong stride, wrong transform);
+//  * the motion is computed but Attach_SetPosition() keeps failing on
+//    collision, so the mover never leaves its start position.
+static bool PathDbg_Enabled()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_PATH");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
 #ifdef COMPILER_MSVC
 #pragma warning(disable : 4756)	// warning C4756: overflow in constant arithmetic, (Pack32/Unpack32, fix someday -JA)
 #endif
@@ -912,6 +947,37 @@ void CWObject_Attach::OnRefresh()
 	}
 	
 	CMTime Time = GetUpdatedTime();
+
+	// RIDDICK_DBG_PATH: what the mover wants versus where it is, once per
+	// refresh while it is running. Reads as one of:
+	//  * want == pos and never changing -> GetRenderMatrix() is constant, so
+	//    the path decoded to a single point (or not at all);
+	//  * want != pos every tick -> the move keeps being refused, see the
+	//    "[PATH] blocked" line below;
+	//  * want advancing and pos following -> the server side is fine and the
+	//    problem is on the client/render side.
+	// Also prints the PHYSICS/SEMIPHYSICS client flags: without
+	// CLIENTFLAGS_PHYSICS the whole movement branch below is skipped and the
+	// object never moves server-side at all.
+	if(PathDbg_Enabled() && (m_ClientFlags & CLIENTFLAGS_RUN))
+	{
+		static int s_nLogged = 0;
+		if(s_nLogged++ < 400)
+		{
+			CMat4Dfp32 Want = GetRenderMatrix(m_pWServer, Time, m_pWServer->GetGameTick(), 0);
+			const CVec3Dfp32 WantPos = CVec3Dfp32::GetRow(Want, 3);
+			const CVec3Dfp32 CurPos = GetPosition();
+			fprintf(stderr, "[PATH] tick obj=%d '%s' t=%.3f want=(%.1f %.1f %.1f) pos=(%.1f %.1f %.1f) "
+				"phys=%d semi=%d\n",
+				(int)m_iObject, GetName(), Time.GetTime(),
+				WantPos.k[0], WantPos.k[1], WantPos.k[2],
+				CurPos.k[0], CurPos.k[1], CurPos.k[2],
+				(int)((m_ClientFlags & CLIENTFLAGS_PHYSICS) != 0),
+				(int)((m_ClientFlags & CLIENTFLAGS_SEMIPHYSICS) != 0));
+			fflush(stderr);
+		}
+	}
+
 	if(m_ClientFlags & CLIENTFLAGS_SEMIPHYSICS)
 	{
 		Attach_SetPosition(GetRenderMatrix(m_pWServer, Time, m_pWServer->GetGameTick(), 0), false);
@@ -969,6 +1035,26 @@ void CWObject_Attach::OnRefresh()
 			{
 				if(!Attach_SetPosition(Mat, false))
 				{
+					// RIDDICK_DBG_PATH: the move was refused by collision.
+					// This is the branch that makes a door look stuck while
+					// its script and its clock both run correctly.
+					if(PathDbg_Enabled())
+					{
+						static int s_nBlocked = 0;
+						if(s_nBlocked++ < 200)
+						{
+							const CVec3Dfp32 WantPos = CVec3Dfp32::GetRow(Mat, 3);
+							const CVec3Dfp32 OldPos = CVec3Dfp32::GetRow(Old, 3);
+							fprintf(stderr, "[PATH] blocked obj=%d '%s' want=(%.1f %.1f %.1f) "
+								"old=(%.1f %.1f %.1f) autorev=%d damage=%d\n",
+								(int)m_iObject, GetName(),
+								WantPos.k[0], WantPos.k[1], WantPos.k[2],
+								OldPos.k[0], OldPos.k[1], OldPos.k[2],
+								(int)((m_Flags & FLAGS_AUTOREVERSE) != 0), (int)m_Damage);
+							fflush(stderr);
+						}
+					}
+
 					if(m_Flags & FLAGS_AUTOREVERSE)
 						Reverse();
 					else
@@ -2301,6 +2387,38 @@ void CWObject_Engine_Path::Run(int _iType)
 
 		UpdateNoRefreshFlag();
 		GetUpdatedTime();
+
+		// RIDDICK_DBG_PATH: state of the path at the moment the mover starts.
+		// nSeq=0 means LoadPath() produced nothing (version word not
+		// recognised, or the resource is not a poshistory at all); dur<=0
+		// means the sequence exists but has no length; travel is the distance
+		// between the matrices at t=0 and t=dur, so travel==0 with dur>0 says
+		// the keyframes decoded to a single point.
+		if(PathDbg_Enabled())
+		{
+			static int s_nLogged = 0;
+			if(s_nLogged++ < 200)
+			{
+				CWO_PosHistory* pPH = GetClientData(this);
+				const int nSeq = pPH ? pPH->m_lSequences.Len() : -1;
+				const fp32 Dur = GetDuration();
+				fp32 Travel = -1.0f;
+				if(pPH && m_iAnim2 >= 0 && m_iAnim2 < nSeq && Dur > 0.0f)
+				{
+					CMat4Dfp32 M0, M1;
+					if(pPH->GetMatrix(m_iAnim2, 0.0f, false, 0, M0) &&
+					   pPH->GetMatrix(m_iAnim2, Dur, false, 0, M1))
+						Travel = (CVec3Dfp32::GetRow(M1, 3) - CVec3Dfp32::GetRow(M0, 3)).Length();
+				}
+				const CVec3Dfp32 Pos = GetPosition();
+				fprintf(stderr, "[PATH] run obj=%d '%s' type=%d iAnim0=%d iAnim2=%d nSeq=%d "
+					"dur=%.3f travel=%.2f cflags=0x%x flags=0x%x pos=(%.1f %.1f %.1f)\n",
+					(int)m_iObject, GetName(), _iType, (int)m_iAnim0, (int)m_iAnim2, nSeq,
+					Dur, Travel, (unsigned)m_ClientFlags, (unsigned)m_Flags,
+					Pos.k[0], Pos.k[1], Pos.k[2]);
+				fflush(stderr);
+			}
+		}
 
 		if(m_Flags & FLAGS_PHYSICS_DRIVEN && ClientFlags() & CLIENTFLAGS_RUN)	//we can have received a stop msg already
 		{
