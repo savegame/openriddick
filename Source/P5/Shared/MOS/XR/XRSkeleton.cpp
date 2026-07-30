@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [SKEL] EvalAnim abort report
+#include <stdlib.h>	// getenv
+
 #include "XRSkeleton.h"
 #include "XRClass.h"
 #include "XRAnim.h"
@@ -2326,6 +2329,35 @@ void CXR_Skeleton::EvalAnim(CXR_AnimLayer* _pLayers, uint _nLayers, CXR_Skeleton
 	if (!bFullLayerFound)
 	{
 		M_TRACEALWAYS("Aborting EvalAnim: Full layer not found, nLayers %d, RotNmoves %d,%d\n", _nLayers, m_nUsedRotations, m_nUsedMovements);
+
+		// RIDDICK_DBG_SKEL=1: WHY no layer qualified. A layer counts as
+		// full-body only when m_iBlendBaseNode == 0 AND m_Blend > 0.999, and
+		// this abort poisons all bones with QNaN -- which is what drops the
+		// player camera to the floor. Printing the actual terms here removes
+		// all guessing: the [ANIM] probe in Char_GetAnimLayers reports
+		// base=0 blend=1.000, so the layers that reach THIS call must differ,
+		// and the difference is visible only from here.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SKEL");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_nLogged = 0;
+			if (s_On && s_nLogged < 16)
+			{
+				++s_nLogged;
+				fprintf(stderr, "[SKEL] EvalAnim abort: nLayers=%d", (int)_nLayers);
+				for (uint i = 0; i < _nLayers && i < 4; i++)
+					fprintf(stderr, "  L%u{base=%d blend=%.6f seq=%d ts=%.3f t=%.3f fl=0x%x}",
+						i, (int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Blend,
+						(int)(_pLayers[i].m_spSequence != NULL), _pLayers[i].m_TimeScale,
+						_pLayers[i].m_Time, (unsigned)_pLayers[i].m_Flags);
+				fprintf(stderr, "\n");
+				fflush(stderr);
+			}
+		}
 		MemSetD(_pSkelInst->m_pBoneLocalPos, 0x7Fc00000, _pSkelInst->m_nBoneLocalPos * sizeof(CMat4Dfp32) >> 2);
 		MemSetD(_pSkelInst->m_pBoneTransform, 0x7Fc00000, _pSkelInst->m_nBoneTransform * sizeof(CMat4Dfp32) >> 2);
 		return;

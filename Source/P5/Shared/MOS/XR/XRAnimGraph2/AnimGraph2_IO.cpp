@@ -642,6 +642,37 @@ void CXRAG2::Read(CDataFile* _pDFile)
 		Error("Read", "No FULLANIMLAYERS entry found.");
 	ReadArray2(m_lFullAnimLayers, _pDFile, AGVersion, "FULLANIMLAYERS");
 
+	// Census of the whole anim-layer array, not just the first records the
+	// per-element dump shows. Opacity is the field that decides whether a
+	// layer survives at all: CWAG2I_StateInstance::GetAnimLayers computes
+	// LayerBlend = Blend * GetOpacity() and drops the layer when that is
+	// zero, so a whole array of zero opacities means no animation reaches
+	// the skeleton. The 2026-07-30 Pa1_Pit dump showed opacity=0.000 on
+	// every one of the first 24 layers, and this line says whether that
+	// holds for all of them or only for the head of one graph.
+	if (AG2Fmt_Verbose())
+	{
+		int nZero = 0, nOne = 0, nOther = 0;
+		fp32 MinOp = 1e30f, MaxOp = -1e30f;
+		for (int i = 0; i < m_lFullAnimLayers.Len(); i++)
+		{
+			const fp32 Op = m_lFullAnimLayers[i].GetOpacity();
+			if (Op == 0.0f) nZero++;
+			else if (Op == 1.0f) nOne++;
+			else nOther++;
+			MinOp = Min(MinOp, Op);
+			MaxOp = Max(MaxOp, Op);
+		}
+		extern int g_AG2LayerOpacityRestored;
+		extern int g_AG2LayerOpacityKept;
+		fprintf(stderr, "[AG2FMT] FULLANIMLAYERS opacity census: n=%d zero=%d one=%d other=%d "
+			"min=%.3f max=%.3f (restored=%d kept=%d, values are POST-fix)\n",
+			(int)m_lFullAnimLayers.Len(), nZero, nOne, nOther,
+			(m_lFullAnimLayers.Len() ? MinOp : 0.0f), (m_lFullAnimLayers.Len() ? MaxOp : 0.0f),
+			g_AG2LayerOpacityRestored, g_AG2LayerOpacityKept);
+		fflush(stderr);
+	}
+
 	if(!_pDFile->GetNext("ANIMNAMES"))
 		Error("Read", "No ANIMNAMES entry found.");
 	ReadArray2(m_lAnimNames, _pDFile, AGVersion, "ANIMNAMES");
