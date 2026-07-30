@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [MOVE] RIDDICK_DBG_MOVE report
+#include <stdlib.h>	// getenv
+
 #include "WObj_Char.h"
 
 #define PLAYER_PHYS_COS_MAX_SLOPE 0.69465837045899728665640629942269f // 46 degrees
@@ -71,6 +74,62 @@ CVec3Dfp32 CWObject_Character::Char_ControlMode_Anim2(const CSelection& _Selecti
 	}
 	
 	int32 Res = pCD->m_AnimGraph2.GetAG2I()->GetAnimVelocity(&AGContext, MoveVelocity, RotVelocity,0);
+
+	// RIDDICK_DBG_MOVE=1: the live root-motion path for a walking character.
+	//
+	// Everything the AI-driven walk does goes through here: GetAnimVelocity
+	// samples the animation's move track, the result is stored as velocity in
+	// units-per-TICK, and WServer_Phys.cpp integrates it once per tick without
+	// any dt. So the only two numbers that matter are printed together: what
+	// the animation asked for, and how far the object actually moved since the
+	// previous tick.
+	//
+	// Reading it: |anim| is the requested step per tick, |real| the achieved
+	// one. Multiply by the tick rate (30 Hz, verified by [RATE]) to get
+	// units/second and compare against the character's authored speed. A
+	// constant ratio of 1.5 between them -- or between either of them and the
+	// authored speed -- points at a leftover 20 Hz constant on the producer
+	// side; equal values that are simply too large point at the animation data
+	// or the character's speed keys instead.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_MOVE");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static int16 s_lObj[8] = { 0 };
+			static uint8 s_lCount[8] = { 0 };
+			static CVec3Dfp32 s_lPrevPos[8];
+			int iSlot = -1;
+			for (int i = 0; i < 8; i++)
+			{
+				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+				if (s_lObj[i] == 0)
+				{
+					s_lObj[i] = _pObj->m_iObject;
+					s_lPrevPos[i] = _pObj->GetPosition();
+					iSlot = i;
+					break;
+				}
+			}
+			if (iSlot >= 0 && s_lCount[iSlot] < 30)
+			{
+				s_lCount[iSlot]++;
+				const CVec3Dfp32 Pos = _pObj->GetPosition();
+				const fp32 RealStep = (Pos - s_lPrevPos[iSlot]).Length();
+				s_lPrevPos[iSlot] = Pos;
+				fprintf(stderr, "[MOVE] obj=%d res=%d anim=%.3f real=%.3f "
+					"animV=(%.2f %.2f %.2f) pos=(%.1f %.1f %.1f)\n",
+					(int)_pObj->m_iObject, (int)Res, MoveVelocity.Length(), RealStep,
+					MoveVelocity.k[0], MoveVelocity.k[1], MoveVelocity.k[2],
+					Pos.k[0], Pos.k[1], Pos.k[2]);
+				fflush(stderr);
+			}
+		}
+	}
 	if (Res == 0)
 	{
 		MoveVelocity = 0;
