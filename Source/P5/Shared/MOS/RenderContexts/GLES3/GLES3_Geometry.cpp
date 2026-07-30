@@ -52,13 +52,17 @@ static bool GLES3Geom_DbgEnabled()
 // existed -- RIDDICK_SKIP_SKINNED remains the emergency killswitch on top
 // of that (see MDisplaySDL2.cpp's own copies of the skip check for the
 // non-cached streaming path, which this flag does NOT affect).
+// RIDDICK_HWSKIN=1 implies it as well -- that flag makes the engine send
+// animated meshes down the VBID path, and skipping them here would delete
+// every character from the frame. Same duplicated-gate reasoning as above.
 static bool GLES3Geom_SkinningEnabled()
 {
 	static int s = -1;
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_SKINNING");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		const char* eHW = getenv("RIDDICK_HWSKIN");
+		s = ((e && *e && *e != '0') || (eHW && *eHW && *eHW != '0')) ? 1 : 0;
 	}
 	return s != 0;
 }

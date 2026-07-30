@@ -1512,13 +1512,45 @@ static bool GLES3_NDSEnabled()
 //     no-op pass-through even if the attributes were somehow bound).
 // Default OFF like RIDDICK_NDS: new code, needs real-content verification
 // before it can safely replace RIDDICK_SKIP_SKINNED as the default path.
+// RIDDICK_HWSKIN=1 -- advertise CRC_CAPS_FLAGS_MATRIXPALETTE and let the
+// ENGINE take its hardware-skinning path. Without it the engine decides at
+// WTriMesh.cpp:5543 ("if (bAnim && !bHWAnim) m_bRenderTempTLEnable = false")
+// that we cannot skin, and CPU-skins every animated cluster into temporary
+// VB-arena arrays instead -- which is why a session in i1_showers measured
+// skin=0 draws, ~694k converted vertices per frame and needed an 8x bigger
+// VB arena. On ARM that path is not affordable at all.
+//
+// Why this is now believed safe to try (measured, not assumed):
+// RIDDICK_DBG_PALETTE=1 over a full i1_showers session reported
+// "[MP] calls=74000 indirect=74013(max 48 bones) full=0" -- every single
+// palette the engine builds is the cluster-local BONEMATRIXMAP kind and
+// never exceeds 48 bones, comfortably inside GLES3_MAX_BONES=64. The
+// full-skeleton case (70..120 bones) did not occur once.
+//
+// Kept opt-in because the flag flips engine-wide behaviour: skinned meshes
+// start arriving as VBID draws with a palette (the GPU path this backend
+// implements) instead of pre-transformed CPU vertex arrays. Implies
+// GLES3_SkinningEnabled() -- advertising the cap while the backend ignores
+// palettes would submit bone-local vertices, i.e. geometry scattered across
+// the world.
+static bool GLES3_HWSkinEnabled()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_HWSKIN");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_SkinningEnabled()
 {
 	static int s = -1;
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_SKINNING");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		s = ((e && *e && *e != '0') || GLES3_HWSkinEnabled()) ? 1 : 0;
 	}
 	return s != 0;
 }
@@ -4001,6 +4033,20 @@ public:
 			m_Caps_Flags = CRC_CAPS_FLAGS_HWAPI
 			             | CRC_CAPS_FLAGS_ARBITRARY_TEXTURE_SIZE
 			             | CRC_CAPS_FLAGS_SEPARATESTENCIL;
+
+			// RIDDICK_HWSKIN=1: tell the engine we can skin on the GPU, so
+			// animated meshes keep their hardware path (VBID + matrix
+			// palette) instead of being CPU-transformed into the VB arena.
+			// See GLES3_HWSkinEnabled() for why and for the measurement
+			// that says a 64-bone palette is enough.
+			if (GLES3_HWSkinEnabled())
+			{
+				m_Caps_Flags |= CRC_CAPS_FLAGS_MATRIXPALETTE;
+				fprintf(stderr, "[GLES3-SKIN] RIDDICK_HWSKIN=1: advertising CRC_CAPS_FLAGS_MATRIXPALETTE "
+					"(engine keeps animated meshes on the VBID/palette path; palette cap %d bones)\n",
+					GLES3_MAX_BONES);
+				fflush(stderr);
+			}
 
 			// 2 texture units = the engine's most compatible multipass
 			// path (base + lightmap per pass) -- exactly what the shader
