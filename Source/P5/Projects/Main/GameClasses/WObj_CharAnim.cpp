@@ -390,8 +390,12 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 				fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d",
 					(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers);
 				for (int i = 0; i < nLayers && i < 3; i++)
-					fprintf(stderr, "  L%d{seq=%d t=%.3f ts=%.3f blend=%.3f fl=0x%x}",
-						i, (int)(_pLayers[i].m_spSequence != NULL), _pLayers[i].m_Time,
+					// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
+					// layer as "full body" when base == 0 AND blend > 0.999; if no
+					// such layer exists it aborts and poisons every bone with QNaN.
+					fprintf(stderr, "  L%d{seq=%d base=%d t=%.3f ts=%.3f blend=%.3f fl=0x%x}",
+						i, (int)(_pLayers[i].m_spSequence != NULL),
+						(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time,
 						_pLayers[i].m_TimeScale, _pLayers[i].m_Blend,
 						(unsigned)_pLayers[i].m_Flags);
 				fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);

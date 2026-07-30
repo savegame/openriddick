@@ -6,6 +6,70 @@
 #include "../../MSystem/MSystem.h"
 #include "AnimGraph2.h"
 
+#include <stdio.h>	// [AG2FMT] element-stride report
+#include <stdlib.h>	// getenv
+
+// [AG2FMT]: verify that the per-element reader consumes exactly as many bytes
+// as the file actually stores per element.
+//
+// Why this matters more than it looks: for arrays whose element type has
+// EIOWholeStruct == 0 -- CXRAG2_AnimLayer is one -- ReadArray2_PerElementFallback2
+// applies NO padding, so Read() must land byte-exact or every following
+// element is progressively misaligned. There is no error, no exception: the
+// array simply fills with garbage that still looks like plausible integers.
+//
+// The file gives us the ground truth: the entry holds Len elements after a
+// 4-byte ElementSize prefix, so (EntrySize - 4) / Len is the real serialised
+// stride. Comparing it against the bytes our Read() consumed pins down a
+// wrong version layout immediately, and the stride value itself says what
+// the record must look like.
+//
+// Suspected case (Pa1_Pit, 2026-07-30): every character animation layer comes
+// back with a non-zero blend base node, so CXR_Skeleton::EvalAnim finds no
+// full-body layer, aborts, and poisons all 120 bones with QNaN -- hence
+// "Fucked up camera rottrack" 928 times and the camera dropping to the feet.
+// A misread m_iBaseJoint in the PC v5/v6 CXRAG2_AnimLayer layout would do
+// exactly that.
+static bool AG2Fmt_Verbose()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_AG2FMT");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+static void AG2Fmt_Report(int _Version, int _Len, int _EntrySize, uint32 _DeclElemSize,
+	int _OurSizeof, int _Consumed0, bool _bMismatch)
+{
+	// Mismatches are always reported (capped) -- they are silent corruption.
+	// Everything else only with RIDDICK_DBG_AG2FMT=1.
+	static int s_nAll = 0;
+	static int s_nBad = 0;
+	if (_bMismatch)
+	{
+		if (s_nBad >= 24)
+			return;
+		++s_nBad;
+	}
+	else
+	{
+		if (!AG2Fmt_Verbose() || s_nAll >= 60)
+			return;
+		++s_nAll;
+	}
+
+	const int Stride = (_Len > 0) ? ((_EntrySize - 4) / _Len) : -1;
+	const int Rest   = (_Len > 0) ? ((_EntrySize - 4) % _Len) : -1;
+	fprintf(stderr, "[AG2FMT]%s ver=%d len=%d entrySize=%d stride=%d(rem %d) "
+		"declElem=%u ourSizeof=%d consumed=%d\n",
+		_bMismatch ? " MISMATCH" : "", _Version, _Len, _EntrySize, Stride, Rest,
+		(unsigned)_DeclElemSize, _OurSizeof, _Consumed0);
+	fflush(stderr);
+}
+
 //--------------------------------------------------------------------------------
 
 static void ReadFStr(CCFile* _pFile, CFStr& _Str)
@@ -89,10 +153,19 @@ void ReadArray2_PerElementFallback2(TThinArray<T>& _lArray, CDataFile* _pDFile, 
 	CCFile* pFile = _pDFile->GetFile();
 
 	T* pArray = _lArray.GetBasePtr();
-	for(int i = 0; i < _lArray.Len(); i++)
+	const int Len = _lArray.Len();
+	const int EntrySize = _pDFile->GetEntrySize();
+	// True serialised stride, straight from the file: Len elements after the
+	// 4-byte ElementSize prefix.
+	const int FileStride = (Len > 0) ? ((EntrySize - 4) / Len) : -1;
+	for(int i = 0; i < Len; i++)
 	{
 		int Pos = pFile->Pos();
 		pArray[i].Read(pFile, Version);
+		const int Consumed = pFile->Pos() - Pos;
+		if (i == 0)
+			AG2Fmt_Report(Version, Len, EntrySize, _ElementSize, (int)sizeof(T), Consumed,
+				(FileStride > 0) && (Consumed != FileStride) && !T::EIOWholeStruct);
 		if (Version >= XR_ANIMGRAPH2_VERSION && T::EIOWholeStruct)
 		{
 			int Pad = _ElementSize - (pFile->Pos() - Pos);
