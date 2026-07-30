@@ -41,8 +41,8 @@ static bool AG2Fmt_Verbose()
 	return s_On != 0;
 }
 
-static void AG2Fmt_Report(int _Version, int _Len, int _EntrySize, uint32 _DeclElemSize,
-	int _OurSizeof, int _Consumed0, bool _bMismatch)
+static void AG2Fmt_Report(const char* _pEntryName, int _Version, int _Len, int _EntrySize,
+	uint32 _DeclElemSize, int _OurSizeof, int _Consumed0, bool _bMismatch)
 {
 	// Mismatches are always reported (capped) -- they are silent corruption.
 	// Everything else only with RIDDICK_DBG_AG2FMT=1.
@@ -63,9 +63,9 @@ static void AG2Fmt_Report(int _Version, int _Len, int _EntrySize, uint32 _DeclEl
 
 	const int Stride = (_Len > 0) ? ((_EntrySize - 4) / _Len) : -1;
 	const int Rest   = (_Len > 0) ? ((_EntrySize - 4) % _Len) : -1;
-	fprintf(stderr, "[AG2FMT]%s ver=%d len=%d entrySize=%d stride=%d(rem %d) "
+	fprintf(stderr, "[AG2FMT]%s %s ver=%d len=%d entrySize=%d stride=%d(rem %d) "
 		"declElem=%u ourSizeof=%d consumed=%d\n",
-		_bMismatch ? " MISMATCH" : "", _Version, _Len, _EntrySize, Stride, Rest,
+		_bMismatch ? " MISMATCH" : "", _pEntryName, _Version, _Len, _EntrySize, Stride, Rest,
 		(unsigned)_DeclElemSize, _OurSizeof, _Consumed0);
 	fflush(stderr);
 }
@@ -98,7 +98,7 @@ static void WriteFStr(CCFile* _pFile, CFStr& _Str)
 //--------------------------------------------------------------------------------
 
 template<class T, int _WholeStruct>
-void ReadArray2Imp(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer)
+void ReadArray2Imp(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer, const char* _pEntryName)
 {
 	CCFile* pFile = _pDFile->GetFile();
 	
@@ -120,26 +120,26 @@ void ReadArray2Imp(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer)
 	}
 	else
 	{
-		ReadArray2_PerElementFallback2(_lArray, _pDFile, ElementSize);
+		ReadArray2_PerElementFallback2(_lArray, _pDFile, ElementSize, _pEntryName);
 	}
 }
 
 template<class T>
-void ReadArray2(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer)
+void ReadArray2(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer, const char* _pEntryName = "?")
 {
-	ReadArray2Imp<T, T::EIOWholeStruct>(_lArray, _pDFile, _CurrentVer);
+	ReadArray2Imp<T, T::EIOWholeStruct>(_lArray, _pDFile, _CurrentVer, _pEntryName);
 }
 
 template<class T>
-void ReadArray2WholeStruct(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer)
+void ReadArray2WholeStruct(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer, const char* _pEntryName = "?")
 {
-	ReadArray2Imp<T, 1>(_lArray, _pDFile, _CurrentVer);
+	ReadArray2Imp<T, 1>(_lArray, _pDFile, _CurrentVer, _pEntryName);
 }
 
 template<class T>
-void ReadArray2FallBack(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer)
+void ReadArray2FallBack(TThinArray<T>& _lArray, CDataFile* _pDFile, int _CurrentVer, const char* _pEntryName = "?")
 {
-	ReadArray2Imp<T, 0>(_lArray, _pDFile, _CurrentVer);
+	ReadArray2Imp<T, 0>(_lArray, _pDFile, _CurrentVer, _pEntryName);
 }
 
 //--------------------------------------------------------------------------------
@@ -147,7 +147,7 @@ void ReadArray2FallBack(TThinArray<T>& _lArray, CDataFile* _pDFile, int _Current
 //--------------------------------------------------------------------------------
 
 template<class T>
-void ReadArray2_PerElementFallback2(TThinArray<T>& _lArray, CDataFile* _pDFile, uint32 _ElementSize)
+void ReadArray2_PerElementFallback2(TThinArray<T>& _lArray, CDataFile* _pDFile, uint32 _ElementSize, const char* _pEntryName = "?")
 {
 	int Version = _pDFile->GetUserData2();
 	CCFile* pFile = _pDFile->GetFile();
@@ -164,8 +164,17 @@ void ReadArray2_PerElementFallback2(TThinArray<T>& _lArray, CDataFile* _pDFile, 
 		pArray[i].Read(pFile, Version);
 		const int Consumed = pFile->Pos() - Pos;
 		if (i == 0)
-			AG2Fmt_Report(Version, Len, EntrySize, _ElementSize, (int)sizeof(T), Consumed,
-				(FileStride > 0) && (Consumed != FileStride) && !T::EIOWholeStruct);
+		{
+			// Only a FIXED-size record can be checked this way. When
+			// (EntrySize - 4) does not divide evenly by Len the elements are
+			// variable-length (name/string arrays), and both the derived
+			// stride and "bytes consumed by element 0" are meaningless --
+			// flagging those produced nothing but false alarms in the
+			// 2026-07-30 Pa1_Pit run.
+			const bool bFixed = (Len > 0) && (((EntrySize - 4) % Len) == 0);
+			AG2Fmt_Report(_pEntryName, Version, Len, EntrySize, _ElementSize, (int)sizeof(T), Consumed,
+				bFixed && (FileStride > 0) && (Consumed != FileStride) && !T::EIOWholeStruct);
+		}
 		if (Version >= XR_ANIMGRAPH2_VERSION && T::EIOWholeStruct)
 		{
 			int Pad = _ElementSize - (pFile->Pos() - Pos);
@@ -225,7 +234,7 @@ void SwapLEArray2(TThinArray<T>& _lArray)
 //--------------------------------------------------------------------------------
 
 template<>
-void ReadArray2_PerElementFallback2(TThinArray<int16>& _lArray, CDataFile* _pDFile, uint32 _ElementSize)
+void ReadArray2_PerElementFallback2(TThinArray<int16>& _lArray, CDataFile* _pDFile, uint32 _ElementSize, const char* _pEntryName)
 {
 	CCFile* pFile = _pDFile->GetFile();
 	int16* pArray = _lArray.GetBasePtr();
@@ -261,7 +270,7 @@ void SwapLEArray2(TThinArray<int16>& _lArray)
 //--------------------------------------------------------------------------------
 
 template<>
-void ReadArray2_PerElementFallback2(TThinArray<fp32>& _lArray, CDataFile* _pDFile, uint32 _ElementSize)
+void ReadArray2_PerElementFallback2(TThinArray<fp32>& _lArray, CDataFile* _pDFile, uint32 _ElementSize, const char* _pEntryName)
 {
 	CCFile* pFile = _pDFile->GetFile();
 	fp32* pArray = _lArray.GetBasePtr();
@@ -297,7 +306,7 @@ void SwapLEArray2(TThinArray<fp32>& _lArray)
 //--------------------------------------------------------------------------------
 
 template<>
-void ReadArray2_PerElementFallback2(TThinArray<CFStr>& _lArray, CDataFile* _pDFile, uint32 _ElementSize)
+void ReadArray2_PerElementFallback2(TThinArray<CFStr>& _lArray, CDataFile* _pDFile, uint32 _ElementSize, const char* _pEntryName)
 {
 	CCFile* pFile = _pDFile->GetFile();
 	CFStr* pArray = _lArray.GetBasePtr();
@@ -616,26 +625,26 @@ void CXRAG2::Read(CDataFile* _pDFile)
 	// States
 	if(!_pDFile->GetNext("GRAPHBLOCKS"))
 		Error("Read", "No GRAPHBLOCKS entry found.");
-	ReadArray2(m_lGraphBlocks, _pDFile, AGVersion);
+	ReadArray2(m_lGraphBlocks, _pDFile, AGVersion, "GRAPHBLOCKS");
 
 	// States
 	if(!_pDFile->GetNext("FULLSTATES"))
 		Error("Read", "No FULLSTATES entry found.");
-	ReadArray2(m_lFullStates, _pDFile, AGVersion);
+	ReadArray2(m_lFullStates, _pDFile, AGVersion, "FULLSTATES");
 
 	// States
 	if(!_pDFile->GetNext("SWSTATES"))
 		Error("Read", "No SWSTATES entry found.");
-	ReadArray2(m_lSwitchStates, _pDFile, AGVersion);
+	ReadArray2(m_lSwitchStates, _pDFile, AGVersion, "SWSTATES");
 
 	// AnimLayers
 	if(!_pDFile->GetNext("FULLANIMLAYERS"))
 		Error("Read", "No FULLANIMLAYERS entry found.");
-	ReadArray2(m_lFullAnimLayers, _pDFile, AGVersion);
+	ReadArray2(m_lFullAnimLayers, _pDFile, AGVersion, "FULLANIMLAYERS");
 
 	if(!_pDFile->GetNext("ANIMNAMES"))
 		Error("Read", "No ANIMNAMES entry found.");
-	ReadArray2(m_lAnimNames, _pDFile, AGVersion);
+	ReadArray2(m_lAnimNames, _pDFile, AGVersion, "ANIMNAMES");
 	
 	if(!_pDFile->GetNext("ANIMCONTAINERNAMES"))
 	{
@@ -650,101 +659,101 @@ void CXRAG2::Read(CDataFile* _pDFile)
 	// Actions
 	if(!_pDFile->GetNext("FULLACTIONS"))
 		Error("Read", "No FULLACTIONS entry found.");
-	ReadArray2(m_lFullActions, _pDFile, AGVersion);
+	ReadArray2(m_lFullActions, _pDFile, AGVersion, "FULLACTIONS");
 
 	// Actions
 	if(!_pDFile->GetNext("MOVETOKENS"))
 		Error("Read", "No MOVETOKENS entry found.");
-	ReadArray2(m_lMoveTokens, _pDFile, AGVersion);
+	ReadArray2(m_lMoveTokens, _pDFile, AGVersion, "MOVETOKENS");
 
 	// Actions
 	if(!_pDFile->GetNext("MOVEANIMGRAPH2"))
 		Error("Read", "No MOVEANIMGRAPH2 entry found.");
-	ReadArray2(m_lMoveAnimGraphs, _pDFile, AGVersion);
+	ReadArray2(m_lMoveAnimGraphs, _pDFile, AGVersion, "MOVEANIMGRAPH2");
 
 	// Actions
 	if(!_pDFile->GetNext("FULLREACTIONS"))
 		Error("Read", "No FULLREACTIONS entry found.");
-	ReadArray2(m_lFullReactions, _pDFile, AGVersion);
+	ReadArray2(m_lFullReactions, _pDFile, AGVersion, "FULLREACTIONS");
 
 	// Actionvals
 	if(!_pDFile->GetNext("SWACTIONVALS"))
 		Error("Read", "No SWACTIONVALS entry found.");
-	ReadArray2(m_lSwitchStateActionVals, _pDFile, AGVersion);
+	ReadArray2(m_lSwitchStateActionVals, _pDFile, AGVersion, "SWACTIONVALS");
 
 	// Nodes
 	if(!_pDFile->GetNext("NODESV2"))
 		Error("Read", "No NODESV2 entry found.");
-	ReadArray2(m_lNodesV2, _pDFile, AGVersion);
+	ReadArray2(m_lNodesV2, _pDFile, AGVersion, "NODESV2");
 
 	// Effects
 	if(!_pDFile->GetNext("EFFECTS"))
 		Error("Read", "No EFFECTS entry found.");
-	ReadArray2(m_lEffectInstances, _pDFile, AGVersion);
+	ReadArray2(m_lEffectInstances, _pDFile, AGVersion, "EFFECTS");
 
 	// CallbackParams
 	if(!_pDFile->GetNext("CALLBACKPARAMS"))
 		Error("Read", "No CALLBACKPARAMS entry found.");
-	ReadArray2WholeStruct(m_lCallbackParams, _pDFile, AGVersion);
+	ReadArray2WholeStruct(m_lCallbackParams, _pDFile, AGVersion, "CALLBACKPARAMS");
 
 	// StateConstants
 	if(!_pDFile->GetNext("STATECONSTANTS"))
 		Error("Read", "No STATECONSTANTS entry found.");
-	ReadArray2(m_lStateConstants, _pDFile, AGVersion);
+	ReadArray2(m_lStateConstants, _pDFile, AGVersion, "STATECONSTANTS");
 
 	// ActionHashEntries
 	if(!_pDFile->GetNext("ACTIONHASHENTRIES"))
 		Error("Read", "No ACTIONHASHENTRIES entry found.");
-	ReadArray2(m_lActionHashEntries, _pDFile, AGVersion);
+	ReadArray2(m_lActionHashEntries, _pDFile, AGVersion, "ACTIONHASHENTRIES");
 
 #ifndef M_RTM
 	if (!D_MXDFCREATE)
 	{
 		// ExportedNames (Optional)
 		if(_pDFile->GetNext("EXPORTEDGRAPHBLOCKNAMES"))
-			ReadArray2FallBack(m_lExportedGraphBlockNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedGraphBlockNames, _pDFile, AGVersion, "EXPORTEDGRAPHBLOCKNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDACTIONNAMES"))
-			ReadArray2FallBack(m_lExportedActionNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedActionNames, _pDFile, AGVersion, "EXPORTEDACTIONNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDREACTIONNAMES"))
-			ReadArray2FallBack(m_lExportedReactionNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedReactionNames, _pDFile, AGVersion, "EXPORTEDREACTIONNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDSTATENAMES"))
-			ReadArray2FallBack(m_lExportedStateNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedStateNames, _pDFile, AGVersion, "EXPORTEDSTATENAMES");
 
 		if(_pDFile->GetNext("EXPORTEDSWSTNAMES"))
-			ReadArray2FallBack(m_lExportedSwitchStateNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedSwitchStateNames, _pDFile, AGVersion, "EXPORTEDSWSTNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDAG2NAMES"))
-			ReadArray2FallBack(m_lExportedAnimGraphNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedAnimGraphNames, _pDFile, AGVersion, "EXPORTEDAG2NAMES");
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYFNNAMES"))
-			ReadArray2FallBack(m_lExportedPropertyFunctionNames, _pDFile, AGVersion);
+			ReadArray2FallBack(m_lExportedPropertyFunctionNames, _pDFile, AGVersion, "EXPORTEDPROPERTYFNNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYFNAMES"))
-			ReadArray2(m_lExportedPropertyFloatNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedPropertyFloatNames, _pDFile, AGVersion, "EXPORTEDPROPERTYFNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYINAMES"))
-			ReadArray2(m_lExportedPropertyIntNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedPropertyIntNames, _pDFile, AGVersion, "EXPORTEDPROPERTYINAMES");
 
 		if(_pDFile->GetNext("EXPORTEDPROPERTYBNAMES"))
-			ReadArray2(m_lExportedPropertyBoolNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedPropertyBoolNames, _pDFile, AGVersion, "EXPORTEDPROPERTYBNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDOPERATORNAMES"))
-			ReadArray2(m_lExportedOperatorNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedOperatorNames, _pDFile, AGVersion, "EXPORTEDOPERATORNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDEFFECTNAMES"))
-			ReadArray2(m_lExportedEffectNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedEffectNames, _pDFile, AGVersion, "EXPORTEDEFFECTNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDSTATECONSTNAMES"))
-			ReadArray2(m_lExportedStateConstantNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedStateConstantNames, _pDFile, AGVersion, "EXPORTEDSTATECONSTNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDIMPULSETNAMES"))
-			ReadArray2(m_lExportedImpulseTypeNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedImpulseTypeNames, _pDFile, AGVersion, "EXPORTEDIMPULSETNAMES");
 
 		if(_pDFile->GetNext("EXPORTEDIMPULSEVNAMES"))
-			ReadArray2(m_lExportedImpulseValueNames, _pDFile, AGVersion);
+			ReadArray2(m_lExportedImpulseValueNames, _pDFile, AGVersion, "EXPORTEDIMPULSEVNAMES");
 	}
 #endif
 }
