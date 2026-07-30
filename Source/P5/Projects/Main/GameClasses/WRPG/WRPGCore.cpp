@@ -241,9 +241,21 @@ spCRPG_Object CRPG_Object::CreateObject(const char *_pName, CWorld_Server *_pWSe
 				{
 					++s_nLogged;
 					fprintf(stderr, "[ITEM] template '%s' nKeys=%d:", _pName, nKeys);
-					for (int k = 0; k < nKeys && k < 40; k++)
+					for (int k = 0; k < nKeys; k++)
 						fprintf(stderr, " %s", spReg->GetChild(k)->GetThisName().Str());
 					fprintf(stderr, "\n");
+					// And the value of every key whose name mentions MODEL --
+					// weapon templates turned out to carry no plain "MODEL"
+					// key at all, so the mesh has to be named by some other
+					// key and this shows which one and with what value.
+					for (int k = 0; k < nKeys; k++)
+					{
+						const CRegistry* pChild = spReg->GetChild(k);
+						CStr Name = pChild->GetThisName();
+						if (Name.Find("MODEL") >= 0)
+							fprintf(stderr, "[ITEM]   %s = '%s'\n",
+								Name.Str(), pChild->GetThisValue().Str());
+					}
 					fflush(stderr);
 				}
 			}
