@@ -330,6 +330,28 @@
   NB: этот путь — про использование ИГРОКОМ. Если вентиль на карте крутит
   NPC по скрипту, `[USE]` не появится вообще, и это не дефект.
 
+- **DBG** `RIDDICK_DBG_ITEM=1` — почему не рисуется оружие в руках. Две строки:
+  * `[ITEM] obj=… local=… i0{model=… flags=… equipped=… norender=… rotTrack=…
+    attach=…} i1{…} stateLo=… noitemrender=… noitemrender2=… nBones=…`
+    (`WObj_CharRender.cpp`, перед гейтом рендера предметов, 4 строки на
+    объект, 16 объектов) — все четыре члена гейта сразу плюс входы для
+    `GetModel0_RenderInfo`.
+  * `[ITEM] render FAILED (<причина>): iModel=… rotTrack=… nBones=…`
+    (`WObj_AutoVar_AttachModel.cpp`) — какой именно молчаливый ранний выход
+    сработал: `GetResource_Model returned NULL`, `rotTrack out of range`,
+    `no skeleton`/`no skeleton instance`, `attach matrix is NaN`.
+  Зачем: оружие невидимо во всех руках, при этом стрельба работает, и в
+  логах НЕТ ни одного сообщения — потому что каждый способ отказа здесь
+  молчалив. Разбор пути и всех условий — отчёт агента, кратко:
+  `model=0` — `m_iModel[0]` не назначен/не отреплицирован; `equipped=0` —
+  `RPG_ITEM_FLAGS_EQUIPPED` не выставлен на сервере; `norender=1` —
+  `RPG_ITEM_FLAGS_NORENDERMODEL`; `noitemrender=1` — флаг состояния
+  анимграфа `AG2_STATEFLAG_NOITEMRENDER`; `rotTrack >= nBones` — индекс
+  кости привязки вне скелета.
+  NB: кандидат «функция вырезана `MAUTOSTRIP`» **исключён** — ни
+  `MRTC_AUTOSTRIP`, ни `MRTC_AUTOSTRIPLOGGER` в сборке не определены, макрос
+  раскрывается в пустоту (`MRTC.h:2355-2359`).
+
 - **DBG** `[AG2FMT]` (`AnimGraph2_IO.cpp`, `ReadArray2_PerElementFallback2`) —
   сверка «сколько байт на элемент читаем» с тем, «сколько на самом деле лежит
   в файле». Строка MISMATCH печатается **без флага** (кап 24), полный список

@@ -1,4 +1,32 @@
 #include "PCH.h"
+
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM report
+#include <stdlib.h>	// getenv
+
+// RIDDICK_DBG_ITEM=1: which silent early-out stopped a held item from being
+// rendered. Both failure paths below return false without logging anything,
+// which is why an invisible weapon leaves no trace in a run log at all.
+static bool ItemDbg_Enabled()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_ITEM");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+static void ItemDbg_Fail(const char* _pWhy, int _iModel, int _iRotTrack, int _nBones)
+{
+	static int s_nLogged = 0;
+	if (s_nLogged >= 24)
+		return;
+	++s_nLogged;
+	fprintf(stderr, "[ITEM] render FAILED (%s): iModel=%d rotTrack=%d nBones=%d\n",
+		_pWhy, _iModel, _iRotTrack, _nBones);
+	fflush(stderr);
+}
 #include "WObj_AutoVar_AttachModel.h"
 
 //#ifdef PLATFORM_DOLPHIN
@@ -375,7 +403,12 @@ bool CAutoVar_AttachModel::GetModel0_RenderMatrix(CXR_SkeletonInstance *_pSkelIn
 {
 	MAUTOSTRIP(CAutoVar_AttachModel_GetModel0_RenderMatrix, false);
 	if(!_pSkel || !_pSkelInstance || !((_iRotTrack >= 0) && (_iRotTrack < _pSkelInstance->m_nBoneTransform)))
+	{
+		if (ItemDbg_Enabled())
+			ItemDbg_Fail(!_pSkel ? "no skeleton" : (!_pSkelInstance ? "no skeleton instance" : "rotTrack out of range"),
+				(int)m_iModel[0], _iRotTrack, _pSkelInstance ? (int)_pSkelInstance->m_nBoneTransform : -1);
 		return false;
+	}
 
 	// Get character attachment matrix
 	CMat4Dfp32 Pos;
@@ -423,7 +456,12 @@ bool CAutoVar_AttachModel::GetModel0_RenderMatrix(CXR_SkeletonInstance *_pSkelIn
 	}
 
 	if (FloatIsInvalid(Pos.k[0][0]))
+	{
+		if (ItemDbg_Enabled())
+			ItemDbg_Fail("attach matrix is NaN", (int)m_iModel[0], _iRotTrack,
+				(int)_pSkelInstance->m_nBoneTransform);
 		return false;
+	}
 
 	// Get Weapon attachment matrix
 	CXR_Skeleton* pSkelGun = (CXR_Skeleton*)_pModel->GetParam(MODEL_PARAM_SKELETON);
@@ -444,6 +482,9 @@ bool CAutoVar_AttachModel::GetModel0_RenderInfo(CMapData *_pMapData, CXR_Engine*
 {
 	MAUTOSTRIP(CAutoVar_AttachModel_GetModel0_RenderInfo, false);
 	_pRetModel = _pMapData->GetResource_Model(m_iModel[0]);
+	if (!_pRetModel && ItemDbg_Enabled())
+		ItemDbg_Fail("GetResource_Model returned NULL", (int)m_iModel[0], (int)m_iAttachRotTrack,
+			_pSkelInstance ? (int)_pSkelInstance->m_nBoneTransform : -1);
 	if(_pRetModel)
 	{
 		if(GetModel0_RenderMatrix(_pSkelInstance, _pSkel, _pRetModel, m_iAttachRotTrack, m_iAttachPoint[0], _RetPos))

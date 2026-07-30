@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM report
+#include <stdlib.h>	// getenv
+
 #include "WObj_Char.h"
 
 #include "../../../Shared/MOS/XR/XREngineVar.h"
@@ -1348,6 +1351,64 @@ if (REPORT_MISSING_JOINTS)
 		// Render items
 		if(!bLocalPlayer || !(pCD->m_ActionCutSceneCameraMode & CActionCutsceneCamera::ACS_CAMERAMODE_ACTIVE) && !(_pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE))
 		{
+			// RIDDICK_DBG_ITEM=1: every term of the held-item render gate, plus
+			// the inputs GetModel0_RenderInfo() needs.
+			//
+			// Weapons are invisible in every hand while firing still works, and
+			// nothing is logged anywhere -- because each way this can fail is
+			// silent. The gate below drops the item when any of four terms is
+			// false, and GetModel0_RenderInfo() itself returns false without a
+			// word when the model resource is missing or the attach bone index
+			// is out of range for the skeleton. This line reports all of them
+			// at once so one run picks the branch:
+			//   model=0            -> m_iModel[0] never assigned/replicated
+			//   equipped=0         -> RPG_ITEM_FLAGS_EQUIPPED not set server-side
+			//   norender=1         -> RPG_ITEM_FLAGS_NORENDERMODEL set
+			//   noitemrender=1     -> animgraph state flag AG2_STATEFLAG_NOITEMRENDER
+			//   rotTrack >= nBones -> attach bone index outside the skeleton
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_On)
+				{
+					static int16 s_lObj[16] = { 0 };
+					static uint8 s_lCount[16] = { 0 };
+					int iSlot = -1;
+					for (int i = 0; i < 16; i++)
+					{
+						if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+						if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
+					}
+					if (iSlot >= 0 && s_lCount[iSlot] < 4)
+					{
+						s_lCount[iSlot]++;
+						const uint32 StateFlags = pCD->m_AnimGraph2.GetStateFlagsLoCombined();
+						fprintf(stderr, "[ITEM] obj=%d local=%d "
+							"i0{model=%d flags=0x%x equipped=%d norender=%d rotTrack=%d attach=%d} "
+							"i1{model=%d flags=0x%x equipped=%d norender=%d} "
+							"stateLo=0x%x noitemrender=%d noitemrender2=%d nBones=%d\n",
+							(int)_pObj->m_iObject, (int)bLocalPlayer,
+							(int)pCD->m_Item0_Model.m_iModel[0], (unsigned)pCD->m_Item0_Flags,
+							(int)((pCD->m_Item0_Flags & RPG_ITEM_FLAGS_EQUIPPED) != 0),
+							(int)((pCD->m_Item0_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) != 0),
+							(int)pCD->m_Item0_Model.m_iAttachRotTrack,
+							(int)pCD->m_Item0_Model.m_iAttachPoint[0],
+							(int)pCD->m_Item1_Model.m_iModel[0], (unsigned)pCD->m_Item1_Flags,
+							(int)((pCD->m_Item1_Flags & RPG_ITEM_FLAGS_EQUIPPED) != 0),
+							(int)((pCD->m_Item1_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) != 0),
+							(unsigned)StateFlags,
+							(int)((StateFlags & AG2_STATEFLAG_NOITEMRENDER) != 0),
+							(int)((StateFlags & AG2_STATEFLAG_NOITEMRENDERSECONDARY) != 0),
+							pSkelInstance ? (int)pSkelInstance->m_nBoneTransform : -1);
+						fflush(stderr);
+					}
+				}
+			}
+
 			if(pCD->m_Item0_Model.IsValid() && !(pCD->m_Item0_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) && (pCD->m_Item0_Flags & RPG_ITEM_FLAGS_EQUIPPED) && !(pCD->m_AnimGraph2.GetStateFlagsLoCombined() & AG2_STATEFLAG_NOITEMRENDER))
 			{
 				pCD->m_Item0_Model.SetAG2I(pCD->m_WeaponAG2.GetAG2I());

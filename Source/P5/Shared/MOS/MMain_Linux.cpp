@@ -64,7 +64,7 @@ static void Linux_LogActiveDebugFlags()
 		// gameplay / scripts
 		"RIDDICK_DBG_USE", "RIDDICK_DBG_MSG", "RIDDICK_LOG_MSG", "RIDDICK_DBG_AG2FX",
 		"RIDDICK_DBG_PHYS", "RIDDICK_DBG_PATH", "RIDDICK_DBG_SKEL",
-		"RIDDICK_DBG_AG2FMT",
+		"RIDDICK_DBG_AG2FMT", "RIDDICK_DBG_ITEM",
 		// misc
 		"RIDDICK_STARTMAP",
 	};
