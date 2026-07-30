@@ -367,6 +367,15 @@
     (`WObj_AutoVar_AttachModel.cpp`) — какой именно молчаливый ранний выход
     сработал: `GetResource_Model returned NULL`, `rotTrack out of range`,
     `no skeleton`/`no skeleton instance`, `attach matrix is NaN`.
+  * `[ITEM] template '<имя>' nKeys=… : <список ключей>` (`WRPGCore.cpp`,
+    `CRPG_Object::CreateObject`, 12 штук) и
+    `[ITEM] MODEL key='<имя модели>' -> iModel=… (item '<имя>')`
+    (`WRPGItem.cpp`, `case MODEL`, 16 штук). Разводят два оставшихся
+    варианта происхождения нуля, см. `Docs/Research_WeaponModel_Report.md`:
+    строки `MODEL key=` нет вовсе → ключа `MODEL` в шаблоне нет (тогда
+    смотреть `ATTACHMODEL<n>`, который пишет слот **n+1**, а не слот 0);
+    строка есть с `iModel=0` → виноват резолвер ресурсов; `iModel>0` → ноль
+    появляется позже.
   Зачем: оружие невидимо во всех руках, при этом стрельба работает, и в
   логах НЕТ ни одного сообщения — потому что каждый способ отказа здесь
   молчалив. Разбор пути и всех условий — отчёт агента, кратко:

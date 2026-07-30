@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM MODEL-key probe
+#include <stdlib.h>	// getenv
+
 #include "WRPGSpell.h"
 #include "WRPGChar.h"
 #include "../WObj_RPG.h"
@@ -353,6 +356,30 @@ bool CRPG_Object_Item::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 	case MHASH2('MODE','L'): // "MODEL"
 		{
 			m_Model.m_iModel[0] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+
+			// RIDDICK_DBG_ITEM=1: the one missing fact about invisible weapons
+			// -- the model name that was asked for, and what the resource
+			// table answered. Everything downstream (equip, replication,
+			// render gate) was already proven to carry the value faithfully,
+			// so a zero here means the resolver; no line at all means the
+			// template has no MODEL key and the model is declared some other
+			// way (ATTACHMODEL<n> writes slot n+1, not slot 0).
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_nLogged = 0;
+				if (s_On && s_nLogged < 16)
+				{
+					++s_nLogged;
+					fprintf(stderr, "[ITEM] MODEL key='%s' -> iModel=%d (item '%s')\n",
+						KeyValue.Str(), (int)m_Model.m_iModel[0], m_Name.Str());
+					fflush(stderr);
+				}
+			}
 			break;
 		}
 

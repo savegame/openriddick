@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM template dump
+#include <stdlib.h>	// getenv
+
 #include "WRPGCore.h"
 #include "WRPGChar.h"
 
@@ -216,6 +219,35 @@ spCRPG_Object CRPG_Object::CreateObject(const char *_pName, CWorld_Server *_pWSe
 		{
 			spItem->m_Name = _pName;
 			int nKeys = spReg->GetNumChildren();
+
+			// RIDDICK_DBG_ITEM=1: which keys the evaluated RPG template really
+			// has. Held weapons come back with m_iModel[0] == 0, and that zero
+			// is born here: either "MODEL" is absent from the template (so the
+			// case that assigns slot 0 never runs), or it is present and the
+			// resource index resolves to zero. Printing the key names settles
+			// which -- and note that ATTACHMODEL<n> writes slot n+1, never
+			// slot 0, so a template carrying only ATTACHMODEL0 leaves slot 0
+			// legitimately empty while the render gate looks at exactly that
+			// slot.
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_nLogged = 0;
+				if (s_On && s_nLogged < 12)
+				{
+					++s_nLogged;
+					fprintf(stderr, "[ITEM] template '%s' nKeys=%d:", _pName, nKeys);
+					for (int k = 0; k < nKeys && k < 40; k++)
+						fprintf(stderr, " %s", spReg->GetChild(k)->GetThisName().Str());
+					fprintf(stderr, "\n");
+					fflush(stderr);
+				}
+			}
+
 			for(int k = 0; k < nKeys; k++)
 			{
 				const CRegistry* pReg = spReg->GetChild(k);
