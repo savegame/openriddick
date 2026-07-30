@@ -1110,9 +1110,18 @@ bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstancePar
 	CRC_MatrixPalette* M_RESTRICT pMP = _pMP;
 	if(!pMP)
 	{
-		pMP = new(pVBM->Alloc(sizeof(CRC_MatrixPalette))) CRC_MatrixPalette;
-		if (!pMP)
+		// The VB heap is a bump allocator that hands out NULL once the frame's
+		// budget is spent (CXR_VBManager::Alloc, XRVBManager.cpp:618 "Out of VB
+		// memory!"). The old one-liner ran placement-new straight on that NULL
+		// and the constructor stored into address 0 -- SIGSEGV inside
+		// CRC_MatrixPalette::CRC_MatrixPalette from a render worker thread, the
+		// crash at the end of the i1_pigsville run of 2026-07-30. The `if(!pMP)`
+		// that followed could never catch it: placement-new returns the very
+		// pointer it was given, so the constructor has already run by then.
+		void* pMPMem = pVBM->Alloc(sizeof(CRC_MatrixPalette));
+		if (!pMPMem)
 			return false;
+		pMP = new(pMPMem) CRC_MatrixPalette;
 	}
 	int nMP = _pC->GetNumBDMatrixMap(this);
 	if (nMP && _pMatrixPalette)

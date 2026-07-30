@@ -308,6 +308,18 @@ protected:
 
 	bool m_bOutOfMemory;
 
+	// Per-frame arena accounting, always on (two counters and an add inside a
+	// lock we already hold). Answers the only question that matters when the
+	// arena overflows: how big does XR_VBHEAP have to be? m_AllocDemand counts
+	// every request of the frame, granted or not; m_FailedBytes/m_nFailedAllocs
+	// count the refused ones. Reported by Internal_Begin for the frame that
+	// just ended, see the [VBM] line.
+	// NB: demand UNDERSTATES the true need -- callers that get NULL skip the
+	// rest of their geometry, so the requests that skip never show up.
+	int m_AllocDemand;
+	int m_FailedBytes;
+	int m_nFailedAllocs;
+
 	int m_nBuffers;
 	int m_nVBs;
 	CMTime m_TSort;

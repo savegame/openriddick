@@ -1,5 +1,6 @@
 #include "PCH.h"
 #include <cstdio>
+#include <cstdlib>	// getenv/atoi (RIDDICK_VBHEAP)
 #include "MRTC_Callgraph.h"
 #include "../../Shared/MOS/MMain.h"
 #include "../../Shared/MOS/Classes/Render/MRenderCapture.h"
@@ -3914,7 +3915,27 @@ void CXRealityApp::InitWorld()
 	MRTC_GOM()->RegisterObject(spVBMC, "SYSTEM.VBMCONTAINER");
 	m_spVBMContainer = spVBMContainer;
 
+	// Size of one frame's vertex-buffer arena, in KiB. Retail's default is
+	// 4096 and it is enough there because retail advertises
+	// CRC_CAPS_FLAGS_MATRIXPALETTE: skinned characters go down the hardware
+	// path and never allocate CPU vertex arrays. Our GLES3 backend does not
+	// advertise it, so bHWAnim stays false (WTriMesh.cpp:5494) and every
+	// visible skinned cluster allocates the WHOLE vertex buffer twice
+	// (positions + normals, WTriMesh.cpp:5857-5862) -- per cluster, not per
+	// mesh. On i1_pigsville with a handful of guards on screen that blew
+	// through 4 MiB every frame ("Out of VB memory!" x139, clusters silently
+	// dropped, and finally a NULL matrix palette), so the Linux default is
+	// raised. RIDDICK_VBHEAP=<KiB> overrides both this and Environment.cfg.
+#ifdef PLATFORM_LINUX
+	int VBSize = pEnv->GetValuei("XR_VBHEAP", 32768);
+	{
+		const char* pVBHeapEnv = getenv("RIDDICK_VBHEAP");
+		if (pVBHeapEnv && *pVBHeapEnv)
+			VBSize = atoi(pVBHeapEnv);
+	}
+#else
 	int VBSize = pEnv->GetValuei("XR_VBHEAP", 4096);
+#endif
 	VBSize = Max(16, Min(1024*64, VBSize));
 #if defined(PLATFORM_XENON) || defined(PLATFORM_PS3)
 	m_spVBMContainer->Create(3, VBSize*1024, 1024);

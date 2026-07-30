@@ -2,6 +2,8 @@
 
 // #include "../RndrGL/MRndrGL.h"
 
+#include <stdlib.h>	// getenv (RIDDICK_DBG_VBM)
+
 #include "XRVBManager.h"
 #include "XRClass.h"
 #include "XRVBContext.h"
@@ -277,6 +279,9 @@ CXR_VBManager::CXR_VBManager()
 {
 	MAUTOSTRIP(CXR_VBManager_ctor, MAUTOSTRIP_VOID);
 	m_AllocPos = 0;
+	m_AllocDemand = 0;
+	m_FailedBytes = 0;
+	m_nFailedAllocs = 0;
 	m_pHeapHW = NULL;
 	m_HeapSizeHW = 0;
 	m_AllocPosHW = 0;
@@ -338,6 +343,10 @@ void CXR_VBManager::Create(int _HeapSize, int _MaxVB)
 	m_AllocPos = 0;
 	if (mint(m_pHeap) & 15)
 		m_AllocPos+=16-mint(m_pHeap) & 15;
+
+	m_AllocDemand = 0;
+	m_FailedBytes = 0;
+	m_nFailedAllocs = 0;
 
 #ifdef M_Profile
 	m_AllocPosMax = 0;
@@ -545,6 +554,8 @@ void* CXR_VBManager::Alloc(int _Size, uint _bCacheZeroAll)
 
 	_Size = (_Size + 15) & ~15;
 
+	m_AllocDemand += _Size;
+
 	int32 AllocPos = m_AllocPos;
 
 
@@ -617,8 +628,14 @@ void* CXR_VBManager::Alloc(int _Size, uint _bCacheZeroAll)
 	}
 	else
 	{
-		M_TRACEALWAYS("Out of VB memory! (tried to allocated: %d)\n", _Size);
+		// Only the first refusal of the frame gets a line: once the arena is
+		// full every caller fails, and the i1_pigsville run of 2026-07-30 spent
+		// 139 log lines saying so. The totals are in the [VBM] line instead.
+		if (!m_bOutOfMemory)
+			M_TRACEALWAYS("Out of VB memory! (tried to allocated: %d)\n", _Size);
 		m_bOutOfMemory = true;
+		m_nFailedAllocs++;
+		m_FailedBytes += _Size;
 		return NULL;
 	}
 }
@@ -1969,9 +1986,35 @@ void CXR_VBManager::Internal_Begin(CRenderContext* _pRC, const CRC_Viewport* _pV
 #endif	// THREAD_ERROR_CHECKING
 	m_State	= CXR_VBMANAGER_STATE_RENDERING;
 
+	// Report the frame that just ended, before the counters are cleared.
+	// Unconditional on overflow (that frame lost geometry, the user has to
+	// know), every 60th frame with RIDDICK_DBG_VBM=1. "demand" = granted +
+	// refused, i.e. the arena size that would have served this frame -- feed it
+	// to RIDDICK_VBHEAP (KiB) with headroom.
+	{
+		static int s_DbgVBM = -1;
+		if (s_DbgVBM < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_VBM");
+			s_DbgVBM = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_nFrames = 0;
+		static int s_nOOMPrints = 0;
+		s_nFrames++;
+		const bool bPrintOOM = m_bOutOfMemory && (s_nOOMPrints++ < 100);
+		if (bPrintOOM || (s_DbgVBM && !(s_nFrames % 60)))
+			M_TRACEALWAYS("[VBM] %s heap=%dk used=%dk demand=%dk failed=%d/%dk VBs=%d\n",
+				m_bOutOfMemory ? "OVERFLOW" : "ok",
+				m_HeapSize >> 10, m_AllocPos >> 10, m_AllocDemand >> 10,
+				m_nFailedAllocs, m_FailedBytes >> 10, m_nVBs);
+	}
+
 	m_lSortScopes.Clear();
 
 	m_AllocPos = 0;
+	m_AllocDemand = 0;
+	m_FailedBytes = 0;
+	m_nFailedAllocs = 0;
 	m_bOutOfMemory = false;
 	m_nBuffers = 0;
 	m_nVBs = 0;
