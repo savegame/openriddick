@@ -1124,6 +1124,51 @@ bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstancePar
 		pMP = new(pMPMem) CRC_MatrixPalette;
 	}
 	int nMP = _pC->GetNumBDMatrixMap(this);
+
+	// RIDDICK_DBG_PALETTE=1 -- how big the GPU bone palettes would be.
+	// Needed because the backend cannot measure this itself: with our caps
+	// (no CRC_CAPS_FLAGS_MATRIXPALETTE) animated meshes take the engine's
+	// CPU skinning path and no palette ever reaches the renderer, so its
+	// own maxbones/skinovercap counters stay 0. This probe reads the same
+	// numbers one level up, where they exist regardless of the path taken,
+	// and answers the question that decides the GLES3 palette design (and
+	// whether 64 uniform-slots' worth is enough on ARM):
+	//   indirect = clusters WITH a BONEMATRIXMAP -> palette is cluster-local
+	//              and small (max printed);
+	//   full     = clusters without one -> palette is the WHOLE skeleton
+	//              (70..120 bones in Riddick), i.e. the ones that would
+	//              overflow a 64-bone palette.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_PALETTE");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static int s_nCalls = 0, s_nIndirect = 0, s_nFull = 0;
+			static int s_MaxIndirect = 0, s_MaxFull = 0, s_nPrinted = 0;
+			++s_nCalls;
+			if (nMP && _pMatrixPalette)
+			{
+				++s_nIndirect;
+				if (nMP > s_MaxIndirect) s_MaxIndirect = nMP;
+			}
+			else
+			{
+				++s_nFull;
+				if (_nMatrixPalette > s_MaxFull) s_MaxFull = _nMatrixPalette;
+			}
+			if (!(s_nCalls % 2000) && s_nPrinted++ < 40)
+			{
+				fprintf(stderr, "[MP] calls=%d indirect=%d(max %d bones) full=%d(max %d bones)\n",
+					s_nCalls, s_nIndirect, s_MaxIndirect, s_nFull, s_MaxFull);
+				fflush(stderr);
+			}
+		}
+	}
+
 	if (nMP && _pMatrixPalette)
 	{
 		pMP->m_Flags = 0;
