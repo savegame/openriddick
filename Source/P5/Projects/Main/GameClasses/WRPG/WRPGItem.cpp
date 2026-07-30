@@ -353,7 +353,33 @@ bool CRPG_Object_Item::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			break;
 		}
 
+	// PC content declares an item's mesh with the key MODEL0, not MODEL.
+	//
+	// Found with the [ITEM] probe on i1_pigsville: template
+	// weapon_assaultrifle1 (56 keys) carries MODEL0 = 'weapons\asr',
+	// weapon_shotgun1 carries MODEL0 = 'weapons\combatshotgun', and not a
+	// single MODEL key appears anywhere in the run. So the case below never
+	// executed, m_iModel[0] stayed zero, and the item render gate
+	// (WObj_CharRender.cpp, IsValid() == (m_iModel[0] != 0)) silently dropped
+	// the weapon -- invisible in the hands of both player and NPCs while
+	// firing kept working.
+	//
+	// The retail binary accepts both spellings and all four slots
+	// (GameClasses_Win32_x86_dll_decomp.c:401270-401330, the item key parser,
+	// identified by the neighbouring attachrottrack/attachpoint cases):
+	//   0xff1eef1  "model"  -> uint16 at this+0x1f2   = m_iModel[0]
+	//   0xe326de1  "model0" -> same label LAB_1026306b, same +0x1f2
+	//   0xe326de2  "model1" -> this+0x1f4
+	//   0xe326de3  "model2" -> this+0x1f6
+	//   0xe326de4  "model3" -> this+0x1f8
+	// Offsets 0x1f2/0x1f4/0x1f6/0x1f8 are exactly uint16 m_iModel[4]. Hashes
+	// verified against MRTC_StringHash.h (djb2, lowercased, minus 5381).
+	//
+	// The base CWObject_Model::OnEvalKey does the same for character bodies
+	// (WObj_System.cpp:276-281 lists case MODEL and case MODEL0 together) --
+	// which is why bodies rendered and held items did not.
 	case MHASH2('MODE','L'): // "MODEL"
+	case MHASH2('MODE','L0'): // "MODEL0"
 		{
 			m_Model.m_iModel[0] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
 
@@ -380,6 +406,26 @@ bool CRPG_Object_Item::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 					fflush(stderr);
 				}
 			}
+			break;
+		}
+
+	// MODEL1..MODEL3 -- further slots of the same item; retail reads them into
+	// the same array (see the offsets above). Absent from this snapshot.
+	case MHASH2('MODE','L1'): // "MODEL1"
+		{
+			m_Model.m_iModel[1] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L2'): // "MODEL2"
+		{
+			m_Model.m_iModel[2] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L3'): // "MODEL3"
+		{
+			m_Model.m_iModel[3] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
 			break;
 		}
 

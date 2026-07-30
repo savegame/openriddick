@@ -235,9 +235,30 @@ bool CRPG_Object_Item2::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			break;
 		}
 
+	// See WRPGItem.cpp for the evidence: PC content uses MODEL0, and retail
+	// accepts MODEL/MODEL0..MODEL3 into m_iModel[0..3].
 	case MHASH2('MODE','L'): // "MODEL"
+	case MHASH2('MODE','L0'): // "MODEL0"
 		{
 			m_Model.m_iModel[0] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L1'): // "MODEL1"
+		{
+			m_Model.m_iModel[1] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L2'): // "MODEL2"
+		{
+			m_Model.m_iModel[2] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L3'): // "MODEL3"
+		{
+			m_Model.m_iModel[3] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
 			break;
 		}
 
