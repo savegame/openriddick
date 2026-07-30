@@ -1,6 +1,8 @@
 
 #include "PCH.h"
 
+#include <stdio.h>	// [DLG] container report
+
 #include "WDataCore.h"
 #include "WDataRes_Core.h"
 #include "MFloat.h"
@@ -2552,7 +2554,21 @@ void CWorldDataCore::Resource_WorldOpen(CStr _WorldName)
 
 	M_TRY
 	{
-		m_DialogContainer.Create(ResolveFileName("Dialogues\\All.xcd"), true);
+		const CStr DlgAll = ResolveFileName("Dialogues\\All.xcd");
+		m_DialogContainer.Create(DlgAll, true);
+		// All dialogues live in this one container; every per-dialogue lookup
+		// goes through CMFileContainer::GetEntry on it, and the on-disk
+		// .XCD/.XRG fallback does not exist in the PC content. So an unopened
+		// or empty container means NO dialogue at all -- which is exactly the
+		// reported "cannot start a conversation, there is not even a prompt",
+		// and the only trace it otherwise leaves is a lone
+		// "WARNING: Dialogue ...\\Dlg_Player_Base.XRG does not exist".
+		// Printed unconditionally: it is one line per world load and it
+		// answers the question before any flag has to be guessed.
+		fprintf(stderr, "[DLG] container '%s' exists=%d entries=%d\n",
+			DlgAll.Str(), (int)CDiskUtil::FileExists(DlgAll),
+			(int)m_DialogContainer.m_Entries.Len());
+		fflush(stderr);
 #ifndef PLATFORM_CONSOLE
 		m_DialogContainer.CloseFile();
 #endif

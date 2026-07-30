@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ANIM] RIDDICK_DBG_SKEL report
+#include <stdlib.h>	// getenv
+
 #include "WObj_Char.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Anim.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
@@ -350,6 +353,49 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 					M_ASSERT(0x7fc00000 != (uint32&)_pLayers[i].m_Time, "!");
 					//ConOutL(CStrF("NP: Diff: %f BlendIn: %f BlendOut: %f Lerp: %f", Diff, _pLayers[i].m_BlendIn, _pLayers[i].m_BlendOut, _pLayers[i].m_Blend));
 				}
+			}
+		}
+	}
+
+	// RIDDICK_DBG_SKEL=1: how many animation layers a character actually gets.
+	//
+	// This separates the two readings of "NPCs slide along the floor": with
+	// nLayers == 0 the character is drawn in its bind pose while the AI keeps
+	// translating it, which looks exactly like sliding; with nLayers > 0 and
+	// sane times the animations do run, and the complaint is about movement
+	// speed instead -- character movement in this engine is driven by the
+	// animation's move track, so a wrong scale there shows up as gliding.
+	{
+		static int s_Dbg = -1;
+		if (s_Dbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_SKEL");
+			s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_Dbg)
+		{
+			// Per-object budget so one character cannot flood the log.
+			static int16 s_lObj[16] = { 0 };
+			static uint8 s_lCount[16] = { 0 };
+			int iSlot = -1;
+			for (int i = 0; i < 16; i++)
+			{
+				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
+			}
+			if (iSlot >= 0 && s_lCount[iSlot] < 6)
+			{
+				s_lCount[iSlot]++;
+				const CVec3Dfp32 Pos = _pObj->GetPosition();
+				fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d",
+					(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers);
+				for (int i = 0; i < nLayers && i < 3; i++)
+					fprintf(stderr, "  L%d{seq=%d t=%.3f ts=%.3f blend=%.3f fl=0x%x}",
+						i, (int)(_pLayers[i].m_spSequence != NULL), _pLayers[i].m_Time,
+						_pLayers[i].m_TimeScale, _pLayers[i].m_Blend,
+						(unsigned)_pLayers[i].m_Flags);
+				fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);
+				fflush(stderr);
 			}
 		}
 	}

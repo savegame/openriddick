@@ -1,5 +1,7 @@
 
 #include "PCH.h"
+
+#include <stdio.h>	// [DLG] lookup report
 #include "WDataRes_Sound.h"
 #include "WMapData.h"
 #include "WPhysState.h"
@@ -705,6 +707,30 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 				if(!CDiskUtil::FileExists(FileName))
 				{
 					ConOutL(CStrF("§cf80WARNING: Dialogue %s does not exist", FileName.Str()));
+					// This is the end of the road for a dialogue: not in the
+					// Dialogues\\All.xcd container, no .XCD and no .XRG on
+					// disk. Since PC content ships every dialogue inside the
+					// container, reaching here means the container lookup
+					// failed -- so report the name we asked for next to what
+					// the container actually holds. A case or prefix mismatch
+					// is immediately visible that way (the lookup itself is
+					// case-insensitive, but it is a BINARY SEARCH and needs
+					// the entry list to be sorted).
+					{
+						static int s_nReported = 0;
+						if(s_nReported < 4)
+						{
+							++s_nReported;
+							const int nEnt = _pWData->m_DialogContainer.m_Entries.Len();
+							fprintf(stderr, "[DLG] lookup failed for '%s' -- container has %d entries",
+								Name.Str(), nEnt);
+							for(int i = 0; i < nEnt && i < 6; i++)
+								fprintf(stderr, " | %s",
+									_pWData->m_DialogContainer.m_Entries[i].m_Description.Str());
+							fprintf(stderr, "\n");
+							fflush(stderr);
+						}
+					}
 					return false;
 				}
 
