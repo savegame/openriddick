@@ -82,12 +82,27 @@
 // guarantees GL_MAX_VERTEX_UNIFORM_VECTORS >= 256 vec4-equivalents for the
 // WHOLE vertex shader, and the NDS/NDSP programs already spend a couple
 // dozen on MVP/texgen/light uniforms. A skeleton with more bones than this
-// silently has its extra palette entries clamped away by
-// ApplySkinningUniforms (Min(pMP->m_nMatrices, GLES3_MAX_BONES)) --
-// vertices whose bone index lands beyond the uploaded range read stale/
-// zeroed uBoneMat rows (visible glitch, not a crash). See
-// Docs/HacksAndHooks.md for the real (currently unmeasured) bone counts in
-// Riddick's character rigs.
+// has its extra palette entries clamped away by ApplySkinningUniforms
+// (Min(pMP->m_nMatrices, GLES3_MAX_BONES)).
+//
+// UPDATED 2026-07-30 -- what happens to a vertex whose bone index lands past
+// the uploaded range is no longer left to chance. It used to read whatever
+// those uBoneMat rows held, and since only nBones*3 rows were uploaded per
+// draw, the tail belonged to the PREVIOUS skinned draw: the vertex got
+// another character's world matrix and its triangle stretched across the
+// screen, more often the longer a session ran (more palettes had passed
+// through). Now: (a) the shader clamps the index to the array bound
+// (clamp(idx,0,63) in kGLES3_SkinningGLSL) so the read is defined, (b) the
+// unused rows are zeroed and uploaded, so an over-cap index collapses the
+// vertex to the object's own origin instead of flying away, and (c) the
+// over-cap palette itself is reported once as "[GLES3-SKIN] palette OVER
+// CAP" without any debug flag.
+// The real fix is a bigger palette (uniform block, or a runtime-sized array
+// built from GL_MAX_VERTEX_UNIFORM_VECTORS): Riddick's rigs report 70..120
+// bones in gameplay logs ([ITEM] nBones=), and clusters without a
+// BONEMATRIXMAP address the whole skeleton (Cluster_SetMatrixPalette's else
+// branch, WTriMesh.cpp:1145-1153). Do that once a log says how many draws
+// actually exceed the cap.
 #define GLES3_MAX_BONES 64
 // Object-like macro (NOT a static const char*) so it expands to a run of
 // adjacent string literals that the compiler concatenates at compile time,
@@ -113,7 +128,7 @@
 	"  vec3 r = vec3(0.0);\n" \
 	"  for (int i = 0; i < 8; ++i) {\n" \
 	"    if (i >= uBoneCount) break;\n" \
-	"    int base = idx[i] * 3;\n" \
+	"    int base = clamp(idx[i], 0, 63) * 3;\n" \
 	"    r += w[i] * vec3(dot(uBoneMat[base+0], P), dot(uBoneMat[base+1], P), dot(uBoneMat[base+2], P));\n" \
 	"  }\n" \
 	"  return r;\n" \
@@ -1508,6 +1523,22 @@ static bool GLES3_SkinningEnabled()
 	return s != 0;
 }
 
+// RIDDICK_SKIN_DRAWNOPALETTE=1 -- draw matrix-palette geometry that arrived
+// without a palette anyway, i.e. submit its BONE-LOCAL positions (the
+// behaviour before 2026-07-30). Default is to drop such draws; see
+// CRC_GLES3::ApplySkinningUniforms. A/B switch for "did dropping them take
+// the scattered/stretched polygons away, or something else did".
+static bool GLES3_SkinDrawNoPalette()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_SKIN_DRAWNOPALETTE");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 // RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj|lf -- debug output of
 // the NDS/NDSP/NDSEATP/LF programs (only meaningful together with
 // RIDDICK_NDS=1). 'tslv' shows the normalized tangent-space light vector
@@ -2261,6 +2292,21 @@ public:
 		bool m_bDbgSkinLogged = false;
 		bool m_bDbgSkinFallbackLogged = false;
 		int  m_DbgSkinDraws = 0; // per-interval counter, printed as "skin=N" in [GL-DBG]
+		// Palettes bigger than GLES3_MAX_BONES: session totals, printed as
+		// "skinovercap=N/maxbones=M" in [GL-DBG] and reported once (flagless)
+		// by ApplySkinningUniforms. N>0 means some vertices are drawn on a
+		// clamped bone -- see the GLES3_MAX_BONES comment at the top.
+		int  m_nSkinOverCapDraws = 0;
+		int  m_DbgSkinMaxPaletteSeen = 0;
+		// Skinned geometry that reached the draw path with no palette. The
+		// draw is dropped (see ApplySkinningUniforms) unless
+		// RIDDICK_SKIN_DRAWNOPALETTE=1. Session total, printed as "nopal=N".
+		int  m_nSkinNoPaletteDraws = 0;
+		// Set by ApplySkinningUniforms for the draw currently being set up;
+		// read right before glDrawElements by the two cached paths (the
+		// streaming paths never carry bone data -- SUIVert has no room for
+		// it -- so they leave m_DrawBoneCount at 0 and never set this).
+		bool m_SkinNoPalette = false;
 		// Draws whose CACHED geometry entry carries bone indices (CRC_VREG_MI0),
 		// printed as "mi0=N". Deliberately separate from skin=N: mi0 counts
 		// "this draw is matrix-palette geometry", skin counts "we actually
@@ -2653,6 +2699,7 @@ public:
 				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d svol=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
+				"skinovercap=%d maxbones=%d nopal=%d idxbad=%d "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
@@ -2662,6 +2709,7 @@ public:
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
 				(long long)m_GeomCache.m_nBytesV, (long long)m_GeomCache.m_nBytesI,
 				m_DbgVConv, m_DbgVMemo,
+				m_nSkinOverCapDraws, m_DbgSkinMaxPaletteSeen, m_nSkinNoPaletteDraws, m_nIdxRangeBad,
 				m_DbgUploadRGBA, m_DbgUploadDXT1, m_DbgUploadDXT3, m_DbgUploadDXT5, m_DbgUploadFail);
 			fflush(stderr);
 
@@ -4870,6 +4918,12 @@ public:
 		// (0,0,1) default above.
 		void SetVertexAttribPointersFromEntry(const SGLES3GeomEntry& _E)
 		{
+			// Per-draw state, cleared for every cached draw (not only inside
+			// ApplySkinningUniforms): programs without skinning uniforms --
+			// LFM/LF world passes -- never call that function, and a leftover
+			// true here would silently drop their geometry too.
+			m_SkinNoPalette = false;
+
 			int UVSet0 = 0, UVSet1 = 1;
 			int TUSet = 2, TVSet = 3;
 			if (m_pCurAttrib)
@@ -4966,6 +5020,8 @@ public:
 		// reflects THIS draw's palette, not a stale one from a previous VB.
 		void ApplySkinningUniforms(CGLES3Shader& _Sh, int _LocBoneCount, int _LocBoneMat)
 		{
+			m_SkinNoPalette = false;
+
 			if (_LocBoneCount < 0) return;
 
 			if (!GLES3_SkinningEnabled() || m_DrawBoneCount <= 0)
@@ -4977,20 +5033,79 @@ public:
 			const CRC_MatrixPalette* pMP = Matrix_GetState().m_pMatrixPaletteArgs;
 			if (!pMP || pMP->m_nMatrices == 0)
 			{
+				// Vertex data carries bone weights but no palette came with
+				// the draw. There is no sane way to draw this: positions in a
+				// matrix-palette vertex buffer are BONE-LOCAL, so submitting
+				// them as-is scatters the mesh's triangles across the world
+				// (each piece sits wherever its bone's local origin lands in
+				// view space) -- one of the shapes of the "polygon stretched
+				// across the whole screen" artifact. Since 2026-07-30 the draw
+				// is dropped instead; RIDDICK_SKIN_DRAWNOPALETTE=1 restores
+				// the old behaviour for A/B.
+				// How the engine gets here: Cluster_SetMatrixPalette
+				// (WTriMesh.cpp:1106) is what installs the palette, and it is
+				// only called when the model has one to give (pMatrixPalette
+				// != NULL, WTriMesh.cpp:5852) -- and it bails out without
+				// installing anything when the VB arena is full. So this
+				// counter rising is itself a symptom worth chasing upstream.
+				m_SkinNoPalette = true;
+				++m_nSkinNoPaletteDraws;
 				_Sh.SetInt(_LocBoneCount, 0);
-				if (!m_bDbgSkinFallbackLogged)
+				// Logged at 1/100/1000/... draws rather than once: a single
+				// line at session start cannot tell "one stray draw" from
+				// "every character, every frame", and that is exactly the
+				// difference between a curiosity and the artifact the player
+				// is looking at. Flagless on purpose (the counter also rides
+				// along in [GL-DBG] as nopal=N).
+				if (m_nSkinNoPaletteDraws == 1 || m_nSkinNoPaletteDraws == 100 ||
+				    m_nSkinNoPaletteDraws == 1000 || m_nSkinNoPaletteDraws == 10000 ||
+				    m_nSkinNoPaletteDraws == 100000)
 				{
 					m_bDbgSkinFallbackLogged = true;
 					fprintf(stderr,
-						"[GLES3-SKIN] falling back for this draw: vertex format has %d bone weight(s) "
-						"but %s -- drawing unskinned (bone-local) positions\n",
-						m_DrawBoneCount, pMP ? "the palette has 0 matrices" : "no palette is set (Matrix_SetPalette(NULL))");
+						"[GLES3-SKIN] no palette for a skinned draw (#%d): vertex format has %d bone weight(s) "
+						"but %s -- dropping the draw (RIDDICK_SKIN_DRAWNOPALETTE=1 draws bone-local positions instead)\n",
+						m_nSkinNoPaletteDraws, m_DrawBoneCount,
+						pMP ? "the palette has 0 matrices" : "no palette is set (Matrix_SetPalette(NULL))");
 					fflush(stderr);
 				}
 				return;
 			}
 
 			const int nBones = Min((int)pMP->m_nMatrices, GLES3_MAX_BONES);
+
+			// Tracked for every skinned draw, not only the over-cap ones:
+			// "maxbones" in [GL-DBG] is how the real rig sizes get measured,
+			// which is what decides how big the palette has to become.
+			if ((int)pMP->m_nMatrices > m_DbgSkinMaxPaletteSeen)
+				m_DbgSkinMaxPaletteSeen = (int)pMP->m_nMatrices;
+
+			// Over-cap palettes are NOT harmless, so they are reported without
+			// any debug flag. Bone indices in the vertex data address the
+			// palette directly; everything from GLES3_MAX_BONES up is simply
+			// not uploaded, and the shader would read whatever those uBoneMat
+			// rows happened to hold -- i.e. a matrix belonging to some other
+			// object, which throws the vertex to that object's position. The
+			// symptom is a triangle stretched across the whole screen, and it
+			// gets more frequent the more characters are alive, because more
+			// palettes have passed through the same uniform storage.
+			// Clusters WITH a BONEMATRIXMAP get a small cluster-local palette
+			// and never hit this; the ones without (Cluster_SetMatrixPalette's
+			// else branch, WTriMesh.cpp:1145-1153) get the whole skeleton,
+			// and Riddick's rigs are 70..120 bones (see the [ITEM] nBones=
+			// values in any gameplay log).
+			if ((int)pMP->m_nMatrices > GLES3_MAX_BONES)
+			{
+				++m_nSkinOverCapDraws;
+				if (m_nSkinOverCapDraws == 1 || m_nSkinOverCapDraws == 1000 ||
+				    m_nSkinOverCapDraws == 100000)
+					fprintf(stderr,
+						"[GLES3-SKIN] palette OVER CAP: %d bones > GLES3_MAX_BONES=%d, "
+						"indices >= %d are clamped to the last uploaded bone "
+						"(remap=%s). Raise the cap (uniform block / runtime-sized array) to fix properly.\n",
+						(int)pMP->m_nMatrices, GLES3_MAX_BONES, GLES3_MAX_BONES,
+						pMP->m_piMatrices ? "yes" : "no");
+			}
 
 			if (m_DbgEnabled && !m_bDbgSkinLogged)
 			{
@@ -5059,7 +5174,23 @@ public:
 						D.k[3] = M.k[3][r];
 					}
 				}
-				glUniform4fv(_LocBoneMat, nBones * 3, (const float*)sScratch);
+				// Rows this draw does not use are zeroed and uploaded too, so
+				// uBoneMat NEVER holds another object's matrices. Uploading
+				// only nBones*3 rows (what this did before) leaves the tail of
+				// the program's uniform storage owned by whatever skinned draw
+				// came before, and any bone index past this palette then
+				// transforms the vertex by a stranger's world matrix -- the
+				// "one vertex thrown across the screen" artifact. With zeros
+				// such a vertex collapses to the object's own origin instead:
+				// still wrong, but local, and the [GLES3-SKIN] line above says
+				// why. Cost is one glUniform4fv of GLES3_MAX_BONES*3 vec4 (3
+				// KiB) per skinned draw instead of a partial one.
+				for (int i = nBones * 3; i < GLES3_MAX_BONES * 3; ++i)
+				{
+					sScratch[i].k[0] = 0.0f; sScratch[i].k[1] = 0.0f;
+					sScratch[i].k[2] = 0.0f; sScratch[i].k[3] = 0.0f;
+				}
+				glUniform4fv(_LocBoneMat, GLES3_MAX_BONES * 3, (const float*)sScratch);
 			}
 
 			_Sh.SetInt(_LocBoneCount, m_DrawBoneCount);
@@ -5124,6 +5255,16 @@ public:
 			SetupCommonUniforms(false);
 			m_DbgTotalVerts += _E.m_nV;
 			m_DbgTotalIdx   += _nIdx;
+
+			// Skinned geometry without a palette: bone-local positions, would
+			// scatter across the world. Dropped here rather than in
+			// ApplySkinningUniforms because that one only owns uniforms.
+			if (m_SkinNoPalette && !GLES3_SkinDrawNoPalette())
+			{
+				DisableVertexAttribPointers();
+				glBindVertexArray(0);
+				return true;
+			}
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _IB.m_IBO);
 			const GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : GL_TRIANGLES;
@@ -5811,6 +5952,7 @@ public:
 					if (pE->m_VBO && pE->m_nV > 0)
 					{
 						if (DrawIndexed_ShouldSkip(pE->m_nV)) return;
+					if (!CheckIndexRange("cached", _pInd, _nInd, pE->m_nV)) return;
 						glBindVertexArray(m_VAO);
 						CGLES3VBOStreamer::SPushResult iRes = m_Streamer.PushIndices(_pInd, _nInd * (int)sizeof(uint16));
 						if (iRes.Ok)
@@ -5842,6 +5984,14 @@ public:
 									m_DbgLastUseTex, (unsigned)m_DbgLastBind0);
 								fflush(stderr);
 								--m_DbgDrawPostArm;
+							}
+							// See the twin check in DrawCachedVB: bone-local
+							// positions without a palette are never drawable.
+							if (m_SkinNoPalette && !GLES3_SkinDrawNoPalette())
+							{
+								DisableVertexAttribPointers();
+								glBindVertexArray(0);
+								return;
 							}
 							m_DbgTotalVerts += pE->m_nV;
 							m_DbgTotalIdx   += _nInd;
@@ -5908,6 +6058,12 @@ public:
 			}
 
 			if (DrawIndexed_ShouldSkip(nVerts))
+			{
+				FreeScratch(pVerts, nVerts, bMalloced);
+				return;
+			}
+
+			if (!CheckIndexRange("stream", _pInd, _nInd, nVerts))
 			{
 				FreeScratch(pVerts, nVerts, bMalloced);
 				return;
@@ -6300,6 +6456,45 @@ public:
 			m_GeomMemo.m_bValid = false;
 		}
 
+		// RIDDICK_IDXCHECK=1 (report) / =2 (report and drop the draw).
+		// Nothing on the draw path validates indices against the vertex
+		// count -- not the engine, not this backend (Docs/
+		// Research_ShardedCharacters_Report.md §2.4). An index >= nVerts is
+		// harmless-ish on the cached path (its VBO ends there, GL reads
+		// zeros) but NOT on the streaming path: every draw of the frame
+		// shares one ring VBO, so the read lands in a NEIGHBOURING draw's
+		// vertices and the triangle gets a corner somewhere else entirely
+		// -- one candidate for "a quad stretched across the whole screen".
+		// Off by default: this walks the index list on every draw.
+		// Returns true = indices are sane (or checking is off).
+		bool CheckIndexRange(const char* _pWhere, const uint16* _pInd, int _nInd, int _nVerts)
+		{
+			static int s_Mode = -1;
+			if (s_Mode < 0)
+			{
+				const char* e = getenv("RIDDICK_IDXCHECK");
+				s_Mode = (e && *e && *e != '0') ? atoi(e) : 0;
+			}
+			if (!s_Mode || !_pInd || _nInd <= 0) return true;
+
+			int MaxIdx = -1;
+			for (int i = 0; i < _nInd; ++i)
+				if ((int)_pInd[i] > MaxIdx) MaxIdx = (int)_pInd[i];
+			if (MaxIdx < _nVerts) return true;
+
+			++m_nIdxRangeBad;
+			if (m_nIdxRangeBad <= 40)
+			{
+				fprintf(stderr, "[IDXCHK] %s: max index %d >= nVerts %d (nInd=%d, tex0=%u, flags=0x%08x)\n",
+					_pWhere, MaxIdx, _nVerts, _nInd,
+					m_pCurAttrib ? (unsigned)m_pCurAttrib->m_TextureID[0] : 0u,
+					m_pCurAttrib ? (unsigned)m_pCurAttrib->m_Flags : 0u);
+				fflush(stderr);
+			}
+			return s_Mode < 2;
+		}
+		int m_nIdxRangeBad = 0;
+
 		// Per-draw skip filters that depend only on the attribute state
 		// and the vertex count (not on the CPU vertex data), factored out
 		// of DrawIndexed so the cached/memo fast paths apply exactly the
@@ -6417,6 +6612,7 @@ public:
 			if (!m_UIShader.IsValid() && !m_3DShader.IsValid()) return;
 			// ONLY_BSP filter (same threshold as DrawIndexed).
 			if (getenv("RIDDICK_ONLY_BSP") && _nVerts < 100) return;
+			if (!CheckIndexRange("uservb", _pInd, _nInd, _nVerts)) return;
 			if (m_AttribChanged) Attrib_Update();
 			if (m_MatrixChanged) Matrix_Update();
 

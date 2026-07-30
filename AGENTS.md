@@ -33,6 +33,15 @@
     `[VBM] ok|OVERFLOW heap= used= demand= failed= VBs=` раз в 60 кадров, при
     переполнении печатается всегда. Переполнение арены = молча пропавшая
     геометрия, а раньше ещё и SIGSEGV в `Cluster_SetMatrixPalette`.
+  - Скиннинг и «растянутый через экран полигон» (2026-07-30, подробно —
+    `Docs/HacksAndHooks.md` «Скиннинг: палитра и …»): скиннед-draw без
+    палитры теперь ОТБРАСЫВАЕТСЯ (его вершины костно-локальные, рисовать их
+    нельзя), `RIDDICK_SKIN_DRAWNOPALETTE=1` — вернуть старое поведение;
+    индекс кости клампится в шейдере, неиспользуемые строки палитры
+    обнуляются (палитра >64 костей = `[GLES3-SKIN] palette OVER CAP`);
+    `RIDDICK_IDXCHECK=1|2` — проверка индексов против числа вершин
+    (печать `[IDXCHK]` / печать + скип draw'а). Счётчики
+    `nopal= skinovercap= maxbones= idxbad=` в `[GL-DBG]`.
   - Диагностика `[BSP2] PVS entries: N` (WBSP2Loader.cpp): если N=0 — в уровне НЕТ PVS-чанка, движок молча рисует ВСЕ листы (InPVS->true), отсюда тормоза при вращении камеры.
   - Исследование «зеркала камеры» (2026-07-29, `Docs/Research_CameraMirror_Report.md`): `RIDDICK_NO_CAMFLIP=1` — снятие костыля негирования X-столбца W2V (XREngine.cpp); `RIDDICK_DBG_MVP=N` — `[MVP]` детерминанты Model/Proj/MVP первых N 3D-draw'ов; `RIDDICK_DBG_SCISSOR=N` — `[SCISSOR]`/`[SCISSOR-TM]` дамп проекций scissor-боксов (WBSP2Portal.cpp, WTriMesh.cpp). Вывод: зеркала X в цепочке нет (порт ≡ retail ≡ PS3), костыль подлежит снятию после A/B-прогона; scissor-полоса — отдельный дефект.
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.

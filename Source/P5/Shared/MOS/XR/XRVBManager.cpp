@@ -348,6 +348,12 @@ void CXR_VBManager::Create(int _HeapSize, int _MaxVB)
 	m_FailedBytes = 0;
 	m_nFailedAllocs = 0;
 
+	// One line per manager at startup. Cheap, and it makes every log state
+	// the arena size it ran with -- otherwise "no [VBM] OVERFLOW" is
+	// ambiguous between "the arena was big enough" and "this build predates
+	// the arena work" (same reason MMain_Linux prints the [FLAGS] banner).
+	M_TRACEALWAYS("[VBM] arena created: heap=%dk maxVB=%d\n", _HeapSize >> 10, _MaxVB);
+
 #ifdef M_Profile
 	m_AllocPosMax = 0;
 #endif

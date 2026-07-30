@@ -192,7 +192,9 @@ void CArrayCore<DLVCImp>::InsertxBlank(int _Pos, int _nElem, bool _bRespectGrow)
 		if(m_pData->m_nAllocCount >= ALLOCCOUNTWARNING)
 		{
 			if(!(m_pData->m_nAllocCount % ALLOCCOUNTWARNING))
-				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times\r\n", m_pData, m_pData->m_nAllocCount);
+				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times (elem %d B, len %d, alloc %d, grow %d)\r\n",
+					m_pData, m_pData->m_nAllocCount, (int)m_pData->m_ElemSize, (int)m_pData->m_Len,
+					(int)m_pData->m_AllocLen, (int)m_pData->m_nGrow);
 		}
 #endif
 	} 
@@ -263,7 +265,9 @@ void CArrayCore<DLVCImp>::InsertxElements(int _Pos, const  void* _pElems, int _n
 		if(m_pData->m_nAllocCount >= ALLOCCOUNTWARNING)
 		{
 			if(!(m_pData->m_nAllocCount % ALLOCCOUNTWARNING))
-				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times\r\n", m_pData, m_pData->m_nAllocCount);
+				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times (elem %d B, len %d, alloc %d, grow %d)\r\n",
+					m_pData, m_pData->m_nAllocCount, (int)m_pData->m_ElemSize, (int)m_pData->m_Len,
+					(int)m_pData->m_AllocLen, (int)m_pData->m_nGrow);
 		}
 #endif
 	} 
@@ -340,7 +344,9 @@ void CArrayCore<DLVCImp>::Delx(int _Pos, int _nDel, bool _bAlwaysKeepData)
 		if(m_pData->m_nAllocCount >= ALLOCCOUNTWARNING)
 		{
 			if(!(m_pData->m_nAllocCount % ALLOCCOUNTWARNING))
-				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times\r\n", m_pData, m_pData->m_nAllocCount);
+				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times (elem %d B, len %d, alloc %d, grow %d)\r\n",
+					m_pData, m_pData->m_nAllocCount, (int)m_pData->m_ElemSize, (int)m_pData->m_Len,
+					(int)m_pData->m_AllocLen, (int)m_pData->m_nGrow);
 		}
 #endif
 //		for(int i = 0; i < _Pos; i++) pListNew[i] = p->list[i];
@@ -426,7 +432,9 @@ void CArrayCore<DLVCImp>::Core_SetLen(int _Len)
 		if(m_pData->m_nAllocCount >= ALLOCCOUNTWARNING)
 		{
 			if(!(m_pData->m_nAllocCount % ALLOCCOUNTWARNING))
-				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times\r\n", m_pData, m_pData->m_nAllocCount);
+				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times (elem %d B, len %d, alloc %d, grow %d)\r\n",
+					m_pData, m_pData->m_nAllocCount, (int)m_pData->m_ElemSize, (int)m_pData->m_Len,
+					(int)m_pData->m_AllocLen, (int)m_pData->m_nGrow);
 		}
 #endif
 	}
@@ -486,7 +494,9 @@ void CArrayCore<DLVCImp>::Core_GrowLen(int _Len)
 		if(m_pData->m_nAllocCount >= ALLOCCOUNTWARNING)
 		{
 			if(!(m_pData->m_nAllocCount % ALLOCCOUNTWARNING))
-				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times\r\n", m_pData, m_pData->m_nAllocCount);
+				M_TRACEALWAYS("Array 0x%.8X has been allocated %d times (elem %d B, len %d, alloc %d, grow %d)\r\n",
+					m_pData, m_pData->m_nAllocCount, (int)m_pData->m_ElemSize, (int)m_pData->m_Len,
+					(int)m_pData->m_AllocLen, (int)m_pData->m_nGrow);
 		}
 #endif
 	}
