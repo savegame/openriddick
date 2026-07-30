@@ -1523,17 +1523,19 @@ static bool GLES3_SkinningEnabled()
 	return s != 0;
 }
 
-// RIDDICK_SKIN_DRAWNOPALETTE=1 -- draw matrix-palette geometry that arrived
-// without a palette anyway, i.e. submit its BONE-LOCAL positions (the
-// behaviour before 2026-07-30). Default is to drop such draws; see
-// CRC_GLES3::ApplySkinningUniforms. A/B switch for "did dropping them take
-// the scattered/stretched polygons away, or something else did".
-static bool GLES3_SkinDrawNoPalette()
+// RIDDICK_SKIN_DROPNOPALETTE=1 -- drop draws whose vertex format carries
+// bone weights but which arrived without a matrix palette, instead of
+// drawing them unskinned (the default, and what the engine expects for the
+// common case -- see the long note in CRC_GLES3::ApplySkinningUniforms).
+// A/B tool: if the scattered/stretched polygons disappear under this flag,
+// those draws are the artifact and the engine side has to be looked at;
+// if they stay, look elsewhere. NOT a fix -- it removes real geometry.
+static bool GLES3_SkinDropNoPalette()
 {
 	static int s = -1;
 	if (s < 0)
 	{
-		const char* e = getenv("RIDDICK_SKIN_DRAWNOPALETTE");
+		const char* e = getenv("RIDDICK_SKIN_DROPNOPALETTE");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -2298,9 +2300,10 @@ public:
 		// clamped bone -- see the GLES3_MAX_BONES comment at the top.
 		int  m_nSkinOverCapDraws = 0;
 		int  m_DbgSkinMaxPaletteSeen = 0;
-		// Skinned geometry that reached the draw path with no palette. The
-		// draw is dropped (see ApplySkinningUniforms) unless
-		// RIDDICK_SKIN_DRAWNOPALETTE=1. Session total, printed as "nopal=N".
+		// Skinned-format geometry that reached the draw path with no palette.
+		// Drawn unskinned by default (usually correct -- see the note in
+		// ApplySkinningUniforms); RIDDICK_SKIN_DROPNOPALETTE=1 drops it for
+		// A/B. Session total, printed as "nopal=N" in [GL-DBG].
 		int  m_nSkinNoPaletteDraws = 0;
 		// Set by ApplySkinningUniforms for the draw currently being set up;
 		// read right before glDrawElements by the two cached paths (the
@@ -5034,20 +5037,30 @@ public:
 			if (!pMP || pMP->m_nMatrices == 0)
 			{
 				// Vertex data carries bone weights but no palette came with
-				// the draw. There is no sane way to draw this: positions in a
-				// matrix-palette vertex buffer are BONE-LOCAL, so submitting
-				// them as-is scatters the mesh's triangles across the world
-				// (each piece sits wherever its bone's local origin lands in
-				// view space) -- one of the shapes of the "polygon stretched
-				// across the whole screen" artifact. Since 2026-07-30 the draw
-				// is dropped instead; RIDDICK_SKIN_DRAWNOPALETTE=1 restores
-				// the old behaviour for A/B.
-				// How the engine gets here: Cluster_SetMatrixPalette
-				// (WTriMesh.cpp:1106) is what installs the palette, and it is
-				// only called when the model has one to give (pMatrixPalette
-				// != NULL, WTriMesh.cpp:5852) -- and it bails out without
-				// installing anything when the VB arena is full. So this
-				// counter rising is itself a symptom worth chasing upstream.
+				// the draw. Drawing it unskinned is USUALLY RIGHT, so that
+				// stays the default -- the reason is in the engine:
+				//   * An ANIMATED cluster (bAnim, WTriMesh.cpp:5860) always
+				//     gets Cluster_SetMatrixPalette called, and the engine
+				//     hands the draw a MODEL matrix that is the bare VIEW
+				//     matrix (WTriMesh.cpp:5650) because the palette carries
+				//     the world placement. A missing palette here is fatal to
+				//     the draw: the mesh lands at the world origin.
+				//   * A NON-animated cluster of a mesh that merely HAS bone
+				//     registers (no skeleton instance, or a model without
+				//     m_bMatrixPalette -- WTriMesh.cpp:5613) is never given a
+				//     palette on purpose, and the engine sets MODEL = L2V
+				//     (WTriMesh.cpp:5645). Its vertices are bind-pose model
+				//     space and drawing them as-is is exactly correct.
+				// The backend cannot tell the two apart from the vertex format
+				// alone, and with our caps (no CRC_CAPS_FLAGS_MATRIXPALETTE)
+				// the animated case takes the engine's CPU skinning path and
+				// never reaches here as a VBID draw -- so the observed traffic
+				// is the second, benign kind. Hence: count it, report it, but
+				// only drop it under RIDDICK_SKIN_DROPNOPALETTE=1 (A/B).
+				// If that counter ever climbs while characters are on screen
+				// AND we advertise MATRIXPALETTE, revisit: then it IS the
+				// first, fatal kind, and Cluster_SetMatrixPalette bailing out
+				// on an exhausted VB arena is one way to produce it.
 				m_SkinNoPalette = true;
 				++m_nSkinNoPaletteDraws;
 				_Sh.SetInt(_LocBoneCount, 0);
@@ -5064,7 +5077,7 @@ public:
 					m_bDbgSkinFallbackLogged = true;
 					fprintf(stderr,
 						"[GLES3-SKIN] no palette for a skinned draw (#%d): vertex format has %d bone weight(s) "
-						"but %s -- dropping the draw (RIDDICK_SKIN_DRAWNOPALETTE=1 draws bone-local positions instead)\n",
+						"but %s -- drawing it unskinned (bind pose); RIDDICK_SKIN_DROPNOPALETTE=1 drops such draws instead\n",
 						m_nSkinNoPaletteDraws, m_DrawBoneCount,
 						pMP ? "the palette has 0 matrices" : "no palette is set (Matrix_SetPalette(NULL))");
 					fflush(stderr);
@@ -5256,10 +5269,10 @@ public:
 			m_DbgTotalVerts += _E.m_nV;
 			m_DbgTotalIdx   += _nIdx;
 
-			// Skinned geometry without a palette: bone-local positions, would
-			// scatter across the world. Dropped here rather than in
+			// A/B only (RIDDICK_SKIN_DROPNOPALETTE=1): drop skinned-format
+			// geometry that came without a palette. Done here rather than in
 			// ApplySkinningUniforms because that one only owns uniforms.
-			if (m_SkinNoPalette && !GLES3_SkinDrawNoPalette())
+			if (m_SkinNoPalette && GLES3_SkinDropNoPalette())
 			{
 				DisableVertexAttribPointers();
 				glBindVertexArray(0);
@@ -5985,9 +5998,8 @@ public:
 								fflush(stderr);
 								--m_DbgDrawPostArm;
 							}
-							// See the twin check in DrawCachedVB: bone-local
-							// positions without a palette are never drawable.
-							if (m_SkinNoPalette && !GLES3_SkinDrawNoPalette())
+							// See the twin check in DrawCachedVB (A/B flag).
+							if (m_SkinNoPalette && GLES3_SkinDropNoPalette())
 							{
 								DisableVertexAttribPointers();
 								glBindVertexArray(0);
