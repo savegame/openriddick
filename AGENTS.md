@@ -25,6 +25,14 @@
   - Шейдерный сплит UI/3D (2026-07-25): `RIDDICK_DBG_SHADER=uv|normal|worldpos` — debug-режимы 3D-программы; `RIDDICK_DBG_SHADERUI=uv|pos` — UI-программы; `RIDDICK_FORCE_3D_SHADER=1` — гнать ВСЕ draw calls через 3D-программу; `RIDDICK_AMBIENT_FLOOR=<f>` — пол для vertex-baked ambient в 3D (0.2 = старое поведение, чинит чёрный BSP на картах с нулевой запечкой); `RIDDICK_DBG_VP=1` — лог `[VP]` классификации вьюпортов; `RIDDICK_DBG_CLASSIFY=N` — лог `[CLS]` входов UI/3D-классификации для первых N draw'ов.
   - Гранулярные skip-флаги по классам геометрии (охота за «мусорными полигонами», choke-точка `CXR_EngineImpl::RenderModel`, XREngine.cpp): `RIDDICK_SKIP_CHARS=1` (MultiTriMesh, персонажи), `RIDDICK_SKIP_PROPS=1` (TriMesh-пропсы), `RIDDICK_SKIP_SPRITES=1` (Sprite/SphereSprite/ConcaveSprite), `RIDDICK_SKIP_SPOTVOL=1` (объёмные конусы прожекторов); отдельно `RIDDICK_SKIP_SKY=1` (Engine_RVC_RenderSky) и `RIDDICK_SKIP_PARTICLES=1` (CXR_ParticleContainer::OnRender, XRPContainer.cpp).
   - Движковые XR-флаги (registry/env, движок, не порт): `XR_WORLDONLY=1` (только world-модели: скип персонажей/пропсов/партиклов/CamFX, XREngine.cpp:1378), `XR_FLARES=0` (XREngine.cpp:1352), `XR_WALLMARKS=0` (декали на BSP, XREngine.cpp:1355), `XR_DLIGHT=0` (все динамические источники — A/B-тест тормозов, XREngine.cpp:1353), `XR_STENCILSHADOWS` (XREngine.cpp:1367; учтите: BSP2-тени живут в своём пути и без них свет течёт сквозь стены).
+  - Арена вершинных буферов (2026-07-30, полностью — `Docs/HacksAndHooks.md`
+    «Арена вершинных буферов»): `RIDDICK_VBHEAP=<KiB>` — размер VB-арены на
+    кадр (перебивает и дефолт, и `Environment.cfg`; дефолт под Linux поднят
+    с ретейловых 4096 до 32768, потому что CPU-скиннинг выделяет весь
+    вершинный буфер на каждый кластер); `RIDDICK_DBG_VBM=1` — строка
+    `[VBM] ok|OVERFLOW heap= used= demand= failed= VBs=` раз в 60 кадров, при
+    переполнении печатается всегда. Переполнение арены = молча пропавшая
+    геометрия, а раньше ещё и SIGSEGV в `Cluster_SetMatrixPalette`.
   - Диагностика `[BSP2] PVS entries: N` (WBSP2Loader.cpp): если N=0 — в уровне НЕТ PVS-чанка, движок молча рисует ВСЕ листы (InPVS->true), отсюда тормоза при вращении камеры.
   - Исследование «зеркала камеры» (2026-07-29, `Docs/Research_CameraMirror_Report.md`): `RIDDICK_NO_CAMFLIP=1` — снятие костыля негирования X-столбца W2V (XREngine.cpp); `RIDDICK_DBG_MVP=N` — `[MVP]` детерминанты Model/Proj/MVP первых N 3D-draw'ов; `RIDDICK_DBG_SCISSOR=N` — `[SCISSOR]`/`[SCISSOR-TM]` дамп проекций scissor-боксов (WBSP2Portal.cpp, WTriMesh.cpp). Вывод: зеркала X в цепочке нет (порт ≡ retail ≡ PS3), костыль подлежит снятию после A/B-прогона; scissor-полоса — отдельный дефект.
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.

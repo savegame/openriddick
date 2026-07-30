@@ -378,3 +378,45 @@ else
 гипотезы §1.4/§2.2 (нет ключа MODEL) и §3.2 (NOCREATE) разводятся
 однозначно. Дополнительно имеет смысл распечатать сам вычисленный шаблон
 оружия из `SERVER\RPGTEMPLATES` — какие ключи там реально есть.
+
+---
+
+## 9. РЕЗУЛЬТАТ (i1_pigsville, 2026-07-30) — ноль в `m_iModel[0]` устранён
+
+Лог: `run_pig.log` с `RIDDICK_DBG_ITEM=1`, после фикса «PC объявляет меш
+ключом `MODEL0`, а не `MODEL`» (коммит `7e81fb7`).
+
+- Резолв работает: `[ITEM] MODEL key='weapons\asr' -> iModel=745`,
+  `'weapons\pistol' -> iModel=1365`, `'Misc\WeaponCase' -> iModel=782`.
+- Гейт рендера у NPC полностью открыт:
+  `[ITEM] obj=101 local=0 i0{model=745 flags=0x2d equipped=1 norender=0
+  rotTrack=22 attach=6} … nBones=70`. Ни одного `model=0` у NPC.
+- Все 24 строки `render FAILED (GetResource_Model returned NULL): iModel=0
+  nBones=120` относятся к **игроку** (`obj=2559 local=1`,
+  `i0{model=0 flags=0x8 equipped=1}`) — это кулаки: в дампе ключей
+  шаблонов `WEAPON_FIST_BLOCKSKNIVES` (29 ключей) модельного ключа нет
+  вовсе. Отказ здесь ожидаем; при желании убрать шум — гейтить зонд по
+  `iModel != 0`.
+- `noitemrender=1 noitemrender2=1` у obj 113/127 — штатный
+  `AG2_STATEFLAG_NOITEMRENDER` (у obj 101/112 он 0), не дефект.
+
+**Вывод:** §1-§6 закрыты, RPG-слой больше не подозреваемый. Если оружие в
+руках по-прежнему не появляется на экране, дефект ниже гейта — в
+`RenderExtraModels`/attach-матрице или в самом рендере модели; зонд ставить
+там (`WObj_CharRender.cpp:1412-1424`, `WObj_AutoVar_AttachModel.cpp`).
+
+## 10. Побочная находка того же лога: `[WMAP] bogus vtable` воспроизводится
+
+20 строк `[WMAP] GetResource_Model(783): pModel=0x… from
+'XW2:Phys/P_ItemBox.xw:2' has bogus vtable=0x3a77782e786f426d (likely reused
+heap buffer), returning NULL`. `0x3a77782e786f426d` — это ASCII `"mBox.xw:"`
+(little-endian), т.е. `pModel` смотрит внутрь строкового буфера с путём
+`Phys\P_ItemBox.xw:…`. Guard в `WMapData.h:246-286` отрабатывает как задумано
+(вместо segfault — NULL), но **объяснение в его комментарии неверно**:
+`TPtr<CXR_Model> m_spModel` не может быть «неинициализированным», у
+`TPtr()` есть конструктор, зовущий `Construct()` → `p = NULL`
+(`Mrtc.h:2174` и `:2013-2016`). Значит либо мы читаем поле **уже
+освобождённого** объекта-ресурса (память переиспользована строкой), либо
+объект вообще не проходил через конструктор (raw-буфер). Это отдельная
+задача; для неё нужен зонд на время жизни `CWRes_Model_XW` (кто создал, кто
+удалил, когда `iModel=783` попал в таблицу) — под собственным флагом.

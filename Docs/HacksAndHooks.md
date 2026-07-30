@@ -357,6 +357,33 @@
   `PHYSSTATE_CONVERTFROM20HZ` в `WPhysState.h:25-41` целиком закомментирован,
   это мёртвый легаси. Дальше — `Docs/Research_MoveSpeed.md`.
 
+- **DBG** `RIDDICK_DBG_MOVE=1` (`WObj_CharControlModeAnim.cpp`,
+  `Char_ControlMode_Anim2`, сразу после `GetAnimVelocity`; 8 объектов ×
+  30 тиков) — живой root-motion путь ходьбы NPC:
+  `[MOVE] obj=… res=… anim=… real=… animV=(…) pos=(…)`.
+  `anim` — длина запрошенной анимацией velocity (units/ТИК), `real` —
+  реально пройденное с прошлого тика. Читать: `real(t)` против
+  `anim(t−1)`, т.к. velocity, выставленная в тике t, интегрируется в конце
+  этого тика (`WServer_Phys.cpp:203,452`, без dt).
+  **РЕЗУЛЬТАТ (i1_pigsville, 2026-07-30): `real(t) / anim(t−1) = 1.000`
+  (медиана) у всех шести двигавшихся объектов (obj 93, 101, 111, 112, 113,
+  127; 136 пар).** Отклонения только у obj 93 в ближнем бою (коллизия
+  режет шаг). То есть перемещение объекта в точности равно тому, что
+  просит move-track анимации: ни лишнего множителя, ни рассинхрона
+  интеграции. Обе версии «×1.5 из-за 20 Гц» окончательно закрыты
+  (см. ПОПРАВКУ в `Docs/Research_MoveSpeed_Report.md` — оба места мертвы).
+  Что осталось подозрительным: сама величина. `anim` доходит до 26
+  units/тик = 780 units/с, тогда как физический бег персонажа по данным —
+  `m_Speed_Forward` = 12·0.5·20/30 = 4 units/тик = 120 units/с
+  (`WObj_CharClientData.cpp:354`). Это 3-6× и указывает уже не на
+  интеграцию, а на пару «выборка move-track ↔ продвижение времени слоя»
+  (`GetAnimVelocity`, `WAG2I.cpp:975-995`: дельта берётся между `Layer.m_Time`
+  и `Layer.m_Time + TimeSpan·TimeScale`, `TimeSpan = GetGameTickTime()`).
+  Следующий зонд — в том же месте печатать `Layer.m_Time`, `m_TimeScale`,
+  `GetDuration()` и полный путь трека (`|EvalTrack0(dur) − EvalTrack0(0)|`):
+  ожидаемый шаг за тик = путь/длительность·TimeSpan·TimeScale, и сравнение
+  с фактическим `anim` прямо покажет, кто врёт — выборка или тарировка.
+
 - **DBG** `RIDDICK_DBG_ITEM=1` — почему не рисуется оружие в руках. Две строки:
   * `[ITEM] obj=… local=… i0{model=… flags=… equipped=… norender=… rotTrack=…
     attach=…} i1{…} stateLo=… noitemrender=… noitemrender2=… nBones=…`
@@ -387,6 +414,20 @@
   NB: кандидат «функция вырезана `MAUTOSTRIP`» **исключён** — ни
   `MRTC_AUTOSTRIP`, ни `MRTC_AUTOSTRIPLOGGER` в сборке не определены, макрос
   раскрывается в пустоту (`MRTC.h:2355-2359`).
+  **РЕЗУЛЬТАТ (i1_pigsville, 2026-07-30): гейт у NPC ОТКРЫТ.** После фикса
+  `MODEL0` (`WRPGItem.cpp`) охранники несут
+  `i0{model=745|1365 flags=0x2d equipped=1 norender=0 rotTrack=22 attach=6}`,
+  `nBones=70`, `rotTrack < nBones` — все четыре члена гейта в порядке, ноль
+  `m_iModel[0]` больше не воспроизводится. У части NPC (obj 113, 127)
+  `noitemrender=1 noitemrender2=1` — это штатный флаг состояния анимграфа
+  (`AG2_STATEFLAG_NOITEMRENDER`), у obj 101/112 он 0.
+  Единственные 24 строки `render FAILED (GetResource_Model returned NULL):
+  iModel=0 nBones=120` — это **игрок** (`obj=2559 local=1`,
+  `i0{model=0 flags=0x8 equipped=1}`), т.е. кулаки: у шаблонов
+  `WEAPON_FIST*` ключа модели нет вовсе (см. дамп ключей в том же логе), и
+  отсутствие модели тут ожидаемо, а не дефект. Итог: если оружие в руках
+  всё ещё не видно, причина ниже гейта — в рендере attach-модели, и
+  следующий зонд ставится там, а не в RPG-слое.
 
 - **DBG** `[AG2FMT]` (`AnimGraph2_IO.cpp`, `ReadArray2_PerElementFallback2`) —
   сверка «сколько байт на элемент читаем» с тем, «сколько на самом деле лежит
@@ -1862,6 +1903,65 @@ GPU-резидентный кэш по VBID (`GLES3_Geometry.h/.cpp`, `DrawCache
   `MI1`/`MW1` парой (так и делает `WTriMesh.cpp`) — если когда-нибудь
   найдётся VBID с `MI0` без `MW0` (или наоборот), подсчёт
   `m_DrawBoneCount` собьётся на количество компонент из другого потока.
+
+### Арена вершинных буферов (VB heap) — 2026-07-30
+
+Разбор падения в конце прогона `i1_pigsville` (`run_pig.log`, 2026-07-30).
+Симптом в логе: 139 строк `Out of VB memory! (tried to allocated: N)`,
+затем `Vertex buffer out of memory. (Heap 4194304, VBs 335…394)`, один
+`ASSERT: AddVB() was called with NULL vertexbuffer!` и SIGSEGV в
+`CRC_MatrixPalette::CRC_MatrixPalette` из рендер-воркера
+(`Thread_OnRender` → `CXR_EngineImpl::RenderModel` → `OnRender2` →
+`Cluster_SetMatrixPalette`).
+
+- **FIX** `WTriMesh.cpp`, `Cluster_SetMatrixPalette` — было
+  `pMP = new(pVBM->Alloc(sizeof(CRC_MatrixPalette))) CRC_MatrixPalette;`
+  с проверкой `if (!pMP) return false;` ПОСЛЕ. Проверка мертва по
+  построению: placement-new возвращает тот же указатель, что получил, и
+  конструктор к этому моменту уже отработал — на исчерпанной арене он
+  пишет по адресу 0. Теперь результат `Alloc` проверяется до
+  placement-new. Это единственная точка в дереве с placement-new прямо на
+  результат `Alloc` (проверено grep'ом по `new *(...Alloc`); соседний блок
+  декалей (`WTriMesh.cpp:2587`) свой `Alloc` проверяет.
+  Код оригинальный (не портовый): в ретейле арена не переполнялась.
+
+- **Почему арена переполняется у нас, а в ретейле нет.** Бэкенд GLES3 не
+  объявляет `CRC_CAPS_FLAGS_MATRIXPALETTE`, поэтому `bHWAnim == false`
+  (`WTriMesh.cpp:5494`) и скиннинг идёт CPU-путём: на КАЖДЫЙ видимый
+  кластер выделяется весь вершинный буфер дважды — позиции и нормали,
+  `Alloc_V3(nV)` ×2 (`WTriMesh.cpp:5857-5862`), где `nV` — число вершин
+  всего TVB, а не кластера. Отсюда пачки одинаковых отказов по 29888 /
+  33024 / 129872 байт: 29888 = 1868 вершин × 16 Б. Персонаж с 6-8
+  кластерами на одном TVB съедает 350-500 КБ за кадр, несколько охранников
+  в кадре — и 4 МБ ретейл-дефолта кончаются. `RIDDICK_SKINNING=1` тут не
+  помогает: это GPU-скиннинг в бэкенде, движковый путь он не переключает.
+  Стратегический фикс (не сделан) — объявить `CRC_CAPS_FLAGS_MATRIXPALETTE`,
+  когда GPU-скиннинг будет надёжен, и уйти на HW-путь целиком; либо
+  мемоизировать скиннинг по TVB (осторожно: у каждого кластера свой
+  `GetBDMatrixMap`, результаты по-настоящему разные).
+
+- **HACK** `XRApp.cpp`, `CXRealityApp::InitWorld` — под `PLATFORM_LINUX`
+  дефолт `XR_VBHEAP` поднят с 4096 до **32768** КиБ; арена аллоцируется по
+  одной на VBM, VBM-контейнер создаёт 2 → +64 МБ RSS. Ключ
+  `XR_VBHEAP` из `Environment.cfg` по-прежнему главнее дефолта.
+- **DBG** `RIDDICK_VBHEAP=<KiB>` — перебивает и дефолт, и `Environment.cfg`
+  (для A/B: `RIDDICK_VBHEAP=4096` возвращает ретейл-поведение).
+- **DBG** `RIDDICK_DBG_VBM=1` (`XRVBManager.cpp`, `Internal_Begin`) — строка
+  `[VBM] ok|OVERFLOW heap=Nk used=Nk demand=Nk failed=N/Nk VBs=N` раз в 60
+  кадров; при переполнении строка печатается ВСЕГДА (кап 100) и без флага.
+  `demand` = выдано + отказано, т.е. размер арены, который обслужил бы
+  кадр целиком; его и подставлять в `RIDDICK_VBHEAP` с запасом. Учтите:
+  `demand` **занижен** — получив NULL, вызывающий пропускает остальную
+  геометрию, и её запросы в счётчик не попадают.
+- Спам `Out of VB memory!` урезан до одной строки на кадр (первый отказ);
+  счётчики отказов теперь в `[VBM]`.
+- **Следующий лимит после арены** — `m_MaxVB` = 1024 VB на кадр
+  (`XRApp.cpp`, `Create(2, VBSize*1024, 1024)`). Переполнение НЕ падает, а
+  один раз печатает `WARNING: Reached maximum VBCount 1024` и молча теряет
+  VB (`XRVBManager.cpp:73-79`). В прогоне было 394 VB на переполненной
+  арене; после расширения арены смотреть, не появился ли этот WARNING.
+  Поднимать `m_MaxVB` бесплатно нельзя: массив указателей на VB живёт в той
+  же арене и выделяется на каждый sort-scope.
 
 ### Missing user clip planes
 
