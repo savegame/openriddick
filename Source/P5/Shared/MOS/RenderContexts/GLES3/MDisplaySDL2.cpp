@@ -3949,6 +3949,7 @@ public:
 				return GetPlaceholderTex();
 			}
 			GLuint T = CGLES3TextureUploader::Upload2D(pImg, true);
+			ApplyTextureWrap(_TextureID, T);
 			m_lGLTex[_TextureID] = T;
 			if (_TextureID >= m_lTexFmt.Len())
 			{
@@ -3986,6 +3987,77 @@ public:
 				fflush(stderr);
 			}
 			return T;
+		}
+
+		// Per-texture wrap mode, taken from the engine's own texture
+		// properties instead of the blanket GL_REPEAT the uploader sets.
+		//
+		// Why this matters (reported 2026-07-30): flashlight halos, lamp
+		// pools and every other projected light mask were TILING -- one
+		// spotlight painted a grid of little circles across the lit
+		// surface instead of a single pool of light. That is exactly what
+		// GL_REPEAT does to a projected texture whose UV leaves [0..1]
+		// outside the cone; the content marks those textures
+		// CTC_TEXTUREFLAGS_CLAMP_U/_V for precisely this reason
+		// (MSystem/Raster/MTexture.h:98-99), and the engine sets the pair
+		// itself on the textures it creates for light projection
+		// (XREngine.cpp:384, :714, :817).
+		//
+		// This mirrors the PS3 backend one for one -- MRenderPS3_Texture.cpp
+		// :1228-1230 reads the same two bits out of the same
+		// CTC_TextureProperties and maps them to CLAMP_TO_EDGE vs WRAP; the
+		// third axis (R) is clamped there unconditionally, we have no 3D or
+		// cube textures to set it on yet.
+		//
+		// The blanket REPEAT stays the default for everything WITHOUT the
+		// flags: world and prop textures genuinely tile (UV up to ~7.5 on
+		// wall geometry) and clamping them produced edge-coloured stripes.
+		// RIDDICK_NO_CLAMP=1 restores the old "REPEAT for everything"
+		// behaviour for A/B.
+		void ApplyTextureWrap(int _TextureID, GLuint _Tex)
+		{
+			if (!_Tex || !m_pTC) return;
+
+			static int s_NoClamp = -1;
+			if (s_NoClamp < 0)
+			{
+				const char* e = getenv("RIDDICK_NO_CLAMP");
+				s_NoClamp = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_NoClamp) return;
+
+			CTC_TextureProperties Props;
+			m_pTC->GetTextureProperties(_TextureID, Props);
+			const bool bClampU = (Props.m_Flags & CTC_TEXTUREFLAGS_CLAMP_U) != 0;
+			const bool bClampV = (Props.m_Flags & CTC_TEXTUREFLAGS_CLAMP_V) != 0;
+			// Same idea for NOMIPMAP: the uploader mipmaps everything, but a
+			// texture the content marked as un-mipmappable (masks, ramps, UI)
+			// wants the top level at every distance. Cheap to honour here --
+			// the levels are already generated, this only stops the sampler
+			// from using them.
+			const bool bNoMip  = (Props.m_Flags & CTC_TEXTUREFLAGS_NOMIPMAP) != 0;
+			if (!bClampU && !bClampV && !bNoMip) return;   // keep the uploader's defaults
+
+			glBindTexture(GL_TEXTURE_2D, _Tex);
+			if (bClampU) glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			if (bClampV) glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			if (bNoMip)  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			m_DbgLastBind0 = 0;   // our binding, not a draw's -- force a rebind
+
+			// First 20 clamped textures by name: confirms the flags actually
+			// reach us in PC content (they are authored per texture, and if
+			// this list comes out empty while halos still tile, the mask is
+			// coming from somewhere else -- a texgen projector rather than a
+			// clamped texture).
+			static int s_nLogged = 0;
+			if (s_nLogged < 20)
+			{
+				++s_nLogged;
+				fprintf(stderr, "[GLES3-TEX] clamp%s%s%s id=%d name='%s'\n",
+					bClampU ? " U" : "", bClampV ? " V" : "", bNoMip ? " nomip" : "",
+					_TextureID, (const char*)m_pTC->GetName(_TextureID));
+				fflush(stderr);
+			}
 		}
 
 		virtual void Texture_Precache(int _TextureID)
