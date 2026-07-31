@@ -1150,11 +1150,21 @@ bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstancePar
 		{
 			static int s_nCalls = 0, s_nIndirect = 0, s_nFull = 0;
 			static int s_MaxIndirect = 0, s_MaxFull = 0, s_nPrinted = 0;
+			// Highest SKELETON bone index any cluster map actually points at.
+			// The palette is small (<=48) because it is cluster-local, but the
+			// indices inside it address the skeleton, and that is the number
+			// that has to fit inside the skeleton's node count. maxSkelIdx >=
+			// nodes (see the [BONES] line) means geometry is weighted to bones
+			// the skeleton never computes -- QNaN, i.e. vertices at infinity.
+			static int s_MaxSkelIdx = -1;
 			++s_nCalls;
 			if (nMP && _pMatrixPalette)
 			{
 				++s_nIndirect;
 				if (nMP > s_MaxIndirect) s_MaxIndirect = nMP;
+				if (const uint16* piM = _pC->GetBDMatrixMap(this))
+					for (int i = 0; i < nMP; i++)
+						if ((int)piM[i] > s_MaxSkelIdx) s_MaxSkelIdx = (int)piM[i];
 			}
 			else
 			{
@@ -1163,8 +1173,8 @@ bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstancePar
 			}
 			if (!(s_nCalls % 2000) && s_nPrinted++ < 40)
 			{
-				fprintf(stderr, "[MP] calls=%d indirect=%d(max %d bones) full=%d(max %d bones)\n",
-					s_nCalls, s_nIndirect, s_MaxIndirect, s_nFull, s_MaxFull);
+				fprintf(stderr, "[MP] calls=%d indirect=%d(max %d bones) full=%d(max %d bones) maxSkelIdx=%d\n",
+					s_nCalls, s_nIndirect, s_MaxIndirect, s_nFull, s_MaxFull, s_MaxSkelIdx);
 				fflush(stderr);
 			}
 		}
@@ -5713,7 +5723,9 @@ bAnim = false;
 				if (iSlot >= 0)
 				{
 					int nMoving = 0;
-					char StaticList[128];
+					int nNaN = 0;
+					int iFirstNaN = -1;
+					char StaticList[96];
 					int StaticLen = 0;
 					StaticList[0] = 0;
 					for (int i = 0; i < nB; i++)
@@ -5722,12 +5734,34 @@ bAnim = false;
 							nMoving++;
 						else if (StaticLen < (int)sizeof(StaticList) - 8)
 							StaticLen += snprintf(StaticList + StaticLen, sizeof(StaticList) - StaticLen, "%d ", i);
+						// QNaN detection. CXR_Skeleton::EvalAnim fills the WHOLE
+						// bone array with 0x7Fc00000 dwords before computing
+						// (XRSkeleton.cpp:2374, under !M_RTM) and then writes
+						// only nodes 1..Min(m_lNodes.Len(), m_nBoneTransform)-1
+						// (:2460). Every bone past that stays QNaN -- and QNaN
+						// compares EQUAL to itself under memcmp, so it shows up
+						// as "static" above. Telling the two apart matters: a
+						// bind-pose bone draws a frozen limb, a QNaN bone sends
+						// its vertices to infinity (the polygon stretched across
+						// the screen).
+						if (*(const uint32*)&pMatrixPalette[i] == 0x7Fc00000)
+						{
+							++nNaN;
+							if (iFirstNaN < 0) iFirstNaN = i;
+						}
 						s_lPrev[iSlot][i] = pMatrixPalette[i];
 					}
 					if (!(s_lCalls[iSlot]++ % 60))
 					{
-						fprintf(stderr, "[BONES] skel=%p bones=%d moving=%d static=%d staticIdx=[%s]\n",
-							(void*)pSkelInstance, nB, nMoving, nB - nMoving, StaticList);
+						// nodes = the skeleton RESOURCE's node count, the real
+						// bound of the transform loop; bones = what the instance
+						// was sized to. nodes < bones is the whole story if it
+						// happens: the tail belongs to no node, is never written
+						// and stays QNaN.
+						const CXR_Skeleton* pDbgSkel = pSkelInstance->m_pDebugSkel;
+						fprintf(stderr, "[BONES] skel=%p bones=%d nodes=%d moving=%d static=%d nan=%d firstNaN=%d staticIdx=[%s]\n",
+							(void*)pSkelInstance, nB, pDbgSkel ? pDbgSkel->m_lNodes.Len() : -1,
+							nMoving, nB - nMoving, nNaN, iFirstNaN, StaticList);
 						fflush(stderr);
 					}
 				}
