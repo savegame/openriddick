@@ -18,6 +18,13 @@
   - `RIDDICK_DBG_GL=1` — ценз текстур (`[GL-TEXREQ]`), RT-переключения (`[GLES3-RT]`);
   - `RIDDICK_DBG_RTT=1` — оверлей: все живые RTT-таргеты (FBO из `[GLES3-RTT]`) сеткой квадов в левой четверти экрана; раскладка ячеек печатается в stderr как `[GLES3-RTT-OVL]` (класс `CGLES3RTTOverlay`, GLES3_RTTOverlay.cpp);
   - `RIDDICK_ASSERT_FATAL=1` — вернуть жёсткий останов на M_ASSERT (по умолчанию ассерты log-and-continue, как в retail M_RTM).
+  - `RIDDICK_AUTOSTART=1` (или `=<кадров>`, дефолт 30) — стартовать игру
+    сразу, минуя весь фронтенд (legal/ESRB/логотип/главное меню/выбор
+    сложности): через `m_PendingExecute` в `CXRealityApp::SystemThread`
+    выполняется та же консольная функция, что и кнопка «новая игра» —
+    `startnewcampaign(2)`. Режим переопределяется `RIDDICK_AUTOSTART_MODE`
+    (2 = Butcher Bay, 1 = Dark Athena). Вместе с `RIDDICK_STARTMAP` даёт
+    загрузку прямо в нужный уровень — для сбора логов.
   - `RIDDICK_STARTMAP=<имя>` — стартовый мир кампании вместо Pa1_Intro (имя без пути/расширения, напр. `Pa1_Arrival`, `i1_pigsville`); резолв пути делает Command_ChangeMap.
   - `RIDDICK_DIRECT_RENDER=1` — прямой рендер в окно (fb0): screen FBO не создаётся, `PresentToWindow` — no-op, все SetRenderTarget биндят fb0, CopyToTexture — no-op; на движке гейтятся `Engine_PostProcess` (XREngine.cpp) и CamFX-модель (WClientMod.cpp). Кадр = чистая геометрия + BSP-лайтпайплайн. Предполагает ROTATE=0 и FBOSIZE==WINSIZE (дефолт). Меню при этом частично деградирует (его blur-капчи пустые). Хелпер `GLES3_DirectRender()` (MDisplaySDL2.cpp) — единая точка чтения флага в бэкенде.
   - `RIDDICK_ONLY_BSP=1` — позитивный фильтр в DrawIndexed: пропускать только крупные дрои (nVerts>=100, BSP-кластеры), всё мелкое (UI/партиклы) скипается.

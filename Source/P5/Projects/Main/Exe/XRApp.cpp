@@ -1856,6 +1856,43 @@ void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 		}
 	}
 #endif
+	// RIDDICK_AUTOSTART=1 (or =<frames>) -- boot straight into the game,
+	// skipping the front-end entirely: legal screen, ESRB, publisher logo,
+	// main menu, difficulty page. Collecting a gameplay log otherwise costs a
+	// menu walk every single run, and menu frames are exactly the frames the
+	// probes are not interested in.
+	//
+	// Mechanism: fire the same console function the menu's "new game" button
+	// calls (startnewcampaign(2) = Butcher Bay, (1) = Dark Athena -- see the
+	// comment on CGameContextMod::Con_StartNewCampaign, WGameContextMain.cpp
+	// :1123), through the pending-execute slot below, once, after a short
+	// delay. The delay exists because the console function needs the game
+	// context and world data to be up; 30 frames is well past that and still
+	// under a second. RIDDICK_AUTOSTART=<n> overrides it if a content set
+	// needs longer. Combine with RIDDICK_STARTMAP to pick the world.
+	{
+		static int s_AutoStart = -2;
+		if (s_AutoStart == -2)
+		{
+			const char* e = getenv("RIDDICK_AUTOSTART");
+			if (e && *e && *e != '0')
+			{
+				const int n = atoi(e);
+				s_AutoStart = (n > 1) ? n : 30;
+			}
+			else
+				s_AutoStart = -1;
+		}
+		if (s_AutoStart > 0 && --s_AutoStart == 0)
+		{
+			s_AutoStart = -1;   // once per process
+			const char* pMode = getenv("RIDDICK_AUTOSTART_MODE");
+			const int Mode = (pMode && *pMode) ? atoi(pMode) : 2;
+			m_PendingExecute = CStrF("startnewcampaign(%d)", Mode);
+			M_TRACEALWAYS("[AUTOSTART] skipping the front-end: %s\n", m_PendingExecute.Str());
+		}
+	}
+
 	if (m_PendingExecute != "")
 	{
 		m_pSystem->m_spCon->ExecuteString(m_PendingExecute);
