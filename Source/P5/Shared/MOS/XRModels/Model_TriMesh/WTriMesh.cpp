@@ -5762,6 +5762,36 @@ bAnim = false;
 						fprintf(stderr, "[BONES] skel=%p bones=%d nodes=%d moving=%d static=%d nan=%d firstNaN=%d staticIdx=[%s]\n",
 							(void*)pSkelInstance, nB, pDbgSkel ? pDbgSkel->m_lNodes.Len() : -1,
 							nMoving, nB - nMoving, nNaN, iFirstNaN, StaticList);
+
+						// The 2026-07-30 run killed the simple explanation: the
+						// 120-bone rigs report nodes=120 as well, so the QNaN
+						// tail is NOT "past the end of the node list" -- the
+						// transform loop DOES cover those nodes and still leaves
+						// them invalid. That leaves two mechanisms, and this
+						// block prints exactly what tells them apart for the
+						// first bad node:
+						//   * its track slots (m_iRotationSlot/m_iMovementSlot)
+						//     against how many track slots the skeleton says are
+						//     in use -- a slot >= nUsed means the animation
+						//     resource has no track for this node at all;
+						//   * its parent -- if the parent is QNaN too, this node
+						//     is only inheriting the damage and the real first
+						//     victim is further up (walk 'parent=' upwards).
+						// (For the OTHER shape seen in the same log, bones=110
+						// with nodes=70, the tail genuinely is past the node
+						// list -- two different defects wearing one symptom.)
+						if (pDbgSkel && iFirstNaN >= 0 && iFirstNaN < pDbgSkel->m_lNodes.Len())
+						{
+							const CXR_SkeletonNode& N = pDbgSkel->m_lNodes[iFirstNaN];
+							const int iPar = (int)N.m_iNodeParent;
+							const bool bParentNaN = (iPar >= 0 && iPar < nB) &&
+								(*(const uint32*)&pMatrixPalette[iPar] == 0x7Fc00000);
+							fprintf(stderr, "[BONES]   node %d: parent=%d parentNaN=%d rotSlot=%d moveSlot=%d "
+								"flags=0x%x nUsedRot=%d nUsedMove=%d\n",
+								iFirstNaN, iPar, bParentNaN ? 1 : 0,
+								(int)N.m_iRotationSlot, (int)N.m_iMovementSlot, (unsigned)N.m_Flags,
+								(int)pDbgSkel->m_nUsedRotations, (int)pDbgSkel->m_nUsedMovements);
+						}
 						fflush(stderr);
 					}
 				}
