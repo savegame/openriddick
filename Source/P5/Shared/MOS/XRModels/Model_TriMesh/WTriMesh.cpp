@@ -5712,6 +5712,13 @@ bAnim = false;
 				// a count slightly wrong -- it can never corrupt memory.
 				static const void* s_lKey[EMaxSlots] = { 0 };
 				static CMat4Dfp32 s_lPrev[EMaxSlots][EMaxBones];
+				// Second snapshot, of the LOCAL matrices. The world ones above
+				// cannot answer "does this bone animate": a walking character
+				// moves every bone's world matrix, so a limb frozen relative to
+				// the body still counts as moving. m_pBoneLocalPos is the bone
+				// relative to its parent -- exactly the animation itself, with
+				// the object's motion divided out.
+				static CMat4Dfp32 s_lPrevLocal[EMaxSlots][EMaxBones];
 				static int s_lCalls[EMaxSlots] = { 0 };
 				int iSlot = -1;
 				for (int i = 0; i < EMaxSlots; i++)
@@ -5751,6 +5758,23 @@ bAnim = false;
 						}
 						s_lPrev[iSlot][i] = pMatrixPalette[i];
 					}
+					// Local-space pass: nLocalMoving is the honest "how many
+					// bones are actually being animated this frame".
+					int nLocalMoving = 0;
+					char FrozenList[96];
+					int FrozenLen = 0;
+					FrozenList[0] = 0;
+					const CMat4Dfp32* pLocal = pSkelInstance->m_pBoneLocalPos;
+					const int nLoc = pLocal ? Min((int)pSkelInstance->m_nBoneLocalPos, nB) : 0;
+					for (int i = 0; i < nLoc; i++)
+					{
+						if (memcmp(&s_lPrevLocal[iSlot][i], &pLocal[i], sizeof(CMat4Dfp32)) != 0)
+							nLocalMoving++;
+						else if (FrozenLen < (int)sizeof(FrozenList) - 8 &&
+						         *(const uint32*)&pLocal[i] != 0x7Fc00000)
+							FrozenLen += snprintf(FrozenList + FrozenLen, sizeof(FrozenList) - FrozenLen, "%d ", i);
+						s_lPrevLocal[iSlot][i] = pLocal[i];
+					}
 					if (!(s_lCalls[iSlot]++ % 60))
 					{
 						// nodes = the skeleton RESOURCE's node count, the real
@@ -5759,9 +5783,11 @@ bAnim = false;
 						// happens: the tail belongs to no node, is never written
 						// and stays QNaN.
 						const CXR_Skeleton* pDbgSkel = pSkelInstance->m_pDebugSkel;
-						fprintf(stderr, "[BONES] skel=%p bones=%d nodes=%d moving=%d static=%d nan=%d firstNaN=%d staticIdx=[%s]\n",
+						fprintf(stderr, "[BONES] skel=%p bones=%d nodes=%d moving=%d static=%d nan=%d firstNaN=%d "
+							"localMoving=%d/%d frozenLocal=[%s] staticIdx=[%s]\n",
 							(void*)pSkelInstance, nB, pDbgSkel ? pDbgSkel->m_lNodes.Len() : -1,
-							nMoving, nB - nMoving, nNaN, iFirstNaN, StaticList);
+							nMoving, nB - nMoving, nNaN, iFirstNaN,
+							nLocalMoving, nLoc, FrozenList, StaticList);
 
 						// The 2026-07-30 run killed the simple explanation: the
 						// 120-bone rigs report nodes=120 as well, so the QNaN
@@ -5791,6 +5817,52 @@ bAnim = false;
 								iFirstNaN, iPar, bParentNaN ? 1 : 0,
 								(int)N.m_iRotationSlot, (int)N.m_iMovementSlot, (unsigned)N.m_Flags,
 								(int)pDbgSkel->m_nUsedRotations, (int)pDbgSkel->m_nUsedMovements);
+
+							// Reachability from the root. The evaluator does not
+							// walk nodes 0..N-1; it walks the CHILD LISTS
+							// (m_liNodes sliced by m_iiNodeChildren/m_nChildren,
+							// XRSkeleton.cpp:1483-1560), starting at node 0. A
+							// node whose parent is valid, whose local matrix
+							// needs no track (rotSlot=-1 -> MatLocal.Unit(),
+							// :1510) and which STILL comes out QNaN can only
+							// mean one thing: the walk never reached it, i.e. it
+							// is not listed in its parent's children. That is a
+							// property of the NODEINDICES chunk we load
+							// (XRSkeleton.cpp:2532-2541), so it points straight
+							// at skeleton loading rather than at animation.
+							const int nNodes = pDbgSkel->m_lNodes.Len();
+							const uint16* piCh = pDbgSkel->m_liNodes.GetBasePtr();
+							const int nCh = pDbgSkel->m_liNodes.Len();
+							int nReach = 0;
+							bool bFirstNaNReached = false;
+							if (piCh && nNodes > 0 && nNodes <= 512)
+							{
+								uint8 lSeen[512];
+								memset(lSeen, 0, sizeof(lSeen));
+								uint16 lStack[512];
+								int nStack = 0;
+								lStack[nStack++] = 0;
+								lSeen[0] = 1;
+								nReach = 1;
+								while (nStack)
+								{
+									const uint16 iN = lStack[--nStack];
+									const CXR_SkeletonNode& Nd = pDbgSkel->m_lNodes[iN];
+									for (int c = 0; c < (int)Nd.m_nChildren; c++)
+									{
+										const int ii = (int)Nd.m_iiNodeChildren + c;
+										if (ii < 0 || ii >= nCh) break;
+										const uint16 iChild = piCh[ii];
+										if (iChild >= nNodes || lSeen[iChild]) continue;
+										lSeen[iChild] = 1;
+										++nReach;
+										if (nStack < 512) lStack[nStack++] = iChild;
+									}
+								}
+								bFirstNaNReached = (iFirstNaN < nNodes) && (lSeen[iFirstNaN] != 0);
+							}
+							fprintf(stderr, "[BONES]   tree: nodes=%d reachableFromRoot=%d childIdx=%d firstNaNReached=%d\n",
+								nNodes, nReach, nCh, bFirstNaNReached ? 1 : 0);
 						}
 						fflush(stderr);
 					}
