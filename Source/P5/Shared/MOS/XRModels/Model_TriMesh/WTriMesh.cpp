@@ -13,6 +13,7 @@
 
 #ifdef PLATFORM_LINUX
 #include <stdio.h>
+#include <string.h>	// memcmp ([BONES] probe)
 #include <stdlib.h>
 #endif
 #ifdef	PLATFORM_PS2
@@ -5671,6 +5672,67 @@ bAnim = false;
 		nMatrixPalette = pSkelInstance->GetNumBones();
 		SkeletonVpuTaskId = pSkelInstance->m_VpuTaskId;
 		pSkelInstance->m_VpuTaskId=InvalidVpuTask;
+
+		// RIDDICK_DBG_BONES=1 -- which bones of this skeleton actually MOVE.
+		// The reported symptom is per-bone, not per-object: Riddick's forearms
+		// animate while the shoulders stand still, an NPC holds a weapon with
+		// one arm while the other stays in its modelling pose, walking NPCs
+		// freeze on the first frame of the step and slide. Cutscenes look
+		// right. That splits into exactly two possibilities and this probe
+		// tells them apart, because it reads the palette the ENGINE produced,
+		// before any renderer touches it:
+		//   moving == a handful  -> the skeleton itself is only partly
+		//        animated (AG2 layers / track masks / EvalAnim), the renderer
+		//        is faithfully drawing a half-static pose;
+		//   moving == most bones -> the engine animates fine and the loss
+		//        happens on our side (palette upload, bone indices, weights).
+		// Printed per skeleton instance every 60 render calls, 8 slots.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_BONES");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On && pMatrixPalette && nMatrixPalette > 0)
+			{
+				enum { EMaxSlots = 8, EMaxBones = 160 };
+				// Fixed storage, never freed and never reallocated: this runs
+				// on render worker threads, so a racing snapshot may only make
+				// a count slightly wrong -- it can never corrupt memory.
+				static const void* s_lKey[EMaxSlots] = { 0 };
+				static CMat4Dfp32 s_lPrev[EMaxSlots][EMaxBones];
+				static int s_lCalls[EMaxSlots] = { 0 };
+				int iSlot = -1;
+				for (int i = 0; i < EMaxSlots; i++)
+				{
+					if (s_lKey[i] == (const void*)pSkelInstance) { iSlot = i; break; }
+					if (!s_lKey[i]) { s_lKey[i] = (const void*)pSkelInstance; iSlot = i; break; }
+				}
+				const int nB = Min((int)nMatrixPalette, (int)EMaxBones);
+				if (iSlot >= 0)
+				{
+					int nMoving = 0;
+					char StaticList[128];
+					int StaticLen = 0;
+					StaticList[0] = 0;
+					for (int i = 0; i < nB; i++)
+					{
+						if (memcmp(&s_lPrev[iSlot][i], &pMatrixPalette[i], sizeof(CMat4Dfp32)) != 0)
+							nMoving++;
+						else if (StaticLen < (int)sizeof(StaticList) - 8)
+							StaticLen += snprintf(StaticList + StaticLen, sizeof(StaticList) - StaticLen, "%d ", i);
+						s_lPrev[iSlot][i] = pMatrixPalette[i];
+					}
+					if (!(s_lCalls[iSlot]++ % 60))
+					{
+						fprintf(stderr, "[BONES] skel=%p bones=%d moving=%d static=%d staticIdx=[%s]\n",
+							(void*)pSkelInstance, nB, nMoving, nB - nMoving, StaticList);
+						fflush(stderr);
+					}
+				}
+			}
+		}
 	}
 
 
