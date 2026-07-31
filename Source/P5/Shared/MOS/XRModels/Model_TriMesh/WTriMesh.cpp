@@ -5863,6 +5863,44 @@ bAnim = false;
 							}
 							fprintf(stderr, "[BONES]   tree: nodes=%d reachableFromRoot=%d childIdx=%d firstNaNReached=%d\n",
 								nNodes, nReach, nCh, bFirstNaNReached ? 1 : 0);
+
+							// The bones that matter for the reported symptom are
+							// NOT the unreachable tail: retail reads NODEINDICES
+							// byte-identically to us (MXR_dll_decomp.c:216708-
+							// 216740), so it reaches the same 76 nodes; the only
+							// difference is our debug QNaN fill, which retail's
+							// M_RTM build skips.
+							// The interesting ones are INSIDE the reachable set
+							// and still never change locally: bones 15, 20, 22,
+							// 23, 27... in every skeleton of the 2026-07-30 log.
+							// A node whose local matrix is constant either has no
+							// rotation track at all (m_iRotationSlot < 0 ->
+							// InitEvalNode_i writes Unit(), XRSkeleton.cpp:1510,
+							// and the limb hangs in its modelling orientation --
+							// exactly "one arm stuck in T-pose"), or has a track
+							// that the layers never drive. These lines separate
+							// the two.
+							{
+								int nShown = 0;
+								for (int i = 1; i < nLoc && nShown < 4; i++)
+								{
+									if (memcmp(&s_lPrevLocal[iSlot][i], &pLocal[i], sizeof(CMat4Dfp32)) != 0)
+										continue;                                  // moves, not interesting
+									if (*(const uint32*)&pLocal[i] == 0x7Fc00000)
+										continue;                                  // QNaN tail, already covered
+									if (i >= pDbgSkel->m_lNodes.Len()) break;
+									const CXR_SkeletonNode& FN = pDbgSkel->m_lNodes[i];
+									const int iRot = (int)FN.m_iRotationSlot;
+									const int iMov = (int)FN.m_iMovementSlot;
+									fprintf(stderr, "[BONES]   frozen %d: parent=%d rotSlot=%d moveSlot=%d "
+										"maskRot=%d maskMove=%d flags=0x%x\n",
+										i, (int)FN.m_iNodeParent, iRot, iMov,
+										(iRot >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledRot(iRot) ? 1 : 0) : -1,
+										(iMov >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledMove(iMov) ? 1 : 0) : -1,
+										(unsigned)FN.m_Flags);
+									++nShown;
+								}
+							}
 						}
 						fflush(stderr);
 					}
