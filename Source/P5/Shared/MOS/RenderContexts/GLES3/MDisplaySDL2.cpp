@@ -1352,7 +1352,7 @@ static bool GLES3_FP20Enabled()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_FP20");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		s = (e && *e && *e != '1') ? 0 : 1;
 	}
 	return s != 0;
 }
@@ -1435,7 +1435,7 @@ static bool GLES3_NoLFM()
 		const char* eOff = getenv("RIDDICK_NO_LFM");
 		if (eOff && *eOff && *eOff != '0') { s = 1; return s != 0; }
 		const char* eOn = getenv("RIDDICK_LFM");
-		s = (eOn && *eOn && *eOn != '0') ? 0 : 1;   // default: disabled
+		s = (eOn && *eOn && *eOn != '1') ? 0 : 1;   // default: enabled
 	}
 	return s != 0;
 }
