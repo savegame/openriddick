@@ -5782,12 +5782,31 @@ bAnim = false;
 					FrozenList[0] = 0;
 					const CMat4Dfp32* pLocal = pSkelInstance->m_pBoneLocalPos;
 					const int nLoc = pLocal ? Min((int)pSkelInstance->m_nBoneLocalPos, nB) : 0;
+					// Frozen indices are recorded HERE, while the snapshot
+					// still holds the values from the previous print. The detail
+					// block further down must not re-test them: by the time it
+					// runs the snapshot has already been refreshed to the current
+					// pose, so a re-test says "equal" for every bone. That bug
+					// is what produced the impossible 2026-07-31 reading -- bones
+					// 1..4 reported frozen while their own tracks moved, and the
+					// raw loc[] numbers printed alongside plainly changed between
+					// prints (0.9856 -0.1489 0.0801 -> 0.9856 -0.1478 0.0826).
+					// The list built here was right all along; only the detail
+					// picker was wrong.
+					int lFrozen[8];
+					int nFrozenIdx = 0;
 					for (int i = 0; i < nLoc; i++)
 					{
 						if (memcmp(&s_lPrevLocal[iSlot][i], &pLocal[i], sizeof(CMat4Dfp32)) != 0)
+						{
 							nLocalMoving++;
-						else if (FrozenLen < (int)sizeof(FrozenList) - 8 &&
-						         *(const uint32*)&pLocal[i] != 0x7Fc00000)
+							continue;
+						}
+						if (*(const uint32*)&pLocal[i] == 0x7Fc00000)
+							continue;                      // QNaN tail, covered elsewhere
+						if (i > 0 && nFrozenIdx < 8)
+							lFrozen[nFrozenIdx++] = i;
+						if (FrozenLen < (int)sizeof(FrozenList) - 8)
 							FrozenLen += snprintf(FrozenList + FrozenLen, sizeof(FrozenList) - FrozenLen, "%d ", i);
 					}
 					// The local snapshot is refreshed ONLY when this block
@@ -5936,12 +5955,9 @@ bAnim = false;
 									nRotSlots, nIdentityRot, (int)pDbgSkel->m_nUsedMovements);
 
 								int nShown = 0;
-								for (int i = 1; i < nLoc && nShown < 4; i++)
+								for (int f = 0; f < nFrozenIdx && nShown < 4; f++)
 								{
-									if (memcmp(&s_lPrevLocal[iSlot][i], &pLocal[i], sizeof(CMat4Dfp32)) != 0)
-										continue;                                  // moves, not interesting
-									if (*(const uint32*)&pLocal[i] == 0x7Fc00000)
-										continue;                                  // QNaN tail, already covered
+									const int i = lFrozen[f];
 									if (i >= pDbgSkel->m_lNodes.Len()) break;
 									const CXR_SkeletonNode& FN = pDbgSkel->m_lNodes[i];
 									const int iRot = (int)FN.m_iRotationSlot;
