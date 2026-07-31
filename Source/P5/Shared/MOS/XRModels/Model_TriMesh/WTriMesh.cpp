@@ -5789,8 +5789,19 @@ bAnim = false;
 						else if (FrozenLen < (int)sizeof(FrozenList) - 8 &&
 						         *(const uint32*)&pLocal[i] != 0x7Fc00000)
 							FrozenLen += snprintf(FrozenList + FrozenLen, sizeof(FrozenList) - FrozenLen, "%d ", i);
-						s_lPrevLocal[iSlot][i] = pLocal[i];
 					}
+					// The local snapshot is refreshed ONLY when this block
+					// prints, i.e. once per 60 render calls. Comparing against
+					// the immediately preceding call was the flaw behind the
+					// last two inconclusive runs: a model is rendered several
+					// times per frame (shadow pass, extra viewports), and two
+					// calls inside one frame necessarily see the same pose, so
+					// everything looked "frozen" at random. Over a 60-call
+					// window a bone that never moves really never moves.
+					const bool bPrintNow = !(s_lCalls[iSlot] % 60);
+					if (bPrintNow)
+						for (int i = 0; i < nLoc; i++)
+							s_lPrevLocal[iSlot][i] = pLocal[i];
 					if (!(s_lCalls[iSlot]++ % 60))
 					{
 						// nodes = the skeleton RESOURCE's node count, the real
