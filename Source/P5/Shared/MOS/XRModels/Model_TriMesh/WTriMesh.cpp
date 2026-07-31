@@ -1104,6 +1104,22 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 };
 
 
+// Identity-quaternion test that does not care whether this build stores the
+// scalar part first or last: identity is "three components are zero and the
+// remaining one is +-1", and that shape is the same either way. Written as a
+// helper because the [BONES] probe checks it in two places.
+static inline bool Riddick_QuatIsIdentity(const CQuatfp32& _Q)
+{
+	int nZero = 0, nOne = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		const fp32 v = _Q.k[i];
+		if (v == 0.0f) ++nZero;
+		else if (v == 1.0f || v == -1.0f) ++nOne;
+	}
+	return (nZero == 3 && nOne == 1);
+}
+
 bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstanceParamters* _pRenderParams, CTM_Cluster* _pC, CTM_VertexBuffer* _pTVB, CMat4Dfp32* _pMatrixPalette, int _nMatrixPalette, CXR_VertexBuffer* _pVB, uint16 _VpuTaskId, CRC_MatrixPalette* _pMP)
 {
 	MSCOPESHORT(CXR_Model_TriangleMesh::Cluster_SetMatrixPalette);
@@ -5880,7 +5896,34 @@ bAnim = false;
 							// exactly "one arm stuck in T-pose"), or has a track
 							// that the layers never drive. These lines separate
 							// the two.
+							// Track-level truth. A bone can be legitimately frozen
+							// simply because the character is standing still, and
+							// the 2026-07-30 run showed exactly that trap: bones
+							// 1..4 reported frozen with valid, mask-enabled track
+							// slots (rotSlot=1..4, maskRot=1) -- an idle pose,
+							// not a defect. So: (a) only report when the skeleton
+							// IS animating (more than four bones moved locally
+							// this frame), and (b) look at the TRACKS rather than
+							// at the result. EvalTracks leaves a slot at identity
+							// when no layer covers it (XRSkeleton.cpp:1927), and
+							// an identity rotation track is what makes
+							// InitEvalNode_i produce the modelling pose. So
+							// "identity tracks" counts the slots the animation
+							// never touches -- and if it stays high while the
+							// character walks, the layers simply do not cover
+							// those bones.
+							if (nLocalMoving > 4)
 							{
+								const CQuatfp32* pTR = pSkelInstance->m_pTracksRot;
+								int nIdentityRot = 0;
+								const int nRotSlots = (int)pDbgSkel->m_nUsedRotations;
+								if (pTR)
+									for (int r = 0; r < nRotSlots; r++)
+										if (Riddick_QuatIsIdentity(pTR[r]))
+											++nIdentityRot;
+								fprintf(stderr, "[BONES]   tracks: rotSlots=%d identityRot=%d moveSlots=%d\n",
+									nRotSlots, nIdentityRot, (int)pDbgSkel->m_nUsedMovements);
+
 								int nShown = 0;
 								for (int i = 1; i < nLoc && nShown < 4; i++)
 								{
@@ -5898,6 +5941,11 @@ bAnim = false;
 										(iRot >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledRot(iRot) ? 1 : 0) : -1,
 										(iMov >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledMove(iMov) ? 1 : 0) : -1,
 										(unsigned)FN.m_Flags);
+									const int iR = (int)FN.m_iRotationSlot;
+									if (pTR && iR >= 0 && iR < nRotSlots)
+										fprintf(stderr, "[BONES]     rot[%d] = (%.4f %.4f %.4f %.4f)%s\n",
+											iR, pTR[iR].k[0], pTR[iR].k[1], pTR[iR].k[2], pTR[iR].k[3],
+											Riddick_QuatIsIdentity(pTR[iR]) ? "  IDENTITY (no layer drives it)" : "");
 									++nShown;
 								}
 							}
