@@ -2632,6 +2632,90 @@ void CXR_Skeleton::Read(CDataFile* _pDFile)
 	}
 	_pDFile->PopPosition();
 
+	// [SKELTREE] -- покрывают ли детские списки весь скелет.
+	//
+	// Замер RIDDICK_DBG_BONES на 120-костном риге Риддика:
+	//   bones=120 nodes=120 nan=44 firstNaN=74
+	//   tree: reachableFromRoot=76 childIdx=75
+	//   node 74: parent=0 rotSlot=-1 moveSlot=-1
+	// То есть обход от корня по m_liNodes/m_nChildren доходит только до 76
+	// узлов из 120, остальные 44 никогда не получают трансформ и остаются
+	// залитыми QNaN (заливка в EvalAnim, под #ifndef M_RTM). На экране это
+	// ровно то, что видно на скриншотах: предплечья Риддика застыли в
+	// T-позе, а в катсцене персонаж висит в небе вместо позиции у камеры.
+	// 70-костные скелеты при этом здоровы (nan=0), так что дело не в
+	// самом обходе, а в данных конкретного рига.
+	//
+	// Печатаем один раз на скелет (первые 8): длину плоского массива
+	// детей, сумму объявленных nChildren, число достижимых от корня и
+	// первые недостижимые узлы вместе с их родителями. Три варианта:
+	//   * сумма nChildren < nNodes-1 -- списки детей неполны в файле;
+	//   * ссылки уходят за пределы m_liNodes -- читаем не тот чанк/размер;
+	//   * узлы указывают родителя, но не числятся ничьими детьми --
+	//     дерево надо строить по m_iNodeParent, а не по спискам.
+	{
+		static int s_n = 0;
+		if (s_n < 8)
+		{
+			++s_n;
+			const int nN = m_lNodes.Len();
+			const int nIdx = m_liNodes.Len();
+			int SumChildren = 0, nOutOfRange = 0;
+			for (int i = 0; i < nN; i++)
+			{
+				SumChildren += (int)m_lNodes[i].m_nChildren;
+				if ((int)m_lNodes[i].m_iiNodeChildren + (int)m_lNodes[i].m_nChildren > nIdx)
+					++nOutOfRange;
+			}
+
+			// Обход от корня ровно тем же способом, что и InitEvalNode_i
+			TArray<uint8> lSeen;
+			lSeen.SetLen(nN);
+			for (int i = 0; i < nN; i++) lSeen[i] = 0;
+			TArray<int> lStack;
+			lStack.Add(0);
+			lSeen[0] = 1;
+			int nReached = 1;
+			while (lStack.Len())
+			{
+				const int iN = lStack[lStack.Len()-1];
+				lStack.SetLen(lStack.Len()-1);
+				const CXR_SkeletonNode& N = m_lNodes[iN];
+				for (int c = 0; c < (int)N.m_nChildren; c++)
+				{
+					const int ii = (int)N.m_iiNodeChildren + c;
+					if (ii < 0 || ii >= nIdx)
+						continue;
+					const int iCh = (int)m_liNodes[ii];
+					if (iCh < 0 || iCh >= nN || lSeen[iCh])
+						continue;
+					lSeen[iCh] = 1;
+					++nReached;
+					lStack.Add(iCh);
+				}
+			}
+
+			fprintf(stderr, "[SKELTREE] nodes=%d idxArray=%d sumChildren=%d reached=%d outOfRange=%d\n",
+				nN, nIdx, SumChildren, nReached, nOutOfRange);
+			if (nReached < nN)
+			{
+				fprintf(stderr, "[SKELTREE]   unreached:");
+				int nShown = 0;
+				for (int i = 0; i < nN && nShown < 10; i++)
+					if (!lSeen[i])
+					{
+						++nShown;
+						fprintf(stderr, " %d(par=%d,ii=%d,nCh=%d)", i,
+							(int)m_lNodes[i].m_iNodeParent,
+							(int)m_lNodes[i].m_iiNodeChildren,
+							(int)m_lNodes[i].m_nChildren);
+					}
+				fprintf(stderr, "\n");
+			}
+			fflush(stderr);
+		}
+	}
+
 	// ATTACHPOINTS
 	_pDFile->PushPosition();
 	if (_pDFile->GetNext("ATTACHPOINTS"))

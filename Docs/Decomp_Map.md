@@ -88,6 +88,31 @@ adaptive-timescale там, где ретейл идёт по обычной ве
 версию 4 НЕ принимает, а наш `switch` принимает и её. На PC-контенте
 безразлично.
 
+---
+
+## MXR: скелет
+
+| FUN | Что это | Доказательство |
+|---|---|---|
+| `FUN_101435b0` | `CXR_SkeletonNode::Read(CDataFile*)` (`XRSkeleton.cpp:39`) | проверка `local_11c[0] != 0x100` → `"Unsupported node version. (%.4x)"` (`MXR_dll_decomp.c:214429`) |
+
+Порядок чтения в ретейле:
+
+| Смещение | Примитив | Наше поле |
+|---|---|---|
+| `+0x00/04/08` | `FUN_10063aa0` ×3 (fp32) | `m_LocalCenter` |
+| `+0x18` | `FUN_10062e70` | `m_Flags` |
+| `+0x1a` | `FUN_10062a60` (int16) | `m_iiNodeChildren` |
+| *(во временную)* | `FUN_10062a60` (int16) → байт в `+0x22` | `m_nChildren` — **читается словом, хранится байтом** |
+| `+0x1c` | `FUN_10062a60` (int16) | `m_iNodeParent` |
+| `+0x10` | `FUN_10063aa0` (fp32) | `m_RotationScale` |
+| `+0x14` | `FUN_10063aa0` (fp32) | `m_MovementScale` |
+| `+0x1e` | `FUN_10062a60` (int16) | `m_iRotationSlot` |
+| `+0x20` | `FUN_10062a60` (int16) | `m_iMovementSlot` |
+
+**Порядок совпадает с нашим полностью.** Единственная деталь: ретейл
+усекает `nChildren` до байта — у нас поле шире, что не теряет данных.
+
 ### Примитивы чтения `CCFile` (GameWorld)
 
 | FUN | Что читает |
