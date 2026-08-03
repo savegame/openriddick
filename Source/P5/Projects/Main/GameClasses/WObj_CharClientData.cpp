@@ -1,5 +1,7 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ADAPT] probe
+
 #include "WObj_Char.h"
 #include "../GameWorld/WClientMod_Defines.h"
 #include "WObj_AI/AI_DeviceHandler.h"
@@ -1234,7 +1236,49 @@ void CWO_Character_ClientData::AG2_RefreshGlobalProperties(const CWAG2I_Context*
 	m_AnimGraph2.SetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITSCONTROL, ((MoveAngleUnit < 0.5f) ? MoveAngleUnit : (MoveAngleUnit - 1.0f)));
 	fp32 MoveVel = CVec2Dfp32(MoveVeloLocal[0], MoveVeloLocal[1]).Length();
 	m_AnimGraph2.SetPropertyFloat(PROPERTY_FLOAT_MOVEVELOCITY, MoveVel);
-	m_AnimGraph2.SetAdaptiveTimeScale(MoveVel * 20.0f / m_AnimGraph2.GetPropertyFloat(PROPERTY_FLOAT_ANIMMOVELENGTH));
+	// НАЙДЕННОЕ ДЕЛЕНИЕ (2026-08-03). Adaptive-масштаб времени -- это
+	// «во сколько раз персонаж движется быстрее, чем родной клип», и
+	// знаменатель здесь -- длина корневого движения клипа за весь его
+	// проигрыш (PROPERTY_FLOAT_ANIMMOVELENGTH). Заполняется она в
+	// CWAG2I_StateInstance::EnterState_AdaptiveTimeScale.
+	//
+	// Деление НЕ защищено. При нулевом знаменателе:
+	//   MoveVel > 0  -> +inf -> Min(4.0f, inf) = 4.0  (ровно те scale=4.000,
+	//                   что видны в [ANIMV] -- масштаб уперся в потолок,
+	//                   персонаж и анимация идут вчетверо быстрее);
+	//   MoveVel == 0 -> 0/0 = NaN -> поза замирает, а компенсация шва петли
+	//                   в GetAnimVelocity добавляет путь за ВЕСЬ клип на
+	//                   каждый тик (замерено: got=3509 units/s против 125).
+	//
+	// Нулевой знаменатель возможен двумя путями, и [ADAPT] их различает:
+	//   * у клипа действительно нет корневого движения ([SEQ] показывал
+	//     такие: rootLen=0.00) -- тогда тарировать нечего;
+	//   * длина записалась не в то свойство: индекс берётся из авторского
+	//     поля pLayer->GetMergeOperator(), а формат AG2 v6 мы читаем
+	//     реверсом. Если prop != 8, свойство 8 так и остаётся нулём для
+	//     ВСЕХ adaptive-состояний -- это объяснило бы «все персонажи
+	//     двигаются слишком быстро».
+	{
+		const fp32 AnimMoveLen = m_AnimGraph2.GetPropertyFloat(PROPERTY_FLOAT_ANIMMOVELENGTH);
+		if (AnimMoveLen > 1e-6f)
+		{
+			m_AnimGraph2.SetAdaptiveTimeScale(MoveVel * 20.0f / AnimMoveLen);
+		}
+		else
+		{
+			// Натуральный темп вместо inf/NaN.
+			m_AnimGraph2.SetAdaptiveTimeScale(1.0f);
+
+			static int s_n = 0;
+			if (s_n < 12)
+			{
+				++s_n;
+				fprintf(stderr, "[ADAPT] ANIMMOVELENGTH=%.6f (moveVel=%.3f) -> scale forced to 1.0\n",
+					AnimMoveLen, MoveVel);
+				fflush(stderr);
+			}
+		}
+	}
 	m_AnimGraph2.SetPropertyFloat(PROPERTY_FLOAT_MOVEVELOCITYVERTICAL, MoveVeloLocal[2]);
 	m_AnimGraph2.SetPropertyFloat(PROPERTY_FLOAT_MOVEANGLE, NewMoveAngle * 360.0f);
 	m_AnimGraph2.SetPropertyFloat(PROPERTY_FLOAT_MOVEANGLES,((NewMoveAngle < 0.5f) ? NewMoveAngle : (NewMoveAngle - 1.0f)) * 360.0f);

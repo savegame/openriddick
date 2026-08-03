@@ -806,7 +806,25 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 	CQuatfp32 Rot;
 	pAnimLayerSeq1->EvalTrack0(CMTime::CreateFromSeconds(m_Duration1),Move,Rot);
 	Move = M_VSetW0(Move);
-	m_pAG2I->GetEvaluator()->SetPropertyFloat(pLayer->GetMergeOperator(),CVec4Dfp32(Move).Length());
+	const fp32 AnimMoveLen = CVec4Dfp32(Move).Length();
+	const int PropIdx = (int)pLayer->GetMergeOperator();
+	m_pAG2I->GetEvaluator()->SetPropertyFloat(pLayer->GetMergeOperator(),AnimMoveLen);
+
+	// Куда именно записалась длина корневого движения. Индекс свойства --
+	// авторское поле m_iMergeOperator из AG2, а формат v6 мы читаем
+	// реверсом. Игровой код делит на СВОЙСТВО 8
+	// (PROPERTY_FLOAT_ANIMMOVELENGTH, WObj_CharClientData.cpp:1237), так
+	// что prop != 8 означает, что знаменатель остаётся нулевым навсегда.
+	{
+		static int s_n = 0;
+		if (s_n < 12)
+		{
+			++s_n;
+			fprintf(stderr, "[ADAPT] enter iState=%d iAnim=%d prop=%d animMoveLen=%.3f dur=%.3f\n",
+				(int)m_iState, (int)pLayer->m_iAnim, PropIdx, AnimMoveLen, m_Duration1);
+			fflush(stderr);
+		}
+	}
 
 
 	// Scale of animation (0 = anim1)
@@ -822,6 +840,10 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 void CWAG2I_StateInstance::UpdateAdaptiveTimeScale(const CWAG2I_Context* _pContext, fp32 _SyncAnimScale)
 {
 	// Get syncanimscale from evaluator
+	// Max/Min не отсеивают NaN (любое сравнение с NaN ложно), а дальше он
+	// уходит прямо в масштаб времени слоя -- ловим явно.
+	if (!(_SyncAnimScale > -1.0e6f && _SyncAnimScale < 1.0e6f))
+		_SyncAnimScale = 1.0f;
 	_SyncAnimScale = Max(0.0f,Min(4.0f,_SyncAnimScale));
 	if (_SyncAnimScale == m_SyncAnimScale)
 		return;

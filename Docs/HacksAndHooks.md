@@ -2591,6 +2591,27 @@ CLAMP они получали полосу цвета кромки). Проек�
   слоя в `GetAnimLayers` (4 точки). Сравнения вида `if (t < 0) t = 0` NaN
   не ловят, поэтому раньше это проходило молча.
 
+### Деление на длину корневого движения — источник inf/NaN (2026-08-03)
+
+- **FIX/DBG** `WObj_CharClientData.cpp:1237`:
+  `SetAdaptiveTimeScale(MoveVel * 20.0f / GetPropertyFloat(PROPERTY_FLOAT_ANIMMOVELENGTH))`
+  не защищено от нулевого знаменателя. `MoveVel > 0` даёт `+inf`, который
+  `Min(4.0f, …)` превращает в 4.0 — отсюда `scale=4.000` в логах, то есть
+  персонаж и анимация идут вчетверо быстрее. `MoveVel == 0` даёт `0/0` =
+  NaN — поза замирает. `Max/Min` NaN не отсеивают.
+  Знаменатель бывает нулевым реально: `[SEQ]` дал 19 клипов из 24 с
+  `rootLen=0.00`. Теперь при нулевом знаменателе масштаб 1.0 +
+  `[ADAPT] ANIMMOVELENGTH=… -> scale forced to 1.0`.
+
+- **DBG** `[ADAPT] enter iState= iAnim= prop= animMoveLen= dur=`
+  (`WAG2I_StateInst.cpp`, `EnterState_AdaptiveTimeScale`, 12 строк) —
+  главный вопрос: **в какое свойство** пишется длина. Индекс берётся из
+  авторского `pLayer->GetMergeOperator()`, а игровой код делит на свойство
+  **8**. `prop != 8` означает, что виноват наш парсер AG2 v6, и чинить
+  надо загрузчик, а не глушить гардом.
+
+- **FIX** явный отсев NaN в `UpdateAdaptiveTimeScale` перед `Max/Min`.
+
 ---
 
 ## Инфраструктура которую можно оставить
