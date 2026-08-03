@@ -986,6 +986,10 @@ typedef TPtr<CWaveContainer_Plain> spCWaveContainer_Plain;
 // containers. Returns the number of descriptors created.
 int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plain>& _lspWC);
 
+// Итог разбора всех .xsfxc: сколько DESC-узлов не дали дескриптора и
+// почему. Зовётся один раз после скана (CWorldDataCore::Create).
+void MSound_SFXDescScript_Report();
+
 // -------------------------------------------------------------------
 //
 //  CSoundContext

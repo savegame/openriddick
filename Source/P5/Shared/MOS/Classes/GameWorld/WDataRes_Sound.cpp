@@ -168,7 +168,42 @@ void CWRes_Sound::OnLoad()
 	}
 
 	if (iSFX == -1)
+	{
 		ConOutL("§cf80WARNING: Undefined sound: " + m_Name);
+
+		// РЕШАЮЩИЙ вопрос по звуку: волна-то на диске есть?
+		// «Undefined sound» само по себе не различает две совершенно
+		// разные ситуации:
+		//   wave=YES -- волна лежит в контейнере, а дескриптор к ней не
+		//               собрался. Это НАШ дефект, парсер
+		//               Content/SfxDesc/*.xsfxc (MSound_SFXDesc.cpp);
+		//   wave=NO  -- волны нет ни в одном из контейнеров. Тогда либо
+		//               дыра в наборе, либо имя волны в контейнере не
+		//               совпадает с тем, что просит игра.
+		// Из-за этого нуля молчат диалоги: GetSampleLengthBuf возвращает 0,
+		// AI печатает «<NPC> failed Dialogue» и реплика не идёт.
+		static int s_n = 0;
+		if (s_n < 40)
+		{
+			++s_n;
+			CStr Name = m_Name.CopyFrom(4);
+			const char* pFoundIn = NULL;
+			for(int iWC = 0; iWC < lspWC.Len(); iWC++)
+			{
+				if (lspWC[iWC]->GetLocalWaveID(Name.Str()) >= 0)
+				{
+					pFoundIn = lspWC[iWC]->GetContainerSortName();
+					break;
+				}
+			}
+			fprintf(stderr, "[SFX] miss '%s' wave=%s%s%s\n",
+				Name.Str(),
+				pFoundIn ? "YES in " : "NO",
+				pFoundIn ? pFoundIn : "",
+				pFoundIn ? "  -> desc not built (our .xsfxc parser)" : "  -> wave absent from all containers");
+			fflush(stderr);
+		}
+	}
 
 	MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 	if(pSys->GetEnvironment()->GetValue("rs_preload_sound", "1").Val_int() == 0)

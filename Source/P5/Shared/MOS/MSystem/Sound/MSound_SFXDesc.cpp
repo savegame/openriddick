@@ -1004,11 +1004,69 @@ static void StoreDesc(CWaveContainer_Plain *_pWC, CSC_SFXDesc &_Desc)
 	_pWC->GetSFXDesc(_pWC->GetSFXCount() - 1)->SetWaveContatiner(_pWC);
 }
 
+// Счётчики разбора .xsfxc. Смысл: движок ругается
+// "WARNING: Undefined sound: SND:<имя>" (177 уникальных имён в прогоне
+// pa2_diner), а по этому сообщению нельзя отличить «волны нет в наборе» от
+// «мы не собрали дескриптор». Ниже -- ровно те три числа, которые их
+// разделяют, плюс список ключей у DESC-узлов, которые мы пропустили.
+// Печатается один раз после скана, всегда (три строки).
+int g_RiddickSfx_nDescNodes = 0;      // всего узлов *DESC
+int g_RiddickSfx_nNoSource = 0;       // нет ключа *Source -- синтаксис, который мы не знаем
+int g_RiddickSfx_nNoMatch = 0;        // *Source есть, но ни одна волна ни в одном контейнере не совпала
+int g_RiddickSfx_nMatDescNodes = 0;
+int g_RiddickSfx_nMatNoWaves = 0;
+int g_RiddickSfx_nUnknownNodes = 0;
+
+// Узлы под *SFXDESCS, которые не DESC и не MATERIALDESC. Первые 10 --
+// с именем ключа и файлом, остальные только в счётчик.
+static void ReportUnknownNode(const char *_pKey, const char *_pFile)
+{
+	++g_RiddickSfx_nUnknownNodes;
+	static int s_n = 0;
+	if (s_n < 10)
+	{
+		++s_n;
+		M_TRACEALWAYS("[SFX] unknown node '*%s' in %s\n", _pKey, _pFile);
+	}
+}
+
+// Первые 30 непокрытых DESC-узлов с их ключами -- если среди ключей есть
+// не SOURCE, значит формат богаче, чем предполагает наш парсер.
+static void ReportSkippedDesc(const CNode &_Node, const char *_pWhy)
+{
+	static int s_n = 0;
+	if (s_n >= 30)
+		return;
+	++s_n;
+
+	CStr Name;
+	_Node.GetValue("NAME", Name);
+	CStr Source;
+	_Node.GetValue("SOURCE", Source);
+
+	CStr Keys;
+	for(int i = 0; i < _Node.m_lpChildren.Len() && i < 12; i++)
+	{
+		if (Keys.Len())
+			Keys += ",";
+		Keys += _Node.m_lpChildren[i]->m_Name;
+	}
+
+	M_TRACEALWAYS("[SFX] desc skipped (%s): name='%s' source='%s' keys=[%s]\n",
+		_pWhy, Name.Str(), Source.Str(), Keys.Str());
+}
+
 static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveContainer_Plain> &_lspWC)
 {
+	++g_RiddickSfx_nDescNodes;
+
 	CStr Source;
 	if (!_Node.GetValue("SOURCE", Source))
+	{
+		++g_RiddickSfx_nNoSource;
+		ReportSkippedDesc(_Node, "no *Source");
 		return 0;
+	}
 
 	CStr Name;
 	bool bHasName = _Node.GetValue("NAME", Name) && Name.Len() > 0;
@@ -1016,7 +1074,11 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 	TArray<CStr> lPatterns;
 	SplitWaveList(Source.Str(), lPatterns);
 	if (!lPatterns.Len())
+	{
+		++g_RiddickSfx_nNoSource;
+		ReportSkippedDesc(_Node, "empty *Source");
 		return 0;
+	}
 
 	int nDescs = 0;
 	for(int iWC = 0; iWC < _lspWC.Len(); iWC++)
@@ -1145,17 +1207,35 @@ static int BuildDescs(const CNode &_Node, int _FileCategory, TArray<spCWaveConta
 			}
 		}
 	}
+
+	if (!nDescs)
+	{
+		// *Source есть, но ни в одном из 318 контейнеров не нашлось волны
+		// по шаблону. Либо волн действительно нет (дыра в наборе), либо
+		// шаблон использует синтаксис, который WildcardMatch не понимает.
+		++g_RiddickSfx_nNoMatch;
+		ReportSkippedDesc(_Node, "no wave matched *Source");
+	}
+
 	return nDescs;
 }
 
 static int BuildMaterialDesc(const CNode &_Node, int _FileCategory, TArray<spCWaveContainer_Plain> &_lspWC)
 {
+	++g_RiddickSfx_nMatDescNodes;
+
 	CStr Name;
 	if (!_Node.GetValue("NAME", Name) || !Name.Len())
+	{
+		++g_RiddickSfx_nMatNoWaves;
 		return 0;
+	}
 	const CNode *pMaterials = _Node.FindChild("MATERIALS");
 	if (!pMaterials)
+	{
+		++g_RiddickSfx_nMatNoWaves;
 		return 0;
+	}
 
 	int nDescs = 0;
 	for(int iWC = 0; iWC < _lspWC.Len(); iWC++)
@@ -1197,6 +1277,10 @@ static int BuildMaterialDesc(const CNode &_Node, int _FileCategory, TArray<spCWa
 		StoreDesc(pWC, Desc);
 		nDescs++;
 	}
+
+	if (!nDescs)
+		++g_RiddickSfx_nMatNoWaves;
+
 	return nDescs;
 }
 
@@ -1244,6 +1328,11 @@ int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plai
 				nDescs += NSFXDescScript::BuildDescs(*pChild, FileCategory, _lspWC);
 			else if (pChild->m_Name.CompareNoCase("MATERIALDESC") == 0)
 				nDescs += NSFXDescScript::BuildMaterialDesc(*pChild, FileCategory, _lspWC);
+			else
+				// Узел, который наш парсер не знает вовсе. Считаем и
+				// называем: если такие есть, часть звуков не собирается
+				// именно из-за неполного синтаксиса, а не из-за контента.
+				NSFXDescScript::ReportUnknownNode(pChild->m_Name.Str(), _Filename.Str());
 		}
 	}
 
@@ -1251,5 +1340,23 @@ int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plai
 
 	LogFile(CStrF("%s: %d sfxdescs loaded.", _Filename.Str(), nDescs));
 	return nDescs;
+#endif
+}
+
+// Итог разбора всех .xsfxc -- вызывается один раз после скана
+// (CWorldDataCore::Create). Три строки, всегда: они делят 177 «Undefined
+// sound» на «дыра в контенте» и «наш парсер не собрал дескриптор».
+void MSound_SFXDescScript_Report()
+{
+#ifndef USE_HASHED_SFXDESC
+	M_TRACEALWAYS("[SFX] desc nodes: %d total, %d without *Source, %d with *Source but no matching wave\n",
+		NSFXDescScript::g_RiddickSfx_nDescNodes,
+		NSFXDescScript::g_RiddickSfx_nNoSource,
+		NSFXDescScript::g_RiddickSfx_nNoMatch);
+	M_TRACEALWAYS("[SFX] materialdesc nodes: %d total, %d produced nothing\n",
+		NSFXDescScript::g_RiddickSfx_nMatDescNodes,
+		NSFXDescScript::g_RiddickSfx_nMatNoWaves);
+	M_TRACEALWAYS("[SFX] unknown node keys under *SFXDESCS: %d\n",
+		NSFXDescScript::g_RiddickSfx_nUnknownNodes);
 #endif
 }

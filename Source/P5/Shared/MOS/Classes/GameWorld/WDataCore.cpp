@@ -913,6 +913,31 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 		ConOutL(CStrF("        %d wave containers loaded.", m_lspWC.Len()));
 		M_TRACE("        %d wave containers loaded.\n", m_lspWC.Len());
 
+		// Как в контейнерах НАЗВАНЫ волны. Нужно, чтобы понять, чем
+		// отличается имя, которое просит игра ("SND:D_PA2_Riddick_145"),
+		// от того, что лежит в .xwc: по этим именам наш парсер .xsfxc
+		// сопоставляет шаблоны *Source, и если конвенция другая
+		// (пути, префиксы, хэши) -- дескрипторы молча не собираются.
+		// Восемь контейнеров с диалогами, по три имени.
+		{
+			int nShown = 0;
+			for(int i = 0; i < m_lspWC.Len() && nShown < 8; i++)
+			{
+				CWaveContainer_Plain* pC = m_lspWC[i];
+				if (!pC || pC->GetWaveCount() <= 0)
+					continue;
+				CStr Path = pC->GetFileName();
+				if (Path.GetFilename().Left(2).CompareNoCase("D_") != 0)
+					continue;	// только диалоговые контейнеры
+				++nShown;
+				M_TRACEALWAYS("[SFX] wc '%s' waves=%d first='%s','%s','%s'\n",
+					Path.Str(), pC->GetWaveCount(),
+					pC->GetName(0),
+					pC->GetWaveCount() > 1 ? pC->GetName(1) : "-",
+					pC->GetWaveCount() > 2 ? pC->GetName(2) : "-");
+			}
+		}
+
 		// The PC wave containers have no binary SFXDESC sections, the sound
 		// descriptors live in text scripts (Content/SfxDesc/*.xsfxc). Load
 		// them like the Win32 CWaveContext::ReadSfxDesc did.
@@ -946,6 +971,7 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 
 			ConOutL(CStrF("        %d sfxdescs loaded (%d files).", nSfxDescs, lSfxDescFiles.Len()));
 			M_TRACE("        %d sfxdescs loaded (%d files).\n", nSfxDescs, lSfxDescFiles.Len());
+			MSound_SFXDescScript_Report();
 		}
 
 		// Figure out how many waves we scanned in a pretty ugly way.
