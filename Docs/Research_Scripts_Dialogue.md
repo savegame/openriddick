@@ -1334,3 +1334,64 @@ failed Dialogue            : 3
    сразу отсечёт половину вариантов.
 
 Пока это не выяснено, править движок наугад не стоит.
+
+---
+
+## 23. РЕШЕНО: правильный адресат — `OBJMSG_CHAR_USE` → `OnUse` (2026-08-03)
+
+Решающее уточнение от пользователя: при подходе к NPC **движок сам
+показывает предложение** — «Поговорить с: Джимбо» слева внизу и имя
+персонажа справа внизу.
+
+Это меняет трактовку §20/§22. Раз подсказка рисуется, значит:
+
+* `UseText` и `DescText` заполнены,
+* `Char_ShowInFocusFrame` отработал и не обнулил тип,
+* игра **сама заявляет игроку, что действие доступно**.
+
+А обработчика нажатия у `SELECTION_CHAR` в `Char_ActivateStuff` нет — то
+есть игра предлагает действие, которого не выполняет. Дыра подтверждена
+окончательно.
+
+### Правильный адресат найден
+
+`CWObject_Character::OnUse(int _iUser, int _Param)`
+(`WObj_CharMechanics.cpp:4157`) — это и есть обработчик разговора:
+
+```cpp
+CDialogueLink ApproachItem = Char_GetDialogueApproachItem();
+if (ApproachItem.IsValid())
+{
+    Char_ActivateDialogueItem(ApproachItem, _iUser);
+    m_LastUsedTick = m_pWServer->GetGameTick();
+}
+```
+
+`Char_GetDialogueApproachItem` отдаёт `m_DialogueItems.m_Approach` (или
+`m_ApproachScared` при высоком приоритете AI), а `Char_ActivateDialogueItem`
+запускает реплику. Сами approach-айтемы расставляет диалоговый скрипт через
+`OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH` (`WObj_CharDialogue.cpp:897`).
+
+Дотянуться до `OnUse` можно сообщением **`OBJMSG_CHAR_USE`**:
+`WObj_CharMsg.cpp:1385` — `case OBJMSG_CHAR_USE: return OnUse(_Msg.m_iSender,
+_Msg.m_Param0);`
+
+Прошлая попытка слать `OBJMSG_ACTIONCUTSCENE_ACTIVATE` была мимо: персонаж
+это сообщение не обрабатывает вовсе (§20, поправка).
+
+### Что сделано
+
+`case SELECTION_CHAR/SELECTION_DEADCHAR` в `Char_ActivateStuff` шлёт цели
+`OBJMSG_CHAR_USE` с отправителем-игроком. Зонд печатает и **результат**:
+
+```
+[USE] activate CHAR iSel=74 selType=0x1 -> OBJMSG_CHAR_USE res=N
+```
+
+Читать: `res=1` — `OnUse` отработал до конца, approach-айтем найден и
+активирован, разговор должен пойти; `res=0` — `OnUse` вышел раньше
+(в частности, при `_Param < 0` это ветка выбора реплики), и тогда следующий
+вопрос — валиден ли `ApproachItem`, то есть расставил ли их диалоговый
+скрипт.
+
+`RIDDICK_CHAR_ACTIVATE=0` возвращает прежнее поведение.

@@ -5368,48 +5368,30 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 	{
 		switch (_SelType & SELECTION_MASK_TYPE)
 		{
-		// НАЙДЕННАЯ ДЫРА (2026-08-03): у SELECTION_CHAR здесь НЕ БЫЛО ветки,
-		// то есть нажатие «использовать» на персонаже не делало ровно
-		// ничего. Отсюда и «нельзя начать диалог ни с одним NPC».
+		// НАЙДЕНО (2026-08-03): у SELECTION_CHAR не было ветки, то есть
+		// нажатие «использовать» на персонаже не делало ничего.
 		//
-		// Замер (pa1_prisonarea, RIDDICK_DBG_SEL + RIDDICK_DBG_USE):
+		// Что цепочка исправна, показал замер (pa1_prisonarea,
+		// RIDDICK_DBG_SEL + RIDDICK_DBG_USE):
 		//   [SEL]  iSel=74 type=1(base=1 invalid=0) name='BARBER'
-		//   [USE]  select iBest=74 name='BARBER' focusType=0x1 tgtCD=yes
-		// То есть отбор целей работает, NPC опознаётся как SELECTION_CHAR,
-		// фокус-фрейм его показывает (focusType=0x1 -- значит
-		// OBJMSG_CHAR_GETUSENAME вернул имя действия, «с ним можно
-		// взаимодействовать»), обработчик нажатия получает валидную цель...
-		// и молча уходит в default.
+		//   [USE]  select iBest=74 focusType=0x1 tgtCD=yes
+		// А на экране движок сам предлагает действие -- «Поговорить с:
+		// Джимбо» слева внизу и имя персонажа справа. То есть UseText и
+		// DescText заполнены, подсказка показана, а обработчика нажатия
+		// нет.
 		//
-		// Что здесь правильно делать, видно этажом выше, в
-		// Char_ShowInFocusFrame: там case SELECTION_CHAR НАМЕРЕННО
-		// проваливается в блок SELECTION_PICKUP/ACTIONCUTSCENELOCKED и
-		// шлёт персонажу OBJMSG_ACTIONCUTSCENE_CANACTIVATE. То есть в этом
-		// движке персонаж и есть цель action-cutscene: спрашивают его тем
-		// же сообщением. Значит и активировать его надо тем же
-		// OBJMSG_ACTIONCUTSCENE_ACTIVATE.
+		// Правильный адресат нашёлся: CWObject_Character::OnUse
+		// (этот файл, :4157) -- он берёт Char_GetDialogueApproachItem() и
+		// вызывает Char_ActivateDialogueItem(), то есть именно запускает
+		// разговор. Дотянуться до него можно сообщением OBJMSG_CHAR_USE
+		// (WObj_CharMsg.cpp:1385 -> return OnUse(...)).
 		//
-		// ПОПРАВКА ПО ЗАМЕРУ (прогон #14). Ветка срабатывает
-		// ([USE] activate CHAR iSel=74 selType=0x1, 20 строк), но диалог
-		// не начинается, и это объяснимо: CWObject_Character НЕ
-		// ОБРАБАТЫВАЕТ ни OBJMSG_ACTIONCUTSCENE_ACTIVATE, ни
-		// _CANACTIVATE -- он их только шлёт. Единственное упоминание
-		// ACTIVATE в WObj_CharMsg.cpp:3187 закомментировано.
+		// Прошлая попытка слать OBJMSG_ACTIONCUTSCENE_ACTIVATE была мимо:
+		// персонаж это сообщение не обрабатывает вовсе.
 		//
-		// Отсюда же поправка к прежнему выводу: focusType=0x1 НЕ доказывал
-		// «с ним можно взаимодействовать». Обработчик OBJMSG_CHAR_GETUSENAME
-		// (WObj_CharMsg.cpp:2174) возвращает 1 безусловно, отдавая m_UseName
-		// -- возможно пустой. Я прочитал это сильнее, чем следовало.
-		//
-		// Значит разговор с NPC в этом движке инициируется НЕ нажатием на
-		// самом персонаже, а отдельным объектом action-cutscene рядом с ним
-		// (он-то CANACTIVATE и обрабатывает). В том же логе такие объекты
-		// есть: [SEL] iSel=29 type=3 -- это SELECTION_ACTIONCUTSCENE.
-		// Вопрос переносится туда: почему у говорящих NPC такого объекта не
-		// выбирается.
-		//
-		// Флаг оставлен выключенным -- как no-op он безвреден, но выдавать
-		// его за починку нельзя.
+		// RIDDICK_CHAR_ACTIVATE=0 возвращает прежнее поведение для A/B.
+		// По умолчанию включено: регрессии быть не может -- сейчас на этом
+		// месте не происходит ничего.
 		case SELECTION_CHAR:
 		case SELECTION_DEADCHAR:
 			{
@@ -5417,24 +5399,25 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 				if (s_On < 0)
 				{
 					const char* e = getenv("RIDDICK_CHAR_ACTIVATE");
-					// ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНО: замер показал, что персонаж вообще
-					// не обрабатывает OBJMSG_ACTIONCUTSCENE_ACTIVATE (см. ниже),
-					// так что это пока no-op, а не починка.
-					s_On = (e && *e && *e != '0') ? 1 : 0;
+					s_On = (e && *e && *e == '0') ? 0 : 1;
 				}
 				if (!s_On)
 					break;
+
+				CWObject_Message Msg(OBJMSG_CHAR_USE, 0);
+				Msg.m_iSender = _pObj->m_iObject;
+				const int Res = _pWPhys->Phys_Message_SendToObject(Msg, _iSel);
 
 				static int s_n = 0;
 				if (s_n < 20)
 				{
 					++s_n;
-					fprintf(stderr, "[USE] activate CHAR iSel=%d selType=0x%x\n",
-						(int)_iSel, (int)_SelType);
+					fprintf(stderr, "[USE] activate CHAR iSel=%d selType=0x%x -> OBJMSG_CHAR_USE res=%d\n",
+						(int)_iSel, (int)_SelType, Res);
 					fflush(stderr);
 				}
+				break;
 			}
-			// fall through -- активируем тем же сообщением, что и ACS
 		case SELECTION_ACTIONCUTSCENELOCKED:
 		case SELECTION_ACTIONCUTSCENE:
 			{
