@@ -70,6 +70,13 @@
   - Исследование «зеркала камеры» (2026-07-29, `Docs/Research_CameraMirror_Report.md`): `RIDDICK_NO_CAMFLIP=1` — снятие костыля негирования X-столбца W2V (XREngine.cpp); `RIDDICK_DBG_MVP=N` — `[MVP]` детерминанты Model/Proj/MVP первых N 3D-draw'ов; `RIDDICK_DBG_SCISSOR=N` — `[SCISSOR]`/`[SCISSOR-TM]` дамп проекций scissor-боксов (WBSP2Portal.cpp, WTriMesh.cpp). Вывод: зеркала X в цепочке нет (порт ≡ retail ≡ PS3), костыль подлежит снятию после A/B-прогона; scissor-полоса — отдельный дефект.
 - Пользователь гоняет gdb/valgrind сам; типовой bt — в `run.log`.
 
+## Списки файлов ресурсов (для сверки состава наборов)
+- `Docs/ResourceLists/pc_files.txt` — дерево файлов PC-версии (то, на чём гоняем).
+- `Docs/ResourceLists/ps3_files.txt` — дерево распакованного образа PS3.
+  Использовать как СПРАВОЧНИК форматов/состава: PS3-ресурсы big-endian и
+  местами в другой упаковке (напр. диалоги там одним `ALL.XCD`, на PC —
+  россыпью `.xrg` по подпапкам).
+
 ## Реверс-ресурсы (декомпиляции Ghidra, корень репо)
 - `GameWorld_Win32_x86_dll_decomp.c` (~778k строк) — GameWorld DLL: геймплей, AG2 (MOVETOKENS/GRAPHBLOCKS/FULLSTATES), форматы записей каталога.
 - `MXR_dll_decomp.c` — оригинальная библиотека загрузки BSP-уровней.
