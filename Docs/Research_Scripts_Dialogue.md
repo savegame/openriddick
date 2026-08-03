@@ -187,3 +187,151 @@ exist` — безвредный шум, а не след.
 Следующий зонд: в `MoveGraphBlock`/`GetMatchingGraphBlock` печатать
 запрошенный MOVETOKEN, найденный блок и причину отказа. У нас там уже стоят
 guard'ы с `ConOut`, но они молчаливо возвращают — надо, чтобы называли токен.
+
+---
+
+## 9. РЕЗУЛЬТАТ прогона `pa2_diner` (2026-08-03, `run_diner.log`)
+
+Флаги: `RIDDICK_DBG_AG2=1 RIDDICK_HWSKIN=1 RIDDICK_DIRECT_RENDER=1
+RIDDICK_STARTMAP=pa2_diner RIDDICK_AUTOSTART=1`. Ниже — то, что зонды
+показали, и что из-за этого пришлось отменить в §7.
+
+### 9.1 Диалоги ЗАГРУЖАЮТСЯ. Гипотеза §7.3 неверна
+
+Зонд `[DLG] name=` (`WDataRes_Sound.cpp`) отдал 30 имён, и имена **несут
+подпуть**:
+
+```
+[DLG] name='PA2/Pa2_Diner/Dlg_Georgie'
+[DLG] name='PA2/PA2_Diner/Dlg_Riddick'
+[DLG] name='Dlg_Default_Guard4'
+```
+
+Предупреждений `WARNING: Dialogue ... does not exist` при этом ровно **9 на
+30 запросов**, и ни одного — на дайнерские диалоги. То есть плоский путь
+`DIALOGUES\<Name>.XRG` работает: `Name` уже содержит `PA2/Pa2_Diner/`,
+а прямые слэши и разнобой регистра (`PA2/PA2_Diner` в запросе против
+`Dialogues/PA2/Pa2_Diner` на диске) снимает `Linux_ResolvePath`
+(`MRTC_System_Linux.cpp`) — регистронезависимое разрешение плюс `\`→`/`.
+
+**Вывод: рекурсивный скан `Content/Dialogues/**` не нужен, править
+`WDataRes_Sound.cpp:698` не нужно.** Пункт §7.3 отменён.
+
+Что действительно не нашлось (сверено с `Docs/ResourceLists/pc_files.txt`):
+
+| Имя | В PC-наборе | Комментарий |
+|---|---|---|
+| `Dlg_Player_Base` | нет | 0 совпадений; шум, как и записано в §7 |
+| `PA2/Pa2_T17/Dlg_Lightguard` | нет | `Dlg_Lightguard.xrg` есть только в `PA2/Pa2_M_Rift/` |
+| `Dlg_Default_RGuard4` | нет | на диске `Dlg_Default_Guard_RGuard4.xrg` |
+
+Первые два — дыры контента, ретейл ругался бы так же. Третий любопытен:
+имя приходит из родительской цепочки (`Name = spReg->GetValue(0)` в цикле
+`while(Name != "")`), и файл с похожим именем существует. Проверять стоит
+не путь, а то, что лежит в `*DIALOGUE` внутри `Dlg_Default_Guard4.xrg`.
+Приоритет низкий: это один гвардейский фолбэк, не причина «диалог не
+начинается ни с кем».
+
+### 9.2 Анимграф ПЕРЕХОДЫ ЗАПРАШИВАЕТ и не отказывает
+
+`[AG2] req` — 400 строк (упёрлось в кап), токены 0/6/7/8/9, движущиеся
+MOVETOKEN'ы (113, 116, 121, 1354, 1783, 2867, 3057, 3207, 3249…).
+И при этом **ноль** строк `AnimGraph BROKEN` и **ноль** `INVALID MOVETOKEN`.
+
+Значит закрыты сразу две версии из §8: до анимграфа игровая логика доходит,
+и известные guard'ы в `MoveGraphBlock` ничего не глотают. Искать надо
+дальше по цепочке — во входе в состояние и в проигрывании анимации слоя, а
+не в маршрутизации графа.
+
+### 9.3 Настоящая причина «реплика не идёт»: нулевая длина сэмпла
+
+В логе:
+
+```
+MOTORHEAD failed Dialogue: SUSPICIOUS_SOUND Dialogueindex 246
+MOTORHEAD failed Dialogue: COMBAT_SPOTTED  Dialogueindex 600
+```
+
+Это `AI_DeviceHandler.cpp:1375` — печатается, когда
+`CWObject_Character::GetDialogueLength()` вернул **0**. Дальше по коду:
+`GetDialogueLength` → `GetSampleLength_Hash` → `GetSampleLengthBuf`
+(`WDataRes_Sound.cpp:1984`), а тот отдаёт ноль, если у реплики нет
+привязанного звука **или** `CWRes_Sound::GetSound()` вернул NULL, и при этом
+среди событий нет ни одного тайминга субтитра.
+
+Рядом в логе — вал `WARNING: Undefined sound: SND:D_PA2_Riddick_145`,
+`SND:D_PA2_Abbott_100..102`, `SND:D_Base_Guard4_347..352`,
+`SND:D_PA1_Mattsson_107` и т. п. Это `CWRes_Sound::OnLoad`
+(`WDataRes_Sound.cpp:170`): имя не нашлось ни в одном контейнере волн,
+`m_iSFX` остался −1, а значит `GetSound()` = NULL. Круг замыкается.
+
+Откуда берутся дескрипторы: PC-контейнеры волн **не содержат бинарной
+секции SFXDESC**, дескрипторы лежат текстом в `Content/SfxDesc/*.xsfxc`, и
+разбирает их **наш собственный парсер** — `NSFXDescScript` в
+`MSound_SFXDesc.cpp` (порт-хак, ретейл читал это через
+`CWaveContext::ReadSfxDesc`). В прогоне: `318 wave containers loaded`,
+`23033 sfxdescs loaded (275 files)` — все 275 `.xsfxc` из набора прочитаны,
+но часть имён всё равно не резолвится.
+
+Отсюда рабочая версия: **дефект в нашем парсере/сопоставлении шаблонов
+`*Source`, а не в контенте.** `BuildDescs` заводит дескриптор только на те
+волны, которые нашлись в контейнере по `WildcardMatch`; если шаблон в
+`.xsfxc` использует синтаксис, который мы не покрываем (или имя волны в
+контейнере хранится хэшем — см. `GetWaveName()` «returns the name hash as a
+hex string in this build»), дескриптор не создаётся молча.
+
+Это же объясняет и «звук идёт, но не у всех»: работают те реплики, чьи
+дескрипторы собрались.
+
+### 9.4 Отдельный куст: навигация. NPC не доходят до целей
+
+```
+(CWorld_ServerCore::World_Init) Using plain pathfinder
+Script MOVE_TO_SCENEPOINT request failed: DINERBEATER1 SP_PB1A
+DINERBEATER3: AlignScenepoint() broken SP_PB3
+BINKS: AlignScenepoint() broken BINKSROAM2
+SHIVERS: AlignScenepoint() broken SHIVERSROAM
+Search_Create cannot reach destination
+MOTORHEAD: m_SearchStatus == CAI_Pathfinder::INVALID
+```
+
+`Using plain pathfinder` — норма (`GAME_VPUPATHFINDER` по умолчанию 0 вне
+консолей, `WServer_World.cpp:1017-1021`), не след.
+
+А вот остальное — прямое объяснение «ходячие скользят в позе первого кадра
+и не идут куда надо»: путь не строится, AI двигает персонажа напрямую.
+`AlignScenepoint() broken` (`AI_Action.cpp:9632`) — санити-чек: после
+успешного разворота к сценпоинту `GetLookDir()` всё равно вне дуги, то
+есть **поворот не применяется**.
+
+Навигация грузится из мира: `GetResource_XWNavGrid`/`GetResource_XWNavGraph`
+(`WServer_World.cpp:1004,1046`), а PC-формат `.XW` мы разбирали реверсом
+(`Docs/BSP_PC_Format.md`). Пустой навграф при живом навгриде дал бы ровно
+эту картину, и до сих пор мы это не мерили — отсюда зонд `[NAV]` (см. §10).
+
+### 9.5 Мелочь, чтобы не гоняться второй раз
+
+`(CWObject_Character::Char_ProcessControl) Unknown control: 25` (×4) —
+это `CONTROL_UPDATE_CD_AUTOAIMVAL`: при выключенном
+`WADDITIONALCAMERACONTROL` (закомментирован в `WClass.h:102`) нумерация
+даёт 25, а `switch` в `WObj_Char.cpp:4115` его не обрабатывает. Так и в
+исходнике — рассинхрона enum'ов между модулями нет. Безвредно.
+
+---
+
+## 10. Зонды на следующий прогон
+
+| Зонд | Флаг | Что даёт |
+|---|---|---|
+| `[NAV] navgrid/navgraph` | без флага, 2 строки | есть ли навграф вообще: узлы, рёбра, minDist, размеры навгрида (`WServer_World.cpp`) |
+| `[DLGLEN] len=0: <причина>` | `RIDDICK_DBG_DLGLEN=1` | почему длина реплики нулевая — пять разных отказов различаются явно (`WDataRes_Sound.cpp`) |
+| Штатная трасса анимграфа | `RIDDICK_AG2_DEBUGFLAGS=9` (и `=0xD` с клиентом) | движковый вывод входа в состояние: объект, токен, игровое время, **имя целевого состояния** и `iAnim` каждого слоя (`WAG2I_Token.cpp::EnterState`). Сужение до одного NPC — `RIDDICK_AG2_DEBUGOBJ=<iObject>` |
+
+Про третий отдельно: он не наш, он был в движке с самого начала и включался
+реестровым `AG2I_DEBUG_FLAGS`. Мы только добавили чтение из окружения —
+реестр порта правится через `Environment.cfg`, что неудобно при сборе
+логов. Биты: 1 сервер, 2 клиент, 4 игрок, 8 остальные персонажи.
+
+Именно этот вывод отвечает на главный вопрос §9.2: если NPC входит в
+состояние бега/атаки, но у слоя `iAnim -1` — ломается привязка анимации;
+если состояние вообще не приходит — ломается AI/скрипт до анимграфа.

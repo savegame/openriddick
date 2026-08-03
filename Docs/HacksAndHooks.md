@@ -2421,6 +2421,47 @@ CLAMP они получали полосу цвета кромки). Проек�
   контент кривой.
   → реализовать через `gl_ClipDistance` в шейдере.
 
+### Зонды скриптов/диалогов/навигации (2026-08-03)
+
+- **DBG** `[NAV]`, без флага, 2 строки на загрузку мира
+  (`WServer_World.cpp`, `CWorld_ServerCore::World_Init`, между созданием
+  навгрида и навграфа):
+  ```
+  [NAV] navgrid: cells NxNxN            | или MISSING
+  [NAV] navgraph: ok nodes=N edges=N minDist=N sizes=0x…   | или MISSING
+  ```
+  Зачем: в `run_diner.log` подряд идут `Script MOVE_TO_SCENEPOINT request
+  failed`, `AlignScenepoint() broken`, `Search_Create cannot reach
+  destination`, `m_SearchStatus == CAI_Pathfinder::INVALID` — то есть
+  путь не строится. Навигация приходит из `.XW`
+  (`GetResource_XWNavGrid`/`GetResource_XWNavGraph`), а PC-формат мира мы
+  разбирали реверсом (`Docs/BSP_PC_Format.md`), поэтому «навграф пустой»
+  — версия первого порядка, и до сих пор её никто не мерил.
+  → удалять, когда навигация подтверждена рабочей.
+
+- **DBG** `RIDDICK_DBG_DLGLEN=1` (`WDataRes_Sound.cpp`,
+  `CWRes_Dialogue::GetSampleLengthBuf`, кап 60):
+  `[DLGLEN] len=0: <причина> (iRes=N sound='…')`.
+  Печатается ТОЛЬКО когда итоговая длина всё-таки нулевая — путь с
+  таймингами субтитров ниже спасает часть реплик, и ругаться по первому
+  промаху означало бы врать. Причин пять, и снаружи они неразличимы:
+  промах хэша айтема, `iIndex==0`, битый индекс ресурса, ресурс не звук,
+  и главный подозреваемый — `sound resource has no SFXDesc`.
+  Зачем: `<NPC> failed Dialogue: <TYPE> Dialogueindex N`
+  (`AI_DeviceHandler.cpp:1375`) печатается ровно при нуле отсюда, и это
+  то, из-за чего NPC молчит и сцена не идёт дальше.
+
+- **DBG/KEEP** `RIDDICK_AG2_DEBUGFLAGS=<биты>`, `RIDDICK_AG2_DEBUGOBJ=<iObject>`
+  (`WAG2I_Defs.h` — две `static inline`, подмешиваются к реестровым
+  `AG2I_DEBUG_FLAGS`/`agdbgobj` в `WAG2I_Token.cpp` ×3 и `WAG2I.h` ×1).
+  Это **штатная трасса движка**, не наш зонд: на каждый вход в состояние
+  печатается объект, токен, игровое время, имя целевого состояния и
+  `iAnim` каждого анимслоя. Включалась она только через реестр, а реестр
+  порта правится через `Environment.cfg` игрока — неудобно, когда лог
+  собирается одним запуском. Биты: 1 сервер, 2 клиент, 4 игрок,
+  8 остальные персонажи (обычно `9`, с клиентом `0xD`).
+  → env-обвязку снять, когда появится нормальный способ править реестр.
+
 ---
 
 ## Инфраструктура которую можно оставить

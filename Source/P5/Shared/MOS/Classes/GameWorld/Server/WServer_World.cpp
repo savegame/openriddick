@@ -1044,6 +1044,31 @@ ConOutL("(CWorld_ServerCore::World_Init) WorldName: " + m_WorldName);
 
 	//Create navgraph
 	CXR_NavGraph* pNavGraph = m_spMapData->GetResource_XWNavGraph(m_spMapData->GetResourceIndex_XWNavGraph("$WORLD"));
+
+	// [NAV] -- два числа, которые решают спор «AI сломан» против «данных нет».
+	// Симптомы: NPC скользят в позе первого кадра, не доходят до сценпоинтов
+	// (Script MOVE_TO_SCENEPOINT request failed, AlignScenepoint() broken,
+	// Search_Create cannot reach destination, m_SearchStatus == INVALID).
+	// Навигация грузится из мира (.XW), а PC-формат мы разбирали реверсом
+	// (Docs/BSP_PC_Format.md), поэтому пустой навграф/навгрид -- реальная
+	// версия. Две строки, без флага: без них каждый разбор лога начинается
+	// с догадок.
+	{
+		const int nNodes = pNavGraph ? pNavGraph->m_lNodes.Len() : 0;
+		const int nEdges = pNavGraph ? pNavGraph->m_lEdges.Len() : 0;
+		if (m_pBlockNavGrid)
+			M_TRACEALWAYS("[NAV] navgrid: cells %dx%dx%d\n",
+				(int)m_pBlockNavGrid->m_CellGridDim[0],
+				(int)m_pBlockNavGrid->m_CellGridDim[1],
+				(int)m_pBlockNavGrid->m_CellGridDim[2]);
+		else
+			M_TRACEALWAYS("[NAV] navgrid: MISSING (no $WORLD navgrid resource)\n");
+		M_TRACEALWAYS("[NAV] navgraph: %s nodes=%d edges=%d minDist=%d sizes=0x%x\n",
+			pNavGraph ? "ok" : "MISSING", nNodes, nEdges,
+			pNavGraph ? pNavGraph->GetMinDistance() : 0,
+			pNavGraph ? pNavGraph->GetSupportedSizes() : 0);
+	}
+
 	if (pNavGraph)
 	{
 		pNavGraph->BuildHash(CVec3Dint16(pNavGraph->GetMinDistance(), pNavGraph->GetMinDistance(), pNavGraph->GetMinDistance() * 5), 

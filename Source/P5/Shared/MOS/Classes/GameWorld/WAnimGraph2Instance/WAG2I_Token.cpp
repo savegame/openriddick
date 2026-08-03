@@ -719,13 +719,13 @@ void CWAG2I_Token::EnterState(const CWAG2I_Context* _pContext, int16 _iMoveToken
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
 		{
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
-			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", 0);
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
+			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", Riddick_AG2DebugObjEnv());
 		}
 		if (!s_bDebugServer && (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0)
 			s_bDebugServer = true;
@@ -852,11 +852,11 @@ void CWAG2I_Token::DebugPrintMoveToken(const CWAG2I_Context* _pContext, int16 _i
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 
 		bool bDebugServer = s_bDebugServer || (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0;
@@ -965,13 +965,13 @@ void CWAG2I_Token::EnterGraphBlock(const CWAG2I_Context* _pContext, int16 _iMove
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
 		{
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
-			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", 0);
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
+			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", Riddick_AG2DebugObjEnv());
 		}
 		if (!s_bDebugServer && (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0)
 			s_bDebugServer = true;

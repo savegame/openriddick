@@ -1,7 +1,8 @@
 
 #include "PCH.h"
 
-#include <stdio.h>	// [DLG] lookup report
+#include <stdio.h>
+#include <stdlib.h>
 #include "WDataRes_Sound.h"
 #include "WMapData.h"
 #include "WPhysState.h"
@@ -1981,21 +1982,59 @@ int CWRes_Dialogue::GetSoundIndex_Hash(uint32 _ItemHash, CMapData* _pMapData, ui
 }
 
 
+// RIDDICK_DBG_DLGLEN=1 -- почему длина реплики вышла нулевой.
+// Ноль здесь = AI считает реплику несуществующей и печатает
+// "<NPC> failed Dialogue: <TYPE> Dialogueindex N" (AI_DeviceHandler.cpp:1375),
+// то есть NPC молчит и сцена не идёт дальше. Отказать могут пять разных
+// мест, и по внешнему сообщению они неразличимы -- отсюда явная причина.
+// Печатается ТОЛЬКО когда итоговая длина всё-таки нулевая: путь со
+// сроками субтитров ниже спасает часть реплик, и предупреждать по первому
+// же промаху означало бы врать.
+static void Riddick_DlgLenFail(const char* _pWhy, int _iIndex, const char* _pName)
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLGLEN");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	static int s_n = 0;
+	if (s_On && s_n < 60)
+	{
+		++s_n;
+		fprintf(stderr, "[DLGLEN] len=0: %s (iRes=%d sound='%s')\n",
+			_pWhy, _iIndex, _pName ? _pName : "-");
+		fflush(stderr);
+	}
+}
+
 fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 {
 	if(!_pBuf)
+	{
+		// Реплики нет в самом ресурсе диалога: либо .XRG не тот, либо хэш
+		// айтема не совпал (IntToHash), либо родительская цепочка не
+		// склеилась при CopyDir.
+		Riddick_DlgLenFail("no dialogue item (hash miss)", 0, NULL);
 		return 0;
+	}
+
+	const char* pWhy = "";
+	const char* pWhyName = NULL;
+	int WhyIndex = 0;
 
 	int16 iIndex;
 	SafeRead(_pBuf, 0, iIndex);
 	if(iIndex != 0)
 	{
+		WhyIndex = iIndex;
 		CWResource *pRes = m_pWData->GetResource(iIndex);
 		if(pRes && pRes->GetClass() == WRESOURCE_CLASS_SOUND)
 		{
 			CWRes_Sound *pSoundRes = (CWRes_Sound *)pRes;
 			if(pSoundRes)
 			{
+				pWhyName = pSoundRes->m_Name.Str();
 				CSC_SFXDesc *pSound = pSoundRes->GetSound();
 				if(pSound)
 				{
@@ -2005,10 +2044,21 @@ fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 						fp32 Duration = pWC->SFX_GetLength(pSound, 0) + 0.4f;
 						return Duration;
 					}
+					pWhy = "no SYSTEM.WAVECONTEXT";
 				}
+				else
+					// Самый вероятный из отказов: SFX-дескриптор не собрался
+					// нашим парсером Content/SfxDesc/*.xsfxc
+					// (MSound_SFXDesc.cpp, NSFXDescScript). Рядом в логе
+					// стоит "WARNING: Undefined sound: SND:<имя>".
+					pWhy = "sound resource has no SFXDesc";
 			}
 		}
+		else
+			pWhy = pRes ? "resource is not a sound" : "resource index dangling";
 	}
+	else
+		pWhy = "item has no sound bound (iIndex==0)";
 
 	// Didn't find sample. Find the last timed subtitle entry and a few additional seconds
 	_pBuf += 2;
@@ -2043,6 +2093,9 @@ fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 		}
 		_pBuf = pOrg + (Size << 1);
 	}
+
+	if(Time <= 0.0f)
+		Riddick_DlgLenFail(pWhy, WhyIndex, pWhyName);
 
 	return Max(0.0f, Time);
 }
