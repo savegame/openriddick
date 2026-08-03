@@ -1,6 +1,7 @@
 #include "PCH.h"
 
 #include <stdio.h>	// AG2_ReportBadState() logs to stderr
+#include <stdlib.h>	// getenv() for RIDDICK_DBG_ANIMTIME
 
 //--------------------------------------------------------------------------------
 
@@ -1803,6 +1804,63 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 			m_iState, pAnimLayer->GetAnimIndex(), pAnimLayer->GetBaseJointIndex(), _iSI, _pContext->m_GameTime, m_EnterTime, LoopedTime, LayerBlend,
 			m_BlendInStartTime, m_BlendInEndTime, m_BlendOutStartTime, m_BlendOutEndTime);
 #endif
+		// RIDDICK_DBG_ANIMTIME=1 -- продвигается ли ВРЕМЯ СЛОЯ.
+		//
+		// Зачем именно здесь. Штатная трасса анимграфа
+		// (RIDDICK_AG2_DEBUGFLAGS) уже доказала: граф живой, состояния
+		// сменяются (EXPLORE_IDLE -> WALKFWD -> RUNFWD -> TURN...), у
+		// каждого состояния резолвится анимация (iAnim 74 и т.п.), игровое
+		// время идёт. То есть до этой точки всё цело.
+		//
+		// А наблюдается «персонаж скользит в позе первого кадра». Это ровно
+		// то, что даёт застрявший LoopedTime: поза берётся в LoopedTime
+		// (Create3 кладёт его в m_Time), а корневое движение -- как РАЗНОСТЬ
+		// EvalTrack0(m_Time) и EvalTrack0(m_Time + TimeSpan) (WAG2I.cpp,
+		// GetAnimVelocity). Если LoopedTime не растёт, разность каждый тик
+		// одна и та же и НЕнулевая: персонаж едет с постоянной скоростью, а
+		// поза стоит. Это же объясняет замер из
+		// Docs/Research_MoveSpeed_Report.md, где скорость от анимации вышла
+		// в 3-6 раз больше расчётной -- окно всегда берётся с крутого начала
+		// клипа.
+		//
+		// Печатается и на сервере, и на клиенте: рисуется клиентский
+		// инстанс, а трасса выше собиралась серверная, так что расхождение
+		// между ними -- отдельная проверяемая версия.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANIMTIME");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On && jAnimLayer == 0 && _pContext->m_pObj)
+			{
+				// Три первых объекта, каждый 15-й вызов, потолок 240 строк
+				static int s_lObj[3] = { -1, -1, -1 };
+				static int s_lCount[3] = { 0, 0, 0 };
+				static int s_nLines = 0;
+				const int iObject = _pContext->m_pObj->m_iObject;
+				int iSlot = -1;
+				for (int i = 0; i < 3; i++)
+				{
+					if (s_lObj[i] == iObject) { iSlot = i; break; }
+					if (s_lObj[i] == -1) { s_lObj[i] = iObject; iSlot = i; break; }
+				}
+				if (iSlot >= 0 && (s_lCount[iSlot]++ % 15) == 0 && s_nLines < 240)
+				{
+					++s_nLines;
+					const bool bServer = _pContext->m_pWPhysState ? _pContext->m_pWPhysState->IsServer() : false;
+					fprintf(stderr,
+						"[ANIMT] %s obj=%d iAnim=%d gt=%.3f enter=%.3f contin=%.3f looped=%.3f scale=%.3f dur=%.3f blend=%.2f\n",
+						bServer ? "srv" : "cli", iObject, (int)iAnim,
+						_pContext->m_GameTime.GetTime(), m_EnterTime.GetTime(),
+						ContinousTime.GetTime(), LoopedTime.GetTime(),
+						TimeScale, pAnimLayerSeq->GetDuration(), LayerBlend);
+					fflush(stderr);
+				}
+			}
+		}
+
 		M_ASSERT(0x7fc00000 != (uint32&)_pLayers[nLayers].m_Time, "!");
 		_pLayers[nLayers++].m_ContinousTime = ContinousTime;
 
