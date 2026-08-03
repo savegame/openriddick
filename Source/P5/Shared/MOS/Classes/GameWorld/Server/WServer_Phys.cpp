@@ -83,8 +83,8 @@ bool CWorld_ServerCore::Phys_IntersectWorld( CPotColSet *_pcs, const CWO_Physics
 
 			if( _PhysState.m_PhysFlags & OBJECT_PHYSFLAGS_ROTATION )
 			{
-				// ingen rotations hastighet, innebär att väldigt konstiga saker kan uppstå om roteringen inte integreras
-				// utan bara sätts mellan 2 frames.
+				// ingen rotations hastighet, innebÃ¤r att vÃ¤ldigt konstiga saker kan uppstÃ¥ om roteringen inte integreras
+				// utan bara sÃ¤tts mellan 2 frames.
 			
 				WPrimOrigin.k[3][0] += WOffs[0] * WPrimOrigin.k[0][0] + WOffs[1] * WPrimOrigin.k[0][1] + WOffs[2] * WPrimOrigin.k[0][2];
 				WPrimOrigin.k[3][1] += WOffs[0] * WPrimOrigin.k[1][0] + WOffs[1] * WPrimOrigin.k[1][1] + WOffs[2] * WPrimOrigin.k[1][2];
@@ -146,7 +146,7 @@ bool CWorld_ServerCore::Phys_IntersectWorld( CPotColSet *_pcs, const CWO_Physics
 			}
 
 		case OBJECT_PRIMTYPE_POINT :
-			{	// intersect point with PCS, måste göra med WOrigin -> WDest linjen!
+			{	// intersect point with PCS, mÃ¥ste gÃ¶ra med WOrigin -> WDest linjen!
 				nCollisions = _pcs->CollidePoint( CVec3Dfp32::GetMatrixRow(WOrigin, 3).k, CVec3Dfp32::GetMatrixRow(WDest, 3).k, lCInfo, e_MaxCInfo);
 				break;
 			}
@@ -474,7 +474,7 @@ bool CWorld_ServerCore::Phys_SetPosition(const CSelection& _selection, int _iObj
 	if (pObj->GetLocalPosition().Distance(CVec3Dfp32::GetRow(_Pos, 3)) > 128.0f)
 	{
 		ConOutL("-------------------------------------------------------------------");
-		ConOutL(CStrF("§cf80WARNING: (PhysState::SetPos) Teleported from %s to %s", pObj->GetLocalPositionMatrix().GetString().Str(), _Pos.GetString().Str()));
+		ConOutL(CStrF("Â§cf80WARNING: (PhysState::SetPos) Teleported from %s to %s", pObj->GetLocalPositionMatrix().GetString().Str(), _Pos.GetString().Str()));
 		ConOutL(pObj->Dump(m_spMapData, -1));
 		ConOutL("-------------------------------------------------------------------");
 	}
@@ -775,7 +775,7 @@ void CWorld_ServerCore::Selection_GetArray( CPotColSet *_pcs, const CSelection* 
 
 			case OBJECT_PRIMTYPE_BOX :
 				{
-					// MUPPJOKKO - IMPLEMENT ME! tillåta roterade boxar?
+					// MUPPJOKKO - IMPLEMENT ME! tillÃ¥ta roterade boxar?
 
 					m_PhysModel_Box.Phys_SetDimensions(PhysPrim.GetDim());
 
@@ -923,7 +923,7 @@ bool CWorld_ServerCore::Phys_MovePosition(const CSelection* _pSelection, int _iO
 	if (CVec3Dfp32::GetRow(_Origin, 3).Distance(CVec3Dfp32::GetRow(_Dest, 3)) > 128.0f)
 	{
 		ConOutL("-------------------------------------------------------------------");
-		ConOutL(CStrF("§cf80WARNING: (PhysState::MovePos) Teleported from %s to %s", _Origin.GetString().Str(), _Dest.GetString().Str()));
+		ConOutL(CStrF("Â§cf80WARNING: (PhysState::MovePos) Teleported from %s to %s", _Origin.GetString().Str(), _Dest.GetString().Str()));
 		ConOutL(pObj->Dump(m_spMapData, -1));
 		ConOutL("-------------------------------------------------------------------");
 	}
@@ -1033,7 +1033,7 @@ void CWorld_ServerCore::Phys_MessageQueue_Flush()
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | Rigid Body Physics Interface
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1541,7 +1541,7 @@ bool CWorld_ServerCore::Phys_DoAddConstraint(CWObject_CoreData* _pObj1, CWObject
 		}
 		else
 		{
-			ConOutL(CStrF("§cf80WARNING: Too many constraints for object"));
+			ConOutL(CStrF("Â§cf80WARNING: Too many constraints for object"));
 			M_TRACE("WARNING: Too many constraints for object\n");
 			ok = false;
 		}
@@ -1555,7 +1555,7 @@ bool CWorld_ServerCore::Phys_DoAddConstraint(CWObject_CoreData* _pObj1, CWObject
 		}
 		else
 		{
-			ConOutL(CStrF("§cf80WARNING: Too many constraints for object"));
+			ConOutL(CStrF("Â§cf80WARNING: Too many constraints for object"));
 			M_TRACE("WARNING: Too many constraints for object\n");
 			ok = false;
 		}
@@ -2085,7 +2085,7 @@ void CWorld_ServerCore::Phys_RemoveConstraint(int _iConstraint)
 
 	if (index == -1) 
 	{
-		ConOutL(CStrF("§cf80ERROR: (CWorld_ServerCore::Phys_RemoveConstraint) Constraint doesn't exists!"));
+		ConOutL(CStrF("Â§cf80ERROR: (CWorld_ServerCore::Phys_RemoveConstraint) Constraint doesn't exists!"));
 		return;
 	}
 

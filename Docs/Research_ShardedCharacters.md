@@ -13,7 +13,7 @@ OpenRiddick: порт Starbreeze P5 на Linux/GLES3+SDL2, снапшот исх
 `Docs/Research_ShadowWedges.md` + `Docs/Research_ShadowWedges_Report.md`
 (предыдущая итерация, её вывод ОПРОВЕРГНУТ — см. §2.1),
 `Docs/Research_Characters.md`.
-`build/` не читать. CP1252 не менять. Только C++17.
+`build/` не читать. Только C++17.
 
 ---
 

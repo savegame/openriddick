@@ -3263,7 +3263,7 @@ void CWObject_Engine_Path::OnSpawnWorld()
 		CAttachClientData_Engine_Path* pCD = GetAttachClientData_Engine_Path(this);
 		TAP<const uint8> pData = m_pWServer->GetMapData()->GetResource_XWData(pCD->m_iXWData, m_iAnim0);
 		if (!pData.Len())
-			ConOutL(CStrF("§cf00ERROR: Resource data is missing for engine path %s (%d)", GetName(), m_iObject));
+			ConOutL(CStrF("Â§cf00ERROR: Resource data is missing for engine path %s (%d)", GetName(), m_iObject));
 
 		// If we're a child object, adjust the 'pathrelmat' to work in local space 
 		if (GetParent() > 0)
@@ -3382,7 +3382,7 @@ void CWObject_Engine_Path::AttachObject()
 			m_PosOffset = WVec * InvObjMat;
 			if(!pObj->m_pRigidBody2)
 			{
-				ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) target object %s has no rigid body information, creating it\n", GetName(), m_TargetName.Str()));
+				ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) target object %s has no rigid body information, creating it\n", GetName(), m_TargetName.Str()));
 				CWO_PhysicsState Phys = pObj->GetPhysState();
 				if(!Phys.m_nPrim)
 				{	//Object has no phys primitives, lets create a box
@@ -3411,10 +3411,10 @@ void CWObject_Engine_Path::AttachObject()
 			m_pWServer->Message_SendToObject(Msg, m_iObjectLinkedToEP);
 		}
 		else
-			ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found\n", GetName(), m_TargetName.Str()));
+			ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found\n", GetName(), m_TargetName.Str()));
 	}
 	else
-		ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found, or multiple copies were found\n", GetName(), m_TargetName.Str()));
+		ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found, or multiple copies were found\n", GetName(), m_TargetName.Str()));
 }
 
 fp32 CWObject_Engine_Path::GetDuration()
@@ -3919,7 +3919,7 @@ CMat4Dfp32 CWObject_Engine_Path::GetRenderMatrix(CWorld_PhysState *_pWPhysState,
 	if(m_iAnim2 < 0 || m_iAnim2 >= pCData->m_lSequences.Len())
 	{
 		if(m_iAnim2 != 0)
-			ConOutLD(CStrF("§cf80WARNING: (GP) CWObject_Engine_Path, Sequence %i does not exist", m_iAnim2));
+			ConOutLD(CStrF("Â§cf80WARNING: (GP) CWObject_Engine_Path, Sequence %i does not exist", m_iAnim2));
 
 		if(GetAttach(0))
 		{

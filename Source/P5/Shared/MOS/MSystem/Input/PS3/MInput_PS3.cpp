@@ -729,7 +729,7 @@ void CInputContext_PS3::PS3_CreateDevices()
 					{
 						m_lspDevices[iDev] = NULL;
 						if (!PS3_CreateDevice("CPS3_Device_Joystick", i, iDev))
-							ConOutL(CStrF("§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create joystick device %d", iDev));
+							ConOutL(CStrF("Â§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create joystick device %d", iDev));
 						else
 						{
 							ConOutL(CStrF("(CInputContext_PS3::PS3_CreateDevices) Created joystick device %d", iDev));
@@ -777,7 +777,7 @@ void CInputContext_PS3::PS3_CreateDevices()
 						{
 							m_lspDevices[iDev] = NULL;
 							if (!PS3_CreateDevice("CPS3_Device_KeyBoard", i, iDev))
-								ConOutL(CStrF("§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create keyboard device %d", iDev));
+								ConOutL(CStrF("Â§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create keyboard device %d", iDev));
 							else
 							{
 								ConOutL(CStrF("(CInputContext_PS3::PS3_CreateDevices) Created keyboard keyboard %d", iDev));
@@ -818,7 +818,7 @@ void CInputContext_PS3::PS3_CreateDevices()
 					{
 						m_lspDevices[iDev] = NULL;
 						if (!PS3_CreateDevice("CPS3_Device_Joystick", i, iDev))
-							ConOutL(CStrF("§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create joystick device %d", iDev));
+							ConOutL(CStrF("Â§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create joystick device %d", iDev));
 						else
 						{
 							ConOutL(CStrF("(CInputContext_PS3::PS3_CreateDevices) Created joystick device %d", iDev));
@@ -832,7 +832,7 @@ void CInputContext_PS3::PS3_CreateDevices()
 					{
 						m_lspDevices[iDev] = NULL;
 						if (!PS3_CreateDevice("CPS3_Device_KeyBoard", i, iDev))
-							ConOutL(CStrF("§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create keyboard device %d", iDev));
+							ConOutL(CStrF("Â§cf80WARNING: (CInputContext_PS3::PS3_CreateDevices) Unable to create keyboard device %d", iDev));
 						else
 						{
 							ConOutL(CStrF("(CInputContext_PS3::PS3_CreateDevices) Created joystick keyboard %d", iDev));

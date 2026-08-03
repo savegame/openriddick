@@ -10,7 +10,7 @@
 #include "../../../Shared/MOS/XR/Phys/WPhysPCS_Enable.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character movement
 					
 	Contents:		Char_SetPhysics
@@ -24,7 +24,7 @@
 \*____________________________________________________________________________________________*/
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CGrabbedObject
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -119,7 +119,7 @@ bool CGrabbedObject::Update(CWorld_Server& _WServer, const CVec3Dfp32& _WantedPo
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Character
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -835,7 +835,7 @@ ControlMode_Free:
 
 					bool bOnGround;
 					{
-						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart för att se om man står på marken eller inte!!
+						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart fÃ¶r att se om man stÃ¥r pÃ¥ marken eller inte!!
 #ifdef	USE_PCS
 						CPotColSet pcs;
 						{
@@ -1132,7 +1132,7 @@ ControlMode_Free:
 					CVec3Dfp32::GetMatrixRow(p, 3) += CVec3Dfp32(0,0,-8);
 					bool bOnGround;
 					{
-						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart för att se om man står på marken eller inte!!
+						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart fÃ¶r att se om man stÃ¥r pÃ¥ marken eller inte!!
 						// NOTE: Assuming char origin is at the bottom of it's box  -mh
 						CWO_PhysicsState PhysState(_pObj->GetPhysState());
 						PhysState.m_Prim[0].m_DimZ = 1;
@@ -1238,7 +1238,7 @@ ControlMode_Free:
 					
 					bool bOnGround;
 					{
-						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart för att se om man står på marken eller inte!!
+						// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart fÃ¶r att se om man stÃ¥r pÃ¥ marken eller inte!!
 						// NOTE: Assuming char origin is at the bottom of it's box  -mh
 						CWO_PhysicsState PhysState(_pObj->GetPhysState());
 						PhysState.m_Prim[0].m_DimZ = 1;
@@ -1947,7 +1947,7 @@ CVec3Dfp32 PhysUtil_GetMediumAcceleration(const CSelection& _Selection, CWObject
 		{
 			if(!(pCD->m_Phys_Flags & (PLAYER_PHYSFLAGS_NOMEDIUMMOVEMENT | PLAYER_PHYSFLAGS_IMMOBILE)))
 			{
-				// If you fix Medium velocity. Fully implement PLAYER_PHYSFLAGS_NOMEDIUMMOVEMENT eller nått
+				// If you fix Medium velocity. Fully implement PLAYER_PHYSFLAGS_NOMEDIUMMOVEMENT eller nÃ¥tt
 //			CVec3Dfp32 objv = _pPhysState->Object_GetVelocity(_pObj->m_iObject);
 //			fp32 dmlen = (_pMediums[v].m_Velocity - objv).Length();	// Speed difference between the medium and the object.
 

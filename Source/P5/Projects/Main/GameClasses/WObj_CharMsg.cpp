@@ -55,7 +55,7 @@ void AddMessage(const CWObject_Message& _Msg, bool _bServer)
 */
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character message parsers
 					
 	Contents:		OnMessage
@@ -803,7 +803,7 @@ aint CWObject_Character::OnMessage(const CWObject_Message& _Msg)
 					pCD->m_HitEffect_iObject = 0;
 			}
 			else
-				ConOutL(CStrF("§cf80WARNING: %s is not a player, can't set blur effect on NPCs", GetName()));
+				ConOutL(CStrF("Â§cf80WARNING: %s is not a player, can't set blur effect on NPCs", GetName()));
 		}
 		return 1;
 
@@ -4888,7 +4888,7 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 									CheckString = CheckString.Del(3,1);
 									ThePhoneNumber = CheckString.Ansi();
 
-									CheckString = "§LPHONENUMBER_OWNER_" + CheckString;
+									CheckString = "Â§LPHONENUMBER_OWNER_" + CheckString;
 									CheckString = Localize_Str(CheckString);
 									CheckString = CheckString.UpperCase();
 
@@ -4985,7 +4985,7 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 				if (pPlayer && (pPlayer->GetPhysState().m_ObjectFlags & OBJECT_FLAGS_CHARACTER) != 0)
 				{
 					CWO_Character_ClientData *pPlayerCD = GetClientData(pPlayer);
-					if (CFStr(pPlayerCD->m_FocusFrameUseText) == "§LACS_DEVOUR")
+					if (CFStr(pPlayerCD->m_FocusFrameUseText) == "Â§LACS_DEVOUR")
 					{
 						*pSt = pPlayerCD->m_FocusFrameUseText;
 						nChoices = 1;

@@ -1,6 +1,6 @@
 // -> MMath
 
-Lägg in exlicit på CVec3Dfp32(fp32) constructor.
+LÃ¤gg in exlicit pÃ¥ CVec3Dfp32(fp32) constructor.
 
 Destructor till CDataFile som anropar Close
 

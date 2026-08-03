@@ -90,7 +90,7 @@ CWO_PhysicsPrim::CWO_PhysicsPrim(int _PrimType, int _iPhysModel, const CVec3Dfp3
 #ifndef M_RTM
 	if (_Dim[0] > CWO_PHYSICSPRIM_MAXDIM_XY || _Dim[1] > CWO_PHYSICSPRIM_MAXDIM_XY ||_Dim[2] > CWO_PHYSICSPRIM_MAXDIM_Z ||
 		Abs(_Offset[0]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[1]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[2]) > CWO_PHYSICSPRIM_MAXOFS)
-		ConOut(CStrF("§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
+		ConOut(CStrF("Â§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
 #endif
 	SetDim(_Dim);
 	SetOffset(_Offset);
@@ -109,7 +109,7 @@ void CWO_PhysicsPrim::Create(int _PrimType, int _iPhysModel, const CVec3Dfp32& _
 #ifndef M_RTM
 	if (_Dim[0] > CWO_PHYSICSPRIM_MAXDIM_XY || _Dim[1] > CWO_PHYSICSPRIM_MAXDIM_XY ||_Dim[2] > CWO_PHYSICSPRIM_MAXDIM_Z ||
 		Abs(_Offset[0]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[1]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[2]) > CWO_PHYSICSPRIM_MAXOFS)
-		ConOut(CStrF("§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
+		ConOut(CStrF("Â§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
 #endif
 	SetDim(_Dim);
 	SetOffset(_Offset);
@@ -731,7 +731,7 @@ CWObject_CoreData::~CWObject_CoreData()
 {
 	/*if (m_pRigidBody) 
 	{
-		ConOutL(CStr("§cff0WARNING SOMEONE: Rigidbody exist in object core data. Where should this be removed!!"));
+		ConOutL(CStr("Â§cff0WARNING SOMEONE: Rigidbody exist in object core data. Where should this be removed!!"));
 		delete m_pRigidBody;
 		m_pRigidBody = NULL;
 	}*/
@@ -2080,10 +2080,10 @@ void CWObject::Phys_AddPrimitive(const char* _pPrim, CWO_PhysicsState* _pTarget)
 				pPhys->m_nPrim++;
 			}
 			else
-				ConOutL("§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Model was not a physics-model.");
+				ConOutL("Â§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Model was not a physics-model.");
 		}
 		else
-			ConOutL("§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Invalid model-index.");
+			ConOutL("Â§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Invalid model-index.");
 	}
 	else
 		pPhys->m_nPrim++;
@@ -2184,7 +2184,7 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			_pKey->GetThisValueaf(3, v.k);
 
 			if (!m_pWServer->Object_SetPosition(m_iObject, v))
-				LogFile("§cf80WARNING: Failed setting ORIGIN, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("Â§cf80WARNING: Failed setting ORIGIN, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
 		}
 		break;
@@ -2194,7 +2194,7 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			CMat4Dfp32 Mat(GetLocalPositionMatrix());
 			Mat.SetZRotation3x3(_pKey->GetThisValuef() * (1.0f/360.0f));
 			if (!m_pWServer->Object_SetPosition(m_iObject, Mat))
-				LogFile("§cf80WARNING: Failed setting ANGLE, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("Â§cf80WARNING: Failed setting ANGLE, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
 		}
 		break;
@@ -2208,7 +2208,7 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			v.CreateMatrixFromAngles(0, Mat);
 			CVec3Dfp32::GetMatrixRow(Mat, 3) = GetLocalPosition();
 			if (!m_pWServer->Object_SetPosition(m_iObject, Mat))
-				LogFile("§cf80WARNING: Failed setting ANGLES, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("Â§cf80WARNING: Failed setting ANGLES, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
 		}
 		break;
@@ -2298,7 +2298,7 @@ void CWObject::OnFinishEvalKeys()
 	{
 		if(pTempPS->m_nPrim && !m_pWServer->Object_SetPhysics(m_iObject, *pTempPS))
 		{
-			ConOutL("§cf80WARNING: Unable to set temporary physics state.");
+			ConOutL("Â§cf80WARNING: Unable to set temporary physics state.");
 			LogFile("PHYSSTATE: " + pTempPS->Dump(-1));
 		}
 

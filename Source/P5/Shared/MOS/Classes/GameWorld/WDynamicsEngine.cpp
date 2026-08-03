@@ -63,9 +63,9 @@ int gncollisions = 0;
 	}
 
 	/*
-	TODO: Här är nog något fel!!!!
-	eller inte längre...
-	Är x och z vända???
+	TODO: HÃ¤r Ã¤r nog nÃ¥got fel!!!!
+	eller inte lÃ¤ngre...
+	Ã„r x och z vÃ¤nda???
 	*/ 
 
 	CVec3Dfp64 CInertia::Block(double mass, double a, double b, double c) 
@@ -115,7 +115,7 @@ int gncollisions = 0;
 		ret.k[2][2]= m.k[2][2]*v.k[2];
 
 
-		// TODO: Ska [3][3] vara 1 (som den är nu)
+		// TODO: Ska [3][3] vara 1 (som den Ã¤r nu)
 
 		return ret;
 	}
@@ -147,7 +147,7 @@ int gncollisions = 0;
 
 
 
-		// TODO: Ska [3][3] vara 1 (som den är nu)
+		// TODO: Ska [3][3] vara 1 (som den Ã¤r nu)
 		return ret;
 	}
 
@@ -180,11 +180,11 @@ int gncollisions = 0;
 	return ret;
 	}*/
 
-	// TODO: Kan kanske skulle kunna uppdatera m_relatvevel. istället?
-	// Eller räkna ut flera med tex altivec
+	// TODO: Kan kanske skulle kunna uppdatera m_relatvevel. istÃ¤llet?
+	// Eller rÃ¤kna ut flera med tex altivec
 
 	/*
-	Är inte detta masscentrums relativa hastighet och inte kollisionspunkterna!?!?!?
+	Ã„r inte detta masscentrums relativa hastighet och inte kollisionspunkterna!?!?!?
 	*/
 	fp64 CContactInfo::GetRelativeVelocity() const {
 #if 0
@@ -290,7 +290,7 @@ int gncollisions = 0;
 	*/
 	/*
 	void CRigidBody::GetTransform(CMat4Dfp64& transform) const {
-	// TODO: Onödigt?!?!?!?
+	// TODO: OnÃ¶digt?!?!?!?
 	MRIGIDBODY_BODYSTATE.m_orientation.Normalize();
 	CMat4Dfp64 rot;
 	MRIGIDBODY_BODYSTATE.m_orientation.CreateMatrix(rot);
@@ -329,7 +329,7 @@ int gncollisions = 0;
 		//		GetWorldInertiaTensorInvert(t);
 		//Matrix3d t = getWorldIntertiaTensorInvert ();
 
-		// TODO: Ska det göras här???
+		// TODO: Ska det gÃ¶ras hÃ¤r???
 		//		m_state.m_angularvelocity=  m_state.m_angularmomentum * t;
 		//		t.transform (angularVelocity);
 	}
@@ -362,7 +362,7 @@ int gncollisions = 0;
 		AddTorque(CVec3Dfp64(dx,dy,dz));
 	}
 
-	// TODO: Ska denna heta något annat?
+	// TODO: Ska denna heta nÃ¥got annat?
 	void CRigidBody::ClearForces() {
 		MRIGIDBODY_BODYSTATE.m_force= CVec3Dfp64(0,0,0);
 		MRIGIDBODY_BODYSTATE.m_torque= CVec3Dfp64(0,0,0);
@@ -615,7 +615,7 @@ int gncollisions = 0;
 		m_pstate->m_WorldInertiaTensorInverted = m_worldinertiatensor; // TODO: Is to be removed after pending reorg.
 	}
 
-	// TODO: Flytta denna metod till rätt plats
+	// TODO: Flytta denna metod till rÃ¤tt plats
 	void CWorld::DetectCollisions2(int *startindex, TArray<CContactInfo>& collisioninfo, void *_pArgument1, void *_pArgument2)
 	{
 #ifndef DYNAMICS_DISABLE_SCOPES
@@ -678,7 +678,7 @@ int gncollisions = 0;
 			collisioninfo.m_ra= p - rigid1state->m_position;
 			collisioninfo.m_rb= p - rigid2state->m_position;
 
-			// TODO: Detta verkar inte funka så bra...
+			// TODO: Detta verkar inte funka sÃ¥ bra...
 
 			collisioninfo.m_ra *= m_ScaleFactor;
 			collisioninfo.m_rb *= m_ScaleFactor;
@@ -687,8 +687,8 @@ int gncollisions = 0;
 			collisioninfo.m_MaxAppliedImpulse = 0.0;
 
 			/*
-			Testar med att använda alla interfererande då en som är ogiltig
-			för v kan vara giltig för v' och vice versa.
+			Testar med att anvÃ¤nda alla interfererande dÃ¥ en som Ã¤r ogiltig
+			fÃ¶r v kan vara giltig fÃ¶r v' och vice versa.
 			*/
 			//			if (collisioninfo.m_isColliding && collisioninfo.m_relativevelocity > 0) {
 			if (collisioninfo.m_isColliding) 
@@ -696,7 +696,7 @@ int gncollisions = 0;
 				//collisioninfo.m_pRigidBody1= rigidbody1;
 				//collisioninfo.m_pRigidBody2= rigidbody2;
 				/*
-				TODO: Är det inte bättre att göra detta för alla på en gång...
+				TODO: Ã„r det inte bÃ¤ttre att gÃ¶ra detta fÃ¶r alla pÃ¥ en gÃ¥ng...
 				samt ovan
 				*/
 				//collisioninfo.m_collision_impulse_denominator= CalculateImpulseDenominator(collisioninfo);
@@ -787,7 +787,7 @@ int gncollisions = 0;
 		CVec3Dfp64 d= p2-p1;
 
 #if 1
-		// Gå sönder...
+		// GÃ¥ sÃ¶nder...
 		if (d.Length() > 1.8) {
 			//		if (d.Length() > 2.5) {
 			m_k=0;
@@ -1553,7 +1553,7 @@ int gncollisions = 0;
 
 		{
 			CVec3Dfp64 tmp = Diff;
-			// TODO: SKA DET INTE VARA tmp.Normalize() här!!?!?!?!
+			// TODO: SKA DET INTE VARA tmp.Normalize() hÃ¤r!!?!?!?!
 			//Diff.Normalize();
 			tmp.Normalize();
 			NewVel = tmp * ((Diff.Length() - MaxDist) / _dt);
@@ -1704,8 +1704,8 @@ int gncollisions = 0;
 	/*
 		TODO:
 
-		Om en kropp tryckas undan och är inaktivt (pga depenetrationslösaren) kan det ligga långt
-		utanför dess giltiga område. När kroppen sedan blir aktiv igen får den en orimligt stor impuls.
+		Om en kropp tryckas undan och Ã¤r inaktivt (pga depenetrationslÃ¶saren) kan det ligga lÃ¥ngt
+		utanfÃ¶r dess giltiga omrÃ¥de. NÃ¤r kroppen sedan blir aktiv igen fÃ¥r den en orimligt stor impuls.
 	 */
 
 	void CMaxDistanceToPointConstraintSolver::Solve(const CWorld *_pWorld, CRigidConstraint *_pConstraint, fp64 _dt)
@@ -2544,7 +2544,7 @@ int gncollisions = 0;
 		m_nobjects= 0;
 		m_nextid= 0;
 
-		// TODO: Hmm, hårdkodat...
+		// TODO: Hmm, hÃ¥rdkodat...
 		//		m_collisionspace= new CCollisionGrid(20,20,20,64,2);
 		//		m_collisionspace= DNew CDummyCollisionSpace();
 
@@ -2758,20 +2758,20 @@ int gncollisions = 0;
 
 		//		m_testedcollisions.SetLen(m_nobjects*m_nobjects);
 
-		// Detta gjorde att det craschade. Då objekt kan skapas
-		// och få ett id utan att vara tillaga... 
-		// Id-systemet måste fixas till...
+		// Detta gjorde att det craschade. DÃ¥ objekt kan skapas
+		// och fÃ¥ ett id utan att vara tillaga... 
+		// Id-systemet mÃ¥ste fixas till...
 
 		//		m_testedcollisions.SetLen((maxid+1)*(maxid+1));		
 		//m_testedcollisions.SetLen((m_nextid+1)*(m_nextid+1));		
 
-		// Ändrar igen.... efter det nya systemet
+		// Ã„ndrar igen.... efter det nya systemet
 		m_testedcollisions.SetLen((maxid+1)*(maxid+1));		
 
 #if 1
 		// TODO: !!!!
-		// Är inte detta buggit???
-		// Antar man inte att .SetLen() inte skall förstöra de gamla värdena???
+		// Ã„r inte detta buggit???
+		// Antar man inte att .SetLen() inte skall fÃ¶rstÃ¶ra de gamla vÃ¤rdena???
 
 		for (int i=0; i<m_rigidbodylist.Len(); i++) 
 		{
@@ -2826,7 +2826,7 @@ int gncollisions = 0;
 
 		UpdateInternalStates();
 
-		// TODO: Duh, detta måste bort helt...
+		// TODO: Duh, detta mÃ¥ste bort helt...
 		m_nextid++;
 
 		/*
@@ -2902,7 +2902,7 @@ int gncollisions = 0;
 	}
 
 	/*
-		TODO: Vem ska egentligen äga objekten...!??!?!?!
+		TODO: Vem ska egentligen Ã¤ga objekten...!??!?!?!
 	*/
 	void CWorld::Clear()
 	{
@@ -2914,7 +2914,7 @@ int gncollisions = 0;
 //			M_TRACEALWAYS("%i\n",i);
 //			CRigidBody *pRB = m_rigidbodylist[i];
 			
-			// TODO: Denna får det att crasha...
+			// TODO: Denna fÃ¥r det att crasha...
 			//delete pRB;
 		}
 
@@ -2934,13 +2934,13 @@ int gncollisions = 0;
 	void CWorld::AddRigidBodyGroup(CRigidBodyGroup *group) {
 		M_ASSERT(0,"TODO");
 		//		m_rigidbodygrouplist.Add(group);
-		// TODO: Behövs detta?
+		// TODO: BehÃ¶vs detta?
 		UpdateInternalStates();
 	}
 
 	/*
 	TODO: Kontrollera att objekten som constrainten 
-	innehåller verkligen finns i världen.
+	innehÃ¥ller verkligen finns i vÃ¤rlden.
 	*/
 	void CWorld::AddConstraint(CConstraint *constraint) {
 		m_constraintlist.Add(constraint);
@@ -3011,7 +3011,7 @@ int gncollisions = 0;
 		Constraint.m_VectorParams[CBallJointConstraintSolver::POSITION1] = _p1;
 		Constraint.m_VectorParams[CBallJointConstraintSolver::POSITION2] = _p2;
 
-		// TODO: Detta är lite oklart om dessa behövs. I fall att man vill ha olika vinklar kanske...
+		// TODO: Detta Ã¤r lite oklart om dessa behÃ¶vs. I fall att man vill ha olika vinklar kanske...
 		Constraint.m_VectorParams[CBallJointConstraintSolver::MAXDISTREFPOINT1] = Ref1;
 		Constraint.m_VectorParams[CBallJointConstraintSolver::MAXDISTREFPOINT2] = Ref2;
 		fp64 b = Ref1World.Distance(Anchor);
@@ -3450,7 +3450,7 @@ int gncollisions = 0;
 
 
 	/*
-	TODO: !!! Que??? Ska det inte vara en referens här?
+	TODO: !!! Que??? Ska det inte vara en referens hÃ¤r?
 	*/
 	/*
 	const TArray<CRigidBodyGroup *> CWorld::GetGroups() {
@@ -3586,8 +3586,8 @@ int gncollisions = 0;
 
 
 		// Budget depenetration.
-		// TODO: Borde ske "globalt", dvs på alla kollision
-		// eftersom djupet på andra kollisioner påverkas av en ändring i
+		// TODO: Borde ske "globalt", dvs pÃ¥ alla kollision
+		// eftersom djupet pÃ¥ andra kollisioner pÃ¥verkas av en Ã¤ndring i
 		// en enstaka
 
 #if 0
@@ -3640,7 +3640,7 @@ int gncollisions = 0;
 
 		//impulse *= ci->scale;
 
-		// TODO: Varför berättas det fel tecken?!??!?!
+		// TODO: VarfÃ¶r berÃ¤ttas det fel tecken?!??!?!
 		impulse*=-1;
 
 		ci.m_MaxAppliedImpulse = Max(ci.m_MaxAppliedImpulse, Abs(impulse));
@@ -3656,9 +3656,9 @@ int gncollisions = 0;
 			//			ci.m_ra.CrossProd(force,tmp);
 			//tmp = ci.m_ra / force;
 
-			// TODO: !!!! Är inte detta fel, dvs ska det inte vara tensorn här!?!?!
-			// Alternativt kan man byta till att använda rörelsemängdsmoment som 
-			// tillståndsvariabel istället för rotationshastighet.
+			// TODO: !!!! Ã„r inte detta fel, dvs ska det inte vara tensorn hÃ¤r!?!?!
+			// Alternativt kan man byta till att anvÃ¤nda rÃ¶relsemÃ¤ngdsmoment som 
+			// tillstÃ¥ndsvariabel istÃ¤llet fÃ¶r rotationshastighet.
 			// Samma nedan
 
 
@@ -3724,7 +3724,7 @@ int gncollisions = 0;
 		CVec3Dfp64 relativetangentvelocity= 
 			(v2-v1) - (ci.m_Normal * ((v2-v1)*ci.m_Normal));
 
-		// TODO: Tecken här???
+		// TODO: Tecken hÃ¤r???
 		CVec3Dfp64 T= relativetangentvelocity;
 		T.Normalize();
 		double Af = relativetangentvelocity.Length();
@@ -3771,7 +3771,7 @@ int gncollisions = 0;
 
 			// 0.3 och 0.5 funkar bra
 
-			// TODO: SKA ENENTLIGEN VARA MIN HÄR!
+			// TODO: SKA ENENTLIGEN VARA MIN HÃ„R!
 			const fp64 DynamicFriction = Min(ci.m_pRigidBody1->GetDynamicFriction(), ci.m_pRigidBody2->GetDynamicFriction());
 			const fp64 StaticFriction = Min(ci.m_pRigidBody1->GetStaticFriction(), ci.m_pRigidBody2->GetStaticFriction());
 
@@ -3783,8 +3783,8 @@ int gncollisions = 0;
 
 			/*	
 			TODO: !!!!!
-			Ska man inte jämföra absolutbelopp här???
-			Kan inte "restimpulse" ha omvänt tecken till "staticfrictionimpulse"?
+			Ska man inte jÃ¤mfÃ¶ra absolutbelopp hÃ¤r???
+			Kan inte "restimpulse" ha omvÃ¤nt tecken till "staticfrictionimpulse"?
 			*/
 
 			fp64 impulsetoapply= 0.0;
@@ -3806,7 +3806,7 @@ int gncollisions = 0;
 			*/
 			CVec3Dfp64 frictionforce= T*impulsetoapply;
 
-			// Här berättas också fel tecken...
+			// HÃ¤r berÃ¤ttas ocksÃ¥ fel tecken...
 			//frictionforce *= -1.0;
 
 #if 1
@@ -4006,7 +4006,7 @@ int gncollisions = 0;
 			}
 		}
 
-		// TODO: Kolla att denna verkligen stämmer...
+		// TODO: Kolla att denna verkligen stÃ¤mmer...
 
 		M_INLINE void CreateMatrix(const CQuatfp64& q, CMat4Dfp64& m) {
 			fp64 xs,ys,zs,wx,wy,wz,xx,xy,xz,yy,yz,zz;
@@ -4090,7 +4090,7 @@ int gncollisions = 0;
 					CRigidBody *foo= pgeom[i];
 					if (foo == NULL) {
 						// TODO: Budget!!! Saker och ting behandlas fel...
-						// Alla behandlas trots att de inte är tillagde med AddGeom...
+						// Alla behandlas trots att de inte Ã¤r tillagde med AddGeom...
 						continue;
 					}
 
@@ -4157,7 +4157,7 @@ int gncollisions = 0;
 
 			for (int i=0; i<n; i++) {
 				CRigidBody *pgeom= prigidbodylist[i];
-				// TODO: Hmmm måste fixa detta med att denna kan vara NULL...
+				// TODO: Hmmm mÃ¥ste fixa detta med att denna kan vara NULL...
 				if (pgeom) {
 					/*
 					if (pgeom->m_GeometryType == GEOM_BOX) {				
@@ -4373,7 +4373,7 @@ int gncollisions = 0;
 #define N_SEPARATION_ITER (4)
 #define SEPARATION_SPEED (0.1)
 		// TODO: Stavas separate....
-		// TODO: Borde man inte göra det "upp och ner"? (dvs fram bak, bak fram, osv)
+		// TODO: Borde man inte gÃ¶ra det "upp och ner"? (dvs fram bak, bak fram, osv)
 		void CWorld::SeperateObjects(int ncollisions) 
 		{
 			MSCOPESHORT(CWorld::SeperateObjects);
@@ -4421,8 +4421,8 @@ int gncollisions = 0;
 					fp64 movedist = ci->m_distance * 0.45 * SEPARATION_SPEED;
 					CVec3Dfp64 move = (ci->m_Normal * movedist);
 
-					// Hmmm vad händer med icke aktiva objekt?
-					// Borde inte all förflyttning läggas på det ena?
+					// Hmmm vad hÃ¤nder med icke aktiva objekt?
+					// Borde inte all fÃ¶rflyttning lÃ¤ggas pÃ¥ det ena?
 
 					//ci->m_distance -= 2*movedist;
 					ci->m_distance *= (1-2*0.45 * SEPARATION_SPEED);
@@ -4461,7 +4461,7 @@ int gncollisions = 0;
 #define MOVEPLUS ci2->m_distance+= move * ci2->m_Normal;
 #define MOVEMINUS ci2->m_distance-= move * ci2->m_Normal;
 
-					// TODO: Kan inte saker göras dubbelt här???
+					// TODO: Kan inte saker gÃ¶ras dubbelt hÃ¤r???
 					int n=ci->m_pRigidBody1->m_nCollisions;
 					//if (ci->m_pRigidBody1 != &m_DummyRigidBody)
 					for (int j=0; j<n; j++) {
@@ -4643,7 +4643,7 @@ int gncollisions = 0;
 #endif
 
 					/*	
-					TODO: Lägg till en mera generell mekansim för att anropa
+					TODO: LÃ¤gg till en mera generell mekansim fÃ¶r att anropa
 					en funktion varje tick...
 					*/
 					m_rigidbodylist[i]->m_nCollisions = 0;
@@ -4920,7 +4920,7 @@ int gncollisions = 0;
 //				CheckStationary(dt);
 #endif
 
-				// TODO: Måste man göra detta för varje tick...
+				// TODO: MÃ¥ste man gÃ¶ra detta fÃ¶r varje tick...
 				TArray<CRigidBody *> lUnfreezedObjects;
 				if (m_pWorldCollider)
 				{
@@ -4947,7 +4947,7 @@ int gncollisions = 0;
 							//lUnfreezedObjects.Add(pRigidBody);
 
 							// TODO: BUGG
-							// Här adderas samma objekt flera gånger (flera kontaktytor)
+							// HÃ¤r adderas samma objekt flera gÃ¥nger (flera kontaktytor)
 							CContactInfo *pCI = &tmpcc[j];
 							if (pCI->m_pRigidBody1 != NULL && pCI->m_pRigidBody1 != pRigidBody)
 							{

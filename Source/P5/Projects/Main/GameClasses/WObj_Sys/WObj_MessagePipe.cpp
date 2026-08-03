@@ -95,7 +95,7 @@ class CWObject_MessagePipe : public CWObject
 					break;
 				}
 			if(i == m_liTargets.Len())
-				ConOut("§cf80WARNING: (CWObject_MessagePipe::OnMessage) Received a SetState message from an unknown sender");			
+				ConOut("Â§cf80WARNING: (CWObject_MessagePipe::OnMessage) Received a SetState message from an unknown sender");			
 			return 1;
 		}
 		else if(m_liTargets.Len())
@@ -114,7 +114,7 @@ class CWObject_MessagePipe : public CWObject
 						break;
 				}
 				if(i == m_liTargets.Len())
-					ConOut("§cf80WARNING: (CWObject_MessagePipe::OnMessage) All targets was blocked. Message lost");
+					ConOut("Â§cf80WARNING: (CWObject_MessagePipe::OnMessage) All targets was blocked. Message lost");
 			}
 			else if(m_iType == 1)
 			{
@@ -125,7 +125,7 @@ class CWObject_MessagePipe : public CWObject
 						lOpen.Add(m_liTargets[i]);
 
 				if(lOpen.Len() == 0)
-					ConOut("§cf80WARNING: (CWObject_MessagePipe::OnMessage) All targets was blocked. Message lost");
+					ConOut("Â§cf80WARNING: (CWObject_MessagePipe::OnMessage) All targets was blocked. Message lost");
 				else
 					iTarget = lOpen[MRTC_RAND() % lOpen.Len()];
 			}

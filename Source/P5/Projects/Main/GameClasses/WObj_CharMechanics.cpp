@@ -72,8 +72,8 @@ static int16 GetObjFlags(int _iObj, CWorld_PhysState* _pWPhysState)
 //-------------------------------------------------------------------
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
-	File:			Character gameplay mechanics, a.k.a "sophögen"
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
+	File:			Character gameplay mechanics, a.k.a "sophÃ¶gen"
 \*____________________________________________________________________________________________*/
 
 int CWObject_Character::Char_CheatsEnabled()
@@ -609,8 +609,8 @@ CVec3Dfp32 CWObject_Character::GetCharacterCenter(CWObject_CoreData* _pChar, CWo
 		int iBone = 8;
 		const CMat4Dfp32& BoneWorldMatrix = AnimState.m_pSkeletonInst->m_pBoneTransform[iBone];
 
-		// True behövs tydligen (vet inte varför) när man skall sätta saker i origin på ett ben, utan att ha nån worldpos innan.
-		if (true) // (False funkar minst för sniper & crossbow(!aimassist) på berserker & lich) (for attaching models)
+		// True behÃ¶vs tydligen (vet inte varfÃ¶r) nÃ¤r man skall sÃ¤tta saker i origin pÃ¥ ett ben, utan att ha nÃ¥n worldpos innan.
+		if (true) // (False funkar minst fÃ¶r sniper & crossbow(!aimassist) pÃ¥ berserker & lich) (for attaching models)
 		{
 			CXR_Skeleton *pSkeleton = (CXR_Skeleton*)pModel->GetParam(MODEL_PARAM_SKELETON);
 			const CXR_SkeletonNode& Node = pSkeleton->m_lNodes[iBone];
@@ -3120,12 +3120,12 @@ void CWObject_Character::Char_AddDarknessPowerups(const int32& _iFromCorpseObj, 
 			case PLAYER_DARKNESSPOWERUP_COREPOWER:
 				{
 					uint AddDarknessPowers = ResolveDarknessFlags(Data);
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK), "§LDARKNESS_NEWPOWER|§LDARKNESS_CREEPINGDARK");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DEMONARM), "§LDARKNESS_NEWPOWER|§LDARKNESS_DEMONARM");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS), "§LDARKNESS_NEWPOWER|§LDARKNESS_ANCIENTWEAPONS");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_BLACKHOLE), "§LDARKNESS_NEWPOWER|§LDARKNESS_BLACKHOLE");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION), "§LDARKNESS_NEWPOWER|§LDARKNESS_DARKNESSVISION");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD), "§LDARKNESS_NEWPOWER|§LDARKNESS_DARKNESSHIELD");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_CREEPINGDARK");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DEMONARM), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_DEMONARM");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_ANCIENTWEAPONS");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_BLACKHOLE), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_BLACKHOLE");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_DARKNESSVISION");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD), "Â§LDARKNESS_NEWPOWER|Â§LDARKNESS_DARKNESSHIELD");
 					_pToCD->m_DarknessPowersAvailable = _pToCD->m_DarknessPowersAvailable | ResolveDarknessFlags(Data);
 					break;
 				}
@@ -3222,7 +3222,7 @@ bool CWObject_Character::Char_AddDarkling(const CStr& _Type, bool _bSendInfoMsg)
 		// Give some message that a new darkling has been found
 		// (so the user can recofigure to dispatch new darkling types)
 		//ConOut(CStrF("Added darkling: %s",Type.GetStr()));
-		Char_AddDarknessPowerups_ShowInfoScreen(_bSendInfoMsg ? 1 : 0, CStrF("§LDARKNESS_NEWDARKLING|§L%s",Type.Str()).GetStr());
+		Char_AddDarknessPowerups_ShowInfoScreen(_bSendInfoMsg ? 1 : 0, CStrF("Â§LDARKNESS_NEWDARKLING|Â§L%s",Type.Str()).GetStr());
 		
 		// Send message to all darklingspawnpoints that player has gotten a new type
 		TSelection<CSelection::LARGE_BUFFER> Selection;
@@ -5266,7 +5266,7 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		return false;
 	
 	CFStr UseText;// = "Pickup moj";
-	CFStr DescText;// = "Hallååå dääär det är jag som är Bengt!";
+	CFStr DescText;// = "HallÃ¥Ã¥Ã¥ dÃ¤Ã¤Ã¤r det Ã¤r jag som Ã¤r Bengt!";
 	switch (_SelType & ~SELECTION_FLAG_PROXY)
 	{
 	case SELECTION_DEADCHAR:
@@ -5282,7 +5282,7 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 			bool bIsDevouring = (pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_POWER_DEVOUR) != 0;
 			if (!bIsDevouring && bHasHeartLeft && (bIsDead || !bIsConscious || bIsStunned))
 			{
-				UseText = "§LACS_DEVOUR";
+				UseText = "Â§LACS_DEVOUR";
 				break;
 			}
 			else if (m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_CHAR_GETAIPRIORITYCLASS),_iObj) > CAI_Action::PRIO_ALERT)
@@ -5326,13 +5326,13 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		break;
 	case SELECTION_LADDER:
 	//case SELECTIONISLADDER_BAD:
-		UseText = "§LACS_LADDER"; break;
+		UseText = "Â§LACS_LADDER"; break;
 	case SELECTION_LEDGE:
 	//case SELECTIONISLEDGE_BAD:
-		UseText = "§LACS_LEDGE"; break;
+		UseText = "Â§LACS_LEDGE"; break;
 	case SELECTION_HANGRAIL:
 	//case SELECTIONISHANGRAIL_BAD:
-		UseText = "§LACS_HANGRAIL"; break;
+		UseText = "Â§LACS_HANGRAIL"; break;
 	case SELECTION_NONE:
 	default:
 		_SelType = 0;
@@ -7785,7 +7785,7 @@ void CWObject_Character::GiveOrder(int _Order)
 
 // Get visibility factor of character. 
 // _bLightsOut indicate if the level should be complete darkness (argh,om
-// _bLightsOut är satt till true så låtsas vi att hela kartan är helt mörk)
+// _bLightsOut Ã¤r satt till true sÃ¥ lÃ¥tsas vi att hela kartan Ã¤r helt mÃ¶rk)
 fp32 CWObject_Character::GetVisibility(bool _bLightsOut,int32 _PerceptionFlags)
 {
 	CWO_Character_ClientData* pCD = GetClientData(this);
@@ -8985,7 +8985,7 @@ static M_INLINE fp32 Dot2(const CVec3Dfp32& a, const CVec3Dfp32& b)
 
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:		Updates the state of "Third Person Interactive".
 					It will check when the camera should start moving
 					towards 3rd person mode, and when the camera should

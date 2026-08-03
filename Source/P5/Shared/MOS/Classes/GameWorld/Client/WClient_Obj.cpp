@@ -117,7 +117,7 @@ void CWorld_ClientCore::Object_SetActiveClientCopy(int _iObj, int _iActiveClient
 		CWObject_Client* pObj = m_lspClientObjects[_iObj];
 		if (!pObj || !pObj->m_iClass || !pObj->m_iObject) return NULL;
 		return pObj;*/
-		ConOut("§cf80WARNING: (CWorld_ClientCore::Object_SetActiveClientCopy) Is this the intent?");
+		ConOut("Â§cf80WARNING: (CWorld_ClientCore::Object_SetActiveClientCopy) Is this the intent?");
 	}
 	else
 	{

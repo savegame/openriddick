@@ -41,8 +41,8 @@ bool CWorld_ClientCore::Phys_IntersectWorld(CPotColSet *_pcs, const CWO_PhysicsS
 
 			if( _PhysState.m_PhysFlags & OBJECT_PHYSFLAGS_ROTATION )
 			{
-				// ingen rotations hastighet, inneb‰r att v‰diga konstiga saker kan uppstÂ om roteringen inte integreras
-				// utan bara s‰tts mellan 2 frames.
+				// ingen rotations hastighet, inneb√§r att v√§diga konstiga saker kan uppst√• om roteringen inte integreras
+				// utan bara s√§tts mellan 2 frames.
 
 				WPrimOrigin.k[3][0] += WOffs[0] * WPrimOrigin.k[0][0] + WOffs[1] * WPrimOrigin.k[0][1] + WOffs[2] * WPrimOrigin.k[0][2];
 				WPrimOrigin.k[3][1] += WOffs[0] * WPrimOrigin.k[1][0] + WOffs[1] * WPrimOrigin.k[1][1] + WOffs[2] * WPrimOrigin.k[1][2];
@@ -104,7 +104,7 @@ bool CWorld_ClientCore::Phys_IntersectWorld(CPotColSet *_pcs, const CWO_PhysicsS
 			}
 
 		case OBJECT_PRIMTYPE_POINT:
-			{	// intersect point with PCS, mÂste gˆra med WOrigin -> WDest linjen!
+			{	// intersect point with PCS, m√•ste g√∂ra med WOrigin -> WDest linjen!
 				nCollisions = _pcs->CollidePoint( CVec3Dfp32::GetMatrixRow(WOrigin, 3).k, CVec3Dfp32::GetMatrixRow(WDest, 3).k, lCInfo, e_MaxCInfo);
 				break;
 			}
@@ -124,8 +124,8 @@ bool CWorld_ClientCore::Phys_IntersectWorld(CPotColSet *_pcs, const CWO_PhysicsS
 		}
 #endif
 
-		// uppdatera _pCollInfo om ny kollision ‰r "b‰ttre".
-		// kanske borde trycka in detta i Collide<primitive> funktionerna ist‰llet!
+		// uppdatera _pCollInfo om ny kollision √§r "b√§ttre".
+		// kanske borde trycka in detta i Collide<primitive> funktionerna ist√§llet!
 		
 		for (int iColl = 0; iColl < nCollisions; iColl++)
 		{
@@ -599,7 +599,7 @@ void CWorld_ClientCore::Selection_GetArray( CPotColSet *_pcs, const CSelection* 
 
 			case OBJECT_PRIMTYPE_BOX :
 				{
-					// MUPPJOKKO - IMPLEMENT ME! - tillÂta roterade boxar?
+					// MUPPJOKKO - IMPLEMENT ME! - till√•ta roterade boxar?
 				
 					m_PhysModel_Box.Phys_SetDimensions(PhysPrim.GetDim());
 

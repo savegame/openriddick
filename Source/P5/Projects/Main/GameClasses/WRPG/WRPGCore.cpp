@@ -271,7 +271,7 @@ spCRPG_Object CRPG_Object::CreateObject(const char *_pName, CWorld_Server *_pWSe
 		}
 	}
 
-	ConOutL(CStrF("§cf80WARNING: (CRPG_Object::CreateObject) Could not create item: %s", _pName));
+	ConOutL(CStrF("Â§cf80WARNING: (CRPG_Object::CreateObject) Could not create item: %s", _pName));
 	//If runtime-class can't be created a dummy object is created instead.
 	spItem = MNew(CRPG_Object);
 	if(!spItem)

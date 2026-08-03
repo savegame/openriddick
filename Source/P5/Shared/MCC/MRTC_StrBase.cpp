@@ -30,7 +30,7 @@ void CStrBase::mfscpy(void* _pDst, int _DstFmt, const void* _pSrc, int _SrcFmt)
 			ch = ((wchar*)_pSrc)[i];
 
 		if (_DstFmt == CSTR_FMT_ANSI)
-			((char*)_pDst)[i] = (ch > 255) ? '¦' : ch;
+			((char*)_pDst)[i] = (ch > 255) ? 'Â¦' : ch;
 		else if (_DstFmt == CSTR_FMT_UNICODE)
 			((wchar*)_pDst)[i] = ch;
 
@@ -51,7 +51,7 @@ void CStrBase::mfsncpy(void* _pDst, int _DstFmt, const void* _pSrc, int _SrcFmt,
 			ch = ((wchar*)_pSrc)[i];
 
 		if (_DstFmt == CSTR_FMT_ANSI)
-			((unsigned char*)_pDst)[i] = (ch > 255) ? '¦' : ch;
+			((unsigned char*)_pDst)[i] = (ch > 255) ? 'Â¦' : ch;
 		else if (_DstFmt == CSTR_FMT_UNICODE)
 			((wchar*)_pDst)[i] = ch;
 	}
@@ -1273,7 +1273,7 @@ int CStrBase::CompareSubStr(const CStrBase& _SubStr, int _Pos) const
 void CStrBase::Trim()
 {
 	MAUTOSTRIP(CStrBase_Trim, MAUTOSTRIP_VOID);
-	// Optimerar inte allokeringslängden.
+	// Optimerar inte allokeringslÃ¤ngden.
 	MakeUnique();
 	int len = Len();
 	if (!len) return;
@@ -1597,7 +1597,7 @@ mint CStrBase::StrLen(const wchar* _pStr)
 	return wcslen(_pStr);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:	StringToHash.
 
 	Comments:	Creates a 32 bit ID from a character string.

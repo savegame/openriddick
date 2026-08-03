@@ -250,12 +250,12 @@ bool CMWnd_Mission_Inventory::GetListItem(int32 _Index, CStr &_Name, bool _Focus
 			//Localize_Str(Temp.Str(), wText, 1023);
 			CRct Pos = m_pDescription->GetPosition();
 /*			if(pCD->m_Inventory.m_lItems[_Index].m_nItems != -1)
-				Layout_WriteText(Pos, CStrF("s, §LMENU_INV_COUNT %d\n%s",
+				Layout_WriteText(Pos, CStrF("s, Â§LMENU_INV_COUNT %d\n%s",
 					pCD->m_Inventory.m_lItems[_Index].m_nItems,
 					pCD->m_Inventory.m_lItems[_Index].m_Desc.Str()), 0);
 			else
 				Layout_WriteText(Pos, CStrF("s, %s", pCD->m_Inventory.m_lItems[_Index].m_Desc.Str()), 0);*/
-			Layout_WriteText(Pos, CStrF("s, %s§p0%i§pq", pItem->m_ItemDescription.Str(), pItem->m_NumItems), 0);
+			Layout_WriteText(Pos, CStrF("s, %sÂ§p0%iÂ§pq", pItem->m_ItemDescription.Str(), pItem->m_NumItems), 0);
 			//_Desc = wText;
 		}
 
@@ -397,7 +397,7 @@ bool CMWnd_Mission_PhoneBook::GetListItem(int32 _Index, CStr &_Name, bool _Focus
 		{
 			//Localize_Str(Temp.Str(), wText, 1023);
 			CRct Pos = m_pDescription->GetPosition();
-			Layout_WriteText(Pos, CStrF("s, %s§p0%i§pq", pItem->m_ItemDescription.Str(), pItem->m_NumItems), 0);
+			Layout_WriteText(Pos, CStrF("s, %sÂ§p0%iÂ§pq", pItem->m_ItemDescription.Str(), pItem->m_NumItems), 0);
 			//_Desc = wText;
 		}
 
@@ -475,7 +475,7 @@ bool CMWnd_Mission_Collectibles::GetListItem(int32 _Index, CStr &_Name, bool _Fo
 		{
 			if(count == _Index)
 			{
-				_Name = CStrF("s, §LMENU_CIGPACK %d", i+1);
+				_Name = CStrF("s, Â§LMENU_CIGPACK %d", i+1);
 
 
 				if(_Focus)

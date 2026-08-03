@@ -945,7 +945,7 @@ void CXR_Model_TriangleMesh::Write(CStr _FileName)
 
 	CDataFile DFile;
 
-	// Funkar om man gör så här.... men märkligt var det ju
+	// Funkar om man gÃ¶r sÃ¥ hÃ¤r.... men mÃ¤rkligt var det ju
 	try
 	{
 		DFile.Create(_FileName);
@@ -2831,7 +2831,7 @@ void CXR_Model_TriangleMesh::Cluster_RenderSingleColor(CTriMesh_RenderInstancePa
 	if (_pRenderParams->m_bRenderTempTLEnable)
 	{
 		if (_Color != 0xffffffff)
-			ConOut(CStr("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_RenderSingleColor) HW Color != 0xffffffff"));
+			ConOut(CStr("Â§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_RenderSingleColor) HW Color != 0xffffffff"));
 
 		if (!VB.AllocVBChain(pVBM, true))
 			return;
@@ -3118,7 +3118,7 @@ void CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV(CTriMesh_RenderInstan
 	const CVec2Dfp32* pT1 = _pTVB->GetTVertexPtr(this, iTFrm0); // Added by Mondelore.
 	if (!pV1 || !pN1 || !pTU1 || !pTV1 || !pT1)
 	{
-		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("Â§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 
@@ -3129,7 +3129,7 @@ void CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV(CTriMesh_RenderInstan
 	const CVec2Dfp32* pT2 = _pTVB->GetTVertexPtr(this, iTFrm1); // Added by Mondelore.
 	if (!pV1 || !pN1 || !pTU1 || !pTV1 || !pT2)
 	{
-		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("Â§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 
@@ -3883,12 +3883,12 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 	const CVec3Dfp32* pTV = _pTVB->GetTangentVPtr(this, iFrm0);
 	if (!pV || !pN || !pTU || !pTV)
 	{
-		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("Â§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 	if (!pVV || !pVN || !pVTU || !pVTV)
 	{
-		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing target array.");
+		ConOut("Â§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing target array.");
 		return;
 	}
 
@@ -8451,7 +8451,7 @@ void CXR_Model_TriangleMesh::Wallmark_CreateWithContainer(void* _pContainer, con
 				{
 					if (nDecalTri >= MaxDecalTri)
 					{
-						ConOut("§cf80WARNING: (TriMeshDecal) Too many triangles in decal.");
+						ConOut("Â§cf80WARNING: (TriMeshDecal) Too many triangles in decal.");
 						iTri = Target;
 						break;
 					}
@@ -8488,7 +8488,7 @@ void CXR_Model_TriangleMesh::Wallmark_CreateWithContainer(void* _pContainer, con
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 Function:	Acquires flags for VertexProgram params
 
 Parameters:		
@@ -8684,7 +8684,7 @@ void CXR_Model_TriangleMesh::Get(int _iLocal, CRC_BuildVertexBuffer& _VB, int _F
 	CCFile *pModelFile;
 	if( m_spPreloader == NULL )
 	{
-	//	ConOut(CStrF("§cf80WARNING: (CXR_Model_TriangleMesh::Get) Missing preloader for model %s cluster %i",m_FileName.Str(),_iLocal));
+	//	ConOut(CStrF("Â§cf80WARNING: (CXR_Model_TriangleMesh::Get) Missing preloader for model %s cluster %i",m_FileName.Str(),_iLocal));
 		pModelFile = NULL;
 	}
 	else

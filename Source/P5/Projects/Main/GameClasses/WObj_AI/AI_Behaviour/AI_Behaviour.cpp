@@ -40,7 +40,7 @@ CAI_Behaviour::CAI_Behaviour(CAI_Core * _pAI)
 };
 
 
-//Decides if the objective of¨the behaviour is fulfilled
+//Decides if the objective ofÂ¨the behaviour is fulfilled
 bool CAI_Behaviour::IsValid()
 {
 	MAUTOSTRIP(CAI_Behaviour_IsValid, false);

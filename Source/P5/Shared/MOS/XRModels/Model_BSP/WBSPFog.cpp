@@ -1117,7 +1117,7 @@ bool CXR_Model_BSP::Fog_SetAttrib(CRC_Attributes* _pAttrib, CBSP_PortalLeafExt* 
 	fp32 DensityFactor = Medium.m_FogDensity / 512.0f * 0.5f;
 
 	if (!(Medium.m_MediumFlags & XW_MEDIUM_FOG))
-		ConOut("§cf80WARNING: (CXR_Model_BSP::Fog_SetAttrib) Not a fog PL.");
+		ConOut("Â§cf80WARNING: (CXR_Model_BSP::Fog_SetAttrib) Not a fog PL.");
 
 	pParams[0][0] = -Medium.m_FogPlane.n[0] * Medium.m_FogAttenuation;
 	pParams[0][1] = -Medium.m_FogPlane.n[1] * Medium.m_FogAttenuation;

@@ -80,7 +80,7 @@ little-endian. Загрузчики файлов движка историчес
 - `CTextureContainer_VirtualXTC2` + секция `IMAGEDIRECTORY5` — **отдельный container-класс**, не наследник существующего `VirtualXTC`. Наши текущие .xtc всё ещё старого формата (парсятся через `IMAGEDIRECTORY4`), но часть архивов DA использует XTC2 и потребует нового класса-парсера (`ReadImageDirectory` считывает список через `ReadImageDirectoryData` в `TThinArray<CTextureDesc>`; текстуры регистрируются в `m_pTC` по описателям). Ожидаемый следующий блокер после подъёма рендера.
 
 **Прочие препятствия к компиляции современным GCC/Clang:**
-- код 2003–2008 гг. под MSVC/GCC-4 (PS3 SNC/GCC): нестандартные конструкции, `__forceinline`, `#pragma`, кодировка CP1252 в комментариях;
+- код 2003–2008 гг. под MSVC/GCC-4 (PS3 SNC/GCC): нестандартные конструкции, `__forceinline`, `#pragma`, кодировка CP1252 в комментариях (снято 2026-08-03 — весь код конвертирован в UTF-8, `Tools/convert_to_utf8.sh`);
 - inline-ассемблер x86/AMD64 (`MAsm.asm`, `MRTC_System_AMD64.asm`, `MScriptAMD64.asm`) — заменить интринсиками/С++;
 - `fp32/fp64`, свои типы — ок, но проверка `CPU_PTR64`-путей (Win64 был, значит 64-бит поддержан);
 - PCH-структура (`PCH.h` в каждом модуле) — в CMake через target_precompile_headers или просто обычным include.

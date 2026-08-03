@@ -13,7 +13,7 @@ OpenRiddick: порт Starbreeze P5 на Linux/GLES3+SDL2, снапшот исх
 прогон явной строкой запуска и ЖДИ лог, прежде чем делать выводы.
 Читать: корневой `CLAUDE.md`, `AGENTS.md`, `Docs/HacksAndHooks.md`,
 `Docs/Render_Strategy.md` (§6b — аудит хиральности), `Docs/VP_Reference.md`.
-`build/` не читать. CP1252 не менять. Только C++17.
+`build/` не читать. Только C++17.
 
 ---
 

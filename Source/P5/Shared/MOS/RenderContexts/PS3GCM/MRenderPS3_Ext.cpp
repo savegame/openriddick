@@ -8,53 +8,53 @@ void CRenderContextGL::LogExtensionState()
 {
 	// -------------------------------------------------------------------
 	if(m_bLog) ConOutL("---------------------------------------------");
-	if(m_bLog) ConOutL(CStr("MaxTextureSize:§x250%d/%d", m_MaxTextureSize, m_MaxTextureSizeReal));
-	if(m_bLog) ConOutL(CStr("TextureDepth:§x250%d", m_RGBATextureDepth));
-	if(m_bLog) ConOutL(CStr("TxtPalette:   §x250%s", (m_bTxtPalette256) ? "Yes" : "-"));
+	if(m_bLog) ConOutL(CStr("MaxTextureSize:Â§x250%d/%d", m_MaxTextureSize, m_MaxTextureSizeReal));
+	if(m_bLog) ConOutL(CStr("TextureDepth:Â§x250%d", m_RGBATextureDepth));
+	if(m_bLog) ConOutL(CStr("TxtPalette:   Â§x250%s", (m_bTxtPalette256) ? "Yes" : "-"));
 #ifdef CRCGL_SHAREDPALETTE
-	if(m_bLog) ConOutL(CStr("SharedTxtPalette:§x250%s", (m_bSharedTxtPalette) ? "Yes" : "-"));
+	if(m_bLog) ConOutL(CStr("SharedTxtPalette:Â§x250%s", (m_bSharedTxtPalette) ? "Yes" : "-"));
 #endif
 #ifdef CRCGL_ALPHALIGHTMAPS
-	if(m_bLog) ConOutL(CStr("Alpha LM: §x250%s", (m_bAlphaLightMaps) ? "Yes" : "-"));
+	if(m_bLog) ConOutL(CStr("Alpha LM: Â§x250%s", (m_bAlphaLightMaps) ? "Yes" : "-"));
 #endif
-	if(m_bLog) ConOutL(CStr("PicMip:§x250%d, %d, %d, %d", m_lPicMips[0], m_lPicMips[1], m_lPicMips[2], m_lPicMips[3]) );
-	if(m_bLog) ConOutL(CStr("Stencil bits:§x250%d", m_Caps_StencilDepth) );
-	if(m_bLog) ConOutL(CStr("Alpha bits:§x250%d", m_Caps_AlphaDepth) );
-	if(m_bLog) ConOutL(CStr("Max Texture Units:§x250%d", m_nMultiTexture) );
-	if(m_bLog) ConOutL(CStr("Max Texture Env:§x250%d", m_nMultiTextureEnv) );
-	if(m_bLog) ConOutL(CStr("Max Texture Coordinates:§x250%d", m_nMultiTextureCoords) );
-	if(m_bLog) ConOutL(CStr("ARB MultiTexture:§x250%s, %s", (m_Extensions & CRCGL_EXT_MULTITEXTURE) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_MULTITEXTURE) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV CopyDepthToColor: §x250%s, %s", (m_Extensions & CRCGL_EXT_NV_COPYDEPTHTOCOLOR) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_NV_COPYDEPTHTOCOLOR) ? "§c0f0Active§d" : "§cf00Inactive"));
-	if(m_bLog) ConOutL(CStr("ARB WindowPos: §x250%s, %s", (m_Extensions & CRCGL_EXT_WINDOWPOS) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_WINDOWPOS) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB Non Power of two textures: §x250%s, %s", (m_Extensions & CRCGL_ARB_TEXTURE_NON_POWER_OF_TWO) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_ARB_TEXTURE_NON_POWER_OF_TWO) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-//	if(m_bLog) ConOutL(CStr("EXT Compiled Vertex Array:§x250%s, %s", (m_Extensions & CRCGL_EXT_COMPILEDVERTEXARRAYS) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_COMPILEDVERTEXARRAYS) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("EXT BGRA:         §x250%s, %s", (m_Extensions & CRCGL_EXT_BGRA) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_BGRA) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("EXT Secondary Color:§x250%s, %s", (m_Extensions & CRCGL_EXT_SECONDARYCOLOR) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_SECONDARYCOLOR) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-//	if(m_bLog) ConOutL(CStr("EXT Fog Coord:§x250%s, %s", (m_Extensions & CRCGL_EXT_FOGCOORD) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_FOGCOORD) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB Texture Compression:§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURECOMPRESSION) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURECOMPRESSION) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB Texture Cube Map:§x250%s, %s  (%d/%d size)", (m_Extensions & CRCGL_EXT_CUBEMAP) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_CUBEMAP) ? "§c0f0Active§d" : "§cf00Inactive§d", m_MaxCubeTextureSizeReal, m_MaxCubeTextureSize));
-	if(m_bLog) ConOutL(CStr("EXT Texture Compression S3TC:§x250%s, %s", (m_Extensions & CRCGL_EXT_S3TC) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURECOMPRESSION) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("EXT Texture Filter Anisotropic:§x250%s, %s  (Max anisotropy %f)", (m_Extensions & CRCGL_EXT_ANISOTROPIC) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ANISOTROPIC) ? "§c0f0Active§d" : "§cf00Inactive§d", m_MaxAnisotropy));
-	if(m_bLog) ConOutL(CStr("EXT Texture LOD Bias:§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURE_LOD_BIAS) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_TEXTURE_LOD_BIAS) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV RegisterCombiners:§x250%s, %s  (%d combiners)", (m_Extensions & CRCGL_EXT_NV_REGCOMBINERS) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_REGCOMBINERS) ? "§c0f0Active§d" : "§cf00Inactive§d", m_RegCombiners_MaxCombiners));
-	if(m_bLog) ConOutL(CStr("NV RegisterCombiners2:§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_REGCOMBINERS2) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_REGCOMBINERS2) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV TextureShader:§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_TEXTURESHADER) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_TEXTURESHADER) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV VertexProgram:§x250%s, %s  (Always: %d)", (m_Extensions & CRCGL_EXT_NV_VERTEXPROGRAM) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_VERTEXPROGRAM) ? "§c0f0Active§d" : "§cf00Inactive§d", m_VP_bUseAlways));
-	if(m_bLog) ConOutL(CStr("NV Occlusion Query:§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_OCCLUSIONQUERY) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_OCCLUSIONQUERY) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB VertexProgram:§x250%s, %s  (Always: %d)", (m_Extensions & CRCGL_EXT_VERTEXPROGRAM) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_VERTEXPROGRAM) ? "§c0f0Active§d" : "§cf00Inactive§d", m_VP_bUseAlways));
-//	if(m_bLog) ConOutL(CStr("ATI VertexArrayObject:§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_VERTEXARRAYOBJECT) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_VERTEXARRAYOBJECT) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-//	if(m_bLog) ConOutL(CStr("ATI VertexAttribArrayObject:§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_VERTEXATTRIBARRAYOBJECT) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_VERTEXATTRIBARRAYOBJECT) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB TextureEnvCombine + Dot3:§x250%s, %s", (m_Extensions & CRCGL_ARB_TEXTURE_ENV_DOT3) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_ARB_TEXTURE_ENV_DOT3) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB FragmentProgram:§x250%s, %s (%d,%d)", (m_Extensions & CRCGL_EXT_FRAGMENTPROGRAM) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_FRAGMENTPROGRAM) ? "§c0f0Active§d" : "§cf00Inactive§d", m_nMultiTexture, m_nMultiTextureCoords));
-	if(m_bLog) ConOutL(CStr("ATI SeparateStencil:§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_SEPARATESTENCIL) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_SEPARATESTENCIL) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("EXT StencilTwoSide:§x250%s, %s", (m_Extensions & CRCGL_EXT_STENCILTWOSIDE) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_STENCILTWOSIDE) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ATI FragmentShader:§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_FRAGMENTSHADER) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_FRAGMENTSHADER) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ARB VertexBufferObject:§x250%s, %s", (m_Extensions & CRCGL_EXT_VERTEXBUFFEROBJECT) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_VERTEXBUFFEROBJECT) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV FragmentProgramOption:§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("NV FragmentProgram2Option:§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM2) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM2) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("ATI Texture Compression 3DC:§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURE_COMPRESSION_3DC) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURE_COMPRESSION_3DC) ? "§c0f0Active§d" : "§cf00Inactive§d"));
-	if(m_bLog) ConOutL(CStr("EXT FrameBuffer Object:§x250%s, %s (MaxColorBuffers %d, MaxBufferSize %d)", (m_Extensions & CRCGL_EXT_FRAMEBUFFER_OBJECT) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & CRCGL_EXT_FRAMEBUFFER_OBJECT) ? "§c0f0Active§d" : "§cf00Inactive§d", m_FBO_MaxColorBuffers, m_FBO_MaxRenderBufferSize));
-	if(m_bLog) ConOutL(CStr("ARB Pbuffer:§x250%s, %s", (m_Extensions & CRCGL_ARB_PBUFFER) ? "§c0f0Yes§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_ARB_PBUFFER) ? "§c0f0Active§d" : "§cf00Inactive§d"));
+	if(m_bLog) ConOutL(CStr("PicMip:Â§x250%d, %d, %d, %d", m_lPicMips[0], m_lPicMips[1], m_lPicMips[2], m_lPicMips[3]) );
+	if(m_bLog) ConOutL(CStr("Stencil bits:Â§x250%d", m_Caps_StencilDepth) );
+	if(m_bLog) ConOutL(CStr("Alpha bits:Â§x250%d", m_Caps_AlphaDepth) );
+	if(m_bLog) ConOutL(CStr("Max Texture Units:Â§x250%d", m_nMultiTexture) );
+	if(m_bLog) ConOutL(CStr("Max Texture Env:Â§x250%d", m_nMultiTextureEnv) );
+	if(m_bLog) ConOutL(CStr("Max Texture Coordinates:Â§x250%d", m_nMultiTextureCoords) );
+	if(m_bLog) ConOutL(CStr("ARB MultiTexture:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_MULTITEXTURE) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_MULTITEXTURE) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV CopyDepthToColor: Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_COPYDEPTHTOCOLOR) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_NV_COPYDEPTHTOCOLOR) ? "Â§c0f0ActiveÂ§d" : "Â§cf00Inactive"));
+	if(m_bLog) ConOutL(CStr("ARB WindowPos: Â§x250%s, %s", (m_Extensions & CRCGL_EXT_WINDOWPOS) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_WINDOWPOS) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB Non Power of two textures: Â§x250%s, %s", (m_Extensions & CRCGL_ARB_TEXTURE_NON_POWER_OF_TWO) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_ARB_TEXTURE_NON_POWER_OF_TWO) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+//	if(m_bLog) ConOutL(CStr("EXT Compiled Vertex Array:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_COMPILEDVERTEXARRAYS) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_COMPILEDVERTEXARRAYS) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("EXT BGRA:         Â§x250%s, %s", (m_Extensions & CRCGL_EXT_BGRA) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_BGRA) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("EXT Secondary Color:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_SECONDARYCOLOR) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_SECONDARYCOLOR) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+//	if(m_bLog) ConOutL(CStr("EXT Fog Coord:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_FOGCOORD) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_FOGCOORD) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB Texture Compression:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURECOMPRESSION) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURECOMPRESSION) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB Texture Cube Map:Â§x250%s, %s  (%d/%d size)", (m_Extensions & CRCGL_EXT_CUBEMAP) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_CUBEMAP) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_MaxCubeTextureSizeReal, m_MaxCubeTextureSize));
+	if(m_bLog) ConOutL(CStr("EXT Texture Compression S3TC:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_S3TC) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURECOMPRESSION) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("EXT Texture Filter Anisotropic:Â§x250%s, %s  (Max anisotropy %f)", (m_Extensions & CRCGL_EXT_ANISOTROPIC) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ANISOTROPIC) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_MaxAnisotropy));
+	if(m_bLog) ConOutL(CStr("EXT Texture LOD Bias:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURE_LOD_BIAS) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_TEXTURE_LOD_BIAS) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV RegisterCombiners:Â§x250%s, %s  (%d combiners)", (m_Extensions & CRCGL_EXT_NV_REGCOMBINERS) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_REGCOMBINERS) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_RegCombiners_MaxCombiners));
+	if(m_bLog) ConOutL(CStr("NV RegisterCombiners2:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_REGCOMBINERS2) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_REGCOMBINERS2) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV TextureShader:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_TEXTURESHADER) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_TEXTURESHADER) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV VertexProgram:Â§x250%s, %s  (Always: %d)", (m_Extensions & CRCGL_EXT_NV_VERTEXPROGRAM) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_VERTEXPROGRAM) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_VP_bUseAlways));
+	if(m_bLog) ConOutL(CStr("NV Occlusion Query:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_OCCLUSIONQUERY) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_OCCLUSIONQUERY) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB VertexProgram:Â§x250%s, %s  (Always: %d)", (m_Extensions & CRCGL_EXT_VERTEXPROGRAM) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_VERTEXPROGRAM) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_VP_bUseAlways));
+//	if(m_bLog) ConOutL(CStr("ATI VertexArrayObject:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_VERTEXARRAYOBJECT) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_VERTEXARRAYOBJECT) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+//	if(m_bLog) ConOutL(CStr("ATI VertexAttribArrayObject:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_VERTEXATTRIBARRAYOBJECT) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_VERTEXATTRIBARRAYOBJECT) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB TextureEnvCombine + Dot3:Â§x250%s, %s", (m_Extensions & CRCGL_ARB_TEXTURE_ENV_DOT3) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_ARB_TEXTURE_ENV_DOT3) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB FragmentProgram:Â§x250%s, %s (%d,%d)", (m_Extensions & CRCGL_EXT_FRAGMENTPROGRAM) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_FRAGMENTPROGRAM) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_nMultiTexture, m_nMultiTextureCoords));
+	if(m_bLog) ConOutL(CStr("ATI SeparateStencil:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_SEPARATESTENCIL) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_SEPARATESTENCIL) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("EXT StencilTwoSide:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_STENCILTWOSIDE) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_STENCILTWOSIDE) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ATI FragmentShader:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_ATI_FRAGMENTSHADER) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_ATI_FRAGMENTSHADER) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ARB VertexBufferObject:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_VERTEXBUFFEROBJECT) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_VERTEXBUFFEROBJECT) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV FragmentProgramOption:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("NV FragmentProgram2Option:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM2) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_EXT_NV_FRAGMENT_PROGRAM2) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("ATI Texture Compression 3DC:Â§x250%s, %s", (m_Extensions & CRCGL_EXT_TEXTURE_COMPRESSION_3DC) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_TEXTURE_COMPRESSION_3DC) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
+	if(m_bLog) ConOutL(CStr("EXT FrameBuffer Object:Â§x250%s, %s (MaxColorBuffers %d, MaxBufferSize %d)", (m_Extensions & CRCGL_EXT_FRAMEBUFFER_OBJECT) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & CRCGL_EXT_FRAMEBUFFER_OBJECT) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d", m_FBO_MaxColorBuffers, m_FBO_MaxRenderBufferSize));
+	if(m_bLog) ConOutL(CStr("ARB Pbuffer:Â§x250%s, %s", (m_Extensions & CRCGL_ARB_PBUFFER) ? "Â§c0f0YesÂ§d" : "-", (m_ExtensionsActive & m_Extensions & CRCGL_ARB_PBUFFER) ? "Â§c0f0ActiveÂ§d" : "Â§cf00InactiveÂ§d"));
 
 	if(m_bLog) ConOutL("---------------------------------------------");
 }

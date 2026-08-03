@@ -1,10 +1,10 @@
 #ifndef _INC_MREGISTRY_DYNAMIC
 #define _INC_MREGISTRY_DYNAMIC
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			CRegistry
 					
-	Author:			Magnus Högdahl
+	Author:			Magnus HÃ¶gdahl
 					
 	Copyright:		Starbreeze Studios 2002
 
@@ -34,7 +34,7 @@ private:
 	{
 	public:
 		spCRegistry m_spReg;
-		uint32 m_Hash;			// Ha dessa två som 16bit * 2 ?
+		uint32 m_Hash;			// Ha dessa tvÃ¥ som 16bit * 2 ?
 		uint32 m_iHashKey;
 
 		CPtrKeyHash()
@@ -133,7 +133,7 @@ private:
 		EDataStorage = ETempStorage2
 	};
 
-	uint8 m_Value[EDataStorage];		// Ingen större poäng med att ta upp 16-bytes här när inte CStrData kan ligga där
+	uint8 m_Value[EDataStorage];		// Ingen stÃ¶rre poÃ¤ng med att ta upp 16-bytes hÃ¤r nÃ¤r inte CStrData kan ligga dÃ¤r
 
 	M_INLINE static mint Type_GetSize(int _Type, int _nDim)
 	{

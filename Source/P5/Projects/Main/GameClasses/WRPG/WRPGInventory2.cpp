@@ -587,7 +587,7 @@ void CRPG_Object_Inventory2::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 				CRPG_Object_Item2* pLastEquippedItem = GetItemByIndex(m_iLastEquippedItemIndex);
 				if (pLastEquippedItem != NULL)
 				{
-					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 					pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 
 					iPreceedingEquipAnim = pLastEquippedItem->m_iAnimEquip;
@@ -641,7 +641,7 @@ void CRPG_Object_Inventory2::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 				CRPG_Object_Item2* pLastEquippedItem = GetItemByIndex(m_iLastEquippedItemIndex);
 				if (pLastEquippedItem != NULL)
 				{
-					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 					pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 
 					if (pLastEquippedItem->m_Flags & RPG_ITEM_FLAGS_REMOVED)
@@ -702,7 +702,7 @@ void CRPG_Object_Inventory2::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 			CRPG_Object_Item2* pLastEquippedItem = GetItemByIndex(m_iLastEquippedItemIndex);
 			if (pLastEquippedItem != NULL)
 			{
-				// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+				// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 				pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 			}
 

@@ -1164,7 +1164,7 @@ bool CXR_Model_BSP::RenderTesselate(const uint32* _piFaces, int _nFaces, int _Te
 
 	if (_TessFlags & 3)
 	{
-		ConOut(CStrF("§cf80WARNING: (CXR_Model_BSP::RenderTesselate) TessFlags %d", _TessFlags));
+		ConOut(CStrF("Â§cf80WARNING: (CXR_Model_BSP::RenderTesselate) TessFlags %d", _TessFlags));
 	}
 
 	if (_TessFlags & 4)

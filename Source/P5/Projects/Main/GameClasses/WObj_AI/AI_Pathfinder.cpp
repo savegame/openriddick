@@ -2723,7 +2723,7 @@ CVec3Dfp32 CAI_Path::GetCurDestination(const CVec3Dfp32& _Pos, int& _ActionMode,
 						if ((m_pPathfinder)&&(m_pPathfinder->m_pAI)&&(m_pPathfinder->m_pAI->DebugTarget()))
 						{
 							CStr Name = m_pPathfinder->m_pAI->m_pGameObject->GetName();
-							ConOut(CStr("§f80 Navgraph edge invalidated: ")+Name);
+							ConOut(CStr("Â§f80 Navgraph edge invalidated: ")+Name);
 						}
 #endif
 						m_pPathfinder->GraphPF()->InvalidateEdge(m_spGraphPath->GetNode(m_iCurGraphPos), m_spGraphPath->GetNode(m_iNextGraphPos), (1 << m_pPathfinder->GetGraphSizeGroup()));
@@ -3435,7 +3435,7 @@ aint CAI_Path::OnMessage(const CWObject_Message& _Msg)
 			if ((_Msg.m_Param0 == CAI_Resource_Pathfinding::GRID) &&
 				(m_iGridPFInstance != 0))
 			{
-				//Release grid and make sure we tríes to start search again, when possible
+				//Release grid and make sure we trÃ­es to start search again, when possible
 				ReleaseGridSearch();
 				if (m_SearchStatus != NO_SEARCH)
 					m_SearchStatus = CXR_BlockNavSearcher::SEARCH_INSTANCE_INVALID;

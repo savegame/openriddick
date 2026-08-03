@@ -325,7 +325,7 @@ void CWD_DynamicsWorld::Step(fp32 _dt, int _iStep, int _nSteps)
 	pConstraintContactInfo.m_Len = m_nConstraintContacts;
 	PreCalculateImpulseDenominator(pConstraintContactInfo);
 
-	// TODO: Anropar man denna här crashar det, varför???!!!
+	// TODO: Anropar man denna hÃ¤r crashar det, varfÃ¶r???!!!
 	//pConstraintContactInfo.m_Len = DetectConstraintCollisions(_dt);
 
 	ProcessCollisionsFirst(pContactInfo, 1.0, _dt);
@@ -535,11 +535,11 @@ void CWD_DynamicsWorld::PreCalculateImpulseDenominator(TAP_RCD<CWD_ContactInfo> 
 		const CMat4Dfp32& WITInv2 = pRBState2->m_WorldInertiaTensorInvert;
 
 		vec128 tmp;
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(RA, Normal), WITInv1); 
 		vec128 B3 = M_VDp3(Normal, M_VXpd(tmp, RA));
 
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(RB, Normal), WITInv2);
 		vec128 B4 = M_VDp3(Normal, M_VXpd(tmp, RB));
 
@@ -642,8 +642,8 @@ int CWD_DynamicsWorld::DetectCollisions(fp32 _dt)
 	return nCollisions;
 }
 
-// TODO: Friktionen funkar inte helt som den ska när objekt "börjar vila"
-// Objekten stannar inte helt utan snurrar långsamt runt...
+// TODO: Friktionen funkar inte helt som den ska nÃ¤r objekt "bÃ¶rjar vila"
+// Objekten stannar inte helt utan snurrar lÃ¥ngsamt runt...
 
 void CWD_DynamicsWorld::ProcessCollisionsFirst(TAP_RCD<CWD_ContactInfo> _pContactInfo, fp32 _Epsilon, fp32 _dt)
 {
@@ -800,7 +800,7 @@ void CWD_DynamicsWorld::ProcessConstraintCollisionsFirst(TAP_RCD<CWD_ContactInfo
 		vec128 RA = M_VSub(CI.m_PointOfCollision, pRBState1->m_Position);
 		vec128 RB = M_VSub(CI.m_PointOfCollision, pRBState2->m_Position);
 
-		// TODO: DETTA BORDE INTE BEHÖVAS!!
+		// TODO: DETTA BORDE INTE BEHÃ–VAS!!
 		RA = M_VSelComp(3, M_VZero(), RA);
 		RB = M_VSelComp(3, M_VZero(), RB);
 
@@ -1205,7 +1205,7 @@ vec128 CWD_DynamicsWorld::CollisionImpulseMag(const CWD_ContactInfo& _CI, vec128
 
 	vec128 ImpulseMag = M_VMul(A, DenominatorRecip);
 	ImpulseMag = M_VSelComp(3, M_VZero(), ImpulseMag);
-	// TODO: Fel tecken här tydligen!
+	// TODO: Fel tecken hÃ¤r tydligen!
 	ImpulseMag = M_VNeg(ImpulseMag);
 
 	return ImpulseMag;	 
@@ -1220,7 +1220,7 @@ void CWD_DynamicsWorld::SaveFullState()
 
 	for (int i = 0; i < pBodyStates.Len(); i++)
 	{
-		// TODO: Här spara man inte m_MatrixOrientation, ska man?
+		// TODO: HÃ¤r spara man inte m_MatrixOrientation, ska man?
 		pBodyStatesSaved[i].m_Position = pBodyStates[i].m_Position;
 		pBodyStatesSaved[i].m_Orientation = pBodyStates[i].m_Orientation;
 		pBodyStatesSaved[i].m_Velocity = pBodyStates[i].m_Velocity;
@@ -1277,7 +1277,7 @@ void CWD_DynamicsWorld::AddExternalForces(fp32 _dt)
 			State.m_Velocity = V;
 
 			const CMat4Dfp32& WorldInertiaTensorInvert = State.m_WorldInertiaTensorInvert;
-			// TODO: Matrismult. åt fel håll???!??!?! VET EJ!?!?!?!
+			// TODO: Matrismult. Ã¥t fel hÃ¥ll???!??!?! VET EJ!?!?!?!
 			WDYNAMICS_CHECK_VEC128(State.m_AngularVelocity);
 			State.m_AngularVelocity = M_VMAdd(M_VMulMat(pRB->m_ExternalTorque, WorldInertiaTensorInvert), dt, State.m_AngularVelocity);
 			WDYNAMICS_CHECK_VEC128(State.m_AngularVelocity);
@@ -1312,8 +1312,8 @@ void CWD_DynamicsWorld::UpdateVelocity(fp32 _dt)
 
 	for (int i = 0; i < pBodyStates.Len(); i++)
 	{
-		// TODO: Det är kanske bättre att sätta hastigheten till (0,0,0) om den är stationary och uppdatera ändå!
-		// Se även UpdatePosition(.)
+		// TODO: Det Ã¤r kanske bÃ¤ttre att sÃ¤tta hastigheten till (0,0,0) om den Ã¤r stationary och uppdatera Ã¤ndÃ¥!
+		// Se Ã¤ven UpdatePosition(.)
 		CWD_RigidBodyState& State = pBodyStates[i];
 		if (!State.m_bStationary && State.m_bActive)
 		{
@@ -1392,7 +1392,7 @@ void CWD_DynamicsWorld::UpdateOrientation(fp32 _dt)
 			//Orientation = M_VMAdd(V, M_VMul(Half, dt), Orientation);
 			//
 			// TODO: Create State.m_MatrixOrientation
-			// TODO: Ska man uppdatera WorldInertiaTensorInvert här också?
+			// TODO: Ska man uppdatera WorldInertiaTensorInvert hÃ¤r ocksÃ¥?
 		}
 	}
 }

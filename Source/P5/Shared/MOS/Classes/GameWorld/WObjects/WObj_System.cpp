@@ -146,13 +146,13 @@ void CWObject_Model::Model_SetPhys(int _iModel, bool _bAdd, int _ObjectFlags, in
 			Phys.m_PhysFlags |= OBJECT_PHYSFLAGS_ROTATION;
 			Phys.m_ObjectFlags = _ObjectFlags;
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				LogFile("§cf80WARNING: Unable to set model physics state.");
+				LogFile("Â§cf80WARNING: Unable to set model physics state.");
 		}
 		else if(_bNoPhysReport)
-			ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
+			ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
 	}
 	else
-		ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
+		ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
 }
 
 void CWObject_Model::Model_Set(int _iPos, int _iModel, bool _bAutoSetPhysics)
@@ -1403,7 +1403,7 @@ void CWObject_Null::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			Phys.m_PhysFlags = 0;
 			Phys.m_ObjectFlags = 0;
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set BSP-model physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set BSP-model physics state.");
 
 			// Set bound-box.
 			{
@@ -3916,7 +3916,7 @@ void CWObject_Trigger::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			Phys.m_ObjectIntersectFlags = m_InitObjectIntersectFlags;
 			Phys.m_ObjectFlags = m_InitObjectFlags;
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 
 			// Set bound-box.
 			{
@@ -3947,7 +3947,7 @@ void CWObject_Trigger::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 					Phys.m_PhysFlags = 0;
 					Phys.m_ObjectFlags = m_InitObjectFlags;
 					if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-						ConOutL("§cf80WARNING: Unable to set model physics state.");
+						ConOutL("Â§cf80WARNING: Unable to set model physics state.");
 
 					// Set bound-box.
 					{
@@ -3957,10 +3957,10 @@ void CWObject_Trigger::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 					}
 				}
 				else
-					ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
+					ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
 			}
 			else
-				ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
+				ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
 			break;
 		}
 	case MHASH4('TRIG','GERO','BJEC','TS'): // "TRIGGEROBJECTS"
@@ -4189,9 +4189,9 @@ ConOutL("After: " + NewPos.GetString());*/
 								{
 									CMat4Dfp32 AbsDestPos(pObjDst->GetPositionMatrix());
 									AbsDestPos.k[3][2] += 1.0f;
-									ConOut(CStrF("§cf80WARNING: Unable to teleport %d to %s.", pObj->m_iObject, CVec3Dfp32::GetRow(NewPos, 3).GetString().Str()));
+									ConOut(CStrF("Â§cf80WARNING: Unable to teleport %d to %s.", pObj->m_iObject, CVec3Dfp32::GetRow(NewPos, 3).GetString().Str()));
 									if (!Teleport(_Msg.m_Param0, AbsDestPos))
-										ConOut(CStrF("§cf80WARNING: Unable to teleport %d to %s.", pObj->m_iObject, CVec3Dfp32::GetRow(AbsDestPos, 3).GetString().Str()));
+										ConOut(CStrF("Â§cf80WARNING: Unable to teleport %d to %s.", pObj->m_iObject, CVec3Dfp32::GetRow(AbsDestPos, 3).GetString().Str()));
 								}
 							}
 

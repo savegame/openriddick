@@ -371,7 +371,7 @@ CImage* CTextureContainer_VirtualXTC2::GetTextureMipMap(int _iLocal, int _iMipMa
 		else
 		{
 			// We should not end up here, but in case we do it must work anyway.
-			ConOutLD("§cf80WARNING: (CTextureContainer_VirtualXTC2::GetMipMap) Unexpected texture access pattern.");
+			ConOutLD("Â§cf80WARNING: (CTextureContainer_VirtualXTC2::GetMipMap) Unexpected texture access pattern.");
 			ReadTexture(_iLocal, m_spTempTexture, _iMipMap, iEnd, _nVirtual);
 
 			return &m_spTempTexture->m_lMipMaps[_iMipMap];

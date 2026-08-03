@@ -11,7 +11,7 @@ enum
 };
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWO_SimpleMessage
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -363,7 +363,7 @@ void CWO_SimpleMessage::SendPrecache(int _iObject, CWorld_Server *_pWServer) con
 				Res = _pWServer->Message_SendToObject(Msg, pChar->m_iObject);
 			else
 			{
-				// KRICK lösning of the day.
+				// KRICK lÃ¶sning of the day.
 				// Since we don't have a player, we have to send the precache message
 				// to someone similar: We try to find a character
 				// New solution, send to dummy player
@@ -375,7 +375,7 @@ void CWO_SimpleMessage::SendPrecache(int _iObject, CWorld_Server *_pWServer) con
 				if(nObj > 0)
 					Res = _pWServer->Message_SendToObject(Msg, piObjs[0]);
 				else
-					ConOutL("§cf80WARNING: Couldn't find a character to send SimpleMessages precache to instead of player");
+					ConOutL("Â§cf80WARNING: Couldn't find a character to send SimpleMessages precache to instead of player");
 				*/
 			}
 		}
@@ -396,7 +396,7 @@ void CWO_SimpleMessage::SendPrecache(int _iObject, CWorld_Server *_pWServer) con
 				if(Len == 0 || (m_Target[Len - 1] != '_' && m_Target[0] != '$')) // Ignore targetnames that end with _
 				{
 					CWObject *pObj = _pWServer->Object_Get(_iObject);
-					ConOutLD(CStrF("§cf80WARNING: (GP) Could not find target for SimpleMessage precache (%i, %s): %s", _iObject, pObj ? pObj->GetName() : "", GetDesc().Str()));
+					ConOutLD(CStrF("Â§cf80WARNING: (GP) Could not find target for SimpleMessage precache (%i, %s): %s", _iObject, pObj ? pObj->GetName() : "", GetDesc().Str()));
 				}
 #endif
 			}
@@ -415,7 +415,7 @@ void CWO_SimpleMessage::SendPrecache(int _iObject, CWorld_Server *_pWServer) con
 	if(Res == 0)
 	{
 		CWObject *pObj = _pWServer->Object_Get(_iObject);
-		ConOutLD(CStrF("§cf80WARNING: (GP) SimpleMessage precache failed (%i, %s): %s", _iObject, pObj ? pObj->GetName() : "", GetDesc().Str()));
+		ConOutLD(CStrF("Â§cf80WARNING: (GP) SimpleMessage precache failed (%i, %s): %s", _iObject, pObj ? pObj->GetName() : "", GetDesc().Str()));
 	}
 }
 
@@ -813,7 +813,7 @@ CStr CWO_SimpleMessage::GetAIImpulseDebugName(int AIImpulse)
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWO_SimpleMessageContainer
 |__________________________________________________________________________________________________
 \*************************************************************************************************/

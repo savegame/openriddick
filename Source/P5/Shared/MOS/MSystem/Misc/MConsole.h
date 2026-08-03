@@ -276,7 +276,7 @@ public:
 typedef TPtr<CConsole> spCConsole;
 
 // -------------------------------------------------------------------
-//  CConsoleRender, den här kan man ärva om man vill rita snyggare än vad DebugText gör. :)
+//  CConsoleRender, den hÃ¤r kan man Ã¤rva om man vill rita snyggare Ã¤n vad DebugText gÃ¶r. :)
 // -------------------------------------------------------------------
 class SYSTEMDLLEXPORT CConsoleRender : public CReferenceCount
 {

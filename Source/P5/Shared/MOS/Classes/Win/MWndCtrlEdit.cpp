@@ -235,7 +235,7 @@ int IsControlCode(const char *_pStr, int _iPos)
 	MAUTOSTRIP(IsControlCode, 0);
 	int CodeLen = 0;
 
-	char moo = 'ง';	// GCC workaround
+	char moo = 'ยง';	// GCC workaround
 	if(_pStr[_iPos] == moo)
 	{
 		CodeLen = 1;

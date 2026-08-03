@@ -17,8 +17,7 @@ EFBB-кампанию).
 Читать: корневой `CLAUDE.md`, `AGENTS.md`, `Docs/HacksAndHooks.md`,
 `Docs/Render_Strategy.md`, `Docs/Research_BSP2_Texturing.md`,
 `Docs/FP_Reference.md` (§4a, §5), `Docs/BSP_PC_Format.md`.
-`build/` не читать. CP1252 не конвертировать (часть исходников в ней;
-при отказе Read — `python3`, `open(..., encoding='cp1252')`). Только C++17.
+`build/` не читать. Только C++17.
 Декомпилы в корне (`*_decomp.c`, сотни тысяч строк) — **только grep**,
 не читать целиком; для крупных файлов использовать суб-агентов.
 Каждое утверждение — с доказательством `путь:строка`.

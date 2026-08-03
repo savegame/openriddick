@@ -23,15 +23,15 @@
 /*
 	Diverse implementationer av run-time mapping av ben nummer
 
-	Tanken är att man har ett CWO_Char_AnimBoneMap i clientdata (m_AnimBoneMap)
-	och kör m_AnimBoneMap.SetSkeleton(pSkel) först i OnGetAnimState, eller
-	andra ställen där man ev behöver den. Jag tror iofs man behöver ha 2st CWO_Char_AnimBoneMap 
-	så att man cachar phys skeleton och render skeleton separat, annars kommer SetSkeleton leta
-	ben nummer hela tiden. (den ska bara köras vid LOD byten)
+	Tanken Ã¤r att man har ett CWO_Char_AnimBoneMap i clientdata (m_AnimBoneMap)
+	och kÃ¶r m_AnimBoneMap.SetSkeleton(pSkel) fÃ¶rst i OnGetAnimState, eller
+	andra stÃ¤llen dÃ¤r man ev behÃ¶ver den. Jag tror iofs man behÃ¶ver ha 2st CWO_Char_AnimBoneMap 
+	sÃ¥ att man cachar phys skeleton och render skeleton separat, annars kommer SetSkeleton leta
+	ben nummer hela tiden. (den ska bara kÃ¶ras vid LOD byten)
 
-	Förrutom pSkelInstance->ApplyScale prylen så verkar det inte behövas speciellt många mappings.
-	Går det att lösa scalingen på något annat vis? Om hela skelettet behöver mappas så börjar
-	cachingen ta en massa plats och hela ideen blir dålig.
+	FÃ¶rrutom pSkelInstance->ApplyScale prylen sÃ¥ verkar det inte behÃ¶vas speciellt mÃ¥nga mappings.
+	GÃ¥r det att lÃ¶sa scalingen pÃ¥ nÃ¥got annat vis? Om hela skelettet behÃ¶ver mappas sÃ¥ bÃ¶rjar
+	cachingen ta en massa plats och hela ideen blir dÃ¥lig.
 
 	Torso->Head = 4 mappings
 	Eyelid stuff = 4 mapppings
@@ -39,11 +39,11 @@
 	Camera = 1 mappings
 	mer?
 
-	Istället för
+	IstÃ¤llet fÃ¶r
     if(pSkelInstance->m_nBoneTransform > PLAYER_ROTTRACK_LEYELID)
 		MULTMATMP(pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_LEYELID], Mat);
 
-	så skulle man skriva:
+	sÃ¥ skulle man skriva:
 	int iBoneLEyeLid = m_AnimBoneMap.m_liBones[PLAYER_BONEMAP_LEYELID];
 	if (iBoneLEyeLid)
 		MULTMATMP(pSkelInstance->m_pBoneLocalPos[iBoneLEyeLid], Mat);
@@ -97,7 +97,7 @@ enum
 	PLAYER_BONEMAP_TORSO,
 };
 
-class CWO_Char_AnimBoneMap			// 16 bytes för 12 bone mappings
+class CWO_Char_AnimBoneMap			// 16 bytes fÃ¶r 12 bone mappings
 {
 public:
 	void* m_pLastSkel;
@@ -150,10 +150,10 @@ public:
 // -------------------------------------------------------------------
 // v3.0
 
-// Spara pekare till bonehash array i CWO_Char_AnimBoneMap så att man kan olika mappings
-// Är det bra till något?
+// Spara pekare till bonehash array i CWO_Char_AnimBoneMap sÃ¥ att man kan olika mappings
+// Ã„r det bra till nÃ¥got?
 
-class CWO_Char_AnimBoneMap				// 20 bytes för 12 bone mappings
+class CWO_Char_AnimBoneMap				// 20 bytes fÃ¶r 12 bone mappings
 {
 public:
 	void* m_pLastSkel;
@@ -231,7 +231,7 @@ int CXR_Skeleton::FindBone(uint32 _Hash)
 
 
 //#define SAMUEL_TESTAR
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character animation
 					
 	Contents:		OnRefreshAnim

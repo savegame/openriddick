@@ -68,7 +68,7 @@ bool  CXR_VBOperator_GC_Bump::OnTestHWAccelerated( CXR_VBOperatorContext &_Conte
 	if( _Context.m_pEngine && _Context.m_pEngine->m_pRender->Caps_Flags() & CRC_CAPS_FLAGS_GAMECUBE )
 		return true;
 	else
-		ConOutD("§cf80WARNING: (CXR_VBOperator_GC_Bump::OnTestHWAccelerated) Software fallback not implemented. (This only works on GameCube, lowlife)");
+		ConOutD("Â§cf80WARNING: (CXR_VBOperator_GC_Bump::OnTestHWAccelerated) Software fallback not implemented. (This only works on GameCube, lowlife)");
 #endif	// PLATFORM_DOLPHIN
 
   return( false );

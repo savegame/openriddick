@@ -302,9 +302,9 @@ public:
 	M_INLINE CMat4Dfp32 GetTransform() const
 	{
 		// TODO: Cache?
-		// Antingen får man lagra den i CWD_DynamicsWorld eller i denna
+		// Antingen fÃ¥r man lagra den i CWD_DynamicsWorld eller i denna
 		// om det visar sig att denna kostar mycket. Lagras den i CWD_DynamicsWorld
-		// måste detta anrop bort. 
+		// mÃ¥ste detta anrop bort. 
 
 #ifndef DYNAMICS_CACHE_TRANSFORM
 		CMat4Dfp32 T;
@@ -466,7 +466,7 @@ public:
 
 	CVec4Dfp32 m_Position;
 	CVec4Dfp32 m_Orientation;
-	CMat4Dfp32 m_MatrixOrientation; // TODO: Kanske onödig att spara undan här?
+	CMat4Dfp32 m_MatrixOrientation; // TODO: Kanske onÃ¶dig att spara undan hÃ¤r?
 	CVec4Dfp32 m_Force;
 	CVec4Dfp32 m_Torque;
 	CVec4Dfp32 m_Velocity;
@@ -1335,11 +1335,11 @@ public:
 		const CMat4Dfp32& WITInv2 = _pRBState2->m_WorldInertiaTensorInvert;
 
 		vec128 tmp;
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(RA, _Normal), WITInv1);
 		vec128 B3 = M_VDp3(_Normal, M_VXpd(tmp, RA));
 
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(RB, _Normal), WITInv2);
 		vec128 B4 = M_VDp3(_Normal, M_VXpd(tmp, RB));
 
@@ -1358,11 +1358,11 @@ public:
 		const CMat4Dfp32& WITInv2 = _pRBState2->m_WorldInertiaTensorInvert;
 
 		vec128 tmp;
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(_RA, _Normal), WITInv1);
 		vec128 B3 = M_VDp3(_Normal, M_VXpd(tmp, _RA));
 
-		// TODO: DENNA MULTIPLICERING ÄR ÅT FEL HÅLL!!!
+		// TODO: DENNA MULTIPLICERING Ã„R Ã…T FEL HÃ…LL!!!
 		tmp = M_VMulMat(M_VXpd(_RB, _Normal), WITInv2);
 		vec128 B4 = M_VDp3(_Normal, M_VXpd(tmp, _RB));
 

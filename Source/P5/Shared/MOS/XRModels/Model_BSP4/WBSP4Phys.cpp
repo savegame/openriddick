@@ -1710,7 +1710,7 @@ int CXR_Model_BSP4::Phys_CollideBSP2(CXR_PhysicsContext* _pPhysContext, class CX
 	TAP<const CXR_IndexedSolid32> pSolids = _pSolidContainer->m_lSolids;
 	TAP<const CXR_MediumDesc> pMediums = _pSolidContainer->m_lMediums;
 
-	// Räknas även ut i nästa metod...
+	// RÃ¤knas Ã¤ven ut i nÃ¤sta metod...
 	CMat4Dfp32 Transform;
 	_BSP2Transform.Multiply(_pPhysContext->m_WMatInv, Transform);
 

@@ -3,8 +3,8 @@
 NAME:		XRFog.cpp/h
 PURPOSE:	Extended Reality Engine
 CREATION:	981003
-AUTHOR:		Magnus Högdahl
-COPYRIGHT:	(c) Copyright 1996 Magnus Högdahl
+AUTHOR:		Magnus HÃ¶gdahl
+COPYRIGHT:	(c) Copyright 1996 Magnus HÃ¶gdahl
 
 CONTENTS:
 -

@@ -450,7 +450,7 @@ void CWObject_SwingDoor::CreateScenepoints()
 		}
 	}
 	else
-		ConOutL(CStrF("§cf00ERROR: Door %s has scenepoints but no handles, can't place scene points correctly, skipping", GetName()));
+		ConOutL(CStrF("Â§cf00ERROR: Door %s has scenepoints but no handles, can't place scene points correctly, skipping", GetName()));
 }
 
 

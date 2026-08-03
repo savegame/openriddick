@@ -20,7 +20,7 @@ MD-отчёт по форме из §8.
 Читать перед началом: корневой `CLAUDE.md`, `AGENTS.md`,
 `Docs/HacksAndHooks.md` (особенно раздел «Скиннинг»),
 `Docs/Render_Strategy.md`, `Docs/VP_Reference.md`.
-Каталог `build/` не читать. Исходники в CP1252 — не конвертировать.
+Каталог `build/` не читать.
 Только C++17.
 
 ---

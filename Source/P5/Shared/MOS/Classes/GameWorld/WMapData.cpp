@@ -22,7 +22,7 @@ extern void StrFixFilename(const char* _pStr, char* _pDest, uint _nMax);
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CMapData::CIndexMap
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -42,7 +42,7 @@ uint CMapData::CIndexMap::GetNewID()
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CMapData
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -396,7 +396,7 @@ int CMapData::GetResourceIndex(const char* _pName, int _RcClass)
 	if (m_State & WMAPDATA_STATE_NOCREATE)
 	{
 		if (_RcClass != WRESOURCE_CLASS_WOBJECTCLASS)
-			ConOutL(CStrF("§cf00ERROR: (CMapData::GetResourceIndex) Non-existing resource requested: %s", TmpName));
+			ConOutL(CStrF("Â§cf00ERROR: (CMapData::GetResourceIndex) Non-existing resource requested: %s", TmpName));
 		return 0;
 	}
 
@@ -434,7 +434,7 @@ int CMapData::GetResourceIndex(const char* _pRcName)
 	if (iRc > 0) return iRc;
 	if (m_State & WMAPDATA_STATE_NOCREATE)
 	{
-		ConOutL(CStrF("§cf00ERROR: (CMapData::GetResourceIndex) Non-existing resource requested: %s", TmpName));
+		ConOutL(CStrF("Â§cf00ERROR: (CMapData::GetResourceIndex) Non-existing resource requested: %s", TmpName));
 		return 0;
 	}
 

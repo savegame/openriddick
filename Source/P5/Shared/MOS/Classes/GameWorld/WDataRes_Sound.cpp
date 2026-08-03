@@ -105,7 +105,7 @@ void SafeWrite(void* _pBuff, uint32 _Offset, T _StoreMe)
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWRes_Sound
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -167,7 +167,7 @@ void CWRes_Sound::OnLoad()
 	}
 
 	if (iSFX == -1)
-		ConOutL("§cf80WARNING: Undefined sound: " + m_Name);
+		ConOutL("Â§cf80WARNING: Undefined sound: " + m_Name);
 
 	MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 	if(pSys->GetEnvironment()->GetValue("rs_preload_sound", "1").Val_int() == 0)
@@ -194,7 +194,7 @@ void CWRes_Sound::OnLoad()
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while initializing sound " + m_Name);
+		ConOutL("Â§cf80WARNING: (CWRes_Sound::OnLoad) Exception while initializing sound " + m_Name);
 	}
 	)
 
@@ -223,13 +223,13 @@ void CWRes_Sound::OnPrecache(class CXR_Engine* _pEngine)
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
+		ConOutL("Â§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
 	}
 	)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWRes_Wave
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -269,7 +269,7 @@ CSC_SFXDesc* CWRes_Wave::GetSound()
 
 	if(m_SoundDesc.m_Datas.m_Pitch <= 0)
 	{
-		ConOutL(CStrF("§cf80WARNING: Wave resource has pitch of 0, '%s'", m_Name.Str()));
+		ConOutL(CStrF("Â§cf80WARNING: Wave resource has pitch of 0, '%s'", m_Name.Str()));
 		return NULL;
 	}
 
@@ -454,13 +454,13 @@ void CWRes_Wave::OnPrecache(class CXR_Engine* _pEngine)
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
+		ConOutL("Â§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
 	}
 	)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWRes_Dialogue
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -706,7 +706,7 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 				FileName = _pWData->ResolveFileName("DIALOGUES\\" + Name + ".XRG");
 				if(!CDiskUtil::FileExists(FileName))
 				{
-					ConOutL(CStrF("§cf80WARNING: Dialogue %s does not exist", FileName.Str()));
+					ConOutL(CStrF("Â§cf80WARNING: Dialogue %s does not exist", FileName.Str()));
 					// This is the end of the road for a dialogue: not in the
 					// Dialogues\\All.xcd container, no .XCD and no .XRG on
 					// disk. Since PC content ships every dialogue inside the
@@ -747,7 +747,7 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 				spReg->XRG_Read(FileName, lDefines);
 				if(spReg->GetNumChildren() < 1 || spReg->GetName(0) != "DIALOGUE")
 				{
-					ConOutL(CStrF("§cf80WARNING: File %s is an invalid Dialogue", FileName.Str()));
+					ConOutL(CStrF("Â§cf80WARNING: File %s is an invalid Dialogue", FileName.Str()));
 					return false;
 				}
 
@@ -782,7 +782,7 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 	return true;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 Class:			CTempDialogue
 
 Comments:		Small class to handle sortable Dialogue ID:s		

@@ -8,7 +8,7 @@
 #include "MFloat.h"
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWorldDataLoader
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -251,7 +251,7 @@ void CWorldDataLoader::RemoveFromQueue(CWResource* _pRc)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWorldDataCore
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -424,7 +424,7 @@ void CWorldDataCore::ScanWaveContainers(CStr _Path)
 		catch(CCExceptionFile)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-			ConOutL("§cf80WARNING: Failure reading wavecontainer: " + FileName);
+			ConOutL("Â§cf80WARNING: Failure reading wavecontainer: " + FileName);
 		}
 		)
 #ifdef M_SUPPORTSTATUSCORRUPT
@@ -432,7 +432,7 @@ void CWorldDataCore::ScanWaveContainers(CStr _Path)
 		catch(CCException)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-			ConOutL("§cf80WARNING: Failure reading wavecontainer: " + FileName);
+			ConOutL("Â§cf80WARNING: Failure reading wavecontainer: " + FileName);
 		}
 		)
 #endif
@@ -494,7 +494,7 @@ void CWorldDataCore::ReadTextureContainers(TAP<const CStr> _lFileNames)
 		catch(CCExceptionFile)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-			ConOutL("§cf80WARNING: Failure reading texture-container: " + FileName);
+			ConOutL("Â§cf80WARNING: Failure reading texture-container: " + FileName);
 		}
 		)
 #ifdef M_SUPPORTSTATUSCORRUPT
@@ -502,7 +502,7 @@ void CWorldDataCore::ReadTextureContainers(TAP<const CStr> _lFileNames)
 		catch(CCException)
 		{ 
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-			ConOutL("§cf80WARNING: Failure reading texture-container: " + FileName);
+			ConOutL("Â§cf80WARNING: Failure reading texture-container: " + FileName);
 		}
 		)
 #endif
@@ -592,7 +592,7 @@ void CWorldDataCore::ScanVideos(CStr _Path, CTextureContainer_Video* _pTCVideo, 
 					catch(CCExceptionFile)
 					{
 						CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-						ConOutL("§cf80WARNING: Failure reading video " + FileName);
+						ConOutL("Â§cf80WARNING: Failure reading video " + FileName);
 					}
 					)
 	#ifdef M_SUPPORTSTATUSCORRUPT
@@ -600,7 +600,7 @@ void CWorldDataCore::ScanVideos(CStr _Path, CTextureContainer_Video* _pTCVideo, 
 					catch(CCException)
 					{
 						CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-						ConOutL("§cf80WARNING: Failure reading video " + FileName);
+						ConOutL("Â§cf80WARNING: Failure reading video " + FileName);
 					}
 					)
 	#endif
@@ -820,9 +820,9 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 		AddWorldPath(m_CachePath);
 	}*/
 
-	ConOutL("§C484Content data path priority:");
+	ConOutL("Â§C484Content data path priority:");
 	for(int i = 0; i < m_lWorldPathes.Len(); i++)
-		ConOutL("§C484" + m_lWorldPathes[i]);
+		ConOutL("Â§C484" + m_lWorldPathes[i]);
 
 	// Scan stuff recursively.
 	if(_Flags & FLAGS_SCANTEXTURES)
@@ -935,7 +935,7 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 				M_CATCH(
 				catch(CCExceptionFile)
 				{
-					ConOutL("§cf80WARNING: Failure reading sfxdesc script: " + FileName);
+					ConOutL("Â§cf80WARNING: Failure reading sfxdesc script: " + FileName);
 				}
 				)
 			}
@@ -975,27 +975,27 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 #if defined(PLATFORM_PS2)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Mpeg");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Mpeg");
+		if (!m_spTCVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Mpeg");
 #elif defined(PLATFORM_XBOX1)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_XMV");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_XMV");
+		if (!m_spTCVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_XMV");
 #elif defined(PLATFORM_PS3)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_PS3");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_PS3");
+		if (!m_spTCVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_PS3");
 #else
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Theora");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Theora");
+		if (!m_spTCVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Theora");
 //		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Bink");
 //		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-//		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Bink");
+//		if (!m_spTCVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Bink");
 
 #if defined(PLATFORM_XENON)
 		spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_WMV");
 		m_spTCSecVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if(!m_spTCSecVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_WMV");
+		if(!m_spTCSecVideo) ConOutL("Â§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_WMV");
 #endif
 
 #endif
@@ -1262,7 +1262,7 @@ private:
 			{
 				m_bDone = true;
 				CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-				ConOutL("§cf80WARNING: Failure reading wavecontainer");
+				ConOutL("Â§cf80WARNING: Failure reading wavecontainer");
 				return 0;
 			}
 			)
@@ -1272,7 +1272,7 @@ private:
 			{
 				m_bDone = true;
 				CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-				ConOutL("§cf80WARNING: Failure reading wavecontainer");
+				ConOutL("Â§cf80WARNING: Failure reading wavecontainer");
 				return 0;
 			}
 			)

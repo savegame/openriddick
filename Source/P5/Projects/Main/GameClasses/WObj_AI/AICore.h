@@ -2009,10 +2009,10 @@ public: //public for simplicity...
 	//Check if body is aligned with look direction, within a given fraction
 	bool IsBodyAligned(fp32 _Epsilon = 0.0f);
 
-	//How long do we have to wait before an item or weapon can be activ·ted?
+	//How long do we have to wait before an item or weapon can be activ√°ted?
 	int Wait();
 
-	//How long do the given agent have to wait before an item or weapon can be activ·ted?
+	//How long do the given agent have to wait before an item or weapon can be activ√°ted?
 	int Wait(int _iObj);
 
 	// Draws the supplied ep 

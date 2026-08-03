@@ -36,7 +36,7 @@ bool CXR_VBOperator_NV20_GenEnv::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No attributes.");
 		return false;
 	}
 
@@ -71,7 +71,7 @@ bool CXR_VBOperator_NV20_GenEnv::OnOperate(
 		if (_Context.m_pModel2World) 
 			WMat = *_Context.m_pModel2World;
 		else
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
 		VMatInv = _Context.m_pEngine->GetVC()->m_CameraWMat;
 
 		WMat.Transpose();
@@ -133,7 +133,7 @@ bool CXR_VBOperator_NV20_GenEnv::OnOperate(
 		if (_Context.m_pModel2World) 
 			WMat = *_Context.m_pModel2World;
 		else
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
 		VMatInv = _Context.m_pEngine->GetVC()->m_CameraWMat;
 
 		WMat.Transpose();
@@ -191,7 +191,7 @@ bool CXR_VBOperator_NV20_GenEnv::OnOperate(
 		if (_Context.m_pModel2World) 
 			WMat = *_Context.m_pModel2World;
 		else
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
 		VMatInv = _Context.m_pEngine->GetVC()->m_CameraWMat;
 
 		WMat.Transpose();
@@ -268,7 +268,7 @@ bool CXR_VBOperator_NV20_GenEnv::OnOperate(
 		if (_Context.m_pModel2World) 
 			WMat = *_Context.m_pModel2World;
 		else
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2W matrix.");
 		VMatInv = _Context.m_pEngine->GetVC()->m_CameraWMat;
 
 		WMat.Transpose();
@@ -363,7 +363,7 @@ void CXR_VBOperator_NV20_GenEnv::OnInitSurface(class CXW_Surface* _pSurf, const 
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator_NV20_RMBM2D
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -400,7 +400,7 @@ bool CXR_VBOperator_NV20_RMBM2D::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_NV20_RMBM2D::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_RMBM2D::OnOperate) No attributes.");
 		return false;
 	}
 
@@ -521,7 +521,7 @@ void CXR_VBOperator_NV20_RMBM2D::OnInitSurface(class CXW_Surface* _pSurf, const 
 
 #if 0
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator_NV20_Transform
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -538,7 +538,7 @@ bool CXR_VBOperator_NV20_Transform::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No attributes.");
 		return false;
 	}
 
@@ -562,7 +562,7 @@ bool CXR_VBOperator_NV20_Transform::OnTestHWAccelerated(CXR_VBOperatorContext& _
 }
 #endif
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator_MultiTxt
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -579,7 +579,7 @@ bool CXR_VBOperator_MultiTxt::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_MultiTxt::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_MultiTxt::OnOperate) No attributes.");
 		return false;
 	}
 
@@ -989,7 +989,7 @@ void CXR_VBOperator_MultiTxt::OnInitSurface(class CXW_Surface* _pSurf, const cla
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator_NV20_Fresnel
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1028,7 +1028,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_NV20_Fresnel::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_Fresnel::OnOperate) No attributes.");
 		return false;
 	}
 
@@ -1061,7 +1061,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 		CMat4Dfp32 V2M;
 		if (!_Context.m_pModel2View)
 		{
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
 			return false;
 		}
 		_Context.m_pModel2View->InverseOrthogonal(V2M);
@@ -1109,7 +1109,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 		CMat4Dfp32 V2M;
 		if (!_Context.m_pModel2View)
 		{
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
 			return false;
 		}
 		_Context.m_pModel2View->InverseOrthogonal(V2M);
@@ -1149,7 +1149,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 		CMat4Dfp32 V2M;
 		if (!_Context.m_pModel2View)
 		{
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
 			return false;
 		}
 		_Context.m_pModel2View->InverseOrthogonal(V2M);
@@ -1202,7 +1202,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 		CMat4Dfp32 V2M;
 		if (!_Context.m_pModel2View)
 		{
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
 			return false;
 		}
 		_Context.m_pModel2View->InverseOrthogonal(V2M);
@@ -1238,7 +1238,7 @@ bool CXR_VBOperator_NV20_Fresnel::OnOperate(
 		CMat4Dfp32 V2M;
 		if (!_Context.m_pModel2View)
 		{
-			ConOut("§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
+			ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_GenEnv::OnOperate) No M2V matrix.");
 			return false;
 		}
 		_Context.m_pModel2View->InverseOrthogonal(V2M);
@@ -1298,7 +1298,7 @@ int CXR_VBOperator_NV20_Fresnel::OnEnumTextureID(const class CXW_Surface* _pSurf
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator_NV20_YUV2RGB
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1331,7 +1331,7 @@ bool CXR_VBOperator_NV20_YUV2RGB::OnOperate(
 
 	if (!_pVB->m_pAttrib)
 	{
-		ConOut("§cf80WARNING: (CXR_VBOperator_NV20_YUV2RGB::OnOperate) No attributes.");
+		ConOut("Â§cf80WARNING: (CXR_VBOperator_NV20_YUV2RGB::OnOperate) No attributes.");
 		return false;
 	}
 

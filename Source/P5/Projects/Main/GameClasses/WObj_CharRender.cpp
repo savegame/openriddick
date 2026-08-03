@@ -193,7 +193,7 @@ void CWObject_Character::OnClientRenderVis(CWObject_Client* _pObj, CWorld_Client
 	if(pSGI && (pCD->m_3PI_LightState != THIRDPERSONINTERACTIVE_LIGHT_STATE_OFF)) 
 #endif
 	{
-		// FJ-NOTE: Adding a light source above speaker´s head. Might need to fade this up/down to make it look good.
+		// FJ-NOTE: Adding a light source above speakerÂ´s head. Might need to fade this up/down to make it look good.
 
 		//CMat4Dfp32 Mat;
 		CMat4Dfp32 NewMat;
@@ -434,7 +434,7 @@ void CWObject_Character::CalcMatrices_r(int _iNode,
 	}
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character rendering.
 					
 	Contents:		OnClientRender
@@ -743,7 +743,7 @@ void CWObject_Character::OnClientRender(CWObject_Client* _pObj, CWorld_Client* _
 				CStr MeshName0 = (pTM0) ? pTM0->m_MeshName.GetFilenameNoExt() : CStr();
 				CStr MeshName1 = (pTM1) ? pTM1->m_MeshName.GetFilenameNoExt() : CStr();
 
-				CStr St = CStrF("§cf80WARNING: Skeleton missmatch. iObj %d,  Body %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d), Head %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d)", 
+				CStr St = CStrF("Â§cf80WARNING: Skeleton missmatch. iObj %d,  Body %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d), Head %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d)", 
 					_pObj->m_iObject, 
 					MeshName0.GetStr(), liLOD[0], pS0->m_lNodes.Len(), pS0->m_nUsedRotations, pS0->m_nUsedMovements, 
 					MeshName1.GetStr(), liLOD[1], pS1->m_lNodes.Len(), pS1->m_nUsedRotations, pS1->m_nUsedMovements);
@@ -1631,7 +1631,7 @@ if (REPORT_MISSING_JOINTS)
 
 			fp32 d = CVec3Dfp32::GetRow(_pEngine->GetVC()->m_CameraWMat, 3).Distance(ModelPosition);
 
-			// Inte så jävla snyggt..
+			// Inte sÃ¥ jÃ¤vla snyggt..
 	/*		if ((_pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DEAD) && 
 				(lModelAnims[0].m_AnimTime0 > 5.0f*SERVER_TICKSPERSECOND))
 				d = 2000;*/
@@ -1688,7 +1688,7 @@ if (REPORT_MISSING_JOINTS)
 					CMat4Dfp32 Camera = WallMarkPos;
 
 #ifndef PLATFORM_DOLPHIN
-					//	SS: Varför görs detta? Kopieras texturerna flippat i opengl/dx???
+					//	SS: VarfÃ¶r gÃ¶rs detta? Kopieras texturerna flippat i opengl/dx???
 					CVec3Dfp32::GetRow(Camera, 2) = -CVec3Dfp32::GetRow(Camera, 2);
 					CVec3Dfp32::GetRow(Camera, 1) = -CVec3Dfp32::GetRow(Camera, 1);
 #endif
@@ -1980,7 +1980,7 @@ void CWObject_Character::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_
 					CVec2Dfp32 TopLeftMag(550, 240);
 					int Color = (int(255 - (255 * Time.GetTime() / Duration)) << 24) | 0xffffff;
 					int ColorDark = (int(255 - (255 * Time.GetTime() / Duration)) << 24) | 0x000000;
-					CStr St = CStrF("§Z22%i", pCD->m_Pickup_Magazine_Num.m_Value);
+					CStr St = CStrF("Â§Z22%i", pCD->m_Pickup_Magazine_Num.m_Value);
 					_pUtil2D->Text_DrawFormatted(Clip, pFont, St, TopLeftMag[0] - 22, TopLeftMag[1] + 18, 0, ColorDark, ColorDark, ColorDark, 40, 40, true);
 					_pUtil2D->Text_DrawFormatted(Clip, pFont, St, TopLeftMag[0] - 22, TopLeftMag[1] + 18, 0, Color, Color, Color, 40, 40, false);
 				}

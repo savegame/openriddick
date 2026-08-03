@@ -223,7 +223,7 @@ public:
 	fp32 m_Velocity;
 	CVec3Dfp32 m_RotVelocity;
 
-	// Mondelore: What is this?! (har iofs inte orkat kolla sj‰lv =)
+	// Mondelore: What is this?! (har iofs inte orkat kolla sj√§lv =)
 	int16 m_AttachObjType;
 	int m_iAttachObject;
 

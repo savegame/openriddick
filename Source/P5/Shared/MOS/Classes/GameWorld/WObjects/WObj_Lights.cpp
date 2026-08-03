@@ -440,7 +440,7 @@ bool CWObject_Light::RegisterToMaster()
 			CWObject* pMasterLight = m_pWServer->Object_Get(m_MasterLightID);
 			if (!pMasterLight)
 			{
-				ConOutL(CStrF("§cf80WARNING [Light %s] RegisterToMaster: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
+				ConOutL(CStrF("Â§cf80WARNING [Light %s] RegisterToMaster: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
 				return false;
 			}
 
@@ -466,7 +466,7 @@ void CWObject_Light::SendSignalToMasterLight(int32 _Signal, int32 _Param)
 		CWObject* pMasterLight = m_pWServer->Object_Get(m_MasterLightID);
 		if (!pMasterLight)
 		{
-			ConOutL(CStrF("§cf80WARNING [Light %s] SendSignalToMasterLight: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
+			ConOutL(CStrF("Â§cf80WARNING [Light %s] SendSignalToMasterLight: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
 			return;
 		}
 
@@ -744,7 +744,7 @@ aint CWObject_Light::OnMessage(const CWObject_Message& _Msg)
 #ifndef M_RTM
 			// Debug check, shouldn't be needed
 			if(m_NumActiveSlaveLights.Get(this) > m_NumSlaveLights.Get(this))
-				ConOutL(CStrF("§cf80WARNING (CWObject_Light::OnMessage): More lights are on then there are registered slaves (Active %d, Registered %d)", m_NumActiveSlaveLights.Get(this), m_NumSlaveLights.Get(this)));
+				ConOutL(CStrF("Â§cf80WARNING (CWObject_Light::OnMessage): More lights are on then there are registered slaves (Active %d, Registered %d)", m_NumActiveSlaveLights.Get(this), m_NumSlaveLights.Get(this)));
 #endif
 
 			// We extrapolate a bit, so that broken lights will have time to fade out

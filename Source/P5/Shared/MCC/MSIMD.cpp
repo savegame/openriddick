@@ -491,8 +491,8 @@ void SIMD_ConvertRGBA(const CVec4Dfp32* _pLight, uint32* _pColors, int _nV)					
 
 			ppach		$1, $2, $1
 			ppach		$2, $4, $3
-			pexeh		$1, $1				# Swap red and blue (det här borde inte behövas!)
-			pexeh		$2, $2				# Swap red and blue (det här borde inte behövas!)
+			pexeh		$1, $1				# Swap red and blue (det hÃ¤r borde inte behÃ¶vas!)
+			pexeh		$2, $2				# Swap red and blue (det hÃ¤r borde inte behÃ¶vas!)
 			
 			pminh		$1, $1, %3
 			pminh		$2, $2, %3
@@ -517,7 +517,7 @@ void SIMD_ConvertRGBA(const CVec4Dfp32* _pLight, uint32* _pColors, int _nV)					
 			vFTOI0		vf01, vf01
 			qmfc2		$1, vf01
 			ppach		$1, $0, $1
-			pexeh		$1, $1				# Swap red and blue (det här borde inte behövas!)
+			pexeh		$1, $1				# Swap red and blue (det hÃ¤r borde inte behÃ¶vas!)
 			pminh		$1, $1, %3
 			ppacb		$1, $0, $1
 			sw			$1, 0x00(%2)
@@ -528,7 +528,7 @@ void SIMD_ConvertRGBA(const CVec4Dfp32* _pLight, uint32* _pColors, int _nV)					
 			vFTOI0		vf02, vf02
 			qmfc2		$1, vf02
 			ppach		$1, $0, $1
-			pexeh		$1, $1				# Swap red and blue (det här borde inte behövas!)
+			pexeh		$1, $1				# Swap red and blue (det hÃ¤r borde inte behÃ¶vas!)
 			pminh		$1, $1, %3
 			ppacb		$1, $0, $1
 			sw			$1, 0x04(%2)
@@ -539,7 +539,7 @@ void SIMD_ConvertRGBA(const CVec4Dfp32* _pLight, uint32* _pColors, int _nV)					
 			vFTOI0		vf03, vf03
 			qmfc2		$1, vf03
 			ppach		$1, $0, $1
-			pexeh		$1, $1				# Swap red and blue (det här borde inte behövas!)
+			pexeh		$1, $1				# Swap red and blue (det hÃ¤r borde inte behÃ¶vas!)
 			pminh		$1, $1, %3
 			ppacb		$1, $0, $1
 			sw			$1, 0x08(%2)

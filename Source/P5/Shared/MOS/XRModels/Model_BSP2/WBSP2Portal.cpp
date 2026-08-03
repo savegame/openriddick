@@ -258,7 +258,7 @@ int CXR_Model_BSP2::Portal_And(const CRC_ClipVolume* _pPortal, const CBSP2_Porta
 	int iiv = _pP->m_iiVertices;
 	if (nv < 3)
 	{
-		ConOut(CStrF("§cf80WARNING: Fucked up portal!  %d verts.", nv));
+		ConOut(CStrF("Â§cf80WARNING: Fucked up portal!  %d verts.", nv));
 		return 0;
 	}
 
@@ -597,7 +597,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 			{
 				if (m_pView->m_nRPortals >= m_pView->m_MaxRPortals)
 				{
-					ConOut("§cf80WARNING: Insufficient portal storage.");
+					ConOut("Â§cf80WARNING: Insufficient portal storage.");
 					return;
 				}
 				iRPortal = m_pView->m_nRPortals;
@@ -658,7 +658,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 
 					if (m_pView->m_nRPortals >= m_pView->m_MaxRPortals)
 					{
-						ConOut("§cf80WARNING: Insufficient portal storage.");
+						ConOut("Â§cf80WARNING: Insufficient portal storage.");
 						return;
 					}
 
@@ -780,7 +780,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 
 	if (pNode->IsLeaf())
 	{
-//		ConOut("Ett vadå?");
+//		ConOut("Ett vadÃ¥?");
 		// This is a leaf!
 //		m_pView->m_pCurVisLeaves[m_pView->m_nCurVisLeaves++] = _iNode;
 //		m_pView->m_liLeafRPortals[pNode->m_iPortalLeaf] = _iClipRPortal;
@@ -932,7 +932,7 @@ void CXR_Model_BSP2::Portal_Open_r(CBSP2_View_Params* _pViewParams, int _iNode, 
 		EnableTreeFromNode(_iNode);
 
 
-		// Markera alla grannars träd.
+		// Markera alla grannars trÃ¤d.
 		{
 			const CBSP2_PortalLeafExt* pPL = &m_pPortalLeaves[pNode->m_iPortalLeaf];
 			int np = pPL->m_nPortals;
@@ -3708,7 +3708,7 @@ CXR_LightOcclusionInfo* CXR_Model_BSP2::View_Light_GetOcclusion(int _iLight)
 	return View_Light_GetOcclusionInt(_iLight);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:	Used to determine the partial visibility of a given volume (_Box)
 
 	Parameters:

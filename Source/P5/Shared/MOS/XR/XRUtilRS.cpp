@@ -1,10 +1,10 @@
 
 #include "PCH.h"
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Surface renderer and associated functions
 					
-	Author:			Magnus Högdahl
+	Author:			Magnus HÃ¶gdahl
 					
 	Copyright:		Starbreeze Studios AB, 1998-2001
 					
@@ -47,7 +47,7 @@
 #include "MFloat.h"
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | Stuff in MImage.cpp. These should be moved to MSIMD.cpp
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -545,7 +545,7 @@ static CPixel32 MultiplyCPixel32(CPixel32 _c0, CPixel32 _c1)
 	return Ret;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Renders a vertex buffer with a surface.
 						
 	Parameters:			
@@ -710,7 +710,7 @@ bool CXR_Util::Render_Surface(
 				}
 				if (iLayer >= nLayers)
 				{
-					ConOut(CStrF("§cf80WARNING: (CXR_Util::Render_Surface) Last layer in surface '%s' was grouped with nothing.", (char*) _pSurface->m_Name) );
+					ConOut(CStrF("Â§cf80WARNING: (CXR_Util::Render_Surface) Last layer in surface '%s' was grouped with nothing.", (char*) _pSurface->m_Name) );
 					return false;
 				}
 
@@ -1428,7 +1428,7 @@ bool CXR_Util::Render_Surface(
 					_pVBM->AddVB(pVB);
 					lpFinalGroupVBChains[nFinalGroups++] = pVB;
 
-					ConOut(CStrF("§cf80WARNING: (CXR_Util::Render_Surface) Lightmaps cannot be used with custom texture-environment layers, Surface: %s", _pSurface->m_Name.Str()));
+					ConOut(CStrF("Â§cf80WARNING: (CXR_Util::Render_Surface) Lightmaps cannot be used with custom texture-environment layers, Surface: %s", _pSurface->m_Name.Str()));
 				}
 				else
 				{
@@ -1458,7 +1458,7 @@ bool CXR_Util::Render_Surface(
 						}
 						else
 						{
-							ConOut("§cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
+							ConOut("Â§cf80WARNING: (CXR_Util::Render_Surface) Vertex lighting on static VB, but no lights.");
 						}
 					}
 
@@ -1680,7 +1680,7 @@ bool CXR_Util::Render_Surface(
 									_pParams->m_pLightFieldAxes,_pModel2World);
 							}
 							else
-								ConOutD("§cf80WARNING: (CXR_Util::RenderSurface) Can't apply lighting to layer using custom texgen/texenv.");
+								ConOutD("Â§cf80WARNING: (CXR_Util::RenderSurface) Can't apply lighting to layer using custom texgen/texenv.");
 
 						}
 						else

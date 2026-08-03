@@ -1233,7 +1233,7 @@ void CWaveContainer_Plain::AddXWC(CStr _Filename, bool _bDynamic)
 				  m_lSFXDesc[i].m_lWaves[iWave].m_WaveID = (iTemp >= 0) ? GetWaveID(iTemp) : 0;
 				  
 					if (m_lSFXDesc[i].m_lWaves[iWave].m_WaveID < 0)
-					ConOutL(CStrF("§cf80WARNING: Sound '%s' references undefined waveform '%s'.", &m_lSFXDesc[i].m_SoundName[0], &m_lSFXDesc[i].m_lWaves[iWave].m_WaveName[0]));
+					ConOutL(CStrF("Â§cf80WARNING: Sound '%s' references undefined waveform '%s'.", &m_lSFXDesc[i].m_SoundName[0], &m_lSFXDesc[i].m_lWaves[iWave].m_WaveName[0]));
 			}*/
 			}
 

@@ -210,14 +210,14 @@ void CMWnd_ModLoot_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, con
 			int Len = 0;
 			if(!pItem->m_Money)
 			{	
-				//Localize_Str(CStrF("§Z10%s", pLootCD->m_lLoot[pItem->m_iLootIndex].m_Info.Str()), Text, 1023);
+				//Localize_Str(CStrF("Â§Z10%s", pLootCD->m_lLoot[pItem->m_iLootIndex].m_Info.Str()), Text, 1023);
 				//Len = pLootCD->m_lLoot[pItem->m_iLootIndex].m_Info.Len() + 4;
-				Localize_Str(CStrF("§Z10%s", pItem->m_LootName.Str()), Text, 1023);
+				Localize_Str(CStrF("Â§Z10%s", pItem->m_LootName.Str()), Text, 1023);
 				Len = pItem->m_LootName.Len() + 4;
 			}
 			else
 			{
-				Localize_Str(CStrF("§Z10%s", pItem->m_LootName.Str()), Text, 1023);
+				Localize_Str(CStrF("Â§Z10%s", pItem->m_LootName.Str()), Text, 1023);
 				Len = pItem->m_LootName.Len() + 4;
 			}
 
@@ -718,7 +718,7 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 	CRC_Font *pFont = GetFont("TEXT");
 	CPixel32 col = 0xffffffff;
 	_pRCUtil->DrawTexture(Clip, CPnt(400, 5), "P6_inv_markers", CPixel32(0xffffffff), CVec2Dfp32(5.0f, 5.0f));
-	_pRCUtil->Text(Clip, pFont, 545, 17, CStrF("§Z10Markers  %i", pCD->m_Money.m_Value), col);
+	_pRCUtil->Text(Clip, pFont, 545, 17, CStrF("Â§Z10Markers  %i", pCD->m_Money.m_Value), col);
 
 	_pRCUtil->DrawTexture(Clip, CPnt(10, 445), "P6_inv_meny", CPixel32(0xffffffff), CVec2Dfp32(5.0f, 5.0f));
 
@@ -733,7 +733,7 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 
 	//The inventory grid
 	_pRCUtil->DrawTexture(Clip, CPnt(400, 35), "P6_inv_grid01", CPixel32(0xffffffff), CVec2Dfp32(5.0f, 5.0f));
-	_pRCUtil->Text(Clip, pFont, 410, 40, "§Z10Inventory", col);
+	_pRCUtil->Text(Clip, pFont, 410, 40, "Â§Z10Inventory", col);
 
 	//Info1
 	_pRCUtil->DrawTexture(Clip, CPnt(405, 320), "P6_inv_info01", CPixel32(0xffffffff), CVec2Dfp32(5.0f, 5.0f));
@@ -743,10 +743,10 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 		{
 			if(pCD->m_lInventory[i].x)
 			{
-				_pRCUtil->Text(_Client, pFont, 520, 325, CStrF("§Z10%s",pCD->m_lInventory[i].item.m_LootObject.Str()), col);
+				_pRCUtil->Text(_Client, pFont, 520, 325, CStrF("Â§Z10%s",pCD->m_lInventory[i].item.m_LootObject.Str()), col);
 
 				wchar Text[1024];
-				Localize_Str(CStrF("§Z10%s", pCD->m_lInventory[i].item.m_Info.Str()), Text, 1023);
+				Localize_Str(CStrF("Â§Z10%s", pCD->m_lInventory[i].item.m_Info.Str()), Text, 1023);
 
 				int Len = pCD->m_lInventory[i].item.m_Info.Len() + 4;
 
@@ -794,7 +794,7 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 	//Now render the store
 	//The inventory grid
 	_pRCUtil->DrawTexture(Clip, CPnt(7, 3), "P6_inv_trade01", CPixel32(0xffffffff), CVec2Dfp32(5.0f, 5.0f));
-	_pRCUtil->Text(Clip, pFont, 20, 13, "§Z10Store", col);
+	_pRCUtil->Text(Clip, pFont, 20, 13, "Â§Z10Store", col);
 
 	//now lets render the actual store
 	if(pCD->m_3PI_FocusObject != -1)
@@ -907,17 +907,17 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 				}
 
 				if(iPrice)
-					_pRCUtil->Text(Clip, pFont, 20, 330, CStrF("§Z10This item can be bought for %i markers", iPrice), col);
+					_pRCUtil->Text(Clip, pFont, 20, 330, CStrF("Â§Z10This item can be bought for %i markers", iPrice), col);
 				else
-					_pRCUtil->Text(Clip, pFont, 20, 330, "§Z10This item cannot be bought", col);
+					_pRCUtil->Text(Clip, pFont, 20, 330, "Â§Z10This item cannot be bought", col);
 
 				if(iPrice > pCD->m_Money.m_Value)
-					_pRCUtil->Text(Clip, pFont, 20, 345, "§Z10You cannot afford this item!", col);
+					_pRCUtil->Text(Clip, pFont, 20, 345, "Â§Z10You cannot afford this item!", col);
 
-				_pRCUtil->Text(_Client, pFont, 520, 325, CStrF("§Z10%s", lTmp[iStoreItem].m_LootObject.Str()), col);
+				_pRCUtil->Text(_Client, pFont, 520, 325, CStrF("Â§Z10%s", lTmp[iStoreItem].m_LootObject.Str()), col);
 
 				wchar Text[1024];
-				Localize_Str(CStrF("§Z10%s", lTmp[iStoreItem].m_Info.Str()), Text, 1023);
+				Localize_Str(CStrF("Â§Z10%s", lTmp[iStoreItem].m_Info.Str()), Text, 1023);
 
 				int Len = lTmp[iStoreItem].m_Info.Len() + 4;
 
@@ -975,9 +975,9 @@ void CMWnd_ModTrading_P6::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, 
 			}
 
 			if(iPrice)
-				_pRCUtil->Text(Clip, pFont, 20, 330, CStrF("§Z10This item can be sold for %i markers", iPrice), col);
+				_pRCUtil->Text(Clip, pFont, 20, 330, CStrF("Â§Z10This item can be sold for %i markers", iPrice), col);
 			else
-				_pRCUtil->Text(Clip, pFont, 20, 330, "§Z10This item cannot be sold", col);
+				_pRCUtil->Text(Clip, pFont, 20, 330, "Â§Z10This item cannot be sold", col);
 		}
 	}
 

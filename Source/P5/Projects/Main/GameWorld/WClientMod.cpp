@@ -864,7 +864,7 @@ void CWClient_Mod::Render_Borders(CXR_VBManager* _pVBM, CRenderContext* _pRC, CR
 		if(pF)
 		{
 			int Dots = int(CMTime::GetCPU().GetTimeModulus(3));
-			CFStr Text = "§Z16§LMENU_SKIPPING§pq";
+			CFStr Text = "Â§Z16Â§LMENU_SKIPPINGÂ§pq";
 			for(int i = 0; i < Dots; i++)
 				Text += ".";
 			wchar Buf[1024];
@@ -1307,7 +1307,7 @@ void CWClient_Mod::PostRenderInterface(CMWnd* pWndTree, CRC_Util2D* _pRCUtil, CC
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CTextureContainer_RenderCallback
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -2746,7 +2746,7 @@ void CWClient_Mod::Con_JoinGame(CStr _PlayerCls)
 	CStr ProfileName = pSys->GetOptions()->GetValue("GAME_PROFILE");
 
 	m_LocalPlayer.m_Name = ProfileName;
-//	CStr cmd = CStrF("%s§%s", _PlayerCls, ProfileName);
+//	CStr cmd = CStrF("%sÂ§%s", _PlayerCls, ProfileName);
 #if defined(PLATFORM_XENON)
 	MACRO_GetRegisterObject(CGameContext, pGame, "GAMECONTEXT");
 	CGameContextMod *pGameMod = safe_cast<CGameContextMod>(pGame);

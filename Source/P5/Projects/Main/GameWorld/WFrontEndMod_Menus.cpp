@@ -87,7 +87,7 @@ void CMWnd_ModMenu::PaintPressStart(CMWnd *_pWnd, int32 pos, CRC_Util2D* _pRCUti
 		if(pos == EPos_Top)
 			y = 40;
 
-		CMWnd_Text_DrawFormated(_pRCUtil, _Clip, pFont, "§LMENU_PRESSSTART", 0, y, Style, TextColorM, TextColorH, TextColorD,
+		CMWnd_Text_DrawFormated(_pRCUtil, _Clip, pFont, "Â§LMENU_PRESSSTART", 0, y, Style, TextColorM, TextColorH, TextColorD,
 			TruncToInt(_Clip.GetWidth()*0.95f), _Clip.GetHeight());
 	}
 }
@@ -402,7 +402,7 @@ void CMWnd_CubeMenu::EvaluateKey(CMWnd_Param* _pParam, const CStr& _Key, const C
 			char Buf[1024];
 			uint32 Len = MinMT(File.Length(), 1024);
 			File.Read(Buf, Len);
-			m_Info = "§Z14";
+			m_Info = "Â§Z14";
 			for(int i = 0; i < Len; i++)
 				if(Buf[i] == '\r')
 				{}
@@ -896,7 +896,7 @@ bool CMWnd_CubeMenu_Select_Profile::GetListItem(int32 _Index, CStr &_Name, bool 
 
 		/*
 #ifdef PLATFORM_XBOX
-		m_aButtonDescriptions[2] = "y, §LMENU_DELETE";
+		m_aButtonDescriptions[2] = "y, Â§LMENU_DELETE";
 #endif
 		*/
 	}
@@ -1026,7 +1026,7 @@ bool CMWnd_CubeMenu_ButtonConfig::GetListItem(int32 _Index, CStr &_Name, bool _F
 	wchar aTemp[128];
 
 	//
-	Localize_Str(CStr("§LMENU_BINDING_")+m_lActions[_Index], aTemp, 127);
+	Localize_Str(CStr("Â§LMENU_BINDING_")+m_lActions[_Index], aTemp, 127);
 	CStr Text(aTemp);
 
 	//for(int32 i = 0; i < 40-4; i++)
@@ -1035,7 +1035,7 @@ bool CMWnd_CubeMenu_ButtonConfig::GetListItem(int32 _Index, CStr &_Name, bool _F
 	CStr Button;
 	if(_Focus && m_Binding)
 	{
-		Button = "§LMENU_PRESS_ANY_KEY_BIND";
+		Button = "Â§LMENU_PRESS_ANY_KEY_BIND";
 		Button = Button.Unicode();
 	}
 	else
@@ -1127,10 +1127,10 @@ void CMWnd_CubeMenu_ButtonConfig::FetchNames()
 				// there is a risk that this will be interpretated as an octal value.
 				while(St2[0] == '0')
 					St2 = St2.Copy(1, 1024);
-				Name = "§L" + St + CStrF(" %i", ("0x" + St2).Val_int());
+				Name = "Â§L" + St + CStrF(" %i", ("0x" + St2).Val_int());
 			}
 			else if(Name.CompareSubStr("MOUSE") == 0)
-				Name = "§LMOUSE_BUTTON " + Name.Copy(5, 1024);
+				Name = "Â§LMOUSE_BUTTON " + Name.Copy(5, 1024);
 
 		}
 		m_lButtons.Add(Name);
@@ -1410,7 +1410,7 @@ void CMWnd_CubeMenu_VideoSelection::UpdateButtons()
 	}
 	else
 	{
-		pSys->GetRegistry()->SetValue("GUI\\VIDSEL\\PIXELASPECTSTR", "§LMENU_VIDEO_ASPECT_CUSTOM");		
+		pSys->GetRegistry()->SetValue("GUI\\VIDSEL\\PIXELASPECTSTR", "Â§LMENU_VIDEO_ASPECT_CUSTOM");		
 	}
 
 
@@ -1444,15 +1444,15 @@ void CMWnd_CubeMenu_VideoSelection::UpdateButtons()
 
 	CMWnd_CubeButton *pHertzButton = TDynamicCast<CMWnd_CubeButton>(this->FindItem("Hertz"));
 	if(pHertzButton && m_lHertz.Len())
-	pHertzButton->m_Text = CStrF("nc, %d §LMENU_HERTZ", m_lHertz[m_CurrentHertz]);
+	pHertzButton->m_Text = CStrF("nc, %d Â§LMENU_HERTZ", m_lHertz[m_CurrentHertz]);
 
 	CMWnd_CubeButton *pFullscreenButton = TDynamicCast<CMWnd_CubeButton>(this->FindItem("Fullscreen"));
 	if(pFullscreenButton)
 	{
 	if(m_Fullscreen)
-	pFullscreenButton->m_Text = "nc, §LMENU_VIDEO_FULLSCREEN";
+	pFullscreenButton->m_Text = "nc, Â§LMENU_VIDEO_FULLSCREEN";
 	else
-	pFullscreenButton->m_Text = "nc, §LMENU_VIDEO_WINDOWED";
+	pFullscreenButton->m_Text = "nc, Â§LMENU_VIDEO_WINDOWED";
 	}*/
 
 
@@ -1473,7 +1473,7 @@ CMWnd_CubeMenu_VideoSelection::CMWnd_CubeMenu_VideoSelection()
 	fp32 PixelAspect = pSys->GetRegistry()->GetValuef("OPTG\\VIDEO_DISPLAY_PIXELASPECT", 1.0);
 	m_CurrentHertzInit = pSys->GetRegistry()->GetValuei("OPTG\\VIDEO_DISPLAY_REFRESH", 85);
 
-	m_PixelAspects.Add(CPixelAspect("§LMENU_VIDEO_ASPECT_NORMAL", 1));
+	m_PixelAspects.Add(CPixelAspect("Â§LMENU_VIDEO_ASPECT_NORMAL", 1));
 	m_PixelAspects.Add(CPixelAspect("4:3->5:4",		(5.0f/4.0f)		/(4.0f/3.0f)));	
 	m_PixelAspects.Add(CPixelAspect("4:3->16:9",	(16.0f/9.0f)	/(4.0f/3.0f)));	
 	m_PixelAspects.Add(CPixelAspect("4:3->2.35",	2.35f			/(4.0f/3.0f)));	
@@ -2082,10 +2082,10 @@ void CMWnd_CubeMenu_Extra_Content_View::OnPaint(CRC_Util2D* _pRCUtil, const CCli
 	m_aButtonDescriptions[3] = "";
 	m_aButtonDescriptions[2] = "";
 	//if(m_ContentIndex > 0)
-	//m_aButtonDescriptions[3] = "<,§LMENU_PREVIOUS";
+	//m_aButtonDescriptions[3] = "<,Â§LMENU_PREVIOUS";
 
 	//if(m_ContentIndex < m_CubeUser.m_pGameContextMod->m_lViewableContent.Len()-1)
-	//m_aButtonDescriptions[2] = ">,§LMENU_NEXT";
+	//m_aButtonDescriptions[2] = ">,Â§LMENU_NEXT";
 
 	DoLayout();
 	CMWnd_CubeMenu::OnPaint(_pRCUtil, _Clip, _Client);
@@ -2124,12 +2124,12 @@ void CMWnd_CubeMenu_Extra_Content_View::DoLayout()
 	{
 		if(GetItem("DownloadSize"))
 		{
-			Localize_Str(CStrF("%d §LMENU_TO_DOWNLOAD", pLiveContent->m_DownloadSize/1024), wText, 1023);
+			Localize_Str(CStrF("%d Â§LMENU_TO_DOWNLOAD", pLiveContent->m_DownloadSize/1024), wText, 1023);
 			Layout_WriteText(GetItem("DownloadSize")->GetPosition(), 's', wText, 0);
 		}
 		if(GetItem("InstallSize"))
 		{
-			Localize_Str(CStrF("%d §LMENU_BLOCKSNEEDED", pLiveContent->m_InstallSize), wText, 1023);
+			Localize_Str(CStrF("%d Â§LMENU_BLOCKSNEEDED", pLiveContent->m_InstallSize), wText, 1023);
 			Layout_WriteText(GetItem("InstallSize")->GetPosition(), 's', wText, 0);
 		}
 	}
@@ -2217,15 +2217,15 @@ bool CMWnd_CubeMenu_Extra_Content_View::GetListItem(int32 _Index, CStr &_Name, b
 		if(	spContent->m_Type == CExtraContentHandler::TYPE_PICTURE ||
 			spContent->m_Type == CExtraContentHandler::TYPE_VIDEO)
 		{
-			_Name = "n, §LMENU_VIEW";
+			_Name = "n, Â§LMENU_VIEW";
 		}
 		else if(spContent->m_Type == CExtraContentHandler::TYPE_EXTRALEVEL || spContent->m_Type == CExtraContentHandler::TYPE_SCRIPT)
 		{
-			_Name = "n, §LMENU_LAUNCH";
+			_Name = "n, Â§LMENU_LAUNCH";
 		}
 		else if(spContent->m_Type == CExtraContentHandler::TYPE_TEXT)
 		{
-			_Name = "n, §LMENU_READ";
+			_Name = "n, Â§LMENU_READ";
 		}
 
 		return true;
@@ -2239,13 +2239,13 @@ bool CMWnd_CubeMenu_Extra_Content_View::GetListItem(int32 _Index, CStr &_Name, b
 			{
 				if(_Focus)
 					m_Action = ACTION_REMOVE;
-				_Name = "n, §LMENU_REMOVE";
+				_Name = "n, Â§LMENU_REMOVE";
 			}
 			else
 			{
 				if(_Focus)
 					m_Action = ACTION_DOWNLOAD;
-				_Name = "n, §LMENU_DOWNLOAD";
+				_Name = "n, Â§LMENU_DOWNLOAD";
 			}
 		}
 
@@ -2690,7 +2690,7 @@ void CMWnd_CubeMenu_Controller::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_
 
 	int iConfig = pSys->GetOptions()->GetValuei("CONTROLLER_TYPE", 0, 1);
 	wchar wText[1024];
-	Localize_Str(CStrF("§LMENU_CONTROLLERTYPE_%d", iConfig+1), wText, 1023);
+	Localize_Str(CStrF("Â§LMENU_CONTROLLERTYPE_%d", iConfig+1), wText, 1023);
 	fp32 w = pFont->GetWidth(16, wText);
 	fp32 h = pFont->GetHeight(16, wText);
 	_pRCUtil->Text(_Clip, pFont, TruncToInt(640/2-w/2), TruncToInt((480*0.15f)/2+h), wText, CPixel32(95*2,90*2,70*2, 0xc0), 16);
@@ -2709,7 +2709,7 @@ void CMWnd_CubeMenu_Controller::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_
 		CStr Text = m_lButtons[b].m_Text;
 		Text.Trim();
 
-		CStr LocString = "§L"+Text;
+		CStr LocString = "Â§L"+Text;
 		for(int32 i = 0; i < pDynamicST->GetNumChildren(); i++)
 		{
 			if(pDynamicST->GetValue(i).Compare(LocString) == 0)
@@ -2718,7 +2718,7 @@ void CMWnd_CubeMenu_Controller::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_
 					continue;
 				CStr n = pDynamicST->GetName(i);
 				n.GetStrSep("_");
-				Text = "§LACTION_"+n;
+				Text = "Â§LACTION_"+n;
 				break;
 			}
 		}
@@ -2857,7 +2857,7 @@ void CMWnd_CubeMenu_Controller2::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &
 	_pRCUtil->GetAttrib()->Attrib_Disable(CRC_FLAGS_ZCOMPARE);
 	
 	wchar wText[1024];
-	Localize_Str(CStrF("§LMENU_CONTROLLERTYPE_%d", m_iType), wText, 1023);
+	Localize_Str(CStrF("Â§LMENU_CONTROLLERTYPE_%d", m_iType), wText, 1023);
 	fp32 w = pFont->GetWidth(14, wText);
 	fp32 h = pFont->GetHeight(14, wText);
 	_pRCUtil->Text(_Clip, pFont, TruncToInt(640/2-w/2), TruncToInt((480*0.15f)/2+h), wText, PixColor, 14);
@@ -3529,7 +3529,7 @@ void CMWnd_CubeMenu_LoadScriptLayer::UpdateScriptLayers()
 	}
 	else
 	{
-		ConOutL(CStrF("§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
+		ConOutL(CStrF("Â§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
 		M_TRACEALWAYS("ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!\n", RegisterFile.Str());
 	}
 
@@ -3856,7 +3856,7 @@ void CMWnd_CubeMenu_Multiplayer_SelectMap::OnCreate()
 
 
 	m_List.Add(CStrF("nc, %s", GameMode.Str()));
-	m_List.Add("s, §LMENU_RANDOM_MAP");
+	m_List.Add("s, Â§LMENU_RANDOM_MAP");
 	m_iMap = 1;
 
 	m_nMaps = 0;
@@ -3881,9 +3881,9 @@ void CMWnd_CubeMenu_Multiplayer_SelectMap::OnCreate()
 		ButtonsToRemove--;
 	}
 
-	m_List.Add("nc, §LMENU_PREVIOUS");
-	m_List.Add("nc, §LMENU_FIND_GAME");
-	m_List.Add("nc, §LMENU_CREATE_GAME");
+	m_List.Add("nc, Â§LMENU_PREVIOUS");
+	m_List.Add("nc, Â§LMENU_FIND_GAME");
+	m_List.Add("nc, Â§LMENU_CREATE_GAME");
 
 	RandomMap();
 }
@@ -4053,9 +4053,9 @@ void CMWnd_CubeMenu_Multiplayer_SetupCharacter::CreateList(void)
 
 	m_List.Clear();
 	SListItem Item;
-/*	Item.DisplayName = "n, §LMENU_HUMANS";
+/*	Item.DisplayName = "n, Â§LMENU_HUMANS";
 	m_List.Add(Item);
-	Item.DisplayName = "n, §LMENU_DARKLINGS";
+	Item.DisplayName = "n, Â§LMENU_DARKLINGS";
 	m_List.Add(Item);*/
 
 	int State = m_CubeUser.m_pFrontEndMod->m_spMapData->GetState();
@@ -4482,17 +4482,17 @@ void CMWnd_CubeMenu_Multiplayer_SelectGameMode::OnCreate()
 	m_iModeSelected = 2;
 	m_iRuleSelected = 6;
 
-	m_List.Add("nc, §LMENU_ADVANCED_SETTINGS");
-	m_List.Add("nc, §LMENU_NEXT");
-	m_List.Add("s, §LMENU_SHAPESHIFTER");
-	m_List.Add("s, §LMENU_DARKLINGS_VS_DARKLINGS");
-	m_List.Add("s, §LMENU_SURVIVOR");
-	m_List.Add("s, §LMENU_DARKLINGS_VS_HUMANS");
-	m_List.Add("s, §LMENU_DEATHMATCH");
-	m_List.Add("s, §LMENU_TEAMDEATHMATCH");
-	m_List.Add("s, §LMENU_CAPTURETHEFLAG");
-	m_List.Add("s, §LMENU_SURVIVOR");
-	m_List.Add("s, §LMENU_LASTHUMAN");
+	m_List.Add("nc, Â§LMENU_ADVANCED_SETTINGS");
+	m_List.Add("nc, Â§LMENU_NEXT");
+	m_List.Add("s, Â§LMENU_SHAPESHIFTER");
+	m_List.Add("s, Â§LMENU_DARKLINGS_VS_DARKLINGS");
+	m_List.Add("s, Â§LMENU_SURVIVOR");
+	m_List.Add("s, Â§LMENU_DARKLINGS_VS_HUMANS");
+	m_List.Add("s, Â§LMENU_DEATHMATCH");
+	m_List.Add("s, Â§LMENU_TEAMDEATHMATCH");
+	m_List.Add("s, Â§LMENU_CAPTURETHEFLAG");
+	m_List.Add("s, Â§LMENU_SURVIVOR");
+	m_List.Add("s, Â§LMENU_LASTHUMAN");
 
 	m_lButtonsRemoved.Add(9);
 	m_lButtonsRemoved.Add(10);
@@ -5373,15 +5373,15 @@ void CMWnd_CubeMenu::OnPaintCommonStyle(CRC_Util2D* _pRCUtil, const CClipRect &_
 	{
 	case STYLE_DARKLINGS:
 		{
-			Text =  Localize_Str("§LGUI_INVENTORY_TURN");
+			Text =  Localize_Str("Â§LGUI_INVENTORY_TURN");
 			Text = Text.UpperCase();
 			_pRCUtil->Text(VPClip, pFont, ItemsHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);		
 
-			Text = Localize_Str("§LGUI_MAP_TURN");
+			Text = Localize_Str("Â§LGUI_MAP_TURN");
 			Text = Text.UpperCase();
 			_pRCUtil->Text(VPClip, pFont, MapHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);	
 
-			Text = Localize_Str("§LGUI_DARKNESSHEADER");
+			Text = Localize_Str("Â§LGUI_DARKNESSHEADER");
 			FlashRect.p0 = CPnt(DarklingsHeadingPosVal - 6, (HeadingOffset.y) - 4);
 			FlashRect.p1 = CPnt(FlashRect.p0.x + _pRCUtil->TextWidth(pFont, Text, (FontSize / pFont->GetOriginalSize())) + 12, (HeadingOffset.y + TruncToInt(FontSize) + 2));
 			_pRCUtil->Rect(VPClip, FlashRect, PixColorFlash);
@@ -5391,11 +5391,11 @@ void CMWnd_CubeMenu::OnPaintCommonStyle(CRC_Util2D* _pRCUtil, const CClipRect &_
 
 	case STYLE_MAP:
 		{
-			Text =  Localize_Str("§LGUI_INVENTORY_TURN");
+			Text =  Localize_Str("Â§LGUI_INVENTORY_TURN");
 			Text = Text.UpperCase();
 			_pRCUtil->Text(VPClip, pFont, ItemsHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);		
 
-			Text = Localize_Str("§LGUI_MAP_TURN");
+			Text = Localize_Str("Â§LGUI_MAP_TURN");
 			Text = Text.UpperCase();
 			FlashRect.p0 = CPnt(MapHeadingPosVal - 6, (HeadingOffset.y) - 4);
 			FlashRect.p1 = CPnt(MapHeadingPosVal + _pRCUtil->TextWidth(pFont, Text, (FontSize / pFont->GetOriginalSize())) + 6, (HeadingOffset.y + TruncToInt(FontSize) + 2));
@@ -5403,7 +5403,7 @@ void CMWnd_CubeMenu::OnPaintCommonStyle(CRC_Util2D* _pRCUtil, const CClipRect &_
 			_pRCUtil->Text_DrawFormatted(VPClip, pFont, Text, MapHeadingPosVal, HeadingOffset.y, 0, PixColorBlackOutline, PixColorBlackOutline, PixColorBlackOutline, VPClip.GetWidth(), VPClip.GetHeight(), true, 0, (FontSize / pFont->GetOriginalSize()));
 			_pRCUtil->Text_DrawFormatted(VPClip, pFont, Text, MapHeadingPosVal, HeadingOffset.y, 0, PixColor, PixColor, PixColorBlack, VPClip.GetWidth(), VPClip.GetHeight(), false, 0, (FontSize / pFont->GetOriginalSize()));
 
-			Text = Localize_Str("§LGUI_DARKNESSHEADER");
+			Text = Localize_Str("Â§LGUI_DARKNESSHEADER");
 			_pRCUtil->Text(VPClip, pFont, DarklingsHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);	
 
 			// maps are different
@@ -5413,7 +5413,7 @@ void CMWnd_CubeMenu::OnPaintCommonStyle(CRC_Util2D* _pRCUtil, const CClipRect &_
 
 	case STYLE_ITEMS:
 		{
-			Text = Localize_Str("§LGUI_INVENTORY_TURN");
+			Text = Localize_Str("Â§LGUI_INVENTORY_TURN");
 			Text = Text.UpperCase();
 			FlashRect.p0 = CPnt(ItemsHeadingPosVal - 6, (HeadingOffset.y) - 4);
 			FlashRect.p1 = CPnt(ItemsHeadingPosVal + _pRCUtil->TextWidth(pFont, Text, (FontSize / pFont->GetOriginalSize())) + 6, (HeadingOffset.y + TruncToInt(FontSize) + 2));
@@ -5421,11 +5421,11 @@ void CMWnd_CubeMenu::OnPaintCommonStyle(CRC_Util2D* _pRCUtil, const CClipRect &_
 			_pRCUtil->Text_DrawFormatted(VPClip, pFont, Text, 15 + HeadingOffset.x, HeadingOffset.y, 0, PixColorBlackOutline, PixColorBlackOutline, PixColorBlackOutline, VPClip.GetWidth(), VPClip.GetHeight(), true, 0, (FontSize / pFont->GetOriginalSize()));
 			_pRCUtil->Text_DrawFormatted(VPClip, pFont, Text, 15 + HeadingOffset.x, HeadingOffset.y, 0, PixColor, PixColor, PixColorBlack, VPClip.GetWidth(), VPClip.GetHeight(), false, 0, (FontSize / pFont->GetOriginalSize()));
 
-			Text = Localize_Str("§LGUI_MAP_TURN");
+			Text = Localize_Str("Â§LGUI_MAP_TURN");
 			Text = Text.UpperCase();
 			_pRCUtil->Text(VPClip, pFont, MapHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);	
 
-			Text = Localize_Str("§LGUI_DARKNESSHEADER");
+			Text = Localize_Str("Â§LGUI_DARKNESSHEADER");
 			_pRCUtil->Text(VPClip, pFont, DarklingsHeadingPosVal, HeadingOffset.y, Text, PixColor, FontSize);
 		}
 	    break;
@@ -6164,7 +6164,7 @@ void CMWnd_CubeMenu_Map::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Clip, c
 			return;
 
 		const fp32 FontSize = 16.0f;
-		CStr Text = Localize_Str("§L"+LevelName);
+		CStr Text = Localize_Str("Â§L"+LevelName);
 		CPixel32 PixColor(255, 255, 255, 255);
 		CPixel32 PixColorBlack(0, 0, 0, 255);
 
@@ -6239,7 +6239,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 	
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK)
 	{
-		AddPowerToList(Item, "§LPOWER_CREEPINGDARK", "§LDESCPOWER_CREEPINGDARK", "GUI_creepingdark",pTC); 
+		AddPowerToList(Item, "Â§LPOWER_CREEPINGDARK", "Â§LDESCPOWER_CREEPINGDARK", "GUI_creepingdark",pTC); 
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6247,7 +6247,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 		
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DEMONARM)
 	{
-		AddPowerToList(Item, "§LPOWER_DEMONARM", "§LDESCPOWER_DEMONARM", "GUI_demonarm", pTC); 
+		AddPowerToList(Item, "Â§LPOWER_DEMONARM", "Â§LDESCPOWER_DEMONARM", "GUI_demonarm", pTC); 
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DEMONARM))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6255,7 +6255,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS)
 	{
-		AddPowerToList(Item, "§LPOWER_ANCIENTWEAPONS", "§LDESCPOWER_ANCIENTWEAPONS", "GUI_ancientweapons",pTC); 
+		AddPowerToList(Item, "Â§LPOWER_ANCIENTWEAPONS", "Â§LDESCPOWER_ANCIENTWEAPONS", "GUI_ancientweapons",pTC); 
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6263,7 +6263,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_BLACKHOLE)
 	{
-		AddPowerToList(Item, "§LPOWER_BLACKHOLE", "§LDESCPOWER_BLACKHOLE", "GUI_blackhole", pTC); 
+		AddPowerToList(Item, "Â§LPOWER_BLACKHOLE", "Â§LDESCPOWER_BLACKHOLE", "GUI_blackhole", pTC); 
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_BLACKHOLE))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6271,7 +6271,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 		
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION)
 	{
-		AddPowerToList(Item, "§LPOWER_DARKNESSVISION", "§LDESCPOWER_DARKNESSVISION", "GUI_darknessvision", pTC); 
+		AddPowerToList(Item, "Â§LPOWER_DARKNESSVISION", "Â§LDESCPOWER_DARKNESSVISION", "GUI_darknessvision", pTC); 
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6279,7 +6279,7 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 
 	if(DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD)
 	{
-		AddPowerToList(Item, "§LPOWER_DARKNESSHIELD", "§LDESCPOWER_DARKNESSHIELD", "GUI_darknesshield", pTC);
+		AddPowerToList(Item, "Â§LPOWER_DARKNESSHIELD", "Â§LDESCPOWER_DARKNESSHIELD", "GUI_darknesshield", pTC);
 		if(pCD->m_GUITaggedNewDarknessPower == (DarknessPowersAvailable & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD))
 			iTaggedPower = iPowerCounter;
 		iPowerCounter++;
@@ -6362,11 +6362,11 @@ void CMWnd_CubeMenu_Darklings::OnCreate()
 		if(!Item.m_iPictureID) // temporary placeholder
 			Item.m_iPictureID = pTC->GetTextureID("journal_na");
 
-		CStr Adder = "§L" + pChar->m_lAvailableDarklings[i].m_DarklingType;
+		CStr Adder = "Â§L" + pChar->m_lAvailableDarklings[i].m_DarklingType;
 		Item.m_ItemName = Localize_Str(Adder);
 		Item.m_ItemName = Item.m_ItemName.UpperCase();
 
-		Adder = "§LDESC" + Adder.DelTo(1);
+		Adder = "Â§LDESC" + Adder.DelTo(1);
 		Item.m_ItemDesc = Localize_Str(Adder);
 
 		CStr temp;

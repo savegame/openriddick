@@ -118,9 +118,9 @@ void dRSet(dMatrix3 R, const CPhysOBB& _obb)
 /*
 TODO:
 
-Denna måste strömlinjeformas, dvs dBoxBox skall göras så att den tar CVec3dfp32 etc etc
+Denna mÃ¥ste strÃ¶mlinjeformas, dvs dBoxBox skall gÃ¶ras sÃ¥ att den tar CVec3dfp32 etc etc
 Typparametisering kanske?
-Den skall använda CCollisionInfo också...
+Den skall anvÃ¤nda CCollisionInfo ocksÃ¥...
 
 */
 
@@ -155,7 +155,7 @@ int Phys_Collide_OBB(const CPhysOBB& _BoxA,
 		_pCollisionInfo[i].m_Pos = CVec3Dfp32(Contact[i].pos[0],
 			Contact[i].pos[1],
 			Contact[i].pos[2]);
-		// TODO: Här vänds normalen!
+		// TODO: HÃ¤r vÃ¤nds normalen!
 		_pCollisionInfo[i].m_Plane.n = CVec3Dfp32(-Normal[0],
 			-Normal[1],
 			-Normal[2]);
@@ -469,7 +469,7 @@ static BOOL _cldTestEdge( dReal fp0, dReal fp1, dReal fR, dReal fD,
 
 		// if lower depth than best found so far (favor face over edges)
 
-		// NOTE: ÄNDRING!!! 1.5 är "orginal"
+		// NOTE: Ã„NDRING!!! 1.5 Ã¤r "orginal"
 		//		if (fDepth*25.0f<fBestDepth) {
 		if (fDepth*1.5f<fBestDepth) {
 			// remember current axis as best axis
@@ -828,7 +828,7 @@ static BOOL _cldClosestPointOnTwoLines( dVector3 vPoint1, dVector3 vLenVec1,
 static void _cldClipping(const dVector3 &v0, const dVector3 &v1, const dVector3 &v2) {
 
 	// if we have edge/edge intersection
-	// NOTE: Ändrat!
+	// NOTE: Ã„ndrat!
 	if ( iBestAxis > 4 )
 		//	if (false)
 	{
@@ -1070,7 +1070,7 @@ static void _cldClipping(const dVector3 &v0, const dVector3 &v1, const dVector3 
 				Contact->depth = -fTempDepth;
 				SET(Contact->normal,vBestNormal);
 
-				// NOTE: Ändrat
+				// NOTE: Ã„ndrat
 				/*
 				vBestNormal[0]*=-1.0;
 				vBestNormal[1]*=-1.0;
@@ -1201,7 +1201,7 @@ static void _cldClipping(const dVector3 &v0, const dVector3 &v1, const dVector3 
 				Contact->depth = -fTempDepth;
 				SET(Contact->normal,vBestNormal);
 
-				// NOTE: Ändrat
+				// NOTE: Ã„ndrat
 				/*
 				vBestNormal[0]*=-1.0;
 				vBestNormal[1]*=-1.0;
@@ -1699,7 +1699,7 @@ int Phys_Collide_PolyOBB(const CVec3Dfp32* _pVertices,
 				_pCollisionInfo[nTotCollisions].m_bIsCollision= true;
 				_pCollisionInfo[nTotCollisions].m_Distance= fabs(fBestDepth);
 
-				// TODO: Detta är väl rätt...
+				// TODO: Detta Ã¤r vÃ¤l rÃ¤tt...
 				//				_pCollisionInfo[nTotCollisions].m_Distance= fabs(contact[j].depth);
 
 

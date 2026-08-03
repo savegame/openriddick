@@ -320,7 +320,7 @@ void CXR_BlockNav_Grid_GameWorld::InvalidateBox(const CBox3Dfp32& _Box)
 		(ymax << XR_NAVTILE_DIMSHIFT) > m_CellGridDim[1] ||
 		(zmax << XR_NAVTILE_DIMSHIFT) > m_CellGridDim[2])
 	{
-		ConOut(CStrF("§c0f0NOTE: Nav-grid invalidation outside grid. (%d,%d,%d - %d,%d,%d)", xmin, ymin, zmin, xmax, ymax, zmax));
+		ConOut(CStrF("Â§c0f0NOTE: Nav-grid invalidation outside grid. (%d,%d,%d - %d,%d,%d)", xmin, ymin, zmin, xmax, ymax, zmax));
 	}
 #endif*/
 	

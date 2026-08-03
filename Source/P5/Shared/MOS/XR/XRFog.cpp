@@ -42,19 +42,19 @@ void CXR_FogState::Create(CXR_Engine* _pEngine)
 
 	m_FogTableTextureID = pTC->GetTextureID("SPECIAL_FOGTABLE");
 	if (!m_FogTableTextureID)
-		ConOutL("§cf80WARNING: Could not find fog-table texture. (SPECIAL_FOGTABLE)");
+		ConOutL("Â§cf80WARNING: Could not find fog-table texture. (SPECIAL_FOGTABLE)");
 
 	m_DepthFogTableTextureID = pTC->GetTextureID("SPECIAL_DEPTHFOGTABLE");
 	if (!m_DepthFogTableTextureID)
-		ConOutL("§cf80WARNING: Could not find depth fog-table texture. (SPECIAL_DEPTHFOGTABLE)");
+		ConOutL("Â§cf80WARNING: Could not find depth fog-table texture. (SPECIAL_DEPTHFOGTABLE)");
 
 	m_LinearFogTableTextureID = pTC->GetTextureID("SPECIAL_FOGTABLELINEAR");
 	if (!m_LinearFogTableTextureID)
-		ConOutL("§cf80WARNING: Could not find linear fog-table texture. (SPECIAL_FOGTABLELINEAR)");
+		ConOutL("Â§cf80WARNING: Could not find linear fog-table texture. (SPECIAL_FOGTABLELINEAR)");
 
 	m_Special000000TextureID = pTC->GetTextureID("SPECIAL_000000");
 	if (!m_Special000000TextureID)
-		ConOutL("§cf80WARNING: Could not find linear fog-table texture. (SPECIAL_000000)");
+		ConOutL("Â§cf80WARNING: Could not find linear fog-table texture. (SPECIAL_000000)");
 
 
 	if(m_FogTableTextureID)
@@ -73,7 +73,7 @@ void CXR_FogState::Create(CXR_Engine* _pEngine)
 			pTC->ReleaseTexture(m_FogTableTextureID, 0, CTC_TEXTUREVERSION_RAW);
 		}
 		else
-			ConOut("§cf80WARNING: Could not acquire fog-table. Fog-table not built.");
+			ConOut("Â§cf80WARNING: Could not acquire fog-table. Fog-table not built.");
 #else
 		m_lFogTable.SetLen(16);
 		for(int i = 0; i < 16; i++)
@@ -82,7 +82,7 @@ void CXR_FogState::Create(CXR_Engine* _pEngine)
 
 	}
 	else
-		ConOut("§cf80WARNING: Could not acquire fog-table. Fog-table not built.");
+		ConOut("Â§cf80WARNING: Could not acquire fog-table. Fog-table not built.");
 
 //	InitFogBuffer(8192);
 }
@@ -180,7 +180,7 @@ void CXR_FogState::ClearVBMDependencies()
 void CXR_FogState::AddSphere(const CVec3Dfp32& _Pos, fp32 _Radius, CPixel32 _Color, fp32 _Thickness)
 {
 	MAUTOSTRIP(CXR_FogState_AddSphere, MAUTOSTRIP_VOID);
-	ConOut("§cf80WARNING (CXR_FogState::AddSphere): Ignoring fog-sphere.");
+	ConOut("Â§cf80WARNING (CXR_FogState::AddSphere): Ignoring fog-sphere.");
 return;
 
 	if (m_nVolumes >= m_lVolumes.Len()) return;

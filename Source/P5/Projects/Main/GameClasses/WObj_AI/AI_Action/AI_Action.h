@@ -2648,7 +2648,7 @@ public:
 	//Flags
 	enum {
 		FLAGS_PATHFINDING	= 1,	// Allow pathfinding on walls ***TBD***
-		FLAGS_GENTLEMAN		= 2,	// One Meatface at a time can star´t its timer.
+		FLAGS_GENTLEMAN		= 2,	// One Meatface at a time can starÂ´t its timer.
 		FLAGS_SYNC			= 3,	// Play synchro ACS on the player
 		FLAGS_SHOOT			= 8,	// Shoot at player with gesture
 		FLAGS_JUMP			= 16,	// Jump towards player

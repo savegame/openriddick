@@ -691,7 +691,7 @@ void CWorld_ServerCore::World_SetGame(CStr _Game)
 					m_spServerReg->CopyDir(&Reg);
 				}
 				else
-					ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_SetGame) No server registry for game '%s'", (char*) _Game));
+					ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::World_SetGame) No server registry for game '%s'", (char*) _Game));
 			}
 			m_spServerReg->SimulateRegistryCompiled(true);
 		}
@@ -1421,7 +1421,7 @@ bool CWorld_ServerCore::World_Migrate(CStr _World, CSelection& _Selection)
 				if (Object_Get(m_lspPlayers[i]->m_iObject))
 					Object_SetName(m_lspPlayers[i]->m_iObject, CStrF("PLAYER%d", i));
 				if (!Selection_ContainsObject(_iSel, m_lspPlayers[i]->m_iObject))
-					ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_Migrate) Object %d for player %d is not in selection.", m_lspPlayers[i]->m_iObject, i));
+					ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::World_Migrate) Object %d for player %d is not in selection.", m_lspPlayers[i]->m_iObject, i));
 			}
 		}
 	}

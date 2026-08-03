@@ -297,7 +297,7 @@ private:
 		_Length *= PARTICLE_LENGTH_SCALE;
 		h = h * LERP(_Length, 1.0f, LERP(1.0f, ViewAngleScale, _LengthBlend));
 
-		// FIXME: Den skall skala hˆjden med slowspeed scale n‰r l‰ngden ‰r(n‰rmar sig) 0, typ.
+		// FIXME: Den skall skala h√∂jden med slowspeed scale n√§r l√§ngden √§r(n√§rmar sig) 0, typ.
 		//PARTICLE_SLOWSPEED_SCALE
 
 		w *= _Particle.m_Size * 0.5f * PARTICLE_WIDTH_SCALE;

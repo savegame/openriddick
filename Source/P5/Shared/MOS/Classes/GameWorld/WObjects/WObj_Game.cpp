@@ -363,7 +363,7 @@ void CWObject_Game_Settings::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			pGame->OnEvalKey(_KeyHash, _pKey);
 	}
 	else
-		ConOutL("§cf80WARNING: (CWObject_Game_Settings::OnEvalKey) No game object.");
+		ConOutL("Â§cf80WARNING: (CWObject_Game_Settings::OnEvalKey) No game object.");
 }
 
 void CWObject_Game_Settings::OnFinishEvalKeys()
@@ -374,6 +374,6 @@ void CWObject_Game_Settings::OnFinishEvalKeys()
 	if (pGame) 
 		pGame->OnFinishEvalKeys();
 	else
-		ConOutL("§cf80WARNING: (CWObject_Game_Settings::OnFinishEvalKeys) No game object.");
+		ConOutL("Â§cf80WARNING: (CWObject_Game_Settings::OnFinishEvalKeys) No game object.");
 }
 

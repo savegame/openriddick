@@ -320,7 +320,7 @@ fp32 GetHeadOffset(CWorld_Client* _pWClient, int _iObj,const CMat4Dfp32& _Positi
 }*/
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 Function:			Get desired camera for client
 
 Parameters:			
@@ -1741,7 +1741,7 @@ void CWObject_Character::Char_ActivateDialogueItem(CDialogueLink _DialogueItem, 
 			if(!pDialogue->HasLink(iSelfDialogueItem))
 			bBegin = false;
 			}*/
-			// Is this safe? We can´t compare iSelfDialogueItem´s hash value with pDialogue->GetNumItems()..
+			// Is this safe? We canÂ´t compare iSelfDialogueItemÂ´s hash value with pDialogue->GetNumItems()..
 			if (pDialogue)
 			{
 				if (!pDialogue->HasLink_Hash(SelfDialogueItem.m_ItemHash))

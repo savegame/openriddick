@@ -281,7 +281,7 @@ void CWorld_ServerCore::Net_RConWriteCallback(const CStr& _Str, void* _pContext)
 	if (!s.Len())
 		pWServer->Net_ConOut(s, pWServer->m_iRConClient);
 	else
-		pWServer->Net_ConOut(CStrF("§ccfc%s", (char*)s), pWServer->m_iRConClient);
+		pWServer->Net_ConOut(CStrF("Â§ccfc%s", (char*)s), pWServer->m_iRConClient);
 }
 
 void CWorld_ServerCore::Net_OnMessage(int _iClient, const CNetMsg& _Msg)
@@ -336,7 +336,7 @@ void CWorld_ServerCore::Net_OnMessage(int _iClient, const CNetMsg& _Msg)
 				Message_SendToTarget(CWObject_Message(OBJSYSMSG_GAME_CLIENTVARCHANGED, iC), WSERVER_GAMEOBJNAME);
 			}
 			else
-				ConOutL("§cf80WARNING: No player created!!!");*/
+				ConOutL("Â§cf80WARNING: No player created!!!");*/
 
 //LogFile(CStrF("    -Name %s", (char*)Player.m_Name));
 //LogFile("(CWorld_ServerCore::Net_OnMessage) Done.");
@@ -424,14 +424,14 @@ void CWorld_ServerCore::Net_OnMessage(int _iClient, const CNetMsg& _Msg)
 			M_CATCH(
 			catch(CCException E)
 			{
-				Net_ConOut("§ccfc" + E.GetExceptionInfo().m_Message + " (Command: " + Cmd + ")", _iClient);
+				Net_ConOut("Â§ccfc" + E.GetExceptionInfo().m_Message + " (Command: " + Cmd + ")", _iClient);
 			}
 			)
 #else
 			M_CATCH(
 			catch(CCException E)
 			{
-				Net_ConOut("§ccfc" + E.GetExceptionInfo().GetString() + " (Command: " + Cmd + ")", _iClient);
+				Net_ConOut("Â§ccfc" + E.GetExceptionInfo().GetString() + " (Command: " + Cmd + ")", _iClient);
 			}
 			)
 #endif
@@ -449,7 +449,7 @@ m_iRConClient = -1;
 			Net_SetClientVar(_iClient, Key, Value);
 			Message_SendToTarget(CWObject_Message(OBJSYSMSG_GAME_CLIENTVARCHANGED, _iClient), WSERVER_GAMEOBJNAME);
 
-			// Hack.. flytta någonstans..
+			// Hack.. flytta nÃ¥gonstans..
 			if (Key.CompareNoCase("RATE") == 0)
 			{
 				if (pCI->m_hConnection < 0)
@@ -813,7 +813,7 @@ if (bNetLog) LogFile(CStrF("(CWorld_ServerCore::Net_Refresh) Client %d, connect 
 							ConOut(CStrF("Fraction %f", m_Simulate_LocalFrameFraction));	
 								OutPacket.Addfp32(m_Simulate_LocalFrameFraction);
 								if (!Net_PutMsg(iC, OutPacket))
-									ConOut("§cf80WARNING: Unable to send frame fraction to local client.");*/
+									ConOut("Â§cf80WARNING: Unable to send frame fraction to local client.");*/
 							//	pCI->m_spLocalClient->Net_OnMessage(OutPacket);		
 							}
 						}
@@ -825,7 +825,7 @@ if (bNetLog) LogFile(CStrF("(CWorld_ServerCore::Net_Refresh) Client %d, connect 
 //CHECKMEMORY("Net_Refresh");
 				if (pCI->m_bFrameOut)
 				{
-					ConOut(CStrF("§cf80WARNING: Complete game state update could not be sent. (Size %d)", pCI->m_FrameOut.GetSize() ));
+					ConOut(CStrF("Â§cf80WARNING: Complete game state update could not be sent. (Size %d)", pCI->m_FrameOut.GetSize() ));
 				}
 
 				if (!pCI->m_bFrameOut)

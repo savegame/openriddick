@@ -900,9 +900,9 @@ CFStr CRPG_Object_Item::GetItemName() const
 	MAUTOSTRIP(CRPG_Object_Item_GetItemName, CFStr());
 	CFStr Name;
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Name = CFStr("§LITEM_") + CFStr(m_Name.Str() + 7);
+		Name = CFStr("Â§LITEM_") + CFStr(m_Name.Str() + 7);
 	else
-		Name = CFStr("§LITEM_") + CFStr(m_Name.Str());
+		Name = CFStr("Â§LITEM_") + CFStr(m_Name.Str());
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{
@@ -924,7 +924,7 @@ CFStr CRPG_Object_Item::GetItemName() const
 			Name = Stripped;
 			
 /*		if(m_NumItems > 0)
-			Name += CFStrF("§p0%i§pq", m_NumItems);*/
+			Name += CFStrF("Â§p0%iÂ§pq", m_NumItems);*/
 	}
 	return Name;
 }
@@ -941,9 +941,9 @@ CFStr CRPG_Object_Item::GetItemDesc() const
 		return m_ItemDescription;
 
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Desc = CFStr("§LITEMDESC_") + CFStr(m_Name.Str() + 7);
+		Desc = CFStr("Â§LITEMDESC_") + CFStr(m_Name.Str() + 7);
 	else
-		Desc = CFStr("§LITEMDESC_") + CFStr(m_Name.Str());
+		Desc = CFStr("Â§LITEMDESC_") + CFStr(m_Name.Str());
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{
@@ -1932,7 +1932,7 @@ int CRPG_Object_Item::GetGivenClearanceLevel()
 
 MRTC_IMPLEMENT_DYNAMIC(CRPG_Object_Item, CRPG_Object);
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Class:			CRPG_Object_Collectible
 
 	Comments:		
@@ -1961,7 +1961,7 @@ public:
 		CRPG_Object_Item::OnPickup(_iObject, _pRoot, _bNoSound, _iSender, _bNoPickupIcon);
 
 		CWObject_Message Msg(OBJMSG_GAME_SHOWGAMEMSG, 0, 0, _iSender, 1);
-		CStr St = CStrF("§LITEM_COLLECTIBLE|$%i,192,256,§C888§LCOLLECTIBLE_STATUS§p0%i§pq||", m_iIconSurface, m_ID + 1);
+		CStr St = CStrF("Â§LITEM_COLLECTIBLE|$%i,192,256,Â§C888Â§LCOLLECTIBLE_STATUSÂ§p0%iÂ§pq||", m_iIconSurface, m_ID + 1);
 		CStr St2 = St;
 
 		MACRO_GetRegisterObject(CGameContext, pGame, "GAMECONTEXT");
@@ -1980,17 +1980,17 @@ public:
 					St = St2;
 					j = 0;
 				}
-				St += "§Lcollectible_unlock§p0§C884" + lpContent[i]->m_Name + "§C888§pq||";
+				St += "Â§Lcollectible_unlockÂ§p0Â§C884" + lpContent[i]->m_Name + "Â§C888Â§pq||";
 				j++;
 			}
 			if(lpContent.Len() > 1)
-				St += "§Lcollectible_multiple";
+				St += "Â§Lcollectible_multiple";
 			else if(lpContent.Len() > 0)
-				St += "§Lcollectible_single";
+				St += "Â§Lcollectible_single";
 			ConExecute("saveprofile()");
 		}
 		else
-			St += "§Lcollectible_dup";
+			St += "Â§Lcollectible_dup";
 
 		Msg.m_pData = (void*)St.Str();
 		m_pWServer->Message_SendToObject(Msg, m_pWServer->Game_GetObjectIndex());
@@ -2002,7 +2002,7 @@ public:
 
 	virtual CFStr GetItemName()
 	{
-		return "§LITEM_COLLECTIBLE";
+		return "Â§LITEM_COLLECTIBLE";
 	}
 
 	virtual bool MergeItem(int _iObject, CRPG_Object_Item *_pObj)

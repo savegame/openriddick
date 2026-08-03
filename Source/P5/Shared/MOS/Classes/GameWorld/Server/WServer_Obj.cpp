@@ -369,11 +369,11 @@ int CWorld_ServerCore::Object_Insert(spCWObject _spObj, int _iObj)
 	if(_iObj == -1 || !m_spObjectHeap->ForceAllocID(_iObj))
 	{
 		if(_iObj != -1)
-			ConOutL(CStrF("§cf80WARNING: Failed to allocated specific objectindex %i, for Object %s %s", _iObj, _spObj->GetName(), _spObj->GetTemplateName()));
+			ConOutL(CStrF("Â§cf80WARNING: Failed to allocated specific objectindex %i, for Object %s %s", _iObj, _spObj->GetName(), _spObj->GetTemplateName()));
 		_iObj = m_spObjectHeap->AllocID();
 		if(_iObj == -1)
 		{
-			ConOutL("§cf80WARNING: Too many entities.");
+			ConOutL("Â§cf80WARNING: Too many entities.");
 			return -1;
 		}
 	}
@@ -407,11 +407,11 @@ int CWorld_ServerCore::Object_Create(spCWObject _spObj, const CMat4Dfp32 &_Pos, 
 	if(_iObj == -1 || !m_spObjectHeap->ForceAllocID(_iObj))
 	{
 		if(_iObj != -1)
-			ConOutL(CStrF("§cf80WARNING: Failed to allocate specific objectindex %i, for Object %s %s", _iObj, _spObj->GetName(), _spObj->GetTemplateName()));
+			ConOutL(CStrF("Â§cf80WARNING: Failed to allocate specific objectindex %i, for Object %s %s", _iObj, _spObj->GetName(), _spObj->GetTemplateName()));
 		_iObj = m_spObjectHeap->AllocID();
 		if(_iObj == -1)
 		{
-			ConOutL("§cf80WARNING: Too many entities.");
+			ConOutL("Â§cf80WARNING: Too many entities.");
 			return -1;
 		}
 	}
@@ -419,7 +419,7 @@ int CWorld_ServerCore::Object_Create(spCWObject _spObj, const CMat4Dfp32 &_Pos, 
 	if (_GUID == 0 || m_spGUIDHash->GetIndex(_GUID) != 0)
 	{
 		if (_GUID != 0)
-			ConOutL(CStrF("§cf80WARNING: Failed to allocate specific GUID %08X for object %s %s", _GUID, _spObj->GetName(), _spObj->GetTemplateName()));
+			ConOutL(CStrF("Â§cf80WARNING: Failed to allocate specific GUID %08X for object %s %s", _GUID, _spObj->GetName(), _spObj->GetTemplateName()));
 
 		_GUID = m_NextGUID++;
 		int iCurr = m_spGUIDHash->GetIndex(_GUID);
@@ -893,7 +893,7 @@ int CWorld_ServerCore::Object_Create(const char* _pClassName, const CMat4Dfp32& 
 
 		if(!plspObjects || !plspObjects->Len())
 		{
-			ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::Object_Create) Could not find a class or template named %s.", (char*)_pClassName));
+			ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::Object_Create) Could not find a class or template named %s.", (char*)_pClassName));
 			return -1;
 		}
 
@@ -940,7 +940,7 @@ bool CWorld_ServerCore::Object_ChangeGUID(int _iObj, int _NewGUID)
 		int Index = m_spGUIDHash->GetIndex(_NewGUID);
 		if (Index != 0 && _iObj != Index)
 		{
-			ConOutL(CStrF("§cf80WARNING: Failed to allocated specific GUID %i, for Object %s %s", _NewGUID, pObj->GetName(), pObj->GetTemplateName()));
+			ConOutL(CStrF("Â§cf80WARNING: Failed to allocated specific GUID %i, for Object %s %s", _NewGUID, pObj->GetName(), pObj->GetTemplateName()));
 			return false;
 		}
 

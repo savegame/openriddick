@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character execution.
 					
 	Contents:		OnRefresh
@@ -41,7 +41,7 @@
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Character
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1738,7 +1738,7 @@ void CWObject_Character::OnRefresh()
 //		if(Diff > 0 || Diff < -64)
 		if(Diff > 10 || Diff < -4)
 		{
-			//ConOut("§cf80WARNING: Resetting Async player gametick to server gametick");
+			//ConOut("Â§cf80WARNING: Resetting Async player gametick to server gametick");
 			pCD->m_GameTick = m_pWServer->GetGameTick();
 		}
 		Char_SetGameTickDiff(pCD->m_GameTick - m_pWServer->GetGameTick());
@@ -2357,7 +2357,7 @@ void CWObject_Character::OnRefresh()
 	if (pCD->m_iPlayer != -1)
 		Char_UpdateThirdPersonInteractive(*pCD);
 
-	// Check if were´re in third person view, if so, set visibility flag
+	// Check if wereÂ´re in third person view, if so, set visibility flag
 	/*uint8 Mode = (pCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK);
 	bool b3PI = (Mode != THIRDPERSONINTERACTIVE_MODE_NONE);
 	if(b3PI)
@@ -3353,7 +3353,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 		_pCD->m_nChoices = _pWClient->ClientMessage_SendToObject(Msg, _pCD->m_iFocusFrameObject);
 
 		// Override if choice is telephone with available telephone numbers to be selected directly
-		if (_pCD->m_Choices.CompareNoCase("§LACS_TELEPHONE") == 0)
+		if (_pCD->m_Choices.CompareNoCase("Â§LACS_TELEPHONE") == 0)
 		{
 			if (!_pCD->m_DialogueInstance.IsValid())
 			{
@@ -3375,7 +3375,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 							TemStr = TemStr.Del(7,1);
 							TemStr = TemStr.Del(3,1);
 
-							TemStr = "§LPHONENUMBER_OWNER_" + TemStr;
+							TemStr = "Â§LPHONENUMBER_OWNER_" + TemStr;
 							TemStr = Localize_Str(TemStr);
 
 							_pCD->m_Choices += TemStr;
@@ -3386,7 +3386,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 					}
 				}
 
-				_pCD->m_Choices += Localize_Str("§LGUI_DIAL_MANUALLY");
+				_pCD->m_Choices += Localize_Str("Â§LGUI_DIAL_MANUALLY");
 				_pCD->m_Choices += ";";
 				_pCD->m_nChoices++;
 			}
@@ -4052,7 +4052,7 @@ int CWObject_Character::Char_ProcessControl(const CControlFrame& _Msg, int& _Pos
 
 /*		if (!pWPhysState || !pWPhysState->Object_GetCD(iObjThis))
 		{
-			ConOutL("Nu är skiten krickad.");
+			ConOutL("Nu Ã¤r skiten krickad.");
 			return 0;
 		}*/
 

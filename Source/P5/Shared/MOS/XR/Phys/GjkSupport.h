@@ -351,7 +351,7 @@ int TClosestPoint<T>::ToTriangleLineSegment(const CVec3Dfp32& _p1, const CVec3Df
 	}
 
 	// TODO: Returnera en mask samt barycent.
-	// Dessa nedan ‰r inte r‰tt ;-)
+	// Dessa nedan √§r inte r√§tt ;-)
 	_ta = 10000;
 	_tb = 10000;
 	_tc = 10000;

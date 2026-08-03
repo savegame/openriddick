@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			WObj_Object_Lamp.cpp
 
 	Author:			Anton Ragnarsson
@@ -21,7 +21,7 @@
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Object_Lamp
 |
 | Data[1] = lamp flags
@@ -72,7 +72,7 @@ public:
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Object_Lamp
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -354,7 +354,7 @@ aint CWObject_Object_Lamp::OnMessage(const CWObject_Message& _Msg)
 			{
 				CWObject *pObj = m_pWServer->Object_Get(pSel[i]);
 				if (pObj->m_iClass == m_iClass)
-					ConOutL(CStrF("§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
+					ConOutL(CStrF("Â§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
 				else
 				{
 					RetVal += m_pWServer->Message_SendToObject(_Msg, pSel[i]);
@@ -375,7 +375,7 @@ void CWObject_Object_Lamp::SendSignalToMasterLight(int _Signal, int _Param)
 	if (pMasterLight)
 	{
 		if (pMasterLight->m_iClass == m_iClass)
-			ConOutL(CStrF("§cf80WARNING: Detected a Lamp with same name as Light! (%s)", pMasterLight->GetName()));
+			ConOutL(CStrF("Â§cf80WARNING: Detected a Lamp with same name as Light! (%s)", pMasterLight->GetName()));
 		else
 		{
 			CWObject_Message Msg;
@@ -402,7 +402,7 @@ void CWObject_Object_Lamp::SafeSendToTarget(const CWObject_Message& _Msg, const 
 	{
 		CWObject *pObj = m_pWServer->Object_Get(pSel[i]);
 		if (pObj->m_iClass == m_iClass)
-			ConOutL(CStrF("§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
+			ConOutL(CStrF("Â§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
 		else
 			pObj->OnMessage(_Msg);
 	}

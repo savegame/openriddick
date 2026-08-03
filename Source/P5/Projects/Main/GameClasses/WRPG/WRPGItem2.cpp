@@ -555,9 +555,9 @@ CFStr CRPG_Object_Item2::GetItemName()
 	MAUTOSTRIP(CRPG_Object_Item2_GetItemName, CFStr());
 	CFStr Name;
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Name = "§LITEM_" + m_Name.Copy(7, 1024);
+		Name = "Â§LITEM_" + m_Name.Copy(7, 1024);
 	else
-		Name = "§LITEM_" + m_Name;
+		Name = "Â§LITEM_" + m_Name;
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{
@@ -579,7 +579,7 @@ CFStr CRPG_Object_Item2::GetItemName()
 			Name = Stripped;
 			
 /*		if(m_NumItems > 0)
-			Name += CFStrF("§p0%i§pq", m_NumItems);*/
+			Name += CFStrF("Â§p0%iÂ§pq", m_NumItems);*/
 	}
 	return Name;
 }
@@ -591,9 +591,9 @@ CFStr CRPG_Object_Item2::GetItemDesc()
 	MAUTOSTRIP(CRPG_Object_Item2_GetItemDesc, CFStr());
 	CFStr Desc;
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Desc = "§LITEMDESC_" + m_Name.Copy(7, 1024);
+		Desc = "Â§LITEMDESC_" + m_Name.Copy(7, 1024);
 	else
-		Desc = "§LITEMDESC_" + m_Name;
+		Desc = "Â§LITEMDESC_" + m_Name;
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{

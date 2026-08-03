@@ -384,7 +384,7 @@ public:
 		_iMinAxis = iMinAxis;
 		_SeparatingAxis = SeparatingAxis;
 
-		// TODO: Egentligen borde return true; funkar här men det gör det inte
+		// TODO: Egentligen borde return true; funkar hÃ¤r men det gÃ¶r det inte
 		// Kanske pga av precisionsfel.
 		return MinDistance < TNumericProperties<R>::Max();
 	}
@@ -459,7 +459,7 @@ public:
 		_MinEdge2 = MinEdge2; 
 		_MinDistance = MinDistance;
 
-		// TODO: Egentligen borde return true; funkar här men det gör det inte
+		// TODO: Egentligen borde return true; funkar hÃ¤r men det gÃ¶r det inte
 		// Kanske pga av precisionsfel
 		return MinDistance < TNumericProperties<R>::Max();
 	}
@@ -487,8 +487,8 @@ public:
 		MinPH2 += d2;
 		MaxPH2 += d2;
 
-                // TODO: Detta mycket oklart. Nedan borde gå att ta bort,
-                // borde räkna ut samma som ovan. Detta måste dock testas ordentligt!
+                // TODO: Detta mycket oklart. Nedan borde gÃ¥ att ta bort,
+                // borde rÃ¤kna ut samma som ovan. Detta mÃ¥ste dock testas ordentligt!
 
 #if 0
 		R _MinPH1, _MaxPH1;
@@ -574,8 +574,8 @@ int TPolyhedraPolyhedraCollider<C1, C2, R>::ClipFaces(const C1 *_Polyhedron1, co
 	//_Polyhedron1->GetFace(_iFace1, _T1, V1[0], V1[1], V1[2], V1[3]);
 	//_Polyhedron2->GetFace(_iFace2, _T2, V2[0], V2[1], V2[2], V2[3]);
 
-	// TODO: Kolla först hur många vertices det är! 
-	// Kan skriva över stacken annars
+	// TODO: Kolla fÃ¶rst hur mÃ¥nga vertices det Ã¤r! 
+	// Kan skriva Ã¶ver stacken annars
 
 	TPlane3<R> Plane1, Plane2;
 
@@ -640,7 +640,7 @@ int TPolyhedraPolyhedraCollider<C1, C2, R>::ClipFaces(const C1 *_Polyhedron1, co
 		y2[i] = VectorInFace2 * V2[i];
 	}*/
 
-	// TODO: Hur många här?
+	// TODO: Hur mÃ¥nga hÃ¤r?
 	TVector2<R> VertexList1[128];
 	TVector2<R> VertexList2[128];
 	TVector2<R> VertexResult[128];

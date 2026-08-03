@@ -3,7 +3,7 @@
 
 #include "../WObj_AI/AI_Auxiliary.h"	// TSimpleDynamicList<int16> m_lHitList;
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			WRPGCreature
 					
 	Author:			Magnus Runesson
@@ -15,17 +15,17 @@
 	Comments:		
 					
 	History:		
-		030225:		Created file, fick ingen lön, det är kallt, Bush ska enligt
-					löpsedeln döda Saddam och alla hans barn inom 48 timmar. Får
+		030225:		Created file, fick ingen lÃ¶n, det Ã¤r kallt, Bush ska enligt
+					lÃ¶psedeln dÃ¶da Saddam och alla hans barn inom 48 timmar. FÃ¥r
 					se hur det blir med den saken.
-		030425:		Det är varmt, har fått lön och Saddam och hans söner lever
-					fortfarande. Bush är en dålig människa. Saddam också.
+		030425:		Det Ã¤r varmt, har fÃ¥tt lÃ¶n och Saddam och hans sÃ¶ner lever
+					fortfarande. Bush Ã¤r en dÃ¥lig mÃ¤nniska. Saddam ocksÃ¥.
 \*____________________________________________________________________________________________*/
 
 #include "WRPGItem.h"
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Class:			CRPG_Object_CreatureAttack
 					
 	Comments:		

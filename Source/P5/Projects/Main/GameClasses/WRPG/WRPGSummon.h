@@ -26,7 +26,7 @@ class CRPG_Object_Summon : public CRPG_Object_Item
 protected:
 	int8 m_MeleeDelay;				// Read from register. Delay from user trigger to actual attack being performed
 	int8 m_PendingMeleeAttack;		// How many ticks are there until next delayed melee-attack will be performed?
-	int8 m_MeleeDamage_Frontal;		// How much damage to give when hit from framifrån, typ
+	int8 m_MeleeDamage_Frontal;		// How much damage to give when hit from framifrÃ¥n, typ
 	int8 m_MeleeDamage_FromBehind;	// How much damage to give when hitting from behind
 	fp32 m_MeleeForce;				// Read from register. Multiplied with user look-vector to get force vector to knock target with
 	uint8 m_MeleeFwdOffset;			// Read from register. The distance the melee attack selection is offset forwards.

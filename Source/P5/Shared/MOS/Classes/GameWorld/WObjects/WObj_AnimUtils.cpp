@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			WObj_AnimUtils.h
 
 	Author:			Jens Anderssion
@@ -271,7 +271,7 @@ void CWO_AnimUtils::EvalVocapAndLipsync(class CVoCap *_pVocap, class CLipSync *_
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWO_EyeAnim
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -284,7 +284,7 @@ void CWO_EyeAnim::Init(CMapData* _pMapData)
 {
 	m_iAnimResource = _pMapData->GetResourceIndex_Anim("Eyes/Eyes");	
 	if(m_iAnimResource <= 0)
-		ConOutL("§cf00ERROR: (CWO_EyeAnim::Init) Could not load animation");
+		ConOutL("Â§cf00ERROR: (CWO_EyeAnim::Init) Could not load animation");
 }
 
 bool CWO_EyeAnim::Eval(CMapData* _pMapData, int _iAnim, const CMTime &_ReferenceTime, class CXR_AnimLayer* _pLayers, int &_nLayers, int _MaxLayers)
@@ -294,7 +294,7 @@ bool CWO_EyeAnim::Eval(CMapData* _pMapData, int _iAnim, const CMTime &_Reference
 
 	CXR_Anim_Base *pAnim = _pMapData->GetResource_Anim(m_iAnimResource);
 	if(pAnim->GetNumSequences() <= _iAnim)
-		ConOutL(CStrF("§cf00ERROR: (CWO_EyeAnim::Eval) Container didn't include sequence %i", _iAnim));
+		ConOutL(CStrF("Â§cf00ERROR: (CWO_EyeAnim::Eval) Container didn't include sequence %i", _iAnim));
 
 	CXR_Anim_SequenceData *pSeq = pAnim->GetSequence(_iAnim);
 	if(pSeq)

@@ -233,7 +233,7 @@ private:
 	virtual void OnCreate(const char *_params)
 	{
 		MAUTOSTRIP(CXR_Model_InstantTrail_OnCreate, MAUTOSTRIP_VOID);
-		// FIXME: Mondelore. SegmentLength istaället för antalet segment, så att inte alla segment trycks ihop för korta trails.
+		// FIXME: Mondelore. SegmentLength istaÃ¤llet fÃ¶r antalet segment, sÃ¥ att inte alla segment trycks ihop fÃ¶r korta trails.
 
 		m_iSurface = GetSurfaceID("");
 		m_Length = 1000.0f;

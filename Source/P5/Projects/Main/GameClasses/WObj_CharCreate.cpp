@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character initialization code
 					
 	Contents:		OnCreate
@@ -35,7 +35,7 @@
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CCharDialogueItems
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -125,7 +125,7 @@ void CCharDialogueItems::Write(CCFile* _pFile) const
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Character
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -885,8 +885,8 @@ void CWObject_Character::OnSpawnWorld()
 			for (int32 i = 0; i < Len; i++)
 			{
 				CRPG_Object_Item* pItem = pInventory->GetItemByIndex(i);
-				//Skicka animgraph här istället....
-				//ladda hela containrar (antar att man får spara namn i animlistan :/)
+				//Skicka animgraph hÃ¤r istÃ¤llet....
+				//ladda hela containrar (antar att man fÃ¥r spara namn i animlistan :/)
 				if (pItem)
 				{
 					pItem->TagAnimationsForPrecache(&AGContext, pCD->m_AnimGraph2.GetAG2I());
@@ -1037,9 +1037,9 @@ void CWObject_Character::OnSpawnWorld()
 	m_spAI->OnSpawnWorld();
 
 	// Use and desc names
-	m_UseName = "§LCHAR_NAME_";
+	m_UseName = "Â§LCHAR_NAME_";
 	m_UseName += GetTemplateName();
-	m_DescName = "§LCHAR_DESC_";
+	m_DescName = "Â§LCHAR_DESC_";
 	m_DescName += GetTemplateName();
 
 	// Override player's backplane value with the one set in WorldSky..
@@ -2615,7 +2615,7 @@ void CWObject_Character::SpawnCharacter(int _PhysMode, int _SpawnBehavior, bool 
 		// We failed to place the character
 		if(pCD->m_iPlayer != -1 || (_SpawnBehavior & PLAYER_SPAWNBEHAVIOR_FROMIO))
 		{
-			ConOutL("§cf80WARNING: Player could not be placed, using 'noclip'. (" + GetPosition().GetString() + ")");
+			ConOutL("Â§cf80WARNING: Player could not be placed, using 'noclip'. (" + GetPosition().GetString() + ")");
 			Char_SetPhysics(this, m_pWServer, m_pWServer, PLAYER_PHYS_NOCLIP, true);
 		}
 		else
@@ -2876,7 +2876,7 @@ void CWObject_Character::SetTemplateName(CStr _TemplateName)
 	if(!pCD)
 		return;
 
-	pCD->m_Character.m_Value = (CFStr("§LCHAR_") + GetTemplateName()).Str();
+	pCD->m_Character.m_Value = (CFStr("Â§LCHAR_") + GetTemplateName()).Str();
 	pCD->m_Character.MakeDirty();
 }
 

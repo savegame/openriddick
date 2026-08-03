@@ -2126,18 +2126,18 @@ void CWObject_Projectile_Bouncer::OnRefreshVelocity()
 bool CWObject_Projectile_Bouncer::OnTracerIntersection(CCollisionInfo* _pCInfo)
 {
 	MAUTOSTRIP(CWObject_Projectile_Bouncer_OnTracerIntersection, false);
-//	Kolla på CInfo objectet, om det är en gubbe eller om det är världen.
-//	Är det inte världen så returneras bara true, dvs explodera skiten.
-//	Är det världen så skall det bouncas.
+//	Kolla pÃ¥ CInfo objectet, om det Ã¤r en gubbe eller om det Ã¤r vÃ¤rlden.
+//	Ã„r det inte vÃ¤rlden sÃ¥ returneras bara true, dvs explodera skiten.
+//	Ã„r det vÃ¤rlden sÃ¥ skall det bouncas.
 //	Skapa bounce effekt objectet mha CInfo position och normal.
 //	Bounca velocity vectorn mha CInfo normalen.
 //	returnera false.
 //
-//	Allt det här skall givetvis flaggas och parameteriseras genom nyklar.
+//	Allt det hÃ¤r skall givetvis flaggas och parameteriseras genom nyklar.
 //
-//	Största vinkeln innan bouncen anses vara en direkt splatt träff.
+//	StÃ¶rsta vinkeln innan bouncen anses vara en direkt splatt trÃ¤ff.
 //	Vilka object typer den studsar mot och vilka den absorberas av.
-//	Ger den skada när den studsar, eller det får ligga i bounce_effekt objectet?.Näe, det här objectet vet om träffat object direkt.
+//	Ger den skada nÃ¤r den studsar, eller det fÃ¥r ligga i bounce_effekt objectet?.NÃ¤e, det hÃ¤r objectet vet om trÃ¤ffat object direkt.
 
 	if (m_bExcludeOwner && (_pCInfo->m_iObject == m_iOwner))
 		return false;
@@ -3086,8 +3086,8 @@ aint CWObject_AttachModel::OnClientMessage(CWObject_Client* _pObj, CWorld_Client
 
 								CXR_Skeleton *pCharSkeleton = (CXR_Skeleton*)pCharModel->GetParam(MODEL_PARAM_SKELETON);
 
-								// (False funkar minst för pilar från sniper & crossbow(!aimassist) på berserker & lich)
-								// (True funkar för wingshielden, men den sitter i bone origin.
+								// (False funkar minst fÃ¶r pilar frÃ¥n sniper & crossbow(!aimassist) pÃ¥ berserker & lich)
+								// (True funkar fÃ¶r wingshielden, men den sitter i bone origin.
 								CMat4Dfp32 Unit; Unit.Unit();
 								if (_pObj->GetLocalPositionMatrix().AlmostEqual(Unit, _FP32_EPSILON))
 								{

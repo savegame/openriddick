@@ -312,7 +312,7 @@ void CWorld_PhysState::Phys_UpdateTree_r(int _iObj, CWObject_CoreData* _pObj)
 	MAUTOSTRIP(CWorld_PhysState_Phys_UpdateTree_r, MAUTOSTRIP_VOID);
 	if (_pObj->m_ClientFlags & CWO_CLIENTFLAGS_RECURSED)
 	{
-		ConOutL(CStrF("§cf80WARNING: (CWorld_PhysState::Phys_UpdateTree_r) Recursion error at object %d", _iObj));
+		ConOutL(CStrF("Â§cf80WARNING: (CWorld_PhysState::Phys_UpdateTree_r) Recursion error at object %d", _iObj));
 		return;
 	}
 	_pObj->m_ClientFlags |= CWO_CLIENTFLAGS_RECURSED;
