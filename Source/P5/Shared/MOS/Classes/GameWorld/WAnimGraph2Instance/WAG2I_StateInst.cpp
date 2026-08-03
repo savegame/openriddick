@@ -807,8 +807,44 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 	pAnimLayerSeq1->EvalTrack0(CMTime::CreateFromSeconds(m_Duration1),Move,Rot);
 	Move = M_VSetW0(Move);
 	const fp32 AnimMoveLen = CVec4Dfp32(Move).Length();
-	const int PropIdx = (int)pLayer->GetMergeOperator();
-	m_pAG2I->GetEvaluator()->SetPropertyFloat(pLayer->GetMergeOperator(),AnimMoveLen);
+	int PropIdx = (int)pLayer->GetMergeOperator();
+
+	// ПОЧИНКА СКОРОСТИ ПЕРЕДВИЖЕНИЯ (2026-08-03).
+	//
+	// Длина корневого движения клипа пишется в свойство, номер которого
+	// берётся из авторского поля слоя m_iMergeOperator. В PC-контенте оно
+	// равно НУЛЮ у всех locomotion-слоёв (замер [ADAPT] enter: iState
+	// 45/49/697/699/703/794, prop=0 везде, animMoveLen считается верно --
+	// 44.6 / 64.0 / 115.4 / 116.9).
+	//
+	// А игровой код делит на свойство 8, PROPERTY_FLOAT_ANIMMOVELENGTH
+	// (WObj_CharClientData.cpp:1237), и больше НИКТО во всём дереве в это
+	// свойство не пишет -- проверено грепом. То есть знаменатель оставался
+	// нулевым навсегда: MoveVel>0 давало +inf, Min(4.0f, inf) = 4.0, и все
+	// персонажи двигались вчетверо быстрее; MoveVel==0 давало 0/0 = NaN и
+	// замирание позы.
+	//
+	// Чтение слоя при этом НЕ виновато: разбор v5/v6 сверен с ретейлом
+	// побайтово (Ghidra, GameWorld FUN_10390570 -- см. Docs/Decomp_Map.md),
+	// порядок и размеры полей совпадают. Значит ноль -- это то, что реально
+	// лежит в файле, а шипнутый PC-билд писал длину в свойство 8 каким-то
+	// другим путём, нежели этот PS3-снапшот исходников.
+	//
+	// Поэтому: ноль трактуем как «не задано» и пишем туда, откуда игра
+	// читает. RIDDICK_ADAPTPROP=<n> переопределяет номер, =-1 возвращает
+	// прежнее поведение для A/B.
+	{
+		static int s_Override = -2;
+		if (s_Override == -2)
+		{
+			const char* e = getenv("RIDDICK_ADAPTPROP");
+			s_Override = (e && *e) ? (int)strtol(e, NULL, 0) : 8;
+		}
+		if (s_Override >= 0 && PropIdx == 0)
+			PropIdx = s_Override;
+	}
+
+	m_pAG2I->GetEvaluator()->SetPropertyFloat((CAG2PropertyID)PropIdx,AnimMoveLen);
 
 	// Куда именно записалась длина корневого движения. Индекс свойства --
 	// авторское поле m_iMergeOperator из AG2, а формат v6 мы читаем
@@ -820,8 +856,9 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 		if (s_n < 12)
 		{
 			++s_n;
-			fprintf(stderr, "[ADAPT] enter iState=%d iAnim=%d prop=%d animMoveLen=%.3f dur=%.3f\n",
-				(int)m_iState, (int)pLayer->m_iAnim, PropIdx, AnimMoveLen, m_Duration1);
+			fprintf(stderr, "[ADAPT] enter iState=%d iAnim=%d prop=%d(raw %d) animMoveLen=%.3f dur=%.3f\n",
+				(int)m_iState, (int)pLayer->m_iAnim, PropIdx,
+				(int)pLayer->GetMergeOperator(), AnimMoveLen, m_Duration1);
 			fflush(stderr);
 		}
 	}
