@@ -2195,6 +2195,18 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 					pS->Eval(0.0f, s_QA, nRotations, &s_MA->v, nMovements, FullMask);
 					pS->Eval(Dur * 0.5f, s_QB, nRotations, &s_MB->v, nMovements, FullMask);
 
+					// Корневой трек отдельно: его длина за длительность
+					// клипа -- НАТУРАЛЬНАЯ скорость анимации, та самая, от
+					// которой считается тарировка (m_TimeScale =
+					// DestSpeed/AnimSpeed) и, в конечном счёте, скорость
+					// перемещения персонажа. Если декодер move-трека врёт
+					// в масштабе, все бегают слишком быстро.
+					vec128 Mv0, Mv1;
+					CQuatfp32 Rq0, Rq1;
+					pS->EvalTrack0(0.0f, Mv0, Rq0);
+					pS->EvalTrack0(Dur, Mv1, Rq1);
+					const fp32 MoveLen = (CVec4Dfp32(Mv1) - CVec4Dfp32(Mv0)).Length();
+
 					int nAnimated = 0, nIdentity0 = 0, iFirstAnim = -1;
 					for (uint i = 0; i < nRotations; i++)
 					{
@@ -2210,9 +2222,10 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 							++nIdentity0;
 					}
 					fprintf(stderr,
-						"[SEQ] dur=%.3f nRot=%d nMove=%d animatedRot=%d identityAt0=%d firstAnim=%d layers=%d t=%.3f\n",
+						"[SEQ] dur=%.3f nRot=%d nMove=%d animatedRot=%d identityAt0=%d firstAnim=%d rootLen=%.2f clipSpeed=%.1f layers=%d t=%.3f\n",
 						Dur, (int)nRotations, (int)nMovements, nAnimated, nIdentity0,
-						iFirstAnim, (int)_nLayers, _pLayer[_nLayers-1].m_Time);
+						iFirstAnim, MoveLen, (Dur > 0.0f) ? (MoveLen / Dur) : 0.0f,
+						(int)_nLayers, _pLayer[_nLayers-1].m_Time);
 					fflush(stderr);
 				}
 			}

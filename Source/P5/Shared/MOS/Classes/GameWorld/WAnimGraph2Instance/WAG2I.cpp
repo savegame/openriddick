@@ -1060,6 +1060,46 @@ int32 CWAG2I::GetAnimVelocity(const CWAG2I_Context* _pContext, CVec3Dfp32& _Move
 		CQuatfp32 TempRot;
 		_RotVelocity.Lerp(dRot, BlendFactor, TempRot);
 		_RotVelocity = TempRot;
+
+		// RIDDICK_DBG_ANIMV=1 -- «все бегают и скользят слишком быстро».
+		//
+		// Перемещение персонажа здесь и рождается: это РАЗНОСТЬ корневого
+		// трека на окне [t, t + TimeSpan*TimeScale], и она применяется как
+		// смещение ЗА ТИК (замер 2026-07-30: real/anim = 1.000, интеграция
+		// без dt). Значит скорость линейна по TimeScale:
+		//     units/сек = скорость_клипа * TimeScale
+		// При штатной тарировке это самосокращается -- m_TimeScale ставится
+		// как DestSpeed/AnimSpeed (WAG2I_StateInst.cpp:520), и на выходе
+		// должно получиться ровно DestSpeed. Если не получается -- петля не
+		// замыкается, и вот три числа, которые это показывают:
+		//   want   -- DestSpeed, сколько хотел AI (units/сек);
+		//   got    -- |dMove| / TimeSpan, сколько реально просит анимация;
+		//   ratio  -- got/want. Единица -- всё честно, дефект не здесь.
+		// Заодно печатается, откуда взялся TimeScale: авторский из
+		// анимграфа или посчитанный тарировкой.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANIMV");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 120 && TimeSpan > 0.0f)
+			{
+				++s_n;
+				const fp32 Want = m_pEvaluator ? m_pEvaluator->GetDestinationSpeed() : -1.0f;
+				const fp32 Got = dMove.v3.Length() / TimeSpan;
+				fprintf(stderr,
+					"[ANIMV] obj=%d layer=%d t=%.3f scale=%.3f span=%.4f dMove=%.3f got=%.1f want=%.1f ratio=%.2f blend=%.2f loop=%d\n",
+					_pContext->m_pObj ? _pContext->m_pObj->m_iObject : -1,
+					iLayer, Layer.m_Time, Layer.m_TimeScale, TimeSpan,
+					dMove.v3.Length(), Got, Want,
+					(Want > 0.0f) ? (Got / Want) : -1.0f,
+					BlendFactor, bLooping ? 1 : 0);
+				fflush(stderr);
+			}
+		}
 	}
 
 //	UnacquireAllResources();
