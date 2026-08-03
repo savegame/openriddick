@@ -1395,3 +1395,82 @@ _Msg.m_Param0);`
 скрипт.
 
 `RIDDICK_CHAR_ACTIVATE=0` возвращает прежнее поведение.
+
+---
+
+## §24. Подсказка над персонажем: focus-frame здоров, рендерер не портирован
+
+**Прогон 17** (`pa1_prisonarea`, `RIDDICK_DBG_FOCUS=1 RIDDICK_DBG_SEL=1
+RIDDICK_DBG_USE=1 RIDDICK_DBG_VIEW=1 RIDDICK_DBG_LETTERBOX=1`).
+
+### Замер
+
+```
+[SEL]   iSel=74 type=1(base=1 invalid=0 proxy=0) close=74 name='BARBER'
+[FOCUS] iObj=74 type=1 path=3 aiPrio=0x40 canAct=0 useNameOk=1
+        use='§LCHAR_NAME_AI_PA1_INMATE_BARBER'
+        desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
+[FOCUS] iObj=104 type=1 path=3 aiPrio=0x40 ... use='§LCHAR_NAME_AI_PA1_INMATE_JIMBO'
+[FOCUS] iObj=29  type=3 path=0 ... useNameOk=1 use='§Lacs_name_flushtoilet'
+```
+
+`path=3` — нормальный проход `Char_ShowInFocusFrame` до ACS-блока;
+`aiPrio=0x40` (`PRIO_IDLE`) — выход по AI-приоритету не сработал;
+`useNameOk=1`, текст непуст. **Версия «виноват AI-приоритет» закрыта, вся
+серверная часть focus-frame здорова.**
+
+### Что оказалось ошибкой в постановке задачи
+
+Мы сравнивали персонажа с унитазом как «одно и то же, только у одного
+работает». Это неверно — подсказки приходят из разных мест:
+
+| Объект | Источник подсказки |
+|---|---|
+| ACS (унитаз) | `pCD->m_ChoiceString` на `OBJMSG_CHAR_GETCHOICES` (`WObj_ActionCutscene.cpp:1028`) |
+| персонаж | список `m_liDialogueChoice` на том же сообщении (`WObj_CharMsg.cpp:4927`); пустой → `nChoices=0` → клиент не рисует ничего |
+
+А `UseText`/`DescText`, которые мы измеряли, **не рисует никто**: рендерер
+focus-frame в исходниках выключен авторами —
+`WObj_CharRender.cpp:1004`, `#if 0` с комментарием
+«JK-NOTE: Focus frame is broken, do not use without rewrite».
+
+### Сверка с ретейлом
+
+В ретейле рендерер есть. `GameClasses_Win32_x86_dll_decomp.c:96628-96665`:
+
+```c
+pcVar3 = *(char **)(param_2 + 0x20);            // UseText
+if (*pcVar3 == -0x59 /* 0xA7 = '§' */ && pcVar3[1] == 'L') bVar25 = true;
+uVar32 = bVar25 ? 2 : 0;
+while (pcVar3[uVar32]) { if (pcVar3[uVar32] == -0x59) { pcVar3[uVar32]=0; break; } uVar32++; }
+if (Localize_KeyExists(bVar25 ? pcVar3+2 : pcVar3)) {
+    Localize_Str(pcVar3, buf, 0x400);
+    pcVar3 = *(char **)(param_2 + 0x24);        // DescText, так же
+    ...
+}                                                // ключа нет -> не рисуем ничего
+```
+
+То есть ретейл: снимает префикс `§L`, обрезает строку на следующем `§`,
+проверяет ключ через `Localize_KeyExists` и рисует только при наличии.
+Соответствие полей: `param_2+0x20` = `m_FocusFrameUseText`,
+`param_2+0x24` = `m_FocusFrameDescText` (порядок и типы совпадают с
+`WObj_CharClientData.h`). Записано в `Docs/Decomp_Map.md`.
+
+### Следствие
+
+Задача расщепилась на две независимые:
+
+1. **Подсказка-«выбор»** (`m_liDialogueChoice`) — почему список пуст.
+   Заполняется только из `EvalDialogueLink` при цели `player`
+   (`WObj_CharDialogue.cpp:1131`). Меряем `RIDDICK_DBG_CHOICES=1` +
+   штатной трассой `RIDDICK_DBG_DLG=1`.
+2. **Focus-frame HUD** — не портирован вовсе. Восстанавливать по
+   декомпилу выше; работа отдельная и после того, как заработают диалоги.
+
+### Побочный результат: кинополосы
+
+`RIDDICK_DBG_LETTERBOX=1` не дал **ни одной** строки, хотя зонд стоял
+внутри блока отрисовки полос и флаг был в баннере `[FLAGS]`. Единственное
+место, где движок рисует кинополосы (`XREngine.cpp:4898`, под
+`XR_VIEWFLAGS_WIDESCREEN`), не выполняется. Чёрная полоса внизу экрана —
+не они.

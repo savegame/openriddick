@@ -4156,6 +4156,23 @@ bool CWObject_Character::CanUse(int _iUser)
 
 int CWObject_Character::OnUse(int _iUser, int _Param)
 {
+	// RIDDICK_DBG_USEDLG=1 -- почему нажатие "использовать" на персонаже ничего
+	// не даёт. Замер показал: OnUse доходит, но пять нажатий из шести
+	// возвращают 0. Кандидатов на ранний выход ровно два -- CanUse() и
+	// невалидный approach-item, и они означают совершенно разное:
+	//   * CanUse=0 при sinceUse<40 -- это штатный двухсекундный кулдаун
+	//     (m_LastUsedTick), то есть НЕ дефект;
+	//   * approach=0 -- персонажу никто не назначил approach-реплику
+	//     (OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH из события SETITEM_APPROACH),
+	//     то есть дефект в скриптах уровня, а не в коде диалога.
+	// Печатаем оба, плюс всё, из чего складывается CanUse.
+	static int s_DbgUseDlg = -1;
+	if (s_DbgUseDlg < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_USEDLG");
+		s_DbgUseDlg = (e && *e && *e != '0') ? 1 : 0;
+	}
+
 	CWO_Character_ClientData *pCD = CWObject_Character::GetClientData(this);
 	if (!pCD) return 0;
 
@@ -4165,6 +4182,31 @@ int CWObject_Character::OnUse(int _iUser, int _Param)
 	bool bIsConscious = (pAI && pAI->IsConscious());
 	bool bIsStunned = ((pCD->m_ExtraFlags & PLAYER_EXTRAFLAGS_STUNNED) != 0);
 	bool bDevourOk = (bHasHeartLeft && (bIsDead || !bIsConscious || bIsStunned));
+
+	if (s_DbgUseDlg)
+	{
+		static int s_n = 0;
+		if (s_n < 40)
+		{
+			++s_n;
+			const CDialogueLink Appr = m_DialogueItems.m_Approach;
+			const CDialogueLink ApprS = m_DialogueItems.m_ApproachScared;
+			fprintf(stderr, "[USEDLG] '%s' user=%d param=%d canUse=%d ctrlMode=%d isPlayer=%d "
+				"fighting=%d sinceUse=%d enemy=%d prio=0x%x approach=%d approachScared=%d "
+				"choices=%d devourOk=%d\n",
+				GetName() ? GetName() : "-", _iUser, _Param,
+				CanUse(_iUser) ? 1 : 0,
+				(int)Char_GetControlMode(this), (int)(pCD->m_iPlayer != -1),
+				(int)pCD->m_iFightingCharacter,
+				(int)(m_pWServer->GetGameTick() - m_LastUsedTick),
+				(m_spAI && m_spAI->IsEnemy(_iUser)) ? 1 : 0,
+				m_spAI ? (unsigned)m_spAI->GetCurrentPriorityClass() : 0u,
+				Appr.IsValid() ? 1 : 0, ApprS.IsValid() ? 1 : 0,
+				(int)pCD->m_liDialogueChoice.Len(), bDevourOk ? 1 : 0);
+			fflush(stderr);
+		}
+	}
+
 	if (!CanUse(_iUser) && !bDevourOk)
 		return 0;
 

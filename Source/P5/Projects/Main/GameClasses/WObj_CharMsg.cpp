@@ -4925,6 +4925,43 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 
 			CStr *pSt = (CStr *)_Msg.m_pData;
 			int nChoices = pCD->m_liDialogueChoice.Len();
+
+			// RIDDICK_DBG_CHOICES=1 -- откуда берётся подсказка над персонажем.
+			//
+			// Найдено замером: подсказка у персонажа и у ACS-объекта (унитаза)
+			// приходят из РАЗНЫХ мест. У ACS это `m_ChoiceString`
+			// (WObj_ActionCutscene.cpp:1028) -- поэтому унитаз подсказку
+			// показывает. У персонажа -- вот этот список
+			// `m_liDialogueChoice`, и если он пуст, обработчик возвращает 0,
+			// клиент получает nChoices=0 и НЕ рисует ничего. Именно так
+			// выглядит наш симптом.
+			// Значит `use='§LCHAR_NAME_...'` из [FOCUS] к подсказке отношения
+			// не имеет: focus-frame рендерер в наших исходниках отключён
+			// (`#if 0`, WObj_CharRender.cpp:1004, «Focus frame is broken»).
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_CHOICES");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_On)
+				{
+					static int s_LastN = -1;
+					static int s_LastObj = -1;
+					static int s_n = 0;
+					if ((nChoices != s_LastN || _pObj->m_iObject != s_LastObj) && s_n < 40)
+					{
+						++s_n;
+						s_LastN = nChoices;
+						s_LastObj = _pObj->m_iObject;
+						fprintf(stderr, "[CHOICES] char obj=%d nChoices=%d dlgTick=%d\n",
+							(int)_pObj->m_iObject, nChoices, (int)pCD->m_DialogueChoiceTick);
+						fflush(stderr);
+					}
+				}
+			}
+
 			if(nChoices && pSt)
 			{
 				CWObject_Client *pPlayer = _pWClient->Object_Get(_Msg.m_iSender);

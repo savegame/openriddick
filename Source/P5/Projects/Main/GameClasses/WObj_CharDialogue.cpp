@@ -22,8 +22,33 @@ static void M_ARGLISTCALL MultiLog(const char* _pStr, ...)
 	M_TRACEALWAYS("%s\n", lBuffer);
 }*/
 #define DO_IF(x) (!(x)) ? (void)0 :
-#define DBG_OUT_LOG DO_IF(0) M_TRACEALWAYS			//MultiLog
-#define DBG_OUT DO_IF(0) M_TRACEALWAYS
+
+// RIDDICK_DBG_DLG=1 -- включает ШТАТНУЮ трассу диалоговой системы, которую
+// авторы движка оставили в коде за `DO_IF(0)`. Тот же приём уже сработал с
+// анимграфом (AG2I_DEBUG_FLAGS): встроенная трасса точнее самодельных зондов,
+// потому что печатает ровно те решения, которые принимает движок.
+//
+// Что она показывает: EvalDialogueLink (какие события пришли из ресурса
+// диалога), SetItem (назначение APPROACH/THREATEN/IGNORE/TIMEOUT/EXIT
+// персонажам), выбор целей и запуск реплик. Именно SetItem отвечает на
+// вопрос «почему нельзя заговорить»: `Char_GetDialogueApproachItem` отдаёт
+// `m_DialogueItems.m_Approach`, а он ставится ТОЛЬКО сообщением
+// OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH из события SETITEM_APPROACH. Если в
+// логе нет ни одной строки SetItem -- скрипты уровня не раздали персонажам
+// approach-реплики, и чинить надо их, а не диалоговый рантайм.
+static bool Riddick_DlgTrace()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLG");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+#define DBG_OUT_LOG DO_IF(Riddick_DlgTrace()) M_TRACEALWAYS			//MultiLog
+#define DBG_OUT DO_IF(Riddick_DlgTrace()) M_TRACEALWAYS
 
 
 #define PLAYER_CLIENTFLAGS_DIALOGUECOMBO (PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK | PLAYER_CLIENTFLAGS_DIALOGUE)

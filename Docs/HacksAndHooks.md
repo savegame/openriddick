@@ -2703,6 +2703,53 @@ CLAMP они получали полосу цвета кромки). Проек�
   Непустой `use=` при `path=3` означает, что game-side состояние верное и
   дефект в HUD/локализации; пустой при `path=2` — виноват AI-приоритет.
 
+### RIDDICK_DBG_DLG / _USEDLG / _CHOICES — подсказка и активация (2026-08-03)
+
+Замер `RIDDICK_DBG_FOCUS` закрыл первую версию: game-side состояние
+персонажа **корректно** —
+`[FOCUS] iObj=74 type=1 path=3 aiPrio=0x40 canAct=0 useNameOk=1
+use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'`.
+Проход нормальный (`path=3`), AI-приоритет низкий (`0x40` = `PRIO_IDLE`),
+`UseText` непуст. Значит ни отбор целей, ни AI-приоритет ни при чём.
+
+Разбор показал, что подсказки у персонажа и у унитаза приходят из **разных
+мест**, и сравнивать их было ошибкой:
+- ACS-объект (унитаз) отдаёт `pCD->m_ChoiceString` на
+  `OBJMSG_CHAR_GETCHOICES` (`WObj_ActionCutscene.cpp:1028`) — работает;
+- персонаж на то же сообщение отдаёт список `m_liDialogueChoice`
+  (`WObj_CharMsg.cpp:4927`); пустой список → `nChoices=0` → клиент не рисует
+  ничего;
+- а `UseText`/`DescText` из focus-frame у нас вообще никто не рисует:
+  единственный рендерер focus-frame выключен в исходниках
+  (`#if 0`, `WObj_CharRender.cpp:1004`, комментарий авторов «Focus frame is
+  broken, do not use without rewrite»). В ретейле он есть — в декомпиле
+  видно `Localize_KeyExists`/`Localize_Str` над этими двумя строками
+  (`GameClasses_Win32_x86_dll_decomp.c:96653`), и при отсутствии ключа
+  ретейл тоже не рисует ничего.
+
+- **DBG** `RIDDICK_DBG_DLG=1` (`WObj_CharDialogue.cpp`) — включает
+  **штатную** трассу диалоговой системы, оставленную авторами за `DO_IF(0)`
+  (тот же приём, что с `AG2I_DEBUG_FLAGS`). Печатает `EvalDialogueLink`,
+  `SetItem (N): <item>`, выбор целей, запуск реплик. Ключевая строка —
+  `SetItem`: `Char_GetDialogueApproachItem` отдаёт
+  `m_DialogueItems.m_Approach`, а тот ставится только сообщением
+  `OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH` из события `SETITEM_APPROACH`.
+  Нет строк `SetItem` → approach-реплики персонажам не раздали скрипты
+  уровня.
+
+- **DBG** `RIDDICK_DBG_USEDLG=1` (`WObj_CharMechanics.cpp`, `OnUse`, 40
+  строк): `[USEDLG] '<имя>' user= param= canUse= ctrlMode= isPlayer=
+  fighting= sinceUse= enemy= prio= approach= approachScared= choices=
+  devourOk=`. Разделяет два разных «ничего не произошло»: `canUse=0` при
+  `sinceUse<40` — это штатный двухсекундный кулдаун `m_LastUsedTick`
+  (`CanUse`, `WObj_CharMechanics.cpp:4146`), то есть не дефект;
+  `approach=0` — дефект в скриптах уровня.
+
+- **DBG** `RIDDICK_DBG_CHOICES=1` (`WObj_CharMsg.cpp`, клиентский
+  `OBJMSG_CHAR_GETCHOICES`, только смена значения, 40 строк):
+  `[CHOICES] char obj= nChoices= dlgTick=` — пуст ли список выборов, из
+  которого строится подсказка.
+
 ### RIDDICK_DBG_LETTERBOX — кинополосы (2026-08-03, зонд переставлен)
 
 - **DBG** `RIDDICK_DBG_LETTERBOX=1` (`XREngine.cpp`, `Engine_PostProcess`):
