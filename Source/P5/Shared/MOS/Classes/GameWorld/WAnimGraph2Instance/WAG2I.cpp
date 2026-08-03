@@ -1,4 +1,6 @@
 #include "PCH.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 //--------------------------------------------------------------------------------
 
@@ -2291,6 +2293,32 @@ void CWAG2I::MoveAction(const CWAG2I_Context* _pContext, CAG2AnimGraphID _iAnimG
 void CWAG2I::MoveGraphBlock(const CWAG2I_Context* _pContext, CAG2AnimGraphID _iAnimGraph, int8 _ActionTokenID, int16 _iMoveToken, fp32 _ForceOffset, int32 _MaxQueued)
 {
 	MSCOPE(CWAG2I::MoveGraphBlock, WAG2I);
+
+	// RIDDICK_DBG_AG2=1 -- каждый ЗАПРОШЕННЫЙ переход графа состояний.
+	// Ради чего: статические анимации играют, активные замирают, NPC не
+	// стреляют (port_status.md, A). Выстрел идёт через состояние анимграфа
+	// (анимация атаки -> событие -> выстрел), поэтому «не переходит» и «не
+	// стреляет» -- один и тот же отказ. Отказы НИЖЕ по функции уже
+	// логируются (AnimGraph BROKEN / INVALID MOVETOKEN), но по ним не видно
+	// главного: сколько переходов вообще запрашивается. Если строк [AG2] req
+	// нет вовсе или их единицы -- до анимграфа не доходит игровая логика, и
+	// искать надо в AI/скриптах, а не здесь.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_n = 0;
+		if (s_On && s_n < 400)
+		{
+			++s_n;
+			fprintf(stderr, "[AG2] req token=%d iMT=%d iAG=%d\n",
+				(int)_ActionTokenID, (int)_iMoveToken, (int)_iAnimGraph);
+			fflush(stderr);
+		}
+	}
 
 	// FIXME: Think about error checking OnLeaveState/OnEnterState, etc...
 

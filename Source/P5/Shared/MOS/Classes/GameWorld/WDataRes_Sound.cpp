@@ -695,6 +695,22 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 	}
 	else
 	{
+		// [DLG] name -- что именно приходит в Name. Ключевой вопрос после
+		// разбора списков файлов (Docs/Research_Scripts_Dialogue.md §7):
+		// PC-контент раскладывает диалоги ПО ПОДПАПКАМ
+		// (Dialogues/PA2/Pa2_Diner/Dlg_Barrasa.xrg), а путь тут строится
+		// плоским. Если в Name голое имя -- нужен рекурсивный поиск по
+		// Content/Dialogues/**; если Name уже несёт подпуть -- дело в
+		// разделителях или регистре. Без флага, строк мало.
+		{
+			static int s_n = 0;
+			if (s_n < 40)
+			{
+				++s_n;
+				fprintf(stderr, "[DLG] name='%s'\n", Name.Str());
+				fflush(stderr);
+			}
+		}
 		CStr FileName = _pWData->ResolveFileName("DIALOGUES\\" + Name + ".XCD");
 		if(CDiskUtil::FileExists(FileName))
 			// Check if there is a content compiled version first
