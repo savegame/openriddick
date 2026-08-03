@@ -19,7 +19,7 @@
 //#include "../GameWorld/FrontEnd/WFrontEnd.h"
 #include "../Video/MVideo.h"
 #include "../../MSystem/Misc/MRegistry_Compiled.h"
-#include "../../Shared/mos/Classes/GameWorld/Client/WClient_Sound.h"
+#include "../../Shared/MOS/Classes/GameWorld/Client/WClient_Sound.h"
 
 #define WMODE_SERVER		1
 #define WMODE_LOCALCLIENT	2

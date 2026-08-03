@@ -1,6 +1,6 @@
 #include "PCH.h"
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MCC.h"
 #include "XRNavGraph.h"
 #include "../MSystem/MSystem.h"

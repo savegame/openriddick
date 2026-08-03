@@ -1,8 +1,8 @@
 #ifndef _INC_XRNavGraph
 #define _INC_XRNavGraph
 
-#include "MRTC.h"
-#include "MDA.h"
+#include "Mrtc.h"
+#include "Mda.h"
 #include "MMath.h"
 #include "MDA_Hash.h"
 

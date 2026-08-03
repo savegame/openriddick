@@ -17,7 +17,7 @@
 #ifndef __INC_MMEMMGRPOOL
 #define __INC_MMEMMGRPOOL
 
-#include "MDA.h"
+#include "Mda.h"
 
 // -------------------------------------------------------------------
 //  TStaticHeap

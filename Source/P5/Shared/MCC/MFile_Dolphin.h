@@ -10,7 +10,7 @@
 #if !defined __INC_MFILE_DOLPHIN && defined PLATFORM_DOLPHIN
 #define __INC_MFILE_DOLPHIN
 
-#include "MRTC.h"
+#include "Mrtc.h"
 
 
 // Utility for converting backslashes into slashes..

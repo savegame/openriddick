@@ -17,9 +17,9 @@
 #include "../GameWorld/WServerMod.h"
 #include "../../Shared/MOS/Classes/GameContext/WGameContext.h"
 #include "../../Shared/MOS/XR/XRBlockNav.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
-#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/Wag2i.h"
-#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/Wag2_clientdata.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/WAG2I.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/WAG2_ClientData.h"
 #include "../../../Shared/MOS/Classes/GameWorld/FrontEnd/WFrontEnd.h"
 
 #include "CConstraintSystem.h"

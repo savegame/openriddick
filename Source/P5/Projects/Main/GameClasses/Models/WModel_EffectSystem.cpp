@@ -42,8 +42,8 @@ History:
 #include "WModel_EffectSystem.h"
 #include "../WObj_Misc/WObj_EffectSystem.h"
 //#include "../WObj_Misc/WObj_TentacleSystem_ClientData.h"
-#include "../../../../Shared/mos/Classes/GameWorld/Client/WClient.h"
-#include "../../../../Shared/mos/Classes/GameWorld/WObjCore.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/Client/WClient.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjCore.h"
 #include "../../../../Shared/MOS/XR/XREngineImp.h"
 #include "../../../../Shared/MOS/XR/XREngineVar.h"
 

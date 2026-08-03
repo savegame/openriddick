@@ -3,7 +3,7 @@
 
 #if !defined(M_DISABLE_TODELETE) || 1
 
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "../WObj_Messages.h"
 
 // -------------------------------------------------------------------

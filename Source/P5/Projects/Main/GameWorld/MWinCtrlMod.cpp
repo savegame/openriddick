@@ -7,7 +7,7 @@
 #include "../Exe/WGameContextMain.h"
 #include "WFrontEndMod.h"
 
-#include "../../../Shared/MOS/MSystem/Raster/MRender_nVidia.h"
+#include "../../../Shared/MOS/MSystem/Raster/MRender_NVidia.h"
 
 MRTC_IMPLEMENT_DYNAMIC(CMWnd_ModButton, CMWnd_Button);
 MRTC_IMPLEMENT_DYNAMIC(CMWnd_CubeButton, CMWnd_ModButton);

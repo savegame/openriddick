@@ -20,7 +20,7 @@
 #include "../WObj_Messages.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_AutoVar.h"
-#include "WObj_TentacleSystem_Clientdata.h"
+#include "WObj_TentacleSystem_ClientData.h"
 
 #define CWObject_CreepingDarkParent CWObject
 #define CREEPINGDARK_MAX_CAMERATILT 0.18f

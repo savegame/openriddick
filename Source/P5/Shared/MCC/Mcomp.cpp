@@ -18,7 +18,7 @@
 
 
 #include "PCH.h"
-#include "MComp.h"
+#include "Mcomp.h"
 #include "MFloat.h"
 
 ////////////////////////////
@@ -2428,7 +2428,7 @@ void* CLZSS::DecompressWithHuffman(void *Source, void *Destination)
 // ZLIB //
 //////////
 
-#include "../../Sdk/ZLib/zlib.h"
+#include "../../SDK/ZLib/zlib.h"
 
 /*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 Function:  Sets the ZLIB compression settings

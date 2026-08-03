@@ -13,8 +13,8 @@
 \*____________________________________________________________________________________________*/
 
 
-#include "MRTC.h"
-#include "MDA.h"
+#include "Mrtc.h"
+#include "Mda.h"
 
 class CWorld_Server;
 class CWObject_Message;

@@ -3,7 +3,7 @@
 #include "WRPGRifle.h"
 #include "WRPGChar.h"
 #include "../WObj_Char.h"
-#include "../WObj_Ai/AI_Def.h"
+#include "../WObj_AI/AI_Def.h"
 
 MRTC_IMPLEMENT_DYNAMIC(CRPG_Object_Rifle, CRPG_Object_Weapon);
 

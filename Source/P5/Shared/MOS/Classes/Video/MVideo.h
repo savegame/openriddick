@@ -13,7 +13,7 @@
 
 #if !defined( PLATFORM_PS2 ) && !defined( PLATFORM_DOLPHIN )
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "../../MSystem/Raster/MImage.h"
 
 class CVideoFile : public CReferenceCount

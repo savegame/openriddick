@@ -1,4 +1,4 @@
-#include "MRTC.h"
+#include "Mrtc.h"
 
 int CBS_Compress(const uint8* _pBits, int _Len, uint8* _pOut);
 int CBS_Uncompress(const uint8* _pBits, int _Len, uint8* _pOut);

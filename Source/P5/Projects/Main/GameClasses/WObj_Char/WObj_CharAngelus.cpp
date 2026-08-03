@@ -25,7 +25,7 @@
 #include "../WObj_Misc/WObj_EffectSystem.h"
 #include "../WObj_Misc/WObj_ActionCutscene.h"
 #include "../WObj_Misc/WObj_AnimEventListener.h"
-#include "../WObj_Misc/WObj_ActionCutsceneCamera.h"
+#include "../WObj_Misc/WObj_ActionCutscenecamera.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WDataRes_FacialSetup.h"
 
 

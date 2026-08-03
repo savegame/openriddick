@@ -1,7 +1,7 @@
 #ifndef _INC_XRCloth
 #define _INC_XRCloth
 
-#include "../../Shared/mos/xr/XRSkeleton.h"
+#include "../../Shared/MOS/XR/XRSkeleton.h"
 #include "XRAnimData.h"
 
 

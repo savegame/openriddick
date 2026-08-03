@@ -195,7 +195,7 @@ void CXDF::Read(CCFile *_pFile)
 
 }
 
-#include "../../sdk/ZLib/zlib.h"
+#include "../../SDK/ZLib/zlib.h"
 
 class CCompressedStreamGenerate
 {

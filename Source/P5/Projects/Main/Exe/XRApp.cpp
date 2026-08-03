@@ -1,7 +1,7 @@
 #include "PCH.h"
 #include <cstdio>
 #include <cstdlib>	// getenv/atoi (RIDDICK_VBHEAP)
-#include "MRTC_Callgraph.h"
+#include "MRTC_CallGraph.h"
 #include "../../Shared/MOS/MMain.h"
 #include "../../Shared/MOS/Classes/Render/MRenderCapture.h"
 #include "../../Shared/MOS/Classes/Win/MWinGrph.h"
@@ -1918,7 +1918,7 @@ void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 MRTC_IMPLEMENT_DYNAMIC(CXRealityApp, CApplication)
 
 
-#include "mfloat.h"
+#include "MFloat.h"
 CXRealityApp::CXRealityApp()
 {
 

@@ -7,7 +7,7 @@
 #include "../../XR/XRShader.h"
 #include "../../XR/XRVBContext.h"
 
-#include "../Model_Trimesh/WTriMeshRIP.h"
+#include "../Model_TriMesh/WTriMeshRIP.h"
 
 MRTC_IMPLEMENT_DYNAMIC(CXR_Model_MultiTriMesh, CXR_Model);
 IMPLEMENT_OPERATOR_NEW(CXR_Model_MultiTriMesh);

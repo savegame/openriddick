@@ -20,7 +20,7 @@
 #include "MCCInc.h"
 
 class CCFile;
-#include "MDA.h"
+#include "Mda.h"
 
 #include "MFile_StreamMgr.h"
 

@@ -1,4 +1,4 @@
-#include "MRTC.h"
+#include "Mrtc.h"
 
 class CRegisterMCC
 {

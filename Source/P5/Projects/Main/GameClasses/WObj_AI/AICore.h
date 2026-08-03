@@ -35,7 +35,7 @@ class CWObject_ScenePointManager;
 #include "AI_Pathfinder.h"
 #include "AI_KnowledgeBase.h"
 #include "WObj_Aux/WObj_Team.h"
-#include "../Wrpg/WRPGWeapon.h"
+#include "../WRPG/WRPGWeapon.h"
 
 // Macros for checking if a CVec3Dfp32 is invalid or not (not stack object, no constructor call, one check)
 #define INVALID_POS(p) (p[0] == _FP32_MAX)

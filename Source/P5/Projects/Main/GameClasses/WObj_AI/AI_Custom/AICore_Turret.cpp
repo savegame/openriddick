@@ -1,6 +1,6 @@
 #include "PCH.h"
 #include "AICore_Turret.h"
-#include "../../../../shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "../../WObj_Game/WObj_GameMessages.h"
 #include "../../WObj_CharMsg.h"
 #include "../../WObj_Char.h"

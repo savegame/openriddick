@@ -1,5 +1,5 @@
 #include "PCH.h"
-#include "WOBJ_Model_Moth.h"
+#include "WObj_Model_Moth.h"
 #include "../WObj_Game/WObj_GameMessages.h"
 
 //int CWObject_Model_Moth::ms_NumButterflies = 0;

@@ -10,7 +10,7 @@
 // FULLANIMLAYERS census in AnimGraph2_IO.cpp still has something to print.
 int g_AG2LayerOpacityRestored = 0;
 int g_AG2LayerOpacityKept = 0;
-#include "MDA.h"
+#include "Mda.h"
 #include "MFile.h"
 #include "AnimGraph2_AnimLayer.h"
 

@@ -46,7 +46,7 @@
 #ifndef _COMPRESSION_CLASSES_
 #define _COMPRESSION_CLASSES_
 
-#include "MDA.h"
+#include "Mda.h"
 #include "MFile.h"
 
 #define	MEM_UNALIGNED_READUINT16LE( a )	(((uint32)*((uint8*)(a)+0)<<0) | ((uint32)*((uint8*)(a)+1)<<8))

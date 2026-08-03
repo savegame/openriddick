@@ -4,7 +4,7 @@
 #include "../../XR/XRVBManager.h"
 #include "MFloat.h"
 #include "../../MSystem/Misc/MLocalizer.h"
-#include "../../MSystem/Raster/MTextureContainerxtc2.h"
+#include "../../MSystem/Raster/MTextureContainerXTC2.h"
 
 #define CRC_MAXSTRFORMAT	512
 

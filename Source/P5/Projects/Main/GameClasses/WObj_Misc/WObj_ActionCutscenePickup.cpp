@@ -21,7 +21,7 @@
 #include "../WObj_Weapons/WObj_Spells.h"
 #include "../WRPG/WRPGSpell.h"
 #include "../WRPG/WRPGChar.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
 #include "../../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"

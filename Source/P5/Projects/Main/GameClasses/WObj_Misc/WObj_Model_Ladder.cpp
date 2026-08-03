@@ -14,7 +14,7 @@
 \*____________________________________________________________________________________________*/
 
 #include "PCH.h"
-#include "WOBJ_Model_Ladder.h"
+#include "WObj_Model_Ladder.h"
 #include "../WObj_Game/WObj_GameMessages.h"
 //#include "../WRPG/WRPGFist.h"
 #include "../WObj_CharMsg.h"

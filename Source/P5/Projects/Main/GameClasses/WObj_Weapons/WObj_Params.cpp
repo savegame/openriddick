@@ -2,7 +2,7 @@
 #include "WObj_Params.h"
 #include "../WRPG/WRPGCore.h"
 #include "../WObj_Char.h"
-#include "../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
 //-------------------------------------------------------------------
 //- CWO_CameraShake ----------------------------------------------------

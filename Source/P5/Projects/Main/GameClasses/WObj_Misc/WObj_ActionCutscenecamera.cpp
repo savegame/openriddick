@@ -14,7 +14,7 @@
 \*____________________________________________________________________________________________*/
 
 #include "PCH.h"
-#include "WObj_ActionCutsceneCamera.h"
+#include "WObj_ActionCutscenecamera.h"
 #include "../WObj_Char.h"
 #include "../WObj_Game/WObj_GameMessages.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"

@@ -14,7 +14,7 @@
 
 //#define CHECK_STATIONERY
 
-#include "pch.h" 
+#include "PCH.h" 
 
 //#define DYNAMICS_DISABLE_CONSTRAINTS
 #define DYNAMICS_FREEZE_OBJECTS

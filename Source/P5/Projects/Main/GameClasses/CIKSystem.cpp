@@ -16,7 +16,7 @@ History:
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 #include "CIKSystem.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "WObj_Char/WObj_CharDarkling_ClientData.h"
 #include "../../Shared/MOS/Classes/GameWorld/Client/WClient.h"
 #include "WObj_Char.h"

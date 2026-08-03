@@ -15,7 +15,7 @@
 \*_____________________________________________________________________________________________*/
 
 #include "PCH.h"
-#include "MDA.h"
+#include "Mda.h"
 #include "MFile.h"
 
 /*#ifdef COMPILER_CODEWARRIOR

@@ -14,9 +14,9 @@ History:
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 #include "WObj_CharShapeshifter.h"
-#include "../wrpg/WRPGChar.h"
-#include "../wrpg/WRPGItem.h"
-#include "../wrpg/WRPGFist.h"
+#include "../WRPG/WRPGChar.h"
+#include "../WRPG/WRPGItem.h"
+#include "../WRPG/WRPGFist.h"
 #include "../WObj_Game/WObj_GameMod.h"
 #include "../../GameWorld/WClientMod_Defines.h"
 

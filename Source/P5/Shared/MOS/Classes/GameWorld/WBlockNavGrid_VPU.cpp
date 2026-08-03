@@ -152,7 +152,7 @@ namespace NNavGridVPU {
 
 
 	#include <MDA_PQueue.h>
-	#include "VPUWorkerNavGrid.h"
+	#include "vpuworkernavgrid.h"
 	#include "../../XR/XRBlockNav.inl"
 	#include "../../XR/XRBlockNavResult.inl"
 }

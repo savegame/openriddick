@@ -1,4 +1,4 @@
-#include "../../../../Shared/Mos/MMain.h"
+#include "../../../../Shared/MOS/MMain.h"
 
 // #define NOMOS
 
@@ -19,7 +19,7 @@
 #elif defined PLATFORM_WIN_PC
 	#include <windows.h>
 	#include <vfw.h>
-	#include "../../../../Shared/Mos/Classes/Video/MVideo.h"
+	#include "../../../../Shared/MOS/Classes/Video/MVideo.h"
 
 #else
 	#ifdef PLATFORM_SHINOBI
@@ -32,17 +32,17 @@
 	#endif
 #endif
 
-#include "../../../../Shared/Mos/MOS.h"
-#include "../../../../Shared/Mos/Classes/Render/MRenderCapture.h"
+#include "../../../../Shared/MOS/MOS.h"
+#include "../../../../Shared/MOS/Classes/Render/MRenderCapture.h"
 #include "../../../../Shared/MOS/Classes/Win/MWinGrph.h"
-#include "../../../../Shared/Mos/Classes/Render/MRenderUtil.h"
-#include "../../../../Shared/Mos/XR/XRVertexBuffer.h"
-#include "../../../../Shared/Mos/XR/XRVBManager.h"
+#include "../../../../Shared/MOS/Classes/Render/MRenderUtil.h"
+#include "../../../../Shared/MOS/XR/XRVertexBuffer.h"
+#include "../../../../Shared/MOS/XR/XRVBManager.h"
 #include "MFloat.h"
 
-#include "../../../../Shared/Mos/Classes/GameContext/WGameContext.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/Server/WServer.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WMapData.h"
+#include "../../../../Shared/MOS/Classes/GameContext/WGameContext.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/Server/WServer.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WMapData.h"
 //#include "../../../../Shared/Mos/XRModels/Model_BSP/WBSPDef.h"
 
 #include "../WGameContextMain.h"

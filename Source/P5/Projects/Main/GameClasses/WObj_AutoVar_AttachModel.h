@@ -1,7 +1,7 @@
 #ifndef __WOBJ_AUTOVAR_ATTACHMODEL_H
 #define __WOBJ_AUTOVAR_ATTACHMODEL_H
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMath.h"
 
 #define ATTACHMODEL_NUMMODELS 4

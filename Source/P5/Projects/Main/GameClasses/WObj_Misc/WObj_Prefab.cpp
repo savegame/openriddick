@@ -2,8 +2,8 @@
 
 #ifndef M_DISABLE_CURRENTPROJECT
 
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
 class CWObject_Prefab : public CWObject_Engine_Path
 {

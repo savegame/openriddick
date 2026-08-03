@@ -8,7 +8,7 @@
 #include "../../XR/XRShader.h"
 #include "../../XR/XRVBContext.h"
 #include "../../XR/XRVBUtil.h"
-#include "../../../mcc/MRTC_VPUManager.h"
+#include "../../../MCC/MRTC_VPUManager.h"
 #include "MMath_Vec128.h"
 
 #ifdef PLATFORM_LINUX

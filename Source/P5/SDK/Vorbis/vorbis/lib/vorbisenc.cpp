@@ -15,7 +15,7 @@
 
  ********************************************************************/
 
-#include "../../Shared/MCC/MRTC.h"
+#include "../../Shared/MCC/Mrtc.h"
 
 extern "C"
 {

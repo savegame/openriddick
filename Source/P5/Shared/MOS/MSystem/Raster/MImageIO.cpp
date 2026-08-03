@@ -3,11 +3,11 @@
 
 #include "MImageIO.h"
 #ifndef IMAGE_IO_NOJPG
-#include "JPGLib/JPegLib.h"
+#include "JPGLib/jpeglib.h"
 #endif
 
 #ifdef IMAGE_IO_PNG
-#include "../../SDK/Png/Png.h"
+#include "../../SDK/Png/png.h"
 #endif
 
 // -------------------------------------------------------------------

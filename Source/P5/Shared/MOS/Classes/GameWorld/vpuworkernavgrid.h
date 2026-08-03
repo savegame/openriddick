@@ -1,8 +1,8 @@
 
 //
-#include "../../xr/XRBlockNav.h"
+#include "../../XR/XRBlockNav.h"
 //#include "../../xr/XRBlockNavParam.h"
-#include "../../xr/XRBlockNavGrid_Shared.h"
+#include "../../XR/XRBlockNavGrid_Shared.h"
 
 #include "WPhysState_Hash.h"
 

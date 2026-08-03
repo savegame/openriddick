@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #include "png.h"
-#include "pngfile.h"
+#include "PngFile.h"
 #include "cexcept.h"
 
 define_exception_type(const char *);

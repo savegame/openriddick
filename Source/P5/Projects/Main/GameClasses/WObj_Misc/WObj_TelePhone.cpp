@@ -1,5 +1,5 @@
 #include "PCH.h"
-#include "WObj_Telephone.h"
+#include "WObj_TelePhone.h"
 #include "../WObj_Char.h"
 #include "../../GameWorld/WFrontEndMod.h"
 #include "../../Exe/WGameContextMain.h"

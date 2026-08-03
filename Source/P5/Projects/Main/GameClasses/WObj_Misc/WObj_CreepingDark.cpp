@@ -3,7 +3,7 @@
 #include "../WObj_Game/WObj_GameCore.h"
 #include "../WObj_Sys/WObj_Trigger.h"
 #include "WObj_TentacleSystem.h"
-#include "../../../../Shared/mos/XRModels/Model_BSP4Glass/WBSP4Glass.h"
+#include "../../../../Shared/MOS/XRModels/Model_BSP4Glass/WBSP4Glass.h"
 
 void RenderSphere(CWorld_PhysState* _pWPhys, const CVec3Dfp32& _Pos, fp32 _Size, fp32 _Duration = 1.0f, int32 _Color = 0xffffffff);
 

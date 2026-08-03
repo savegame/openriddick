@@ -25,7 +25,7 @@
 #include "WObj_Char.h"
 #include "WRPG/WRPGSpell.h"
 #include "Models/CSinRandTable.h"
-#include "WObj_Misc/WObj_ActionCutsceneCamera.h"
+#include "WObj_Misc/WObj_ActionCutscenecamera.h"
 #include "WObj_Misc/WObj_CreepingDark.h"
 
 //#define NEW_CAMERA

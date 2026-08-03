@@ -1,7 +1,7 @@
 #include "PCH.h"
 
 #ifndef PLATFORM_CONSOLE
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "XWSolid.h"
 #include "MFloat.h"
 #include "../../MSystem/Raster/MRender.h"

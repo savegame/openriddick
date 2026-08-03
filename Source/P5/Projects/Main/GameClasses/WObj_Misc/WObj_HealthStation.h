@@ -2,7 +2,7 @@
 #ifndef __WObj_HealthStation_h
 #define __WObj_HealthStation_h
 
-#include "WOBj_ActionCutscene.h"
+#include "WObj_ActionCutscene.h"
 
 enum
 {

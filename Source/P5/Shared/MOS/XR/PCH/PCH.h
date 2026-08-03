@@ -1,7 +1,7 @@
 
 #ifndef	COMPILER_CODEWARRIOR
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMath.h"
 #include "MMath_Vec128.h"
 #include "../../MSystem/MSystem.h"
@@ -24,7 +24,7 @@
 #include "../../XRModels/Model_Flare/WModel_Flare.h"
 #include "../../XRModels/Model_TriMesh/WTriMesh.h"
 #include "../../XRModels/Model_TriMesh/XMDCommn.h"
-#include "../../../MCC/MRTC.h"
+#include "../../../MCC/Mrtc.h"
 #include "../XRAnim.h"
 #include "../XRSkeleton.h"
 #include "../XRBlockNavGrid.h"

@@ -3,7 +3,7 @@
 #include "MFloat.h"
 #include "WBSP2Model.h"
 #include "WBSP2Def.h"
-#include "../../../mcc/MRTC_VPUManager.h"
+#include "../../../MCC/MRTC_VPUManager.h"
 
 // #define MODEL_BSP_NOATTRSHARING
 // -------------------------------------------------------------------

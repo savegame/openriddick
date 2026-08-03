@@ -4,7 +4,7 @@
 #include "../../GameWorld/WServerMod.h"
 #include "../WRPG/WRPGCore.h"
 #include "../WObj_Char.h"
-#include "../WObj_AI/AI_Knowledgebase.h"
+#include "../WObj_AI/AI_KnowledgeBase.h"
 #include "../WObj_Misc/WObj_Room.h"
 #include "../WObj_Misc/WObj_ScenePoint.h"
 #include "../WObj_Misc/WObj_Shell.h"

@@ -1,9 +1,9 @@
 //--------------------------------------------------------------------------------
 
 #include "PCH.h"
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMemMgrHeap.h"
-#include "MDA.h"
+#include "Mda.h"
 #include "AnimGraph.h"
 
 //--------------------------------------------------------------------------------

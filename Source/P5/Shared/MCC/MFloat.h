@@ -18,14 +18,14 @@
 
 \*____________________________________________________________________________________________*/
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMisc.h"
 
 //#include "GC/GC_Float.h"
 //#include "MFloat_PS2.h"
 #include "MFloat_PS3.h"
 #include "MFloat_Xenon.h"
-#include "MFloat_x86.h"
+#include "MFloat_X86.h"
 #include "MFloat_Linux.h"
 
 void MCCDLLEXPORT MFloat_Init();

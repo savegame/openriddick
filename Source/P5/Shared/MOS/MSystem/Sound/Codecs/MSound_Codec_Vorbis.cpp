@@ -4,7 +4,7 @@
 
 #ifndef IMAGE_IO_NOVORBIS
 
-#include "MRTC.h"
+#include "Mrtc.h"
 
 #include "../../MSystem.h"
 

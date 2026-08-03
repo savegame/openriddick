@@ -17,12 +17,12 @@ History:
 
 #include <stdio.h>    // RIDDICK_DBG_AG2FX diagnostic
 #include <stdlib.h>   // getenv
-#include "WObj_ActionCutScene.h"
+#include "WObj_ActionCutscene.h"
 #include "../WObj_Char.h"
 #include "../WObj_Game/WObj_GameMod.h"
 #include "../WObj_Player.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "../WRPG/WRPGChar.h"
 
 // RIDDICK_DBG_AG2FX=1: action-cutscene trigger tracing (see the probes in

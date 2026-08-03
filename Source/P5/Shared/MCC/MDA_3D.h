@@ -18,7 +18,7 @@
 #ifndef _INC_MDA3D
 #define _INC_MDA3D
 
-#include "MDA.h"
+#include "Mda.h"
 #include "MFile.h"
 #include "MMath.h"
 

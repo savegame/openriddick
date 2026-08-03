@@ -6,7 +6,7 @@
 #if defined(PLATFORM_XENON)
 #include "MTextureContainerWMV.h"
 
-#include "../../shared/mos/RenderContexts/xenon/MRenderXenon_Main.h"
+#include "../../Shared/MOS/RenderContexts/xenon/MRenderXenon_Main.h"
 
 
 #ifdef _DEBUG

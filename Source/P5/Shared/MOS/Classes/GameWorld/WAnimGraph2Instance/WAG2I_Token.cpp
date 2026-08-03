@@ -12,7 +12,7 @@ static bool bDebug = false;
 #include "WAG2I_StateInst.h"
 #include "WAG2I_StateInstPacked.h"
 #include "WAG2_ClientData.h"
-#include "../server/wserver.h"
+#include "../Server/WServer.h"
 
 //--------------------------------------------------------------------------------
 

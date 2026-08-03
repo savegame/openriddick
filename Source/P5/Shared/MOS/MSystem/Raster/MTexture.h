@@ -29,7 +29,7 @@
 
 \*____________________________________________________________________________________________*/
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MImage.h"
 
 class CTextureContext;

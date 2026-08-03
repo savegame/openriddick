@@ -29,7 +29,7 @@
 
 #include <fstream.h>
 #include <errno.h>
-#include "MRTC.h"
+#include "Mrtc.h"
 
 #ifdef CPU_SUPPORT_FP64
 #define double double_definition

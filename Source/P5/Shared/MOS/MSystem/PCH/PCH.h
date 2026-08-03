@@ -1,7 +1,7 @@
 
 #define JPEG_INTERNALS
 
-#include "MRTC.h"
+#include "Mrtc.h"
 /*#ifdef _BASETSD_H_
 #error "LKhKLJ"
 #endif*/

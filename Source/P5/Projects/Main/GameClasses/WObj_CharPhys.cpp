@@ -7,8 +7,8 @@
 #include "WObj_Misc/WObj_Ledge.h"
 #include "WObj_Char/WObj_CharDarkling_ClientData.h"
 
-#include "../../../Shared/Mos/XR/Phys/WPhysPCS_Enable.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/XR/Phys/WPhysPCS_Enable.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
 /*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character movement

@@ -23,7 +23,7 @@
 #include "MFile_Misc.h"
 #include "MFile_Stream_Disk.h"
 #include "MFile_Stream_Memory.h"
-#include "MFile_Stream_Megafile.h"
+#include "MFile_Stream_MegaFile.h"
 #include "MFile_Stream_Compressed.h"
 #include "MFile_Stream_RAM.h"
 

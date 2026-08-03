@@ -302,7 +302,7 @@ char m_data[64];
 #ifdef PLATFORM_SPU
 	#include "MRTC_VPU_PS3.h"
 #else 
-	#include "MRTC_VPU_WIN32.h"
+	#include "MRTC_VPU_Win32.h"
 #endif
 
 #endif

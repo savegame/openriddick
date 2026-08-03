@@ -6,7 +6,7 @@
 #include "WObj_AI/AICore.h"
 #include "WObj_AI/AI_ResourceHandler.h"
 #include "WRPG/WRPGChar.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "WObj_Misc/WObj_ActionCutscene.h"
 
 /* // MultiLog writes to game console, log file and debugger output

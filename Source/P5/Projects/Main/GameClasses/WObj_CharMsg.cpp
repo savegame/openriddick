@@ -5,7 +5,7 @@
 #include "../GameWorld/WServerMod.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
-#include "../../../Shared/MOS/xr/xrcustommodel.h"
+#include "../../../Shared/MOS/XR/XRCustomModel.h"
 #include "WObj_AI/AICore.h"
 #include "WObj_Weapons/WObj_Spells.h"
 #include "WRPG/WRPGChar.h"

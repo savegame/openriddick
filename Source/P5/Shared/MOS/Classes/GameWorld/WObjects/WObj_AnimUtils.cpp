@@ -14,7 +14,7 @@
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 #include "WObj_AnimUtils.h"
-#include "WObj_Vocap.h"
+#include "WObj_VoCap.h"
 #include "../../../MSystem/Sound/LipSync/LipSync.h"
 
 CXR_Anim_TrackMask CWO_AnimUtils::ms_FaceDataTrackMask;

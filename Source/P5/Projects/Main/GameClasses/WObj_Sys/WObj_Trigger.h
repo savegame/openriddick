@@ -18,9 +18,9 @@
 \*____________________________________________________________________________________________*/
 
 
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_System.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_System.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_SimpleMessage.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "../WObj_Messages.h"
 
 class CWO_DamageMsg;

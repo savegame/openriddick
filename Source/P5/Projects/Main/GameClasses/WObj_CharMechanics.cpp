@@ -6,7 +6,7 @@
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
 #include "../../Shared/MOS/XR/XRBlockNav.h"
 
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "WRPG/WRPGFist.h"
 #include "WObj_Game/WObj_GameCore.h"
 
@@ -30,7 +30,7 @@
 #include "WObj_Misc/WObj_SwingDoor.h"
 #include "WObj_Char/WObj_CharShapeshifter.h"
 
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
 
 #ifdef PLATFORM_DOLPHIN
 #include "../../../Shared/MOS/MRndrDolphin/DisplayContext.h"

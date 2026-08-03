@@ -12,8 +12,8 @@
 	#include <new.h>
 #endif
 
-#include "MRTC.h"
-#include "MDA.h"
+#include "Mrtc.h"
+#include "Mda.h"
 class CStream;
 #include "MFileDef.h"
 #include "MRTC_CallGraph.h"

@@ -2,9 +2,9 @@
 #define _INC_XRAMIM
 
 //#include "MCC.h"
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMath.h"
-#include "MDA.h"
+#include "Mda.h"
 
 #define ANIM_READ_NONAMES		1
 #define ANIM_READ_NOCOMMENTS	2

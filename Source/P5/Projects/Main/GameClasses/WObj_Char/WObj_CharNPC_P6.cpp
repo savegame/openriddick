@@ -1,7 +1,7 @@
 #include "PCH.h"
 #include "WObj_CharNPC_P6.h"
-#include "../wrpg/WRPGItem.h"
-#include "../wrpg/WRPGChar.h"
+#include "../WRPG/WRPGItem.h"
+#include "../WRPG/WRPGChar.h"
 
 MRTC_IMPLEMENT_SERIAL_WOBJECT(CWObject_CharNPC_P6, CWObject_CharNPC, 0x0100);
 

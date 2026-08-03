@@ -1,5 +1,5 @@
 
-#include "MRTC.h"
+#include "Mrtc.h"
 
 #ifdef PS3_RENDERER_GCM
 class CRegisterRenderPS3GCM

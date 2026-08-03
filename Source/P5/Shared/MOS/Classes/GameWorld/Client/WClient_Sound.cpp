@@ -3,7 +3,7 @@
 
 #include "WClient_Core.h"
 #include "../WPackets.h"
-#include "../../Shared/mos/Classes/GameWorld/Client/WClient_Sound.h"
+#include "../../Shared/MOS/Classes/GameWorld/Client/WClient_Sound.h"
 
 
 // -------------------------------------------------------------------

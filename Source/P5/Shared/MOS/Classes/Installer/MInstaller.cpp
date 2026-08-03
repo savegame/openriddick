@@ -2,7 +2,7 @@
 #include "PCH.h"
 #include "MInstaller.h"
 #include "../Miscellaneous/MMd5.h"
-#include "../../../../sdk/ZLib/zlib.h"
+#include "../../../../SDK/ZLib/zlib.h"
 
 class CMInstallerCompiler
 {
