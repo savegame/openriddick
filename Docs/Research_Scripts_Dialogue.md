@@ -1184,3 +1184,41 @@ case SELECTION_HANGRAIL:       … GrabLadder …
 тестом угла: `if (BestDot <= 0.0f) _SelType |= SELECTION_FLAG_INVALID`
 (`WObj_CharMechanics.cpp:5131`). Мелькание `type=1` → `type=33` в логе —
 это игрок чуть отвёл прицел, а не отказ. Версия закрыта.
+
+### ПОПРАВКА: ветка сработала, но персонаж это сообщение не обрабатывает
+
+Прогон #14: `[USE] activate CHAR iSel=74 selType=0x1` печатается (20 строк,
+кап), то есть добавленная ветка работает и `OBJMSG_ACTIONCUTSCENE_ACTIVATE`
+уходит персонажу. Диалог не начался.
+
+Причина: **`CWObject_Character` не обрабатывает ни
+`OBJMSG_ACTIONCUTSCENE_ACTIVATE`, ни `_CANACTIVATE`** — он их только шлёт.
+Единственное упоминание `ACTIVATE` в `WObj_CharMsg.cpp:3187`
+закомментировано. Обработчики есть у `WObj_ActionCutscene.cpp`.
+
+И поправка к моему прежнему выводу: **`focusType=0x1` не доказывал**, что
+с NPC можно взаимодействовать. Обработчик `OBJMSG_CHAR_GETUSENAME`
+(`WObj_CharMsg.cpp:2174`) возвращает 1 безусловно, отдавая `m_UseName`,
+который может быть пустым. Я прочитал это сильнее, чем следовало.
+
+Флаг `RIDDICK_CHAR_ACTIVATE` переведён в **выключен по умолчанию**: как
+no-op он безвреден, но выдавать его за починку нельзя.
+
+### Куда переносится вопрос
+
+Разговор с NPC в этом движке инициируется **не нажатием на самом
+персонаже**, а отдельным объектом action-cutscene рядом с ним — он и
+обрабатывает `CANACTIVATE`/`ACTIVATE`. Такие объекты в мире есть, лог их
+показывает: `[SEL] iSel=29 type=3` — это `SELECTION_ACTIONCUTSCENE`.
+
+Значит вопрос: **почему у говорящих NPC такой объект не попадает в выбор.**
+Варианты: объекта нет в мире (скрипт/спавн), он есть но `CanActivate`
+отказывает, либо `Char_FindStuff` предпочитает ему сам персонаж.
+
+Зонд для этого уже есть и писать ничего не надо — `RIDDICK_DBG_AG2FX=1`
+включает в числе прочего
+`[ACS] canact obj= arc= dotLook= dotPos= csFlags= disabled= dependItem=
+dependMsg= retry= tick=` (`WObj_ActionCutscene.cpp`, `CanActivate`) — это
+главный гейт: по его результату `Char_FindStuff` ставит
+`SELECTION_ACTIONCUTSCENE` либо `..._LOCKED`. Подробности —
+`Docs/HacksAndHooks.md`.

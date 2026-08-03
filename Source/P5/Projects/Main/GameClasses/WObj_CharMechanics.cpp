@@ -5389,9 +5389,27 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 		// же сообщением. Значит и активировать его надо тем же
 		// OBJMSG_ACTIONCUTSCENE_ACTIVATE.
 		//
-		// RIDDICK_CHAR_ACTIVATE=0 возвращает прежнее поведение для A/B.
-		// По умолчанию включено: регрессии быть не может -- сейчас на этом
-		// месте не происходит вообще ничего.
+		// ПОПРАВКА ПО ЗАМЕРУ (прогон #14). Ветка срабатывает
+		// ([USE] activate CHAR iSel=74 selType=0x1, 20 строк), но диалог
+		// не начинается, и это объяснимо: CWObject_Character НЕ
+		// ОБРАБАТЫВАЕТ ни OBJMSG_ACTIONCUTSCENE_ACTIVATE, ни
+		// _CANACTIVATE -- он их только шлёт. Единственное упоминание
+		// ACTIVATE в WObj_CharMsg.cpp:3187 закомментировано.
+		//
+		// Отсюда же поправка к прежнему выводу: focusType=0x1 НЕ доказывал
+		// «с ним можно взаимодействовать». Обработчик OBJMSG_CHAR_GETUSENAME
+		// (WObj_CharMsg.cpp:2174) возвращает 1 безусловно, отдавая m_UseName
+		// -- возможно пустой. Я прочитал это сильнее, чем следовало.
+		//
+		// Значит разговор с NPC в этом движке инициируется НЕ нажатием на
+		// самом персонаже, а отдельным объектом action-cutscene рядом с ним
+		// (он-то CANACTIVATE и обрабатывает). В том же логе такие объекты
+		// есть: [SEL] iSel=29 type=3 -- это SELECTION_ACTIONCUTSCENE.
+		// Вопрос переносится туда: почему у говорящих NPC такого объекта не
+		// выбирается.
+		//
+		// Флаг оставлен выключенным -- как no-op он безвреден, но выдавать
+		// его за починку нельзя.
 		case SELECTION_CHAR:
 		case SELECTION_DEADCHAR:
 			{
@@ -5399,7 +5417,10 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 				if (s_On < 0)
 				{
 					const char* e = getenv("RIDDICK_CHAR_ACTIVATE");
-					s_On = (e && *e && *e == '0') ? 0 : 1;
+					// ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНО: замер показал, что персонаж вообще
+					// не обрабатывает OBJMSG_ACTIONCUTSCENE_ACTIVATE (см. ниже),
+					// так что это пока no-op, а не починка.
+					s_On = (e && *e && *e != '0') ? 1 : 0;
 				}
 				if (!s_On)
 					break;
