@@ -2173,8 +2173,12 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 				const char* e = getenv("RIDDICK_DBG_SEQ");
 				s_On = (e && *e && *e != '0') ? 1 : 0;
 			}
+			// Каждый 200-й вызов, а не подряд: в прогоне 2026-08-03 кап в
+			// 24 строки выгорел за первые кадры и показал только стартовые
+			// клипы. Разрежение даёт срез по всей сессии.
+			static int s_nCalls = 0;
 			static int s_n = 0;
-			if (s_On && s_n < 24 && _nLayers)
+			if (s_On && (s_nCalls++ % 200) == 0 && s_n < 24 && _nLayers)
 			{
 				const CXR_Anim_SequenceData* pS = _pLayer[_nLayers-1].m_spSequence;
 				if (pS)
