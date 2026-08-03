@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// RIDDICK_CHAR_ACTIVATE probe
+#include <stdlib.h>
+
 #include "WObj_Char.h"
 
 #include "../GameWorld/WClientMod_Defines.h"
@@ -5365,6 +5368,52 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 	{
 		switch (_SelType & SELECTION_MASK_TYPE)
 		{
+		// НАЙДЕННАЯ ДЫРА (2026-08-03): у SELECTION_CHAR здесь НЕ БЫЛО ветки,
+		// то есть нажатие «использовать» на персонаже не делало ровно
+		// ничего. Отсюда и «нельзя начать диалог ни с одним NPC».
+		//
+		// Замер (pa1_prisonarea, RIDDICK_DBG_SEL + RIDDICK_DBG_USE):
+		//   [SEL]  iSel=74 type=1(base=1 invalid=0) name='BARBER'
+		//   [USE]  select iBest=74 name='BARBER' focusType=0x1 tgtCD=yes
+		// То есть отбор целей работает, NPC опознаётся как SELECTION_CHAR,
+		// фокус-фрейм его показывает (focusType=0x1 -- значит
+		// OBJMSG_CHAR_GETUSENAME вернул имя действия, «с ним можно
+		// взаимодействовать»), обработчик нажатия получает валидную цель...
+		// и молча уходит в default.
+		//
+		// Что здесь правильно делать, видно этажом выше, в
+		// Char_ShowInFocusFrame: там case SELECTION_CHAR НАМЕРЕННО
+		// проваливается в блок SELECTION_PICKUP/ACTIONCUTSCENELOCKED и
+		// шлёт персонажу OBJMSG_ACTIONCUTSCENE_CANACTIVATE. То есть в этом
+		// движке персонаж и есть цель action-cutscene: спрашивают его тем
+		// же сообщением. Значит и активировать его надо тем же
+		// OBJMSG_ACTIONCUTSCENE_ACTIVATE.
+		//
+		// RIDDICK_CHAR_ACTIVATE=0 возвращает прежнее поведение для A/B.
+		// По умолчанию включено: регрессии быть не может -- сейчас на этом
+		// месте не происходит вообще ничего.
+		case SELECTION_CHAR:
+		case SELECTION_DEADCHAR:
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_CHAR_ACTIVATE");
+					s_On = (e && *e && *e == '0') ? 0 : 1;
+				}
+				if (!s_On)
+					break;
+
+				static int s_n = 0;
+				if (s_n < 20)
+				{
+					++s_n;
+					fprintf(stderr, "[USE] activate CHAR iSel=%d selType=0x%x\n",
+						(int)_iSel, (int)_SelType);
+					fflush(stderr);
+				}
+			}
+			// fall through -- активируем тем же сообщением, что и ACS
 		case SELECTION_ACTIONCUTSCENELOCKED:
 		case SELECTION_ACTIONCUTSCENE:
 			{

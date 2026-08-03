@@ -2661,6 +2661,27 @@ CLAMP они получали полосу цвета кромки). Проек�
   `[TRACKMASK] full mask: nodes= addedRotSlots=` показывает, сколько
   слотов добавилось.
 
+### RIDDICK_CHAR_ACTIVATE / RIDDICK_DBG_SEL — диалог с NPC (2026-08-03)
+
+- **DBG** `RIDDICK_DBG_SEL=1` (`WObj_Char.cpp`, за `Char_FindStuff`, печатает
+  только СМЕНУ выбора, 80 строк):
+  `[SEL] iSel= type=N(base= invalid= proxy=) close= name=` — что игрок
+  видит как цель. `base=1` это `SELECTION_CHAR`, то есть «с ним можно
+  заговорить».
+
+- **FIX** `RIDDICK_CHAR_ACTIVATE` (`WObj_CharMechanics.cpp`,
+  `Char_ActivateStuff`). В `switch` по типу выбора **не было ветки
+  `SELECTION_CHAR`**: нажатие «использовать» на персонаже уходило в
+  `default` и не делало ничего. Замер показал, что всё до этого места
+  исправно — `[SEL] type=1 name='BARBER'`, `[USE] select iBest=74
+  focusType=0x1 tgtCD=yes`.
+  Как надо, видно этажом выше: в `Char_ShowInFocusFrame` `SELECTION_CHAR`
+  намеренно проваливается в ACS-блок и шлёт персонажу
+  `OBJMSG_ACTIONCUTSCENE_CANACTIVATE`. Значит активировать его надо тем же
+  `OBJMSG_ACTIONCUTSCENE_ACTIVATE` — это и добавлено.
+  `RIDDICK_CHAR_ACTIVATE=0` возвращает прежнее поведение; по умолчанию
+  включено, регрессии быть не может (раньше не происходило ничего).
+
 ---
 
 ## Инфраструктура которую можно оставить

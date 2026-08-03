@@ -1120,3 +1120,67 @@ u8, u8, u8, u8 = 18 байт — ровно измеренный stride.
 вопрос к рендеру/скиннингу; `moving` = 0 или единицы → поза действительно
 не меняется, и тогда сужать надо между `GetAnimLayers` (входы здоровы) и
 палитрой.
+
+---
+
+## 20. НАЙДЕНО: у `SELECTION_CHAR` не было ветки активации (прогон #13)
+
+Уровень `pa1_prisonarea`, `RIDDICK_DBG_SEL=1 RIDDICK_DBG_USE=1`.
+
+```
+[SEL]  iSel=74  type=1(base=1 invalid=0 proxy=0) close=74  name='BARBER'
+[SEL]  iSel=85  type=1(base=1 invalid=0 proxy=0) close=85  name='MICHAELS'
+[SEL]  iSel=104 type=1(base=1 invalid=0 proxy=0) close=104 name='JIMBO'
+[USE]  find   iSel=74 iClose=-1 selType=0x1 name='BARBER'
+[USE]  select iBest=74 name='BARBER' focusType=0x1 darkMask=0 tick=905 tgtCD=yes
+```
+
+Вся цепочка до нажатия **исправна**:
+
+* отбор целей работает, NPC опознаётся как `SELECTION_CHAR` (=1);
+* `focusType=0x1` — значит `OBJMSG_CHAR_GETUSENAME` вернул имя действия,
+  то есть движок сам считает, что с этим NPC можно взаимодействовать
+  (иначе `Char_ShowInFocusFrame` обнулил бы тип и объект);
+* обработчик нажатия получает валидную цель и валидный `tgtCD`.
+
+А дальше — `CWObject_Character::Char_ActivateStuff`
+(`WObj_CharMechanics.cpp:5355`):
+
+```cpp
+switch (_SelType & SELECTION_MASK_TYPE)
+{
+case SELECTION_ACTIONCUTSCENELOCKED:
+case SELECTION_ACTIONCUTSCENE: … OBJMSG_ACTIONCUTSCENE_ACTIVATE …
+case SELECTION_PICKUP:         … OBJMSG_RPG_AVAILABLEPICKUP …
+case SELECTION_LADDER:
+case SELECTION_HANGRAIL:       … GrabLadder …
+/*case SELECTION_DEADCHAR:     … закомментировано целиком … */
+```
+
+**Ветки `SELECTION_CHAR` здесь нет вообще.** Нажатие «использовать» на
+персонаже молча уходит в `default` и не делает ничего. Это и есть «нельзя
+начать диалог ни с одним NPC» — буквально, в одном `switch`.
+
+### Как должно быть — видно этажом выше
+
+В `Char_ShowInFocusFrame` (тот же файл, `:5272`) `case SELECTION_CHAR`
+**намеренно проваливается** в блок `SELECTION_PICKUP` /
+`SELECTION_ACTIONCUTSCENELOCKED`, который шлёт персонажу
+`OBJMSG_ACTIONCUTSCENE_CANACTIVATE`. То есть в этом движке персонаж и есть
+цель action-cutscene, его спрашивают тем же сообщением — значит и
+активировать его надо тем же `OBJMSG_ACTIONCUTSCENE_ACTIVATE`.
+
+Ровно это и добавлено: `case SELECTION_CHAR:` / `SELECTION_DEADCHAR:`
+проваливается в ACS-ветку. `RIDDICK_CHAR_ACTIVATE=0` возвращает прежнее
+поведение для A/B. **По умолчанию включено** — регрессии быть не может,
+сейчас на этом месте не происходит вообще ничего.
+
+Зонд `[USE] activate CHAR iSel= selType=` (20 строк) подтверждает, что
+ветка сработала.
+
+### Что осталось перепроверить
+
+`SELECTION_FLAG_INVALID` оказался не гейтом способностей, а простым
+тестом угла: `if (BestDot <= 0.0f) _SelType |= SELECTION_FLAG_INVALID`
+(`WObj_CharMechanics.cpp:5131`). Мелькание `type=1` → `type=33` в логе —
+это игрок чуть отвёл прицел, а не отказ. Версия закрыта.
