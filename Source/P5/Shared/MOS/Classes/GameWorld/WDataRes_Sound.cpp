@@ -1019,9 +1019,61 @@ void CWRes_Dialogue::CreateFromRegistry(CRegistry *_pReg, const char* _pName, CM
 		}
 		else
 		{
+			// НАЙДЕНО (2026-08-03): пустой айтем обнулял ХЭШ, чем ломал
+			// сортировку всего массива.
+			//
+			// Выше lDialogueItems.Sort() сортирует айтемы ПО ХЭШУ, и
+			// GetHashPosition ищет по m_lDialogueIndexes ДВОИЧНЫМ ПОИСКОМ
+			// -- то есть требует строго возрастающих хэшей. Обнулённый хэш
+			// в середине рвёт монотонность, и поиск начинает промахиваться
+			// по СУЩЕСТВУЮЩИМ репликам, которые лежат за таким айтемом.
+			//
+			// Ровно это и наблюдается: [DLGLEN] печатает
+			// "no dialogue item (hash miss)", а AI пишет
+			// "JIMBO failed Dialogue: IDLE_CALL Dialogueindex 712".
+			//
+			// Это тот же класс дефекта, что уже чинили в звуке:
+			// CWaveContainer_Plain::GetSFXDescIndex -- тоже двоичный поиск
+			// по списку, который никто не сортировал (SortSFXDescs).
+			//
+			// Сохраняем настоящий хэш: сортировка остаётся целой, а нулевой
+			// размер разбирается ниже по течению. RIDDICK_DLGHASH=0
+			// возвращает прежнее поведение для A/B.
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DLGHASH");
+				s_On = (e && *e && *e == '0') ? 0 : 1;
+			}
 			m_lDialogueIndexes[j].m_StartPos = 0;
 			m_lDialogueIndexes[j].m_Size = 0;
-			m_lDialogueIndexes[j].m_Hash = 0;
+			m_lDialogueIndexes[j].m_Hash = s_On ? lDialogueItems[j].m_Hash : 0;
+		}
+	}
+
+	// Отчёт по предусловию двоичного поиска: сколько айтемов пустых и
+	// сколько нарушений возрастания хэша осталось в готовом массиве.
+	// unsorted>0 означает, что GetHashPosition будет промахиваться по
+	// существующим репликам.
+	{
+		static int s_n = 0;
+		if (s_n < 12)
+		{
+			int nEmpty = 0, nUnsorted = 0;
+			for (int k = 0; k < nDialogueItems; k++)
+			{
+				if (!m_lDialogueIndexes[k].m_Size)
+					++nEmpty;
+				if (k > 0 && m_lDialogueIndexes[k].m_Hash < m_lDialogueIndexes[k-1].m_Hash)
+					++nUnsorted;
+			}
+			if (nEmpty || nUnsorted)
+			{
+				++s_n;
+				fprintf(stderr, "[DLGSORT] '%s' items=%d empty=%d unsorted=%d\n",
+					_pName ? _pName : "?", nDialogueItems, nEmpty, nUnsorted);
+				fflush(stderr);
+			}
 		}
 	}
 }

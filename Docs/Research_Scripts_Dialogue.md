@@ -1222,3 +1222,60 @@ dependMsg= retry= tick=` (`WObj_ActionCutscene.cpp`, `CanActivate`) — это
 главный гейт: по его результату `Char_FindStuff` ставит
 `SELECTION_ACTIONCUTSCENE` либо `..._LOCKED`. Подробности —
 `Docs/HacksAndHooks.md`.
+
+---
+
+## 21. НАЙДЕНО: пустой айтем обнулял хэш и ломал сортировку (прогон #15)
+
+`[ACS] canact` в прогоне сработал **только для obj=29** — того самого, что
+`[SEL]` показывает как `type=3` (`SELECTION_ACTIONCUTSCENE`). Ни для
+BARBER, ни для MICHAELS, ни для JIMBO ACS-объект не запрашивается вовсе.
+То есть ветка «диалог начинается через ACS-объект рядом с NPC» тоже не
+подтверждается: таких объектов у говорящих NPC просто нет.
+
+Зато в логе есть прямая улика по другому пути — тому, что AI заводит сам:
+
+```
+JIMBO failed Dialogue: IDLE_CALL Dialogueindex 712
+HALEY failed Dialogue: IDLE_CALL Dialogueindex 718
+```
+
+а `[DLGLEN]` в более раннем прогоне на это отвечал
+`no dialogue item (hash miss)`.
+
+### Дефект
+
+`CWRes_Dialogue::CreateFromRegistry` (`WDataRes_Sound.cpp:894`):
+
+* айтемы сортируются **по хэшу** (`lDialogueItems.Sort()`, компаратор
+  `CTempDialogue::Compare` сравнивает `m_Hash`);
+* `GetHashPosition` ищет по `m_lDialogueIndexes` **двоичным поиском**, то
+  есть требует строго возрастающих хэшей;
+* а при переносе данных пустой айтем получал **`m_Hash = 0`**:
+
+```cpp
+else
+{
+    m_lDialogueIndexes[j].m_StartPos = 0;
+    m_lDialogueIndexes[j].m_Size = 0;
+    m_lDialogueIndexes[j].m_Hash = 0;      // <-- рвёт монотонность
+}
+```
+
+Один такой айтем в середине ломает предусловие поиска, и `GetHashPosition`
+начинает промахиваться по **существующим** репликам, которые лежат за ним.
+Отсюда и «hash miss» на индексах вроде 712 при живом ресурсе.
+
+Это **тот же класс дефекта, что уже чинили в звуке**:
+`CWaveContainer_Plain::GetSFXDescIndex` — тоже двоичный поиск по списку,
+который никто не сортировал (пришлось добавить `SortSFXDescs`).
+
+### Правка
+
+Сохраняем настоящий хэш и у пустых айтемов: сортировка остаётся целой,
+а нулевой размер разбирается ниже по течению. По умолчанию включено,
+`RIDDICK_DLGHASH=0` возвращает прежнее поведение для A/B.
+
+Отчёт `[DLGSORT] '<диалог>' items=N empty=N unsorted=N` (12 строк, печатается
+только при ненулевых) показывает масштаб: `unsorted>0` означает, что поиск
+промахивался; после правки должно стать `unsorted=0` при том же `empty`.
