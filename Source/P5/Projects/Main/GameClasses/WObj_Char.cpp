@@ -2211,6 +2211,58 @@ void CWObject_Character::OnRefresh()
 		int32 iCloseSel = -1;
 		bool bCurrentNoPrio = false;
 		Char_FindStuff(m_pWServer,this,pCD,iSel,iCloseSel,SelType,bCurrentNoPrio,FINDSTUFF_SELECTIONMODE_FOCUSFRAME | FINDSTUFF_SELECTIONMODE_DEVOURING);
+
+		// RIDDICK_DBG_SEL=1 -- что игрок вообще "видит" как цель.
+		//
+		// Жалоба: нельзя начать диалог НИ С ОДНИМ NPC. До сих пор мы
+		// разбирали не тот путь -- "failed Dialogue" в логах это AI,
+		// решивший заговорить сам. Диалог по инициативе игрока идёт иначе:
+		// Char_FindStuff выбирает объект в фокусе и его тип, тип попадает в
+		// focus frame, и только по нему кнопка использования что-то делает.
+		//
+		// SELECTION_CHAR (=1) -- живой персонаж, то есть "с ним можно
+		// заговорить". Если при наведении на NPC тип остаётся
+		// SELECTION_NONE (=0) или приходит с флагом SELECTION_FLAG_INVALID
+		// (0x20), диалог невозможен в принципе, и чинить надо отбор целей,
+		// а не диалоговые ресурсы (они, по замерам, грузятся исправно).
+		//
+		// Печатаем только СМЕНУ выбора, иначе строка на каждый тик.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SEL");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On)
+			{
+				static int s_LastSel = -2;
+				static int s_LastType = -2;
+				static int s_n = 0;
+				if ((iSel != s_LastSel || (int)SelType != s_LastType) && s_n < 80)
+				{
+					++s_n;
+					s_LastSel = iSel;
+					s_LastType = (int)SelType;
+					const char* pName = "-";
+					if (iSel >= 0)
+					{
+						CWObject* pO = m_pWServer->Object_Get(iSel);
+						const char* pN = pO ? pO->GetName() : NULL;
+						if (pN && *pN)
+							pName = pN;
+					}
+					fprintf(stderr, "[SEL] iSel=%d type=%d(base=%d invalid=%d proxy=%d) close=%d name='%s'\n",
+						iSel, (int)SelType,
+						(int)SelType & SELECTION_MASK_TYPE,
+						((int)SelType & SELECTION_FLAG_INVALID) ? 1 : 0,
+						((int)SelType & SELECTION_FLAG_PROXY) ? 1 : 0,
+						iCloseSel, pName);
+					fflush(stderr);
+				}
+			}
+		}
+
 		//CFStr OldText = pCD->m_FocusFrameText;
 		Char_ShowInFocusFrame(SelType, iSel);
 	}
