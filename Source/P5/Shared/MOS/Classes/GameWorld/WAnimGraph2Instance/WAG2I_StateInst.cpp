@@ -518,6 +518,12 @@ void CWAG2I_StateInstance::EnterState_InitSyncVelocity(const CWAG2I_Context* _pC
 
 	//ConOut(CStrF("AnimSpeed: %f WantedSpeed: %f Scale: %f",AnimSpeed,DestSpeed,DestSpeed/AnimSpeed));
 
+	// Второе незащищённое деление того же рода: у клипа без корневого
+	// движения AnimSpeed == 0, и тарировать по нему нечего. DestSpeed уже
+	// проверен на > 0 выше, так что без этой проверки получался inf.
+	if (AnimSpeed <= 1e-6f)
+		return;
+
 	m_TimeScale = DestSpeed / AnimSpeed;
 }
 
@@ -586,6 +592,55 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	return true;
 }
 
+// НАЙДЕННЫЙ ДЕФЕКТ (2026-08-03). Здесь рождался NaN, из-за которого
+// персонажи «скользят в позе первого кадра» и «телепортируются».
+//
+// Синхронизация двух анимаций (ходьба/бег — состояния с двумя слоями)
+// режет клип по syncpoint'ам и на каждый отрезок считает свой масштаб
+// времени: TimeDiv = 1 / (Time - PrevTime). Деление НЕ защищено. Если два
+// соседних syncpoint'а совпали по времени, знаменатель ноль:
+//   * числитель тоже ноль -> 0 * inf = NaN;
+//   * числитель не ноль   -> inf.
+// Дальше NaN расходится по обеим веткам сразу:
+//   1) GetSyncAnimTime возвращает NaN-время -> LoopedTime NaN -> клип
+//      считается в NaN и отдаёт первый кадр => ПОЗА ЗАМИРАЕТ;
+//   2) GetAnimVelocity строит TimeB = TimeA + TimeSpan*NaN = NaN, сравнение
+//      TimeB < TimeA даёт «зациклились», включается компенсация шва петли
+//      и к смещению ЗА ОДИН ТИК прибавляется путь за ВЕСЬ клип
+//      (GetTotalTrack0) => СКОРОСТЬ В ДЕСЯТКИ РАЗ ВЫШЕ.
+// Замер, на котором это поймано (RIDDICK_DBG_ANIMV, pa2_diner):
+//   scale=-nan dMove=116.965 got=3509.0   против здорового got=125.0.
+//
+// Возвращаем false на вырожденном отрезке — вызывающий ставит масштаб 1.0,
+// то есть отрезок играет в натуральном темпе вместо NaN. Заодно один раз
+// печатаем сами syncpoint'ы: если их времена нулевые, вырожденность идёт
+// от чтения .XSA (ключи ANIM_EVENT_TYPE_SYNC, XRAnim.cpp:1587), и чинить
+// надо загрузчик, а не только это место.
+static bool Riddick_SyncSliceOK(fp32 _Time, fp32 _PrevTime, int32 _i, int32 _Len,
+	int16 _iState, const CXR_Anim_SyncPoints& _P1, const CXR_Anim_SyncPoints& _P2,
+	fp32 _Dur1, fp32 _Dur2)
+{
+	if (_Time - _PrevTime > 1e-6f)
+		return true;
+
+	static int s_n = 0;
+	if (s_n < 8)
+	{
+		++s_n;
+		fprintf(stderr, "[SYNC] degenerate slice i=%d/%d iState=%d Time=%.5f PrevTime=%.5f dur1=%.3f dur2=%.3f\n",
+			(int)_i, (int)_Len, (int)_iState, _Time, _PrevTime, _Dur1, _Dur2);
+		fprintf(stderr, "[SYNC]   points1(%d):", (int)_P1.m_lPoints.Len());
+		for (int32 k = 0; k < _P1.m_lPoints.Len() && k < 12; k++)
+			fprintf(stderr, " %.4f/t%d", _P1.m_lPoints[k].m_Time, (int)_P1.m_lPoints[k].m_Type);
+		fprintf(stderr, "\n[SYNC]   points2(%d):", (int)_P2.m_lPoints.Len());
+		for (int32 k = 0; k < _P2.m_lPoints.Len() && k < 12; k++)
+			fprintf(stderr, " %.4f/t%d", _P2.m_lPoints[k].m_Time, (int)_P2.m_lPoints[k].m_Type);
+		fprintf(stderr, "\n");
+		fflush(stderr);
+	}
+	return false;
+}
+
 void CWAG2I_StateInstance::UpdateSyncAnimScale(const CWAG2I_Context* _pContext, fp32 _SyncAnimScale)
 {
 	// Get syncanimscale from evaluator
@@ -625,17 +680,35 @@ void CWAG2I_StateInstance::UpdateSyncAnimScale(const CWAG2I_Context* _pContext, 
 		{
 			fp32 Time = LERP(m_SyncPoints1.m_lPoints[i].m_Time,m_SyncPoints2.m_lPoints[i].m_Time,m_SyncAnimScale);
 			m_lTimes[i+1] = Time;
-			fp32 TimeDiv = 1.0f / (Time - PrevTime);
-			m_lTimeScales1[i] = (m_SyncPoints1.m_lPoints[i].m_Time - PrevTime1) * TimeDiv;
-			m_lTimeScales2[i] = (m_SyncPoints2.m_lPoints[i].m_Time - PrevTime2) * TimeDiv;
+			if (Riddick_SyncSliceOK(Time, PrevTime, i, Len, m_iState,
+					m_SyncPoints1, m_SyncPoints2, m_Duration1, m_Duration2))
+			{
+				fp32 TimeDiv = 1.0f / (Time - PrevTime);
+				m_lTimeScales1[i] = (m_SyncPoints1.m_lPoints[i].m_Time - PrevTime1) * TimeDiv;
+				m_lTimeScales2[i] = (m_SyncPoints2.m_lPoints[i].m_Time - PrevTime2) * TimeDiv;
+			}
+			else
+			{
+				m_lTimeScales1[i] = 1.0f;
+				m_lTimeScales2[i] = 1.0f;
+			}
 		}
 		else
 		{
 			fp32 Time = LERP(m_Duration1,m_Duration2,m_SyncAnimScale);
 			m_lTimes[i+1] = Time;
-			fp32 TimeDiv = 1.0f / (Time - PrevTime);
-			m_lTimeScales1[i] = (m_Duration1 - PrevTime1) * TimeDiv;
-			m_lTimeScales2[i] = (m_Duration2 - PrevTime2) * TimeDiv;
+			if (Riddick_SyncSliceOK(Time, PrevTime, i, Len, m_iState,
+					m_SyncPoints1, m_SyncPoints2, m_Duration1, m_Duration2))
+			{
+				fp32 TimeDiv = 1.0f / (Time - PrevTime);
+				m_lTimeScales1[i] = (m_Duration1 - PrevTime1) * TimeDiv;
+				m_lTimeScales2[i] = (m_Duration2 - PrevTime2) * TimeDiv;
+			}
+			else
+			{
+				m_lTimeScales1[i] = 1.0f;
+				m_lTimeScales2[i] = 1.0f;
+			}
 		}
 	}
 
@@ -1785,6 +1858,27 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 #ifdef	AG2_DEBUG
 		bool bLocalDebug = false;
 		if (bLocalDebug)
@@ -2004,6 +2098,27 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 		uint32 StateFlags = pState->GetFlags(0);
 
 		_pLayers[nLayers].Create3(pAnimLayerSeq, LoopedTime, TimeScale, Sinc(Blend), pAnimLayer->GetBaseJointIndex(), Flags);
@@ -2110,6 +2225,27 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
+
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
 
 		uint32 StateFlags = pState->GetFlags(0);
 
@@ -2232,6 +2368,27 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
+
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
 
 		uint32 StateFlags = pState->GetFlags(0);
 

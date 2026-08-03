@@ -988,7 +988,26 @@ int32 CWAG2I::GetAnimVelocity(const CWAG2I_Context* _pContext, CVec3Dfp32& _Move
 
 		vec128 MoveB;
 		CQuatfp32 RotB;	
-		CMTime TimeB = Layer.m_spSequence->GetLoopedTime(TimeA + CMTime::CreateFromSeconds(TimeSpan * Layer.m_TimeScale));
+		// Санитайз масштаба времени. Нефинитный масштаб делает TimeB
+		// нефинитным, сравнение TimeB < TimeA ниже даёт «зациклились», и
+		// компенсация шва петли добавляет к смещению ЗА ТИК путь за ВЕСЬ
+		// клип -- персонаж улетает (замерено: got=3509 units/s против
+		// здоровых 125). Источник закрыт в WAG2I_StateInst.cpp, здесь --
+		// чтобы такое больше не проходило молча.
+		fp32 LayerTimeScale = Layer.m_TimeScale;
+		if (!(LayerTimeScale > -1.0e6f && LayerTimeScale < 1.0e6f))
+		{
+			static int s_n = 0;
+			if (s_n < 8)
+			{
+				++s_n;
+				fprintf(stderr, "[ANIMNAN] layer timescale not finite (obj=%d layer=%d) -> using 1.0\n",
+					_pContext->m_pObj ? _pContext->m_pObj->m_iObject : -1, iLayer);
+				fflush(stderr);
+			}
+			LayerTimeScale = 1.0f;
+		}
+		CMTime TimeB = Layer.m_spSequence->GetLoopedTime(TimeA + CMTime::CreateFromSeconds(TimeSpan * LayerTimeScale));
 		Layer.m_spSequence->EvalTrack0(TimeB, MoveB, RotB);
 
 		// Calculate relative deltas.
@@ -1093,7 +1112,7 @@ int32 CWAG2I::GetAnimVelocity(const CWAG2I_Context* _pContext, CVec3Dfp32& _Move
 				fprintf(stderr,
 					"[ANIMV] obj=%d layer=%d t=%.3f scale=%.3f span=%.4f dMove=%.3f got=%.1f want=%.1f ratio=%.2f blend=%.2f loop=%d\n",
 					_pContext->m_pObj ? _pContext->m_pObj->m_iObject : -1,
-					iLayer, Layer.m_Time, Layer.m_TimeScale, TimeSpan,
+					iLayer, Layer.m_Time, LayerTimeScale, TimeSpan,
 					dMove.v3.Length(), Got, Want,
 					(Want > 0.0f) ? (Got / Want) : -1.0f,
 					BlendFactor, bLooping ? 1 : 0);
