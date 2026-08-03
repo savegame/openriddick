@@ -2675,12 +2675,44 @@ CLAMP они получали полосу цвета кромки). Проек�
   `default` и не делало ничего. Замер показал, что всё до этого места
   исправно — `[SEL] type=1 name='BARBER'`, `[USE] select iBest=74
   focusType=0x1 tgtCD=yes`.
-  Как надо, видно этажом выше: в `Char_ShowInFocusFrame` `SELECTION_CHAR`
-  намеренно проваливается в ACS-блок и шлёт персонажу
-  `OBJMSG_ACTIONCUTSCENE_CANACTIVATE`. Значит активировать его надо тем же
-  `OBJMSG_ACTIONCUTSCENE_ACTIVATE` — это и добавлено.
+  Адресат сообщения — `OBJMSG_CHAR_USE`. (Первая версия правки слала
+  `OBJMSG_ACTIONCUTSCENE_ACTIVATE` по аналогии с `Char_ShowInFocusFrame`;
+  это было **неверно** — `CWObject_Character` такое сообщение не
+  обрабатывает вовсе. Настоящий обработчик — `CWObject_Character::OnUse`,
+  `WObj_CharMechanics.cpp:4157`, он и ведёт к
+  `Char_GetDialogueApproachItem` / `Char_ActivateDialogueItem`.)
   `RIDDICK_CHAR_ACTIVATE=0` возвращает прежнее поведение; по умолчанию
   включено, регрессии быть не может (раньше не происходило ничего).
+
+### RIDDICK_DBG_FOCUS — почему у персонажа нет подсказки (2026-08-03)
+
+- **DBG** `RIDDICK_DBG_FOCUS=1` (`WObj_CharMechanics.cpp`,
+  `Char_ShowInFocusFrame`, печатает только смену состояния, 60 строк):
+  `[FOCUS] iObj= type= path= aiPrio= canAct= useNameOk= use='' desc=''`.
+
+  Зачем. Замер `RIDDICK_DBG_SEL` на `pa1_prisonarea` показал: наведение на
+  NPC даёт `type=1` (`SELECTION_CHAR`), наведение на унитаз — `type=3`
+  (`SELECTION_ACTIONCUTSCENE`). Подсказка появляется **только** для
+  унитаза. Значит отбор целей исправен, а расходится путь в
+  `Char_ShowInFocusFrame`, где у `SELECTION_CHAR` три выхода:
+  `path=1` — devour (`UseText="§LACS_DEVOUR"`);
+  `path=2` — AI-приоритет выше `PRIO_ALERT` (0x60) → `break`, `UseText`
+  остаётся **пустым**, подсказки не будет;
+  `path=3` — провал вниз в ACS-блок, `UseText` = `m_UseName` персонажа
+  (`"§LCHAR_NAME_<шаблон>"`, ставится в `WObj_CharCreate.cpp:1040`).
+  Непустой `use=` при `path=3` означает, что game-side состояние верное и
+  дефект в HUD/локализации; пустой при `path=2` — виноват AI-приоритет.
+
+### RIDDICK_DBG_LETTERBOX — кинополосы (2026-08-03, зонд переставлен)
+
+- **DBG** `RIDDICK_DBG_LETTERBOX=1` (`XREngine.cpp`, `Engine_PostProcess`):
+  `[LETTERBOX] reached: screen= viewflags= widescreen= vpScreen= aspectChange=`.
+  Первый вариант зонда стоял **внутри** `if (m_ViewFlags &
+  XR_VIEWFLAGS_WIDESCREEN)` и в прогоне `pa1_prisonarea` не дал ни одной
+  строки, хотя чёрная полоса внизу экрана есть. То есть единственное место,
+  где движок рисует кинополосы, не выполняется вовсе, и полоса — не они.
+  Зонд вынесен за условие и печатает сами флаги, чтобы отличить «до
+  PostProcess дело не доходит» от «бит WIDESCREEN не выставлен».
 
 ---
 

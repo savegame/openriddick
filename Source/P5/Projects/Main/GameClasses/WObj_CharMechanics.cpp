@@ -5270,6 +5270,31 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 	
 	CFStr UseText;// = "Pickup moj";
 	CFStr DescText;// = "Hallååå dääär det är jag som är Bengt!";
+
+	// RIDDICK_DBG_FOCUS=1 -- почему у персонажа нет подсказки, а у унитаза есть.
+	//
+	// Замер прогона pa1_prisonarea (RIDDICK_DBG_SEL): наведение на NPC даёт
+	// type=1 (SELECTION_CHAR), на унитаз -- type=3 (SELECTION_ACTIONCUTSCENE).
+	// Подсказка появляется только для унитаза. Значит отбор целей исправен, а
+	// расходится путь ниже. У SELECTION_CHAR из этого switch есть три выхода:
+	//   1) devour-ветка -> UseText="§LACS_DEVOUR";
+	//   2) AI-приоритет > PRIO_ALERT (0x60) -> break, UseText ПУСТ (нет подсказки);
+	//   3) провал вниз в блок PICKUP/ACTIONCUTSCENE -> UseText = m_UseName
+	//      персонажа ("§LCHAR_NAME_<шаблон>", WObj_CharCreate.cpp:1040).
+	// Печатаем, какой из выходов сработал и с каким текстом: пустой UseText в
+	// выходе 2 означает "виноват AI-приоритет", непустой в выходе 3 -- что
+	// game-side состояние корректно и дефект в HUD/локализации.
+	int DbgPath = 0;			// 1=devour 2=aiprio-break 3=fallthrough
+	int DbgAIPrio = -1;
+	int DbgCanAct = -1;
+	int DbgUseNameOk = -1;
+	static int s_DbgFocusOn = -1;
+	if (s_DbgFocusOn < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_FOCUS");
+		s_DbgFocusOn = (e && *e && *e != '0') ? 1 : 0;
+	}
+
 	switch (_SelType & ~SELECTION_FLAG_PROXY)
 	{
 	case SELECTION_DEADCHAR:
@@ -5286,10 +5311,16 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 			if (!bIsDevouring && bHasHeartLeft && (bIsDead || !bIsConscious || bIsStunned))
 			{
 				UseText = "§LACS_DEVOUR";
+				DbgPath = 1;
 				break;
 			}
-			else if (m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_CHAR_GETAIPRIORITYCLASS),_iObj) > CAI_Action::PRIO_ALERT)
+			DbgAIPrio = (int)m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_CHAR_GETAIPRIORITYCLASS),_iObj);
+			if (DbgAIPrio > CAI_Action::PRIO_ALERT)
+			{
+				DbgPath = 2;
 				break;
+			}
+			DbgPath = 3;
 		}
 	case SELECTION_PICKUP:
 	case SELECTION_PICKUP + SELECTION_FLAG_INVALID:
@@ -5298,7 +5329,8 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 	//case SELECTIONISDEADCHAR_BAD:
 	//case SELECTIONISCHAR_BAD:
 		{
-			if (!m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_ACTIONCUTSCENE_CANACTIVATE,2,0,m_iObject), _iObj))
+			DbgCanAct = (int)m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_ACTIONCUTSCENE_CANACTIVATE,2,0,m_iObject), _iObj);
+			if (!DbgCanAct)
 			{
 				// Check if there's any description text
 				CWObject_Message Msg = CWObject_Message(OBJMSG_CHAR_GETDESCNAME);
@@ -5314,7 +5346,8 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		{
 			CWObject_Message Msg(OBJMSG_CHAR_GETUSENAME);
 			Msg.m_pData = (void *)&UseText;
-			if(!m_pWServer->Message_SendToObject(Msg, _iObj))
+			DbgUseNameOk = (int)m_pWServer->Message_SendToObject(Msg, _iObj);
+			if(!DbgUseNameOk)
 			{
 				_SelType = 0;
 				_iObj = -1;
@@ -5341,6 +5374,24 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		_SelType = 0;
 		_iObj = -1;
 	};
+
+	if (s_DbgFocusOn)
+	{
+		// Печатаем только смену состояния (иначе строка на каждый тик).
+		static int s_LastObj = -2;
+		static int s_LastType = -2;
+		static int s_n = 0;
+		if ((_iObj != s_LastObj || (int)_SelType != s_LastType) && s_n < 60)
+		{
+			++s_n;
+			s_LastObj = _iObj;
+			s_LastType = (int)_SelType;
+			fprintf(stderr, "[FOCUS] iObj=%d type=%d path=%d aiPrio=0x%x canAct=%d useNameOk=%d use='%s' desc='%s'\n",
+				(int)_iObj, (int)_SelType, DbgPath, DbgAIPrio, DbgCanAct, DbgUseNameOk,
+				UseText.Str(), DescText.Str());
+			fflush(stderr);
+		}
+	}
 
 	pCD->m_FocusFrameType = _SelType;
 	pCD->m_iFocusFrameObject = (int32)_iObj;

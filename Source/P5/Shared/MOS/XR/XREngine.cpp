@@ -4895,6 +4895,37 @@ void CXR_EngineImpl::Engine_PostProcess(CXR_VBManager* _pVBM, CRC_Viewport& _3DV
 			}
 
 			// Render borders
+
+			// RIDDICK_DBG_LETTERBOX=1 -- куда реально ложатся кинополосы.
+			//
+			// Прогон pa1_prisonarea с этим флагом не дал НИ ОДНОЙ строки, хотя
+			// на экране чёрная полоса внизу есть. Значит блок ниже (единственное
+			// место, где движок рисует кинополосы) вообще не выполняется, и
+			// чёрная область -- не полосы, а несовпадение вьюпорта и окна.
+			// Чтобы отличить "PostProcess сюда не доходит" от "бит WIDESCREEN
+			// не выставлен", зонд вынесен ЗА условие и печатает сами флаги.
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_LETTERBOX");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_n = 0;
+				if (s_On && s_n < 12)
+				{
+					++s_n;
+					fprintf(stderr, "[LETTERBOX] reached: screen=%dx%d viewflags=0x%x widescreen=%d vpScreen=[%d..%d]x[%d..%d] aspectChange=%.4f\n",
+						(int)ScreenSize.x, (int)ScreenSize.y,
+						(unsigned)_pParams->m_ViewFlags,
+						(_pParams->m_ViewFlags & XR_VIEWFLAGS_WIDESCREEN) ? 1 : 0,
+						(int)VPRectScreen16.m_Min[0], (int)VPRectScreen16.m_Max[0],
+						(int)VPRectScreen16.m_Min[1], (int)VPRectScreen16.m_Max[1],
+						_pParams->m_AspectChange);
+					fflush(stderr);
+				}
+			}
+
 			if (_pParams->m_ViewFlags & XR_VIEWFLAGS_WIDESCREEN)
 			{
 				CRect2Duint16 VPRectTop(VPRectScreen16);
@@ -4903,37 +4934,6 @@ void CXR_EngineImpl::Engine_PostProcess(CXR_VBManager* _pVBM, CRC_Viewport& _3DV
 				VPRectTop.m_Min[1] = 0;
 				VPRectBottom.m_Min[1] = VPRectBottom.m_Max[1];
 				VPRectBottom.m_Max[1] = ScreenSize.y;
-
-				// RIDDICK_DBG_LETTERBOX=1 -- куда реально ложатся кинополосы.
-				//
-				// Наблюдение: в оригинале полосы идут сверху И снизу, у нас
-				// низ экрана залит одной широкой чёрной областью, будто обе
-				// полосы съехали вниз.
-				//
-				// Полосы -- два экранных прямоугольника: верхний 0..Min[1],
-				// нижний Max[1]..ScreenSize.y. Печатаем и их, и высоту
-				// экрана: если Min/Max осмысленные и симметричные, а на
-				// экране всё внизу -- виноват Y-флип в 2D-проекции
-				// (pMat2D), а не расчёт полос. Если же Min==Max или обе
-				// пары легли в одну половину -- врёт расчёт VPRectScreen.
-				{
-					static int s_On = -1;
-					if (s_On < 0)
-					{
-						const char* e = getenv("RIDDICK_DBG_LETTERBOX");
-						s_On = (e && *e && *e != '0') ? 1 : 0;
-					}
-					static int s_n = 0;
-					if (s_On && s_n < 12)
-					{
-						++s_n;
-						fprintf(stderr, "[LETTERBOX] screen=%dx%d aspectChange=%.4f top=[%d..%d] bottom=[%d..%d]\n",
-							(int)ScreenSize.x, (int)ScreenSize.y, _pParams->m_AspectChange,
-							(int)VPRectTop.m_Min[1], (int)VPRectTop.m_Max[1],
-							(int)VPRectBottom.m_Min[1], (int)VPRectBottom.m_Max[1]);
-						fflush(stderr);
-					}
-				}
 
 				CRC_Attributes* pA = pVBM->Alloc_Attrib();
 				if (!pA)
