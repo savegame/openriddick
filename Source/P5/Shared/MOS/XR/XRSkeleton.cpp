@@ -2147,6 +2147,77 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 		}
 #endif
 
+		// RIDDICK_DBG_SEQ=1 -- содержат ли САМИ АНИМАЦИОННЫЕ ДАННЫЕ движение.
+		//
+		// Всё выше по цепочке уже измерено и цело:
+		//   * анимграф жив, состояния сменяются, iAnim резолвится
+		//     (штатная трасса, RIDDICK_AG2_DEBUGFLAGS);
+		//   * время слоя идёт и корректно зацикливается, и на сервере, и
+		//     на клиенте (RIDDICK_DBG_ANIMTIME: looped растёт 0->dur->0).
+		// Остаётся то, что ниже: выборка треков из .XSA. Наш загрузчик
+		// PC-формата -- реверс, и «трек декодируется в единичный кватернион»
+		// уже наблюдалось на замороженных костях (Docs/Research_BoneAnimation.md).
+		//
+		// Меряем прямо: берём верхний слой, считаем его последовательность
+		// в t=0 и t=dur/2 ПОЛНОЙ маской и сравниваем.
+		//   animated=0            -- клип плоский, дефект в декодере .XSA;
+		//   animated << nRot      -- часть треков не декодируется;
+		//   animated ~ nRot       -- данные живые, дефект ещё ниже
+		//                           (блендинг/InitEvalNode/палитра).
+		// identity0 -- сколько кватернионов в t=0 единичные: отличает
+		// «трека нет» от «трек есть, но не меняется».
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SEQ");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 24 && _nLayers)
+			{
+				const CXR_Anim_SequenceData* pS = _pLayer[_nLayers-1].m_spSequence;
+				if (pS)
+				{
+					++s_n;
+					// Статические буферы: зонд может звать рендер-воркер,
+					// гонка исказит счётчик, но не память.
+					static CQuatfp32 s_QA[CXR_SKELETON_MAXROTATIONS];
+					static CQuatfp32 s_QB[CXR_SKELETON_MAXROTATIONS];
+					static CVec4Dfp32 s_MA[CXR_SKELETON_MAXMOVEMENTS];
+					static CVec4Dfp32 s_MB[CXR_SKELETON_MAXMOVEMENTS];
+					for (uint i = 0; i < nRotations; i++) { s_QA[i].Unit(); s_QB[i].Unit(); }
+					for (uint i = 0; i < nMovements; i++) { s_MA[i] = M_VConst(0,0,0,1.0f); s_MB[i] = M_VConst(0,0,0,1.0f); }
+
+					CXR_Anim_TrackMask FullMask;
+					FullMask.Copy(m_TrackMask);
+					const fp32 Dur = pS->GetDuration();
+					pS->Eval(0.0f, s_QA, nRotations, &s_MA->v, nMovements, FullMask);
+					pS->Eval(Dur * 0.5f, s_QB, nRotations, &s_MB->v, nMovements, FullMask);
+
+					int nAnimated = 0, nIdentity0 = 0, iFirstAnim = -1;
+					for (uint i = 0; i < nRotations; i++)
+					{
+						fp32 d = 0.0f;
+						for (int k = 0; k < 4; k++)
+							d += M_Fabs(s_QA[i].k[k] - s_QB[i].k[k]);
+						if (d > 1e-4f)
+						{
+							if (iFirstAnim < 0) iFirstAnim = (int)i;
+							++nAnimated;
+						}
+						if (M_Fabs(s_QA[i].k[0]) + M_Fabs(s_QA[i].k[1]) + M_Fabs(s_QA[i].k[2]) < 1e-5f)
+							++nIdentity0;
+					}
+					fprintf(stderr,
+						"[SEQ] dur=%.3f nRot=%d nMove=%d animatedRot=%d identityAt0=%d firstAnim=%d layers=%d t=%.3f\n",
+						Dur, (int)nRotations, (int)nMovements, nAnimated, nIdentity0,
+						iFirstAnim, (int)_nLayers, _pLayer[_nLayers-1].m_Time);
+					fflush(stderr);
+				}
+			}
+		}
+
 		bool bFirstLayer = true;
 		for(uint l = 0; l < _nLayers; l++)
 		{
