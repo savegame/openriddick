@@ -1027,6 +1027,63 @@ void CXR_Skeleton::InitTrackMask()
 	if (m_lNodes.Len())
 		CreateTrackNodeMask_r(0, m_TrackMask, m_NodeMask);
 
+	// RIDDICK_FULLTRACKMASK=1 -- A/B по замороженным костям.
+	//
+	// CreateTrackNodeMask_r обходит скелет ОТ УЗЛА 0 ЧЕРЕЗ СПИСКИ ДЕТЕЙ, и
+	// слот поворота включается в маску только у достижимых узлов. А замер
+	// [SKELTREE] показал, что обход накрывает не весь скелет:
+	//   nodes=120 -> reached=76,  nodes=66 -> reached=33.
+	// Недостижимые узлы объявляют par=0, nCh=0 и просто не числятся ничьими
+	// детьми.
+	//
+	// Дальше это бьёт по картинке через маски: слот, которого нет в
+	// m_TrackMask, не пишет НИ ОДИН слой (EvalTracks копирует lTrackMask из
+	// m_TrackMask для слоёв с базовым узлом 0), и кость сохраняет значение
+	// с прошлого кадра -- то есть замирает. Замер это подтверждает прямо:
+	//   [MASK] nRot=24 rotBits=22 uncoveredRot=2 [15 20]
+	//   [BONES] frozenLocal=[15 20 22 23 ...]
+	// слоты 15 и 20 не покрыты никем -- и кости 15 и 20 стоят первыми
+	// в списке замороженных.
+	//
+	// Ниже -- ровно тот линейный проход по ВСЕМ узлам, который лежит в этом
+	// же файле закомментированным (см. блок сразу за вызовом): он включает
+	// слоты каждого узла независимо от достижимости. Под флагом, чтобы
+	// сравнить два поведения одним прогоном без пересборки.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_FULLTRACKMASK");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			const int nNodes = m_lNodes.Len();
+			const CXR_SkeletonNode* pNodes = m_lNodes.GetBasePtr();
+			int nAdded = 0;
+			for (int i = 0; i < nNodes; i++)
+			{
+				const int iRot = pNodes[i].m_iRotationSlot;
+				if (iRot >= 0 && !m_TrackMask.m_TrackMaskRot.IsEnabled(iRot))
+				{
+					m_TrackMask.m_TrackMaskRot.Enable(iRot);
+					++nAdded;
+				}
+				const int iMove = pNodes[i].m_iMovementSlot;
+				if (iMove >= 0)
+					m_TrackMask.m_TrackMaskMove.Enable(iMove);
+				m_NodeMask.m_TrackMaskRot.Enable(i);
+			}
+			static int s_n = 0;
+			if (s_n < 8)
+			{
+				++s_n;
+				fprintf(stderr, "[TRACKMASK] full mask: nodes=%d addedRotSlots=%d\n", nNodes, nAdded);
+				fflush(stderr);
+			}
+		}
+	}
+
 //	for(int iAttach = 0; iAttach < m_lAttachPoints.Len(); iAttach++)
 //		m_TrackMask.m_TrackMaskRot.Enable(m_lAttachPoints[iAttach].m_iNode);
 
