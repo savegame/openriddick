@@ -2207,8 +2207,11 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 					// в масштабе, все бегают слишком быстро.
 					vec128 Mv0, Mv1;
 					CQuatfp32 Rq0, Rq1;
-					pS->EvalTrack0(0.0f, Mv0, Rq0);
-					pS->EvalTrack0(Dur, Mv1, Rq1);
+					// CMTime-перегрузка, а не fp32: fp32-вариант
+					// (XRAnim.h:636) protected, публичен только
+					// virtual EvalTrack0(const CMTime&) на :697.
+					pS->EvalTrack0(CMTime::CreateFromSeconds(0.0f), Mv0, Rq0);
+					pS->EvalTrack0(CMTime::CreateFromSeconds(Dur), Mv1, Rq1);
 					const fp32 MoveLen = (CVec4Dfp32(Mv1) - CVec4Dfp32(Mv0)).Length();
 
 					int nAnimated = 0, nIdentity0 = 0, iFirstAnim = -1;
