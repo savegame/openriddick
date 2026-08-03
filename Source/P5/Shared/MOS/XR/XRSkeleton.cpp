@@ -2238,6 +2238,66 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 			}
 		}
 
+		// RIDDICK_DBG_MASK=1 -- какие слоты поворота НЕ покрыты ни одним слоем.
+		//
+		// Ключевое наблюдение пользователя: idle-анимации играют целиком, а
+		// активные (бег, атака) замирают частями -- предплечья и плечи стоят
+		// в T-позе, остальное двигается. Статический дефект (топология
+		// скелета, декодер клипа) так себя вести не может: он ломал бы одни
+		// и те же кости всегда. Значит различие вносит то, что зависит от
+		// СОСТАВА СЛОЁВ, а это ровно маски треков.
+		//
+		// idle -- обычно один слой с базовым узлом 0, то есть полная маска.
+		// Активные состояния -- 4-5 слоёв с разными m_iBlendBaseNode
+		// ([SEQ] показывал layers=4 и layers=5), и каждый слой пишет только
+		// свою часть скелета. Если маски построены неверно, часть слотов не
+		// пишет НИКТО, и они сохраняют значение с прошлого кадра -- то есть
+		// замирают ровно так, как видно на экране.
+		//
+		// Печатаем состав слоёв и слоты, которых нет ни в одной lTrackMask.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MASK");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && _nLayers > 1 && s_n < 20)
+			{
+				++s_n;
+				fprintf(stderr, "[MASK] nLayers=%d nRot=%d\n", (int)_nLayers, (int)nRotations);
+				for (uint l = 0; l < _nLayers; l++)
+				{
+					int nBits = 0;
+					for (uint i = 0; i < nRotations; i++)
+						if (lTrackMask[l].m_TrackMaskRot.IsEnabled(i))
+							++nBits;
+					fprintf(stderr, "[MASK]   L%d base=%d blend=%.2f flags=0x%x rotBits=%d seq=%s\n",
+						(int)l, (int)_pLayer[l].m_iBlendBaseNode, _pLayer[l].m_Blend,
+						(unsigned)_pLayer[l].m_Flags, nBits,
+						_pLayer[l].m_spSequence ? "yes" : "NULL");
+				}
+				int nUncovered = 0;
+				CFStr Sl;
+				for (uint i = 0; i < nRotations; i++)
+				{
+					bool bCovered = false;
+					for (uint l = 0; l < _nLayers && !bCovered; l++)
+						if (lTrackMask[l].m_TrackMaskRot.IsEnabled(i))
+							bCovered = true;
+					if (!bCovered)
+					{
+						++nUncovered;
+						if (nUncovered <= 24)
+							Sl += CFStrF("%d ", (int)i);
+					}
+				}
+				fprintf(stderr, "[MASK]   uncoveredRot=%d [%s]\n", nUncovered, Sl.Str());
+				fflush(stderr);
+			}
+		}
+
 		bool bFirstLayer = true;
 		for(uint l = 0; l < _nLayers; l++)
 		{
