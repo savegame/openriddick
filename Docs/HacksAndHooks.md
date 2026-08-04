@@ -2730,12 +2730,23 @@ use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
 - **DBG** `RIDDICK_DBG_DLG=1` (`WObj_CharDialogue.cpp`) — включает
   **штатную** трассу диалоговой системы, оставленную авторами за `DO_IF(0)`
   (тот же приём, что с `AG2I_DEBUG_FLAGS`). Печатает `EvalDialogueLink`,
-  `SetItem (N): <item>`, выбор целей, запуск реплик. Ключевая строка —
-  `SetItem`: `Char_GetDialogueApproachItem` отдаёт
-  `m_DialogueItems.m_Approach`, а тот ставится только сообщением
-  `OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH` из события `SETITEM_APPROACH`.
-  Нет строк `SetItem` → approach-реплики персонажам не раздали скрипты
-  уровня.
+  `SetItem`, передачу слушателя, запуск реплик.
+
+  Дополнена нашими строками — у штатной трассы была дыра: единственная
+  строка `PlayDialogue_Hash` стоит в **конце** функции, поэтому неудачный
+  запуск реплики выглядел как отсутствие строки, и отличить «реплики нет в
+  ресурсе» от «приоритет не пустил» было нельзя. Теперь каждый из пяти
+  ранних выходов печатает `PlayDialogue_Hash: <hash> FAIL (<причина>)`
+  (`WObj_CharDialogue.cpp:593-613`), плюс добавлены
+  `ActivateItem: hash= isPlayer= selfHash= selfValid= bBegin= iUser=`
+  (`Char_ActivateDialogueItem`) и `BeginDialogue: speaker= startItem=`
+  (`Char_BeginDialogue`). В строку `Resetting listener because of failed
+  tests` добавлена печать сырых векторов
+  (`MeToPlayer/PlayerLook/MyLook/MyPos/PlayerPos`).
+
+  Замером прогона 18 версия «скрипты не раздали approach-реплики» **не
+  подтвердилась**: `approach=1`, NPC ведут между собой полные диалоговые
+  цепочки. Обрыв ниже — на запуске реплики.
 
 - **DBG** `RIDDICK_DBG_USEDLG=1` (`WObj_CharMechanics.cpp`, `OnUse`, 40
   строк): `[USEDLG] '<имя>' user= param= canUse= ctrlMode= isPlayer=

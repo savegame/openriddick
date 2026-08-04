@@ -1474,3 +1474,78 @@ if (Localize_KeyExists(bVar25 ? pcVar3+2 : pcVar3)) {
 место, где движок рисует кинополосы (`XREngine.cpp:4898`, под
 `XR_VIEWFLAGS_WIDESCREEN`), не выполняется. Чёрная полоса внизу экрана —
 не они.
+
+---
+
+## §25. Активация разговора работает; обрыв — ниже, на запуске реплики
+
+**Прогон 18** (`pa1_prisonarea`, `RIDDICK_DBG_DLG=1 RIDDICK_DBG_USEDLG=1
+RIDDICK_DBG_CHOICES=1 RIDDICK_DBG_SEL=1`). Штатная трасса диалогов
+включилась и дала ответы сразу по нескольким закрытым вопросам.
+
+### Диалоговая система жива
+
+NPC разговаривают между собой полной цепочкой с передачей слушателя:
+
+```
+[6.03,  Char 86, ABE],    Set listener: 88, VICTOR   PlayDialogue_Hash: 0B8774B1 (result: 1)!
+[9.00,  Char 86, ABE],    Link: Victor:100  EvalDialogueLink2: nTargets = 1
+[9.00,  Char 88, VICTOR], Set listener: 87, VICTIM   PlayDialogue_Hash: 0B8774B1 (result: 1)!
+[13.90, Char 88, VICTOR], Link: Victim:100  EvalDialogueLink2: nTargets = 1
+```
+
+То есть ресурсы диалогов, хэши, линки и передача слушателя исправны.
+
+### Approach-айтемы розданы, активация доходит
+
+```
+[USEDLG] 'BARBER' user=2559 canUse=1 ctrlMode=9 fighting=-1 sinceUse=608
+         enemy=0 prio=0x40 approach=1 approachScared=0 choices=0 devourOk=0
+[USE] activate CHAR iSel=74 selType=0x1 -> OBJMSG_CHAR_USE res=1
+```
+
+`approach=1` — **версия «скрипты уровня не раздали approach-реплики»
+закрыта**. `res=1` — правка `SELECTION_CHAR` → `OBJMSG_CHAR_USE` работает.
+
+`canUse=0` в последующих строках — это штатный двухсекундный кулдаун
+(`sinceUse` 0/11/20/27 при пороге 40 тиков), не дефект.
+
+### Где обрыв
+
+После `[USE] res=1` трасса даёт `Clear listener` (это первая строка
+`Char_ActivateDialogueItem`) — и **тишину**. Ни `PlayDialogue_Hash` у NPC,
+ни `BeginDialogue`/`PlayDialogue_Hash` у игрока.
+
+Так выглядит ранний выход из `PlayDialogue_Hash`: его штатная строка трассы
+стоит **в конце** функции, а выходов до неё пять
+(`WObj_CharDialogue.cpp:593-613`: нет ресурса, нет айтема по хэшу, персонаж
+мёртв, занят токен, приоритет ниже AI). Каждый теперь печатает свою причину
+(`PlayDialogue_Hash: %08X FAIL (...)`), плюс добавлены строки
+`ActivateItem: hash= isPlayer= selfHash= selfValid= bBegin=` и
+`BeginDialogue: speaker= startItem=`.
+
+### Список выборов пуст — следствие, а не причина
+
+`[CHOICES] char obj=74 nChoices=0 dlgTick=702`: `m_DialogueChoiceTick`
+изменился с −1 на 702, то есть `EvalDialogueLink` в ветке цели `player`
+(`WObj_CharDialogue.cpp:1131`) **выполнялся**, но не добавил ни одного
+линка. Подсказки нет потому, что нет выборов, а выборов нет потому, что
+реплика не запустилась.
+
+### Побочное наблюдение: направляющий тест смотрит не туда
+
+```
+[23.40, Char 74, BARBER], Resetting listener because of failed tests
+   (Distance: 66.4 [64.0], DirCheck1: -0.9 [0.1], DirCheck2: -0.7 [-0.2]
+```
+
+`DirCheck1 = -Dot2(MeToPlayer, PlayerLook)` (игрок смотрит на меня),
+`DirCheck2 = Dot2(MeToPlayer, MyLook)` (игрок там, куда смотрю я)
+— оба сильно **отрицательные** там, где ожидаются положительные. Один
+перевёрнутый знак у `MeToPlayer` объясняет обе цифры разом, и это
+соседствует с жалобой на повёрнутые прожекторы и дёргающиеся камеры.
+
+Оговорка: тривиальное объяснение тоже подходит — игрок отошёл (66.4 при
+пороге 64.0) и отвернулся. Различить можно только по сырым векторам,
+поэтому в ту же строку добавлена печать `MeToPlayer/PlayerLook/MyLook/
+MyPos/PlayerPos`. **Пока это не подтверждено — версия, а не вывод.**

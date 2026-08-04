@@ -155,6 +155,12 @@ bool CWObject_Character::Char_BeginDialogue(int _iSpeaker, int _iStartItem)
 /*	CWObject_Message Msg(OBJMSG_GAME_SETCLIENTWINDOW, aint("dialogue"), m_pWServer->Game_GetObject()->Player_GetClient(pCD->m_iPlayer));
 	m_pWServer->Message_SendToObject(Msg, m_pWServer->Game_GetObjectIndex());*/
 
+	// Сюда приходит игрок по OBJMSG_CHAR_BEGINDIALOGUE от NPC. Если
+	// _iStartItem нулевой, реплику никто не запустит и разговор молча не
+	// начнётся -- именно так выглядел прогон 18.
+	DBG_OUT_LOG("[%.2f, Char %d, %s], BeginDialogue: speaker=%d startItem=%08X",
+		m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _iSpeaker, (unsigned)_iStartItem);
+
 	if (_iStartItem != 0)
 	{
 		OnMessage(CWObject_Message(OBJMSG_CHAR_SETDIALOGUETOKENHOLDER, m_iObject, 0, m_iObject));
@@ -590,11 +596,24 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 	CWRes_Dialogue* pDialogue = GetDialogueResource(this, m_pWServer);
 
+	// Ранние выходы PlayDialogue_Hash молчаливы: штатная строка трассы стоит в
+	// самом конце функции, поэтому неудача выглядит в логе как отсутствие
+	// строки, и отличить "реплики нет в ресурсе" от "приоритет не пустил"
+	// нельзя. Проговариваем каждый выход отдельно.
 	if (!pDialogue || !pDialogue->GetHashDialogueItem(_DialogueHash))
+	{
+		DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (%s)",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+			pDialogue ? "no such item in dialogue resource" : "no dialogue resource");
 		return false;
+	}
 
 	if(Char_GetPhysType(this) == PLAYER_PHYS_DEAD)
+	{
+		DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (dead)",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash);
 		return false;
+	}
 
 	CWRes_Dialogue::CRefreshRes Res;
 	bool bResValid = false;
@@ -602,7 +621,11 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 	if (!pDialogue->IsQuickSound_Hash(_DialogueHash))
 	{
 		if(pCD->m_pCurrentDialogueToken && !(_Flags & DIALOGUEFLAGS_FROMLINK))
+		{
+			DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (busy: token held, not from link)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash);
 			return false;
+		}
 
 		//pDialogue->FindEvent_Hash(_iDialogue, CWRes_Dialogue::EVENTTYPE_LISTENER)
 
@@ -610,7 +633,12 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 		int Prio = pDialogue->GetPriority_Hash(_DialogueHash);
 		if (Prio < m_spAI->GetCurrentPriorityClass())
+		{
+			DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (prio %d < AI prio %d)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+				Prio, (int)m_spAI->GetCurrentPriorityClass());
 			return false;
+		}
 
 		CFStr Listener;
 		int iListener = 0;
@@ -701,7 +729,11 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 		{
 			CWObject_Character *pChar = TDynamicCast<CWObject_Character>(m_pWServer->Object_Get(iListener));
 			if(pChar && CWObject_Character::Char_GetPhysType(pChar) == PLAYER_PHYS_DEAD)
+			{
+				DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (listener %d is dead)",
+					m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash, iListener);
 				return false;
+			}
 
 			Char_SetListener(iListener, Flags);
 			pCD->m_DialogueInstance.m_Priority = Prio;
@@ -1797,6 +1829,22 @@ void CWObject_Character::Char_ActivateDialogueItem(CDialogueLink _DialogueItem, 
 			if (!PlayDialogue_Hash(SelfDialogueItem.m_ItemHash, DIALOGUEFLAGS_FROMLINK, 0))
 				bBegin = false;
 		}
+
+		// RIDDICK_DBG_DLG: почему нажатие "поговорить" ничего не даёт, хотя
+		// approach-айтем валиден и OnUse доходит до конца.
+		//
+		// Замер прогона 18 (pa1_prisonarea): после [USE] res=1 в трассе есть
+		// "Clear listener", а дальше -- ТИШИНА. Ни PlayDialogue_Hash у NPC,
+		// ни у игрока. Значит либо реплику не нашли по хэшу
+		// (PlayDialogue_Hash выходит по !GetHashDialogueItem ДО своей строки
+		// трассы), либо bBegin сбросился. Печатаем весь расклад: хэш,
+		// чей это айтем, есть ли у него линк, и что осталось от bBegin.
+		DBG_OUT_LOG("[%.2f, Char %d, %s], ActivateItem: hash=%08X isPlayer=%d selfHash=%08X selfValid=%d bBegin=%d iUser=%d",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+			_DialogueItem.m_ItemHash, (int)_DialogueItem.m_bIsPlayer,
+			SelfDialogueItem.m_ItemHash, (int)SelfDialogueItem.IsValid(),
+			(int)bBegin, _iUser);
+
 		if (bBegin)
 		{
 			CWObject_Message Msg(OBJMSG_CHAR_BEGINDIALOGUE, _DialogueItem.m_ItemHash);
@@ -1864,6 +1912,23 @@ void CWObject_Character::RefreshInteractiveDialogue()
 			{
 				DBG_OUT_LOG("[%.2f, Char %d, %s], Resetting listener because of failed tests (Distance: %.1f [%.1f], DirCheck1: %.1f [%.1f], DirCheck2: %.1f [%.1f]",
 					m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), M_Sqrt(DistanceSqr), 64.0f, DirCheck1, 0.1f, DirCheck2, -0.2f);
+
+				// Замер прогона 18 дал DirCheck1=-0.9 при пороге +0.1 и
+				// DirCheck2=-0.7 при пороге -0.2 -- оба сильно отрицательные
+				// там, где ожидаются положительные. Один-единственный
+				// перевёрнутый знак у MeToPlayer объясняет обе цифры сразу,
+				// и это соседствует с жалобой на повёрнутые прожекторы и
+				// камеры. Но объяснение может быть и тривиальным: игрок
+				// действительно отошёл и отвернулся. Различить можно только
+				// по сырым векторам, поэтому печатаем их: если игрок стоял
+				// лицом к NPC, а PlayerLook смотрит в противоположную от
+				// MeToPlayer сторону -- дефект в матрицах, а не в игроке.
+				DBG_OUT_LOG("    raw: MeToPlayer=(%.2f %.2f %.2f) PlayerLook=(%.2f %.2f %.2f) MyLook=(%.2f %.2f %.2f) MyPos=(%.0f %.0f %.0f) PlayerPos=(%.0f %.0f %.0f)",
+					MeToPlayer.k[0], MeToPlayer.k[1], MeToPlayer.k[2],
+					PlayerLook.k[0], PlayerLook.k[1], PlayerLook.k[2],
+					MyLook.k[0], MyLook.k[1], MyLook.k[2],
+					MyPos.k[0], MyPos.k[1], MyPos.k[2],
+					PlayerPos.k[0], PlayerPos.k[1], PlayerPos.k[2]);
 				Char_SetListener(0);
 			}
 		}
