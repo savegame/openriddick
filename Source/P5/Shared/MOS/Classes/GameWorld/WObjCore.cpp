@@ -1,4 +1,8 @@
 #include "PCH.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "WObjCore.h"
 #include "Server/WServer.h"
 #include "WMapData.h"
@@ -2201,7 +2205,7 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 
 	case MHASH2('ANG','LES') : // "ANGLES"
 	case MHASH2('ROTA','TION') : // "ROTATION"
-		{ 
+		{
 			CMat4Dfp32 Mat;
 			CVec3Dfp32 v; v.ParseString(_pKey->GetThisValue());
 			v *= (1.0f/360.0f);
@@ -2210,6 +2214,46 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			if (!m_pWServer->Object_SetPosition(m_iObject, Mat))
 				LogFile("§cf80WARNING: Failed setting ANGLES, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
+
+			// RIDDICK_DBG_ANGLES=1 -- ориентации сущностей.
+			//
+			// Через этот ключ проходит ВСЁ, что жалуется на поворот:
+			// прожекторы, следящие камеры, актёры катсцен. Печатаем сырую
+			// строку из карты и получившиеся строки матрицы, чтобы отличить
+			// три разных диагноза:
+			//   * строка разобралась не так (ParseString / порядок компонент);
+			//   * порядок осей в CreateMatrixFromAngles не тот, что ожидает
+			//     контент (тогда ошибка одинакова у всех сущностей);
+			//   * матрица верна, а портит её кто-то ниже по течению
+			//     (тогда искать в конкретном классе объекта).
+			// Двух прогонов подряд хватит и на второй вопрос: если строки
+			// РАЗЛИЧАЮТСЯ между запусками при одинаковой карте -- дело в
+			// неинициализированной памяти, а не в порядке осей.
+			static int s_Dbg = -1;
+			if (s_Dbg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANGLES");
+				s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_Dbg)
+			{
+				static int s_n = 0;
+				if (s_n < 120)
+				{
+					++s_n;
+					const char* pName = GetName();
+					const char* pTpl = GetTemplateName();
+					fprintf(stderr, "[ANGLES] obj=%d tpl='%s' name='%s' raw='%s' deg=(%.1f %.1f %.1f) "
+						"fwd=(%.3f %.3f %.3f) right=(%.3f %.3f %.3f) up=(%.3f %.3f %.3f)\n",
+						(int)m_iObject, (pTpl && *pTpl) ? pTpl : "-", (pName && *pName) ? pName : "-",
+						_pKey->GetThisValue().Str(),
+						v.k[0] * 360.0f, v.k[1] * 360.0f, v.k[2] * 360.0f,
+						Mat.k[0][0], Mat.k[0][1], Mat.k[0][2],
+						Mat.k[1][0], Mat.k[1][1], Mat.k[1][2],
+						Mat.k[2][0], Mat.k[2][1], Mat.k[2][2]);
+					fflush(stderr);
+				}
+			}
 		}
 		break;
 
