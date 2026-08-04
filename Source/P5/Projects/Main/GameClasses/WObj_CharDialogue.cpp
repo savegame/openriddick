@@ -725,6 +725,26 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 		OnRefresh_Dialogue_Hash(this, m_pWServer, _DialogueHash, _Flags, &Res);
 
+		// Что реплика вообще несёт. После правки ключа APPROACHDIALOGUEITEM
+		// приветственная реплика запускается (result: 1), но за ней ничего не
+		// следует: ни строки Link, ни выборов, ни звука. Разделяем случаи --
+		// «в айтеме нет LINK/CHOICE» (тогда чинить нечего, дело в контенте
+		// или в том, что играется не тот айтем) от «события есть, но их не
+		// разбирают». Печатаем маску событий и наличие ключевых событий
+		// прямо из ресурса, плюс индекс звука.
+		DBG_OUT_LOG("[%.2f, Char %d, %s], Events for %08X: mask=%08X sub=%d choice=%d link=%d('%s') listener=%d users=%d snd=%d",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+			Res.m_Events,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_SUBTITLE) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_CHOICE) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_LINK) ? 1 : 0,
+			// m_pLink достаём только когда бит выставлен: конструктор
+			// CRefreshRes обнуляет лишь m_Events, остальные поля -- мусор.
+			((Res.m_Events & (1 << CWRes_Dialogue::EVENTTYPE_LINK)) && Res.m_pLink) ? Res.m_pLink : "",
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_LISTENER) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_USERS) ? 1 : 0,
+			(int)pDialogue->GetSoundIndex_Hash(_DialogueHash, m_pWServer->GetMapData()));
+
 		if (iListener > 0)
 		{
 			CWObject_Character *pChar = TDynamicCast<CWObject_Character>(m_pWServer->Object_Get(iListener));
