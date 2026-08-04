@@ -2529,7 +2529,28 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 
 			if (pV && pN && pTgU && pTgV)
 			{
-				CXR_VertexBuffer* pVB = pVBM->Alloc_VB(CXR_VB_ATTRIB);
+				fp32 Len = 1.0f;
+				int nV = pTVB->GetNumVertices(this);
+				// m_piPrim is uint16: six indices per vertex means the basis
+				// of at most 10922 vertices can be drawn per chain. Clamp
+				// instead of wrapping the index list around.
+				if (nV > 65535 / 6)
+					nV = 65535 / 6;
+
+				// Alloc_VB(CXR_VB_ATTRIB) allocates ONLY the attribute -- no
+				// chain, and CXR_VBFLAGS_VBCHAIN stays clear. The old code
+				// then called GetVBChain() on it and wrote through the
+				// result: SIGILL on the M_BREAKPOINT inside GetVBChain in an
+				// M_Profile build (run 2026-08-04, XRVertexBuffer.h:249), and
+				// a write through a garbage pointer in a build without it.
+				// Asking for VERTICES|COLORS with the count also hands back
+				// m_pV/m_pCol/m_nV correctly sized (XRVBManager.cpp:704-722),
+				// which is what the two earlier under-allocations here got
+				// wrong: m_pCol was sized for SIX colours while the loop
+				// writes nV*6, and the index array was sized in bytes instead
+				// of uint16 -- and never filled at all.
+				CXR_VertexBuffer* pVB = pVBM->Alloc_VB(
+					CXR_VB_ATTRIB | CXR_VB_VERTICES | CXR_VB_COLORS, nV * 6);
 				if(pVB && pVB->m_pAttrib)
 				{
 					// SIGSEGV here on the first cluster of the frame (run
@@ -2567,31 +2588,12 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 					else
 						pMat->Unit();
 					CXR_VBChain* pChain = pVB->GetVBChain();
-					fp32 Len = 1.0f;
-					int nV = pTVB->GetNumVertices(this);
-					// m_piPrim is uint16: six indices per vertex means the
-					// basis of at most 10922 vertices can be drawn per chain.
-					// Clamp instead of wrapping the index list around.
-					if (nV > 65535 / 6)
-						nV = 65535 / 6;
-					pChain->m_nV		= nV * 6;
-					pChain->m_pV		= pVBM->Alloc_V3(nV * 6);
-					// Three fixes to this debug path, all needed before it can
-					// be switched on (xr_debugflags bit 14 = tangent basis as
-					// wires; the loop below writes nV*6 colours and the chain
-					// declares nV*6 wire indices):
-					//  1. m_pCol was allocated for SIX colours while the loop
-					//     writes v*6+5 for every vertex -- a VB-arena overrun
-					//     of (nV-1)*6 CPixel32 as soon as a cluster has more
-					//     than one vertex;
-					//  2. m_piPrim was allocated nV*6 BYTES for nV*6 uint16
-					//     entries -- half the memory it indexes;
-					//  3. m_piPrim was never filled at all, so CRC_RIP_WIRES
-					//     drew arena garbage as line indices.
-					// Canonical pattern for a wire chain (m_nPrim counts
-					// INDICES, index array filled explicitly) is
-					// CXR_VBManager::RenderBox, XRVBManager.cpp:4062-4068.
-					pChain->m_pCol		= (CPixel32*)pVBM->Alloc(sizeof(CPixel32) * nV * 6);
+					if (!pChain)
+						return;
+					// Index array is the one thing Alloc_VB does not cover.
+					// m_nPrim counts INDICES for CRC_RIP_WIRES -- canonical
+					// pattern is CXR_VBManager::RenderBox
+					// (XRVBManager.cpp:4062-4068).
 					pChain->m_piPrim	= (uint16*)pVBM->Alloc(sizeof(uint16) * nV * 6);
 					if (!pChain->m_pV || !pChain->m_pCol || !pChain->m_piPrim)
 						return;
@@ -2622,6 +2624,15 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 						pChain->m_pCol[v*6+4]	= 0xff0000ff;
 						pChain->m_pCol[v*6+5]	= 0xff0000ff;
 					}
+
+					// ...and the buffer was never submitted: the block built
+					// the whole chain and then dropped it on the floor, so
+					// even a run that survived the three defects above drew
+					// nothing. Priority puts the wires with the opaque models,
+					// i.e. after the geometry they annotate.
+					pVB->m_Priority = _pRenderParams->m_RenderInfo.m_BasePriority_Opaque
+					                + CXR_VBPRIORITY_MODEL_OPAQUE;
+					pVBM->AddVB(pVB);
 				}
 			}
 		}

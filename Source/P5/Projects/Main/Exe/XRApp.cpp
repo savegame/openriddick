@@ -1608,6 +1608,11 @@ class CLinux_ConsoleLineBuffer
 public:
 	CLinux_ConsoleLineBuffer() : m_Len(0), m_bDrop(false) {}
 
+	// Drop a half-accumulated line. Used when the watched file is rewritten
+	// under us: the tail we were holding belongs to the old content and must
+	// not be glued to the front of the new.
+	void Reset() { m_Len = 0; m_bDrop = false; }
+
 	void Feed(CConsole* _pCon, const char* _pData, int _nData)
 	{
 		for(int i = 0; i < _nData; i++)
@@ -1716,8 +1721,17 @@ static void Linux_PollConsoleFile(CConsole* _pCon)
 		s_Offset = St.st_size;
 		return;
 	}
+	// Persistent across polls: a writer can be caught mid-line, so an
+	// unterminated tail waits for its newline instead of being executed as a
+	// truncated command. Consequence to know: a final line written without a
+	// trailing newline never runs.
+	static CLinux_ConsoleLineBuffer s_Buf;
+
 	if ((off_t)St.st_size < s_Offset)
+	{
 		s_Offset = 0;							// file was truncated/rewritten
+		s_Buf.Reset();							// old tail is not new content
+	}
 	if ((off_t)St.st_size == s_Offset) return;	// nothing appended
 
 	const int fd = open(s_pPath, O_RDONLY);
@@ -1728,11 +1742,6 @@ static void Linux_PollConsoleFile(CConsole* _pCon)
 		return;
 	}
 
-	// Persistent across polls: a writer can be caught mid-line, so an
-	// unterminated tail waits for its newline instead of being executed as a
-	// truncated command. Consequence to know: a final line written without a
-	// trailing newline never runs.
-	static CLinux_ConsoleLineBuffer s_Buf;
 	char Data[512];
 	for(;;)
 	{
