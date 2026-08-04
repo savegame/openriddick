@@ -1979,3 +1979,59 @@ template=` в момент неудачного линка).
 `bHaveChoices` мигает 1/0. Это и есть «камера не перестаёт двигаться».
 Разбирать после того, как закроется имя: пока список выборов то появляется,
 то исчезает, вход и выход из 3PI будут дёргаться по построению.
+
+---
+
+## §32. Фолбэк сработал, но выбор всё равно выброшен: гейт 3PI
+
+**Прогон 24** (`RIDDICK_DLGLINK_PLAYERFALLBACK=1`).
+
+### Имя игрока — не из шаблона
+
+```
+[PLAYERNAME] obj=2559 playerNr=0 mapName='' template='player_pa1_prisonarea' -> $PLAYER
+unresolved: player obj=2559 name='$PLAYER' template='player_pa1_prisonarea'
+```
+
+Шаблон называется `player_pa1_prisonarea`, а не `Riddick`. Версия «имя
+берётся из шаблона» закрыта. Откуда ретейл берёт `Riddick`, пока неизвестно.
+
+### Фолбэк довёл сообщение, но его выбросили дальше
+
+```
+LinkTarget: 'Riddick' -> iTarget=0 ... fallback: routing link to player obj=2559
+[29.33, Char 2559, $PLAYER], SetDialogueChoices: '99' parsed=1 iPlayer=0 3PIMode=0 sender=74 owner=2559
+```
+
+Выбор дошёл до игрока и разобрался (`parsed=1`), но **`3PIMode=0`**, поэтому
+netmsg на клиент не ушёл: у игрока (`iPlayer != -1`) выборы отправляются
+только внутри `if(b3PI)`, иначе функция молча возвращает true.
+
+**Сверено с ретейлом** — там ровно тот же гейт.
+`FUN_102eb160` (`Char_SetDialogueChoices`,
+`GameClasses_Win32_x86_dll_decomp.c:476410-476500`):
+
+```c
+if ((*(short *)(iVar2 + 0x2d16) == -1) && list && len > 0) {   // m_iPlayer == -1
+    PlayDialogue_Hash(list[0], 2, ...);                        // NPC говорит сразу
+    SetLen(0); return 1;
+} else {
+    if (!list || len < 1) return 0;
+    if ((*(byte *)(iVar2 + 0x2074) & 3) != 0) { CNetMsg(0x27); ... }   // 3PI-маска
+}
+```
+
+То есть дефект не здесь: недостающее звено **выше** — игрок должен уже быть
+в 3PI-режиме к моменту, когда реплика NPC закончилась и сработал линк.
+
+Вход в 3PI (`Char_UpdateThirdPersonInteractive`,
+`WObj_CharMechanics.cpp:9489-9498`) требует
+`(bHaveChoices && m_Go3rdpOnTick) || bSpeaking`, где `bSpeaking` — это флаг
+`PLAYER_CLIENTFLAGS_PLAYERSPEAK` **у игрока**. При approach-реплике с
+`bIsPlayer=1` говорит NPC, игрок молчит и выборов ещё нет — ни одно из двух
+условий не выполняется. У SHABBY разговор пошёл потому, что там линк имел
+цель `Player`, и выборы легли на NPC (ветка с ранним `return`), а не
+пересылались игроку.
+
+Следующий шаг — найти, что в ретейле включает 3PI (или ставит
+`PLAYERSPEAK`) при реплике NPC, адресованной игроку.

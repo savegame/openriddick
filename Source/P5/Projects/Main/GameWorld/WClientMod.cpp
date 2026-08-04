@@ -1433,6 +1433,30 @@ uint32 CWClient_Mod::GetViewFlags()
 
 	if(pObj)
 	{
+		// RIDDICK_NO_WIDESCREEN=1 -- убрать чёрные полосы.
+		//
+		// Здесь в снапшоте стоит безусловный `return
+		// XR_VIEWFLAGS_WIDESCREEN`, а настоящее условие («полосы только в
+		// катсцене или диалоге») закомментировано прямо ниже — то есть это
+		// временная отладочная заглушка самих авторов, попавшая в срез.
+		// Флаг возвращает поведение по закомментированному условию:
+		// широкоэкранный режим не запрашивается вовсе.
+		//
+		// Оговорка: замер `RIDDICK_DBG_LETTERBOX` показал, что блок
+		// отрисовки полос в `Engine_PostProcess` НЕ выполняется, значит
+		// чёрная область снизу приходит не из него. Этот флаг закрывает
+		// первую из двух возможных причин (запрос широкоэкранного режима);
+		// вторая — несовпадение вьюпорта и цели рендера, её покажет
+		// `RIDDICK_DBG_VIEW=1`, который теперь работает без RIDDICK_DBG_GL.
+		static int s_NoWide = -1;
+		if (s_NoWide < 0)
+		{
+			const char* e = getenv("RIDDICK_NO_WIDESCREEN");
+			s_NoWide = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_NoWide)
+			return 0;
+
 		return XR_VIEWFLAGS_WIDESCREEN;
 /*
 		int bCutscene = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_CUTSCENE;

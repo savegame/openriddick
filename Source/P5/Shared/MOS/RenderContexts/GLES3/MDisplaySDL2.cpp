@@ -2721,7 +2721,12 @@ public:
 		void DbgFramePrint()
 		{
 			DbgDumpTick();
-			if (!m_DbgEnabled) return;
+			// RIDDICK_DBG_VIEW должен работать САМ ПО СЕБЕ. Раньше он стоял
+			// внутри блока [GL-DBG], который выходит здесь по !m_DbgEnabled
+			// (то есть требовал ещё и RIDDICK_DBG_GL) -- из-за этого три
+			// прогона с RIDDICK_DBG_VIEW=1 не дали ни одной строки, и данных
+			// по чёрной полосе внизу экрана так и не появилось.
+			if (!m_DbgEnabled && !DbgEnvFlag("RIDDICK_DBG_VIEW")) return;
 			++m_DbgFrames;
 			if (m_DbgFrames < DBG_INTERVAL) return;
 			// Snapshot + reset the global upload counters.
@@ -2730,6 +2735,7 @@ public:
 			m_DbgUploadDXT3 = g_GLES3_UploadDXT3; g_GLES3_UploadDXT3 = 0;
 			m_DbgUploadDXT5 = g_GLES3_UploadDXT5; g_GLES3_UploadDXT5 = 0;
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
+			if (m_DbgEnabled)
 			fprintf(stderr,
 				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d svol=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
