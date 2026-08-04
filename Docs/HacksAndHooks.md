@@ -2464,6 +2464,47 @@ CLAMP они получали полосу цвета кромки). Проек�
   — проекционный texgen (`CRC_TEXGENMODE_*` для прожекторов) и отсутствие у
   нас clamp-to-border.
 
+### Проекционные карты света — сэмплятся как 2D вместо CUBE (2026-08-04)
+
+**HACK/дефект, найден, не исправлен.** Симптом: маска прожектора/фонаря
+ложится под неверным углом (открытый пункт в `port_status.md`). Прогон
+`RIDDICK_DBG_NDS=proj` в камере Ридика + сравнение с оригиналом дали
+цепочку доказательств:
+
+1. лог: `[GLES3-NDSP] prog=XRShader_FP20_NDSP ... proj1=9020 ... projCh=7`,
+   `texgen=[0 8 4 19 19 4 4 1]` — канал 7 в режиме `CRC_TEXGENMODE_LINEAR`
+   (=1), три строки матрицы (`LinUVW`);
+2. текстура: `[GLES3-TEX-OK] id=9020 name='Cube_Lamp010_00' 64x64` — имя
+   говорит само, `_00` = нулевая грань цепочки;
+3. движок: слот проекции по умолчанию заполняется
+   `m_TextureID_Special_Cube_ffffffff` (`XRShader_FP20.cpp:663, 1122`), то
+   есть слот **кубический по построению**; для спота без своей маски
+   берётся `m_TextureID_DefaultLens` — и рядом в контенте лежит отдельный
+   `Special_DefaultLens2D`, то есть 2D-вариант это ДРУГАЯ текстура;
+4. флаги контейнера: `CTC_TEXTUREFLAGS_CUBEMAP` (одна картинка на все 6
+   граней) и `CTC_TEXTUREFLAGS_CUBEMAPCHAIN` (эта и 5 следующих ID —
+   грани куба), `MTexture.h:103-105`;
+5. наш собственный справочник: `Docs/FP_Reference.md` §4.1 — «`texture[1]`
+   = Projection Map (**CUBE**)», §4.2 —
+   `attn *= textureCube(ProjMap, ProjMapTexCoord).a`.
+
+А наш шейдер делает `textureProj(uProjTex1, vProjUVW).a`
+(`MDisplaySDL2.cpp:1165-1166`, `sampler2D`), то есть берёт **направление**
+и делит его как проективную 2D-координату `(x/z, y/z)`. Отсюда и поворот,
+и жёсткие края, и переворот маски там, где `z` меняет знак.
+
+Что нужно для исправления (эталон — PS3-бэкенд,
+`MRenderPS3_Texture.cpp:1077-1096`):
+
+* аплоад куба в `GLES3_Texture`: при `CUBEMAPCHAIN` грани берутся как
+  `pTC->GetTextureID(iLocal + i*nVersions)`, i=1..5, где
+  `nVersions = EnumTextureVersions(id,0,ANY)`, `iLocal = GetLocal(id)`;
+  при `CUBEMAP` одна картинка размножается на 6 граней;
+* `GL_TEXTURE_CUBE_MAP` + CLAMP_TO_EDGE, отдельный кэш (или тип в
+  существующем);
+* в NDSP/NDSEATP заменить `sampler2D`+`textureProj` на `samplerCube`+
+  `texture(...)`, оставив 2D-путь для не-кубических проекций.
+
 ### Missing user clip planes
 
 - **HACK** Ничего не делаем с CRC_FLAGS_CLIP / Clip_Set (Research §7-H1).
