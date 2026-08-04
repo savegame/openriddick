@@ -30,6 +30,16 @@
     `startnewcampaign(2)`. Режим переопределяется `RIDDICK_AUTOSTART_MODE`
     (2 = Butcher Bay, 1 = Dark Athena). Вместе с `RIDDICK_STARTMAP` даёт
     загрузку прямо в нужный уровень — для сбора логов.
+  - **Консоль движка** (2026-08-04, подробно — `Docs/HacksAndHooks.md`
+    «Живая консоль движка», карта команд —
+    `Docs/Research_RenderToggles_Report.md`): `RIDDICK_CONEXEC="cmd1;cmd2"`
+    — выполнить консольные команды один раз через `RIDDICK_CONEXEC_DELAY`
+    кадров (деф. 30); `RIDDICK_CONSOLE_STDIN=1` — команды из stdin (по
+    умолчанию ВЫКЛ: под gdb иначе съедаются команды отладчика);
+    `RIDDICK_CONFILE=<путь>` — исполнять строки, дописываемые в файл
+    (`echo "xr_debugflags(8192)" >> /tmp/rid.cmd` переключает эффект на
+    живой игре). Через это доступны ВСЕ штатные `xr_*`-команды движка —
+    предпочитать их своим env-флагам.
   - `RIDDICK_STARTMAP=<имя>` — стартовый мир кампании вместо Pa1_Intro (имя без пути/расширения, напр. `Pa1_Arrival`, `i1_pigsville`); резолв пути делает Command_ChangeMap.
   - `RIDDICK_DIRECT_RENDER=1` — прямой рендер в окно (fb0): screen FBO не создаётся, `PresentToWindow` — no-op, все SetRenderTarget биндят fb0, CopyToTexture — no-op; на движке гейтятся `Engine_PostProcess` (XREngine.cpp) и CamFX-модель (WClientMod.cpp). Кадр = чистая геометрия + BSP-лайтпайплайн. Предполагает ROTATE=0 и FBOSIZE==WINSIZE (дефолт). Меню при этом частично деградирует (его blur-капчи пустые). Хелпер `GLES3_DirectRender()` (MDisplaySDL2.cpp) — единая точка чтения флага в бэкенде.
   - `RIDDICK_ONLY_BSP=1` — позитивный фильтр в DrawIndexed: пропускать только крупные дрои (nVerts>=100, BSP-кластеры), всё мелкое (UI/партиклы) скипается.
