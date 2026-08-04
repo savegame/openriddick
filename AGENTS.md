@@ -40,6 +40,10 @@
     (`echo "xr_debugflags(8192)" >> /tmp/rid.cmd` переключает эффект на
     живой игре). Через это доступны ВСЕ штатные `xr_*`-команды движка —
     предпочитать их своим env-флагам.
+  - `RIDDICK_CUBE_FLIPY=1` — A/B для кубических масок прожекторов:
+    негировать Y в направлении выборки куба (GL vs D3D расходятся по оси
+    V). По умолчанию выкл. Подробно — `Docs/HacksAndHooks.md`
+    «Проекционные карты света».
   - `RIDDICK_STARTMAP=<имя>` — стартовый мир кампании вместо Pa1_Intro (имя без пути/расширения, напр. `Pa1_Arrival`, `i1_pigsville`); резолв пути делает Command_ChangeMap.
   - `RIDDICK_DIRECT_RENDER=1` — прямой рендер в окно (fb0): screen FBO не создаётся, `PresentToWindow` — no-op, все SetRenderTarget биндят fb0, CopyToTexture — no-op; на движке гейтятся `Engine_PostProcess` (XREngine.cpp) и CamFX-модель (WClientMod.cpp). Кадр = чистая геометрия + BSP-лайтпайплайн. Предполагает ROTATE=0 и FBOSIZE==WINSIZE (дефолт). Меню при этом частично деградирует (его blur-капчи пустые). Хелпер `GLES3_DirectRender()` (MDisplaySDL2.cpp) — единая точка чтения флага в бэкенде.
   - `RIDDICK_ONLY_BSP=1` — позитивный фильтр в DrawIndexed: пропускать только крупные дрои (nVerts>=100, BSP-кластеры), всё мелкое (UI/партиклы) скипается.

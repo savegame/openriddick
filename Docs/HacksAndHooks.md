@@ -2464,9 +2464,9 @@ CLAMP они получали полосу цвета кромки). Проек�
   — проекционный texgen (`CRC_TEXGENMODE_*` для прожекторов) и отсутствие у
   нас clamp-to-border.
 
-### Проекционные карты света — сэмплятся как 2D вместо CUBE (2026-08-04)
+### Проекционные карты света — CUBE вместо 2D (2026-08-04, ИСПРАВЛЕНО)
 
-**HACK/дефект, найден, не исправлен.** Симптом: маска прожектора/фонаря
+**Дефект найден и исправлен в тот же день.** Симптом: маска прожектора/фонаря
 ложится под неверным углом (открытый пункт в `port_status.md`). Прогон
 `RIDDICK_DBG_NDS=proj` в камере Ридика + сравнение с оригиналом дали
 цепочку доказательств:
@@ -2493,17 +2493,34 @@ CLAMP они получали полосу цвета кромки). Проек�
 и делит его как проективную 2D-координату `(x/z, y/z)`. Отсюда и поворот,
 и жёсткие края, и переворот маски там, где `z` меняет знак.
 
-Что нужно для исправления (эталон — PS3-бэкенд,
-`MRenderPS3_Texture.cpp:1077-1096`):
+Как исправлено (эталон — PS3-бэкенд, `MRenderPS3_Texture.cpp:1077-1096`):
 
-* аплоад куба в `GLES3_Texture`: при `CUBEMAPCHAIN` грани берутся как
-  `pTC->GetTextureID(iLocal + i*nVersions)`, i=1..5, где
-  `nVersions = EnumTextureVersions(id,0,ANY)`, `iLocal = GetLocal(id)`;
-  при `CUBEMAP` одна картинка размножается на 6 граней;
-* `GL_TEXTURE_CUBE_MAP` + CLAMP_TO_EDGE, отдельный кэш (или тип в
-  существующем);
-* в NDSP/NDSEATP заменить `sampler2D`+`textureProj` на `samplerCube`+
-  `texture(...)`, оставив 2D-путь для не-кубических проекций.
+* `CGLES3TextureUploader::Upload2D` параметризован по target'у
+  (`_FaceTarget` + `_ExistingTex`): грань куба грузится тем же кодом, что
+  и обычная 2D-текстура, поэтому весь разбор форматов/DXT/swizzle общий,
+  а не продублирован;
+* `CGLES3TextureUploader::UploadCube(pFaces[6])` — собирает
+  `GL_TEXTURE_CUBE_MAP`, мипы генерируются ОДИН раз после шести граней
+  (`glGenerateMipmap` на кубе требует все грани), CLAMP_TO_EDGE по S/T/R;
+* `CRC_GLES3::TextureID_EnsureUploadedCube` — отдельный кэш
+  `m_lGLCubeTex` (одна и та же движковая текстура может понадобиться и
+  как 2D, и как куб, а GL-имя привязано к target'у на всю жизнь); при
+  `CUBEMAPCHAIN` грани берутся как `pCont->GetTextureID(iLocal +
+  i*nVersions)`, i=1..5, при `CUBEMAP` (и при отсутствии флагов) одна
+  картинка размножается на 6 граней;
+* в NDSP/NDSEATP `sampler2D`+`textureProj(uProjTexN, vProjUVW)` заменены
+  на `samplerCube`+`texture(uProjTexN, projDir)`; биндинг —
+  `GL_TEXTURE_CUBE_MAP`;
+* освобождение кубов добавлено в `Texture_ReleaseAll`/`Texture_Flush`.
+
+**A/B-флаг:** `RIDDICK_CUBE_FLIPY=1` — негирует Y в направлении выборки
+куба (GL и D3D расходятся по оси V). По умолчанию выключен: PC-ретейл
+рендерил через OpenGL (RndrGL), значит грани уже в GL-ориентации. Если
+маска окажется зеркальной по вертикали — это первый и единственный
+переключатель, который надо попробовать.
+
+Диагностика: `[GLES3-CUBE] id= name= chain(6 faces)|single image -> cube
+tex=` при `RIDDICK_DBG_GL=1`.
 
 ### Missing user clip planes
 

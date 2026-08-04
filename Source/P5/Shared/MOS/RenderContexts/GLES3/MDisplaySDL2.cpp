@@ -1123,11 +1123,12 @@ static const char* kGLES3_NDSPFragSrc =
 	// Projection map 1 (NDSP's only cookie; NDSEATP's first of two --
 	// same texcoord/plane data feeds both samples in the NDSEATP case,
 	// see the class comment above).
-	"uniform sampler2D uProjTex1;\n"
+	"uniform samplerCube uProjTex1;\n"
 	"uniform int uUseProj1;\n"
 	// Projection map 2 -- NDSEATP only; uUseProj2=0 collapses this
 	// program back to the NDSP behaviour (single cookie).
-	"uniform sampler2D uProjTex2;\n"
+	"uniform samplerCube uProjTex2;\n"
+	"uniform int uCubeFlipY;\n"
 	"uniform int uUseProj2;\n"
 	// RIDDICK_DBG_NDS: same enum as plain NDS (1=tslv,2=normal,3=diffuse,
 	// 4=spec,5=atten) plus 6=proj (the combined projection-map factor,
@@ -1159,11 +1160,21 @@ static const char* kGLES3_NDSPFragSrc =
 	"  float attnLin = clamp(distSq * uLightRange.z, 0.0, 1.0);\n"
 	"  float attn = 1.0 - attnLin;\n"
 	"  attn = attn * attn;\n"
-	// Projection map(s): ARB `MUL r1.w, r1.w, ProjMapTexel.a` -- see the
-	// SIMPLIFICATION note above for textureProj() standing in for CUBE.
+	// Projection map(s): ARB `MUL r1.w, r1.w, ProjMapTexel.a`. The
+	// sampler is a CUBE, and vProjUVW is the lookup DIRECTION, not a
+	// projective 2D coordinate -- this used to be textureProj() on a
+	// sampler2D, i.e. (x/z, y/z) of a direction vector, which is what
+	// rotated every lamp cookie and made it flip across the z=0 line
+	// (measured 2026-08-04 with RIDDICK_DBG_NDS=proj against the
+	// original game; evidence chain in Docs/HacksAndHooks.md).
+	// uCubeFlipY is the A/B for the GL-vs-D3D cube V axis: PC retail
+	// rendered through OpenGL, so the shipped faces should already be
+	// in GL orientation and the default is off.
+	"  vec3 projDir = vProjUVW;\n"
+	"  if (uCubeFlipY != 0) projDir.y = -projDir.y;\n"
 	"  float projFactor = 1.0;\n"
-	"  if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1, vProjUVW).a;\n"
-	"  if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2, vProjUVW).a;\n"
+	"  if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
+	"  if (uUseProj2 != 0) projFactor *= texture(uProjTex2, projDir).a;\n"
 	"  if (uDbgMode == 6) { oColor = vec4(vec3(projFactor), 1.0); return; }\n"
 	"  attn *= projFactor;\n"
 	"  if (uDbgMode == 5) { oColor = vec4(vec3(attn), 1.0); return; }\n"
@@ -1632,6 +1643,22 @@ static int GLES3_DbgNDSMode()
 // qualifies -- there is no separate RIDDICK_LF=1 opt-in switch, the task
 // explicitly asks for one shared flag covering the whole shading set (LF
 // included), with this as the only override.
+// RIDDICK_CUBE_FLIPY=1 -- negate Y in the light-projection cube lookup.
+// A/B only: GL and D3D disagree on the cube V axis, and PC retail rendered
+// through OpenGL (RndrGL), so the shipped faces should already be in GL
+// orientation -- default off. Flip here rather than at upload time so the
+// test costs a run, not a re-upload path.
+static bool GLES3_CubeFlipY()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_CUBE_FLIPY");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_NoLF()
 {
 	static int s = -1;
@@ -1837,6 +1864,11 @@ public:
 		// M2: engine TextureID -> GLuint. Sparse; 0 means "not
 		// uploaded yet"; the vector grows on first touch.
 		TArray<GLuint> m_lGLTex;
+		// Cube textures live in their own cache: the SAME engine texture ID
+		// can legitimately be wanted as 2D by one draw and as a cube by
+		// another (the projection channel is cube, MTexture.h:103-105), and
+		// a GL name is bound to one target for its whole life.
+		TArray<GLuint> m_lGLCubeTex;
 		// Source CImage format per texture ID, captured at upload time.
 		// Needed because the shaders must know whether a normal map is a
 		// two-channel I8A8/3DC texture (X,Y stored, Z reconstructed) or a
@@ -2427,6 +2459,7 @@ public:
 		int m_NDSPULightColorLoc = -1, m_NDSPUSpecColorLoc = -1;
 		int m_NDSPUProjTex1Loc = -1, m_NDSPUUseProj1Loc = -1;
 		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
+		int m_NDSPUCubeFlipYLoc = -1;
 		int m_NDSPUDbgLoc = -1;
 		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
 		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
@@ -3507,7 +3540,7 @@ public:
 					: "CRC_Attributes::m_TextureID[4] (projection map) is 0");
 				return false;
 			}
-			const GLuint TProj1 = TextureID_EnsureUploaded(TexProj1ID);
+			const GLuint TProj1 = TextureID_EnsureUploadedCube(TexProj1ID);
 			if (!TProj1)
 			{
 				DbgLogNDSPFallback("projection map 1 failed to upload (see [GLES3-TEX-FAIL] above)");
@@ -3516,7 +3549,7 @@ public:
 			GLuint TProj2 = 0;
 			if (bEATP && TexProj2ID)
 			{
-				TProj2 = TextureID_EnsureUploaded(TexProj2ID);
+				TProj2 = TextureID_EnsureUploadedCube(TexProj2ID);
 				if (!TProj2)
 				{
 					DbgLogNDSPFallback("projection map 2 failed to upload (see [GLES3-TEX-FAIL] above)");
@@ -3602,15 +3635,19 @@ public:
 			m_NDSPShader.SetInt(m_NDSPUUseNormalLoc, 1);
 			m_NDSPShader.SetInt(m_NDSPUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
 
+			// Projection maps are CUBE maps -- see the shader comment and
+			// Docs/HacksAndHooks.md. TProj1/TProj2 come from
+			// TextureID_EnsureUploadedCube, so these are cube names.
+			m_NDSPShader.SetInt(m_NDSPUCubeFlipYLoc, GLES3_CubeFlipY() ? 1 : 0);
 			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, TProj1);
+			glBindTexture(GL_TEXTURE_CUBE_MAP, TProj1);
 			m_NDSPShader.SetInt(m_NDSPUProjTex1Loc, 2);
 			m_NDSPShader.SetInt(m_NDSPUUseProj1Loc, 1);
 
 			if (TProj2)
 			{
 				glActiveTexture(GL_TEXTURE3);
-				glBindTexture(GL_TEXTURE_2D, TProj2);
+				glBindTexture(GL_TEXTURE_CUBE_MAP, TProj2);
 				m_NDSPShader.SetInt(m_NDSPUProjTex2Loc, 3);
 				m_NDSPShader.SetInt(m_NDSPUUseProj2Loc, 1);
 			}
@@ -3853,6 +3890,7 @@ public:
 				m_NDSPUUseProj1Loc   = m_NDSPShader.UniformLocation("uUseProj1");
 				m_NDSPUProjTex2Loc   = m_NDSPShader.UniformLocation("uProjTex2");
 				m_NDSPUUseProj2Loc   = m_NDSPShader.UniformLocation("uUseProj2");
+				m_NDSPUCubeFlipYLoc  = m_NDSPShader.UniformLocation("uCubeFlipY");
 				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
 				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
 				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
@@ -3881,6 +3919,14 @@ public:
 				if (m_lGLTex[i])
 					glDeleteTextures(1, &m_lGLTex[i]);
 				m_lGLTex[i] = 0;
+			}
+			// Cube cache is separate (see m_lGLCubeTex) and must be freed
+			// with it -- otherwise a level change leaks one cube per lamp.
+			for (int i = 0; i < m_lGLCubeTex.Len(); ++i)
+			{
+				if (m_lGLCubeTex[i])
+					glDeleteTextures(1, &m_lGLCubeTex[i]);
+				m_lGLCubeTex[i] = 0;
 			}
 		}
 
@@ -3935,6 +3981,72 @@ public:
 		{
 			if (!m_pTC || _TextureID <= 0 || _TextureID >= m_pTC->GetIDCapacity()) return false;
 			return m_pTC->IsValidID(_TextureID);
+		}
+
+		// Cube version of TextureID_EnsureUploaded. Used by the light
+		// PROJECTION channel, which is a cube map in this engine
+		// (m_TextureID_Special_Cube_ffffffff is the neutral default,
+		// XRShader_FP20.cpp:663/1122; Docs/FP_Reference.md §4.2 has retail
+		// doing textureCube on it). Two layouts, both from MTexture.h:103-105:
+		//   CTC_TEXTUREFLAGS_CUBEMAPCHAIN -- this ID and the five that follow
+		//     it in the container are the six faces;
+		//   CTC_TEXTUREFLAGS_CUBEMAP     -- one image used on all six faces.
+		// A texture with neither flag is treated as the second case, so a
+		// mis-flagged cookie degrades to "same picture on every face"
+		// instead of to a missing light.
+		// The chain walk is the PS3 backend's, verbatim in structure
+		// (MRenderPS3_Texture.cpp:1084-1092): face i is the container-local
+		// index iLocal + i*nVersions.
+		GLuint TextureID_EnsureUploadedCube(int _TextureID)
+		{
+			if (_TextureID <= 0 || !m_pTC) return 0;
+			if (_TextureID >= m_lGLCubeTex.Len())
+			{
+				const int Old = m_lGLCubeTex.Len();
+				m_lGLCubeTex.SetLen(_TextureID + 1);
+				for (int i = Old; i < m_lGLCubeTex.Len(); ++i)
+					m_lGLCubeTex[i] = 0;
+			}
+			if (m_lGLCubeTex[_TextureID])
+				return m_lGLCubeTex[_TextureID];
+			if (!SDL_GL_GetCurrentContext())
+				return 0;			// loader thread -- retry on the GL thread
+
+			CTC_TextureProperties Props;
+			m_pTC->GetTextureProperties(_TextureID, Props);
+			const bool bChain = (Props.m_Flags & CTC_TEXTUREFLAGS_CUBEMAPCHAIN) != 0;
+
+			CImage* pFaces[6] = { 0, 0, 0, 0, 0, 0 };
+			pFaces[0] = m_pTC->GetTexture(_TextureID, 0, -1);
+			if (!pFaces[0])
+				return 0;			// same retry policy as the 2D path
+
+			if (bChain)
+			{
+				const int nVersions = m_pTC->EnumTextureVersions(_TextureID, 0, CTC_TEXTUREVERSION_ANY);
+				CTextureContainer* pCont = m_pTC->GetTextureContainer(_TextureID);
+				const int iLocal = m_pTC->GetLocal(_TextureID);
+				if (pCont && nVersions > 0 && iLocal >= 0)
+				{
+					for (int i = 1; i < 6; ++i)
+					{
+						const int FaceID = pCont->GetTextureID(iLocal + i * nVersions);
+						if (FaceID > 0)
+							pFaces[i] = m_pTC->GetTexture(FaceID, 0, -1);
+					}
+				}
+			}
+
+			const GLuint T = CGLES3TextureUploader::UploadCube(pFaces);
+			if (T && m_DbgEnabled)
+			{
+				fprintf(stderr, "[GLES3-CUBE] id=%d name='%s' %s -> cube tex=%u\n",
+					_TextureID, (const char*)m_pTC->GetName(_TextureID),
+					bChain ? "chain(6 faces)" : "single image on 6 faces", (unsigned)T);
+				fflush(stderr);
+			}
+			m_lGLCubeTex[_TextureID] = T;
+			return T;
 		}
 
 		GLuint TextureID_EnsureUploaded(int _TextureID)
@@ -4112,6 +4224,11 @@ public:
 			{
 				glDeleteTextures(1, &m_lGLTex[_TextureID]);
 				m_lGLTex[_TextureID] = 0;
+			}
+			if (_TextureID >= 0 && _TextureID < m_lGLCubeTex.Len() && m_lGLCubeTex[_TextureID])
+			{
+				glDeleteTextures(1, &m_lGLCubeTex[_TextureID]);
+				m_lGLCubeTex[_TextureID] = 0;
 			}
 		}
 

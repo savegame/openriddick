@@ -108,8 +108,16 @@ void CGLES3TextureUploader::SwizzleBGRA_RGBA(unsigned char* _pPixels, int _nPixe
 	}
 }
 
-GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
+GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps,
+	GLenum _FaceTarget, GLuint _ExistingTex)
 {
+	// _FaceTarget is GL_TEXTURE_2D for an ordinary texture, or one of
+	// GL_TEXTURE_CUBE_MAP_POSITIVE_X.. when UploadCube feeds one face of
+	// a cube through here -- that reuses every format/DXT/swizzle path
+	// below instead of growing a second copy of it. Sampler state and
+	// mipmap generation always address the CONTAINER target.
+	const GLenum kBindTarget = (_FaceTarget == GL_TEXTURE_2D)
+	                         ? (GLenum)GL_TEXTURE_2D : (GLenum)GL_TEXTURE_CUBE_MAP;
 	if (!_pImage) return 0;
 	const int W = _pImage->GetWidth();
 	const int H = _pImage->GetHeight();
@@ -176,8 +184,8 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		}
 		// Upload as RGBA8 directly, bypassing the format-table + swizzle
 		// (already RGBA8 order from the decoders).
-		GLuint Tex = 0;
-		glGenTextures(1, &Tex);
+		GLuint Tex = _ExistingTex;
+		if (!Tex) glGenTextures(1, &Tex);
 		if (!Tex)
 		{
 			// glGenTextures returning 0 means GL errored -- typically no
@@ -188,7 +196,7 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 			free(pDecoded);
 			return 0;
 		}
-		glBindTexture(GL_TEXTURE_2D, Tex);
+		glBindTexture(kBindTarget, Tex);
 		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 		// Skip padding columns via GL_UNPACK_ROW_LENGTH (=padded row width
 		// in pixels). Reset to 0 (=default: tightly packed) after upload
@@ -196,7 +204,7 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, PadW);
 		// Dump post-DXT-decode RGBA8 (padded to PadW; caller trims later).
 		MaybeDumpPPM("dxt", pDecoded, PadW, PadH, 4, (unsigned)_pImage->GetFormat());
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, W, H, 0,
+		glTexImage2D(_FaceTarget, 0, GL_RGBA8, W, H, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 		// RIDDICK_NO_MIPMAP=1: force GL_LINEAR (skip mipmap sampling).
@@ -211,19 +219,19 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		}
 		if (_bGenerateMipmaps && !sNoMipmap)
 		{
-			glGenerateMipmap(GL_TEXTURE_2D);
+			glGenerateMipmap(kBindTarget);
 			GLenum err = glGetError();
 			if (err != GL_NO_ERROR)
 				fprintf(stderr, "[GLES3-TEX] glGenerateMipmap failed err=0x%x on %dx%d DXT\n", (unsigned)err, W, H);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			glTexParameteri(kBindTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		}
 		else
 		{
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(kBindTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		}
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+		glTexParameteri(kBindTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+		glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_T,     GL_REPEAT);
 		free(pDecoded);
 		return Tex;
 	}
@@ -293,8 +301,8 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		}
 	}
 
-	GLuint Tex = 0;
-	glGenTextures(1, &Tex);
+	GLuint Tex = _ExistingTex;
+	if (!Tex) glGenTextures(1, &Tex);
 	if (!Tex)
 	{
 		fprintf(stderr, "[GLES3] Upload2D: glGenTextures failed, glGetError=0x%x (no ctx on this thread?)\n",
@@ -304,10 +312,10 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		return 0;
 	}
 
-	glBindTexture(GL_TEXTURE_2D, Tex);
+	glBindTexture(kBindTarget, Tex);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	MaybeDumpPPM("bgra", pSrc, W, H, F.BytesPerPixel, (unsigned)_pImage->GetFormat());
-	glTexImage2D(GL_TEXTURE_2D, 0, F.InternalFormat, W, H, 0, F.Format, F.Type, pSrc);
+	glTexImage2D(_FaceTarget, 0, F.InternalFormat, W, H, 0, F.Format, F.Type, pSrc);
 
 	{
 		static int sNoMip = -1;
@@ -326,24 +334,24 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 		const bool bLUT = (W <= 1 || H <= 1);
 		if (bLUT)
 		{
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+			glTexParameteri(kBindTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+			glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		}
 		else if (_bGenerateMipmaps && !sNoMip)
 		{
-			glGenerateMipmap(GL_TEXTURE_2D);
+			glGenerateMipmap(kBindTarget);
 			GLenum err = glGetError();
 			if (err != GL_NO_ERROR)
 				fprintf(stderr, "[GLES3-TEX] glGenerateMipmap failed err=0x%x on %dx%d BGRA\n", (unsigned)err, W, H);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+			glTexParameteri(kBindTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		}
 		else
 		{
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+			glTexParameteri(kBindTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		}
 	}
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(kBindTarget, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	// GL_REPEAT: world/prop tiling textures use UV outside [0..1] to
 	// tile (e.g. wall Aguerra06_0004_C uses V ≈ 7.5). CLAMP_TO_EDGE
 	// clamps them to the edge row = uniform darkish stripe on every
@@ -356,8 +364,8 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	// into "no fog at all".
 	if (!(W <= 1 || H <= 1))
 	{
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S,     GL_REPEAT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T,     GL_REPEAT);
+		glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_S,     GL_REPEAT);
+		glTexParameteri(kBindTarget, GL_TEXTURE_WRAP_T,     GL_REPEAT);
 	}
 
 	// Single/dual channel formats: reconstruct the classic GL semantics
@@ -366,28 +374,89 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps)
 	switch (_pImage->GetFormat())
 	{
 	case IMAGE_FORMAT_A8:		// GL_ALPHA: (1,1,1,a)
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_ONE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_ONE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_ONE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_R, GL_ONE);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_G, GL_ONE);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_B, GL_ONE);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_A, GL_RED);
 		break;
 	case IMAGE_FORMAT_I8:		// GL_INTENSITY: (i,i,i,i)
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_R, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_G, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_B, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_A, GL_RED);
 		break;
 	case IMAGE_FORMAT_I8A8:		// GL_LUMINANCE_ALPHA: (i,i,i,a)
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_G, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, GL_RED);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_R, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_G, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_B, GL_RED);
+		glTexParameteri(kBindTarget, GL_TEXTURE_SWIZZLE_A, GL_GREEN);
 		break;
 	default:
 		break;
 	}
 
 	if (pTmp) free(pTmp);
+	return Tex;
+}
+
+// ---------------------------------------------------------------------------
+//  Cube maps
+// ---------------------------------------------------------------------------
+// Needed because the light PROJECTION channel is a cube map, not a 2D texture:
+// the engine fills that slot with m_TextureID_Special_Cube_ffffffff by default
+// (XRShader_FP20.cpp:663, 1122), the content ships lamp cookies as
+// 'Cube_Lamp010_00' chains, and Docs/FP_Reference.md §4.2 has the retail
+// program doing textureCube(ProjMap, tc).a. Sampling those as 2D is what
+// rotated and hard-edged every flashlight/lamp cookie in the port.
+//
+// Face order: the engine's chain order maps 1:1 onto GL's
+// GL_TEXTURE_CUBE_MAP_POSITIVE_X + i -- same assumption the PS3 backend makes
+// when it calls BuildCube(..., i, true) for chain entry i
+// (MRenderPS3_Texture.cpp:1084-1092). No vertical flip is applied: PC retail
+// rendered through OpenGL (RndrGL), so the shipped faces are already in GL
+// orientation. RIDDICK_CUBE_FLIPY=1 negates the lookup's Y in the shader if
+// that ever turns out to be wrong -- a one-flag A/B rather than a re-upload.
+GLuint CGLES3TextureUploader::UploadCube(CImage* const _pFaces[6])
+{
+	if (!_pFaces || !_pFaces[0]) return 0;
+
+	GLuint Tex = 0;
+	glGenTextures(1, &Tex);
+	if (!Tex)
+	{
+		fprintf(stderr, "[GLES3] UploadCube: glGenTextures failed, glGetError=0x%x (no ctx on this thread?)\n",
+			(unsigned)glGetError());
+		++g_GLES3_UploadFail;
+		return 0;
+	}
+
+	for (int i = 0; i < 6; ++i)
+	{
+		// NULL face -> reuse face 0 (CTC_TEXTUREFLAGS_CUBEMAP semantics).
+		CImage* pImg = _pFaces[i] ? _pFaces[i] : _pFaces[0];
+		// Mipmaps once at the end: glGenerateMipmap on a cube needs all six
+		// faces present, so per-face generation would work on an incomplete
+		// texture.
+		if (!Upload2D(pImg, false, (GLenum)(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i), Tex))
+		{
+			fprintf(stderr, "[GLES3] UploadCube: face %d failed to upload\n", i);
+			++g_GLES3_UploadFail;
+			glDeleteTextures(1, &Tex);
+			return 0;
+		}
+	}
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, Tex);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+	const GLenum MipErr = glGetError();
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER,
+		MipErr ? GL_LINEAR : GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	// Clamp on all three axes: a cookie must not tile across the seams.
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 	return Tex;
 }
 
