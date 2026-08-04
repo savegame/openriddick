@@ -2901,3 +2901,27 @@ use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
 - Screen FBO зелёный debug-clear можно вернуть в чёрный.
 - `sFlip = -1` static'и во многих местах — не сбрасываются между
   сессиями (не важно в single-process, но грязно).
+
+### RIDDICK_NO_WIDESCREEN / RIDDICK_WIDESCREEN_ALWAYS (2026-08-04)
+
+- **FIX** `CWClient_Mod::GetViewFlags` (`WClientMod.cpp:1436`). В срезе
+  стоял безусловный `return XR_VIEWFLAGS_WIDESCREEN`, а настоящее условие
+  лежало рядом закомментированным — отладочная заглушка авторов. Из-за неё
+  чёрные полосы висели весь сеанс, а не только в катсценах.
+
+  Замер: с выключенным широкоэкранным режимом `[GL-VIEW]` даёт
+  `fbo=1280x720 win=1280x720 vp=(0,0..1280,720)` и полоса исчезает
+  (подтверждено визуально). Сами полосы рисует **не**
+  `Engine_PostProcess` — тот блок, как показал `RIDDICK_DBG_LETTERBOX`, не
+  выполняется; флаг урезает вьюпорт раньше, через
+  `CGameContext::DetermineWidescreen` → `SetViewFlags`.
+
+  Восстановлено авторское условие (полосы только при
+  `PLAYER_CLIENTFLAGS_CUTSCENE`/`_DIALOGUE` и положительном ответе на
+  `OBJMSG_CHAR_CSHASBORDER`).
+  `RIDDICK_WIDESCREEN_ALWAYS=1` — поведение среза, `RIDDICK_NO_WIDESCREEN=1`
+  — выключить полосы совсем.
+
+- **DBG** `RIDDICK_DBG_VIEW=1` теперь работает **без** `RIDDICK_DBG_GL`
+  (`MDisplaySDL2.cpp`). Раньше зонд стоял внутри блока `[GL-DBG]` и молча
+  требовал второй флаг — из-за этого три прогона с ним не дали ни строки.

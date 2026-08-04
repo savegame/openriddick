@@ -1433,38 +1433,49 @@ uint32 CWClient_Mod::GetViewFlags()
 
 	if(pObj)
 	{
-		// RIDDICK_NO_WIDESCREEN=1 -- убрать чёрные полосы.
+		// ИСПРАВЛЕНО (2026-08-04): чёрные полосы на весь сеанс игры.
 		//
-		// Здесь в снапшоте стоит безусловный `return
+		// В снапшоте здесь стоял безусловный `return
 		// XR_VIEWFLAGS_WIDESCREEN`, а настоящее условие («полосы только в
-		// катсцене или диалоге») закомментировано прямо ниже — то есть это
-		// временная отладочная заглушка самих авторов, попавшая в срез.
-		// Флаг возвращает поведение по закомментированному условию:
-		// широкоэкранный режим не запрашивается вовсе.
+		// катсцене или диалоге») лежало рядом закомментированным — то есть
+		// это временная отладочная заглушка самих авторов, попавшая в срез.
+		// Из-за неё игрок постоянно видел урезанный кадр.
 		//
-		// Оговорка: замер `RIDDICK_DBG_LETTERBOX` показал, что блок
-		// отрисовки полос в `Engine_PostProcess` НЕ выполняется, значит
-		// чёрная область снизу приходит не из него. Этот флаг закрывает
-		// первую из двух возможных причин (запрос широкоэкранного режима);
-		// вторая — несовпадение вьюпорта и цели рендера, её покажет
-		// `RIDDICK_DBG_VIEW=1`, который теперь работает без RIDDICK_DBG_GL.
-		static int s_NoWide = -1;
-		if (s_NoWide < 0)
+		// Замер подтвердил и причину, и следствие: с отключённым
+		// широкоэкранным режимом `[GL-VIEW]` даёт
+		// `fbo=1280x720 win=1280x720 vp=(0,0..1280,720)`, полоса исчезает.
+		// (Сами полосы при этом рисует не `Engine_PostProcess` — тот блок,
+		// как показал `RIDDICK_DBG_LETTERBOX`, не выполняется; флаг
+		// широкоэкранного режима урезает вьюпорт раньше, через
+		// `CGameContext::DetermineWidescreen` -> `SetViewFlags`.)
+		//
+		// Восстановлено авторское условие. `RIDDICK_WIDESCREEN_ALWAYS=1`
+		// возвращает прежнее поведение среза (для A/B),
+		// `RIDDICK_NO_WIDESCREEN=1` выключает полосы совсем, включая
+		// катсцены.
+		static int s_Mode = -1;	// 0 = как в снапшоте, 1 = по условию, 2 = никогда
+		if (s_Mode < 0)
 		{
-			const char* e = getenv("RIDDICK_NO_WIDESCREEN");
-			s_NoWide = (e && *e && *e != '0') ? 1 : 0;
+			const char* eOff = getenv("RIDDICK_NO_WIDESCREEN");
+			const char* eAlways = getenv("RIDDICK_WIDESCREEN_ALWAYS");
+			if (eOff && *eOff && *eOff != '0')
+				s_Mode = 2;
+			else if (eAlways && *eAlways && *eAlways != '0')
+				s_Mode = 0;
+			else
+				s_Mode = 1;
 		}
-		if (s_NoWide)
+
+		if (s_Mode == 2)
 			return 0;
+		if (s_Mode == 0)
+			return XR_VIEWFLAGS_WIDESCREEN;
 
-		return XR_VIEWFLAGS_WIDESCREEN;
-/*
-		int bCutscene = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_CUTSCENE;
-		int bDialogue = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE;
-
-		if((bDialogue || bCutscene) && Phys_Message_SendToObject(CWObject_Message(OBJMSG_CHAR_CSHASBORDER), pObj->m_iObject))
-			return EViewFlags_VirtualWideScreen;
-*/
+		const int bCutscene = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_CUTSCENE;
+		const int bDialogue = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE;
+		if ((bDialogue || bCutscene) &&
+			Phys_Message_SendToObject(CWObject_Message(OBJMSG_CHAR_CSHASBORDER), pObj->m_iObject))
+			return XR_VIEWFLAGS_WIDESCREEN;
 	}
 	return 0;
 }
