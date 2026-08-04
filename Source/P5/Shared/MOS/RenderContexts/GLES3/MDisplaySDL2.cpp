@@ -2313,6 +2313,13 @@ public:
 		// "nds=N").
 		bool m_bDbgNDSLogged = false;
 		int  m_DbgNDSDraws = 0;
+		// Draws whose FP20 program qualified on the engine side but
+		// could not be executed by this backend (missing tangent
+		// basis, missing texture, unsupported texgen channel, ...):
+		// they silently become a flat additive diffuse copy. Printed
+		// as fpfb= next to nds=/lf=/lfm=, so the log finally says what
+		// FRACTION of the frame is unlit rather than just "it happens".
+		int  m_DbgFPFallback = 0;
 		// Set by SetVertexAttribPointers/SetVertexAttribPointersFromEntry
 		// (see BindEntryAttrib) to reflect whether locations 5/6 (tangent
 		// basis) are bound to REAL per-vertex data for the draw about to
@@ -2649,6 +2656,7 @@ public:
 			m_DbgLFMDraws = 0;
 			m_DbgLFDraws = 0;
 			m_DbgNDSDraws = 0;
+			m_DbgFPFallback = 0;
 			m_DbgSkinDraws = 0;
 			m_DbgMI0Draws = 0;
 			m_DbgStreamMI0Draws = 0;
@@ -2752,14 +2760,14 @@ public:
 			m_DbgUploadFail = g_GLES3_UploadFail; g_GLES3_UploadFail = 0;
 			if (m_DbgEnabled)
 			fprintf(stderr,
-				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d skin=%d mi0=%d strmMI0=%d cwoff=%d svol=%d} "
+				"[GL-DBG] %df: draw{tri=%d strip=%d wire=%d poly=%d prim=%d VBID=%d skip=%d lastFmt=%d fp20=%d lfm=%d lf=%d nds=%d fpfb=%d skin=%d mi0=%d strmMI0=%d cwoff=%d svol=%d} "
 				"verts=%d idx=%d texB=%d texMiss=%d attr=%d mat=%d beg=%d "
 				"vbCache{cached=%d streamed=%d built=%d bytesV=%lld bytesI=%lld vconv=%lld vmemo=%lld} "
 				"skinovercap=%d maxbones=%d nopal=%d idxbad=%d "
 				"upl{rgba=%d dxt1=%d dxt3=%d dxt5=%d fail=%d}\n",
 				m_DbgFrames, m_DbgDrawTri, m_DbgDrawStrip, m_DbgDrawWire,
 				m_DbgDrawPoly, m_DbgDrawPrim, m_DbgDrawVBID,
-				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws, m_DbgColorWriteOff, m_DbgShadowVolDraws,
+				m_DbgVBIDSkipFmt, m_DbgVBIDLastSkip, m_DbgFPDraws, m_DbgLFMDraws, m_DbgLFDraws, m_DbgNDSDraws, m_DbgFPFallback, m_DbgSkinDraws, m_DbgMI0Draws, m_DbgStreamMI0Draws, m_DbgColorWriteOff, m_DbgShadowVolDraws,
 				m_DbgTotalVerts, m_DbgTotalIdx, m_DbgTexBound, m_DbgTexMissing,
 				m_DbgAttribSets, m_DbgMatrixSets, m_DbgBeginScenes,
 				m_DbgDrawCached, m_DbgDrawStreamed, m_GeomCache.m_nBuilt,
@@ -2872,6 +2880,9 @@ public:
 		// can't flood stderr).
 		void DbgLogLFMFallback(const char* _Reason)
 		{
+			// Counted on EVERY fallback (the print below is capped at 4,
+			// which said that fallbacks happen but never how many).
+			++m_DbgFPFallback;
 			static int sLogged = 0;
 			if (sLogged >= 4) return;
 			++sLogged;
@@ -3019,6 +3030,9 @@ public:
 		// DbgLogLFMFallback/DbgLogNDSFallback.
 		void DbgLogLFFallback(const char* _Reason)
 		{
+			// Counted on EVERY fallback (the print below is capped at 4,
+			// which said that fallbacks happen but never how many).
+			++m_DbgFPFallback;
 			static int sLogged = 0;
 			if (sLogged >= 4) return;
 			++sLogged;
@@ -3235,6 +3249,9 @@ public:
 		// DbgLogLFMFallback.
 		void DbgLogNDSFallback(const char* _Reason)
 		{
+			// Counted on EVERY fallback (the print below is capped at 4,
+			// which said that fallbacks happen but never how many).
+			++m_DbgFPFallback;
 			static int sLogged = 0;
 			if (sLogged >= 4) return;
 			++sLogged;
@@ -3412,6 +3429,9 @@ public:
 		// distinguishable in the log.
 		void DbgLogNDSPFallback(const char* _Reason)
 		{
+			// Counted on EVERY fallback (the print below is capped at 4,
+			// which said that fallbacks happen but never how many).
+			++m_DbgFPFallback;
 			static int sLogged = 0;
 			if (sLogged >= 4) return;
 			++sLogged;
@@ -4454,9 +4474,26 @@ public:
 			// (ONE/ONE); with the programs bypassed they would accumulate
 			// the same diffuse texture N times and blow out. Force blend
 			// off for them so the pixel is simply replaced.
+			//
+			// RIDDICK_DBG_NDS=<mode> needs exactly the same treatment, and
+			// for exactly the same reason -- this was measured, not guessed
+			// (run 2026-08-04, pa1_prisonarea): a debug mode paints a
+			// QUANTITY (tangent-space light vector, decoded normal,
+			// attenuation, ...), and with ONE/ONE still on, every light that
+			// touches a pixel adds its own copy of that quantity. Two lights
+			// and the picture is already past 1.0, so 'atten' came out
+			// white everywhere and 'normal' came out white on the floor --
+			// while the same 'normal' read correctly inside a shadow, i.e.
+			// exactly where fewer passes reached the pixel. That is the
+			// signature of accumulation, not of a broken lighting term, and
+			// it makes every debug mode unreadable in a multi-light scene.
+			// With blend off the last pass simply replaces the pixel: still
+			// multi-pass, but each pixel now shows one light's honest value.
+			const bool bDbgNDSFP = GLES3_DbgNDSMode() != 0 && _pAttrib->m_pExtAttrib &&
+				_pAttrib->m_pExtAttrib->m_AttribType == CRC_ATTRIBTYPE_FP20;
 			const bool bDiffOnlyFP = GLES3_DiffuseOnly() && _pAttrib->m_pExtAttrib &&
 				_pAttrib->m_pExtAttrib->m_AttribType == CRC_ATTRIBTYPE_FP20;
-			if ((F & CRC_FLAGS_BLEND) && !bDiffOnlyFP)
+			if ((F & CRC_FLAGS_BLEND) && !bDiffOnlyFP && !bDbgNDSFP)
 			{
 				glEnable(GL_BLEND);
 				const uint16 SD = _pAttrib->m_SourceDestBlend;
