@@ -1839,3 +1839,80 @@ bEnoughFocus = (DistanceToObject < 58.0f) && (FocusAmount > 0.5f)
 гейта, `LinkTarget: '<имя>' -> iTarget=` (резолвится ли цель линка) и
 `SetDialogueChoices: '<строка>' parsed= iPlayer= 3PIMode=` (последнее звено
 перед экраном).
+
+---
+
+## §30. Найдена причина обрыва: имя игрока стиралось
+
+**Прогон 22.** Замер закрыл сразу две версии и дал точную причину.
+
+### Версия про перевёрнутые матрицы — НЕ подтвердилась
+
+```
+[3PI] iFocus=74 eFocus=3 mode=0 b3PI=0 enough=1 dist=1.0 focusAmt=0.61 dirCheck2=0.51 moving=0 choices=0 speaking=0
+[3PI] iFocus=74 eFocus=3 mode=2 b3PI=1 enough=1 dist=1.0 focusAmt=0.76 dirCheck2=0.95 moving=0 choices=0 speaking=0
+```
+
+`dirCheck2` **положительный** (0.51…0.95) при пороге +0.2, `enough=1`, и
+игрок **входит** в 3PI-режим диалога (`mode=2 b3PI=1`). Гейт фокуса цел;
+подозрение на битые матрицы ориентации в этом месте снято.
+
+(Побочно видно, что `dist` всегда ровно 1.0: `DistanceToObject` считается
+как `Min(dist, CamToObjZ.Length())`, а `CamToObjZ` строится из уже
+**нормированного** `CamToObj`. Это поведение самого движка, тест
+расстояния из-за него всегда проходит. Не наш дефект, но знать полезно.)
+
+### Причина
+
+```
+LinkTarget: 'Victor'  -> iTarget=88   items='100'
+LinkTarget: 'Victim'  -> iTarget=87   items='100'
+LinkTarget: 'Abe'     -> iTarget=86   items='101'
+LinkTarget: 'Riddick' -> iTarget=0    items='99'
+```
+
+Линки диалогов адресуются **по имени объекта**. У NPC имена резолвятся, у
+игрока — нет. Дальше `EvalDialogueLink` при `iTarget <= 0` уходит в ветку
+«цель не найдена» и обрывает разговор (`SETDIALOGUETOKENHOLDER, -1`),
+поэтому `Char_SetDialogueChoices` для игрока не вызывается вовсе:
+
+```
+SetDialogueChoices: '100' parsed=1 iPlayer=-1 3PIMode=0 sender=86 owner=0
+SetDialogueChoices: '100' parsed=1 iPlayer=-1 3PIMode=0 sender=88 owner=0
+SetDialogueChoices: '101' parsed=1 iPlayer=-1 3PIMode=0 sender=87 owner=0
+```
+
+— три вызова, все на NPC (`iPlayer=-1`), ни одного на игрока.
+
+Причина, почему имя не находится: ключ `PLAYERNR`
+(`WObj_CharCreate.cpp:1181`) делал
+
+```cpp
+m_pWServer->Object_SetName(m_iObject, "$PLAYER");
+```
+
+а `Object_SetName` **переименовывает** — снимает старый узел из
+`m_NameSearchTree` и ставит новый (`WServer_Obj.cpp:262-287`). Имя, данное
+карте персонажу игрока, пропадало.
+
+### Почему это правка, а не подгонка
+
+* `$PLAYER` не используется в исходниках больше **нигде** (единственное
+  вхождение — эта строка);
+* любая цель на `$` разбирается раньше поиска по имени:
+  `ResolveSpecialTargetName` отдаёт для `$player` отдельный
+  `SPECIAL_TARGET_PLAYER` (`WObj_SimpleMessage.cpp:423-441`), так что имя
+  `$PLAYER` в дереве имён не нужно ни одному пути;
+* в декомпиле ретейла строки `"$PLAYER"` **нет ни в одном из пяти
+  модулей**, при том что строковые литералы Ghidra здесь выводит (`"$ROOM"`,
+  `"$player"`, `"POwns"`, `"ParamEquals"` видны).
+
+Правка: имя от карты сохраняется, `$PLAYER` ставится только если объект
+безымянный. Флаг отката `RIDDICK_PLAYERNAME=0`, зонд `[PLAYERNAME]`
+печатает, какое имя было и что выбрано.
+
+### Оговорка
+
+Если карта не даёт игроку имени вовсе, а контент всё равно линкует на
+`Riddick`, правка не поможет — тогда имя придётся задавать явно. Зонд
+`[PLAYERNAME] mapName='...'` отвечает на это одной строкой.

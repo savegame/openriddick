@@ -1181,7 +1181,64 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 	case MHASH2('PLAY','ERNR'): // "PLAYERNR"
 		{
 			pCD->m_iPlayer = KeyValuei;
-			m_pWServer->Object_SetName(m_iObject, "$PLAYER");
+
+			// НАЙДЕНО (2026-08-04): этот `Object_SetName` **стирал** имя,
+			// которое персонажу дала карта, и вместе с ним ломал диалоги.
+			//
+			// Замер (pa1_prisonarea, RIDDICK_DBG_DLG):
+			//   LinkTarget: 'Victor'  -> iTarget=88   items='100'
+			//   LinkTarget: 'Victim'  -> iTarget=87   items='100'
+			//   LinkTarget: 'Abe'     -> iTarget=86   items='101'
+			//   LinkTarget: 'Riddick' -> iTarget=0    items='99'
+			// Линки диалогов адресуются ПО ИМЕНИ объекта. У NPC имена на
+			// месте, у игрока -- нет: `Selection_GetSingleTarget("Riddick")`
+			// не находит никого, `EvalDialogueLink` уходит в ветку «цель не
+			// найдена» и обрывает разговор
+			// (`WObj_CharDialogue.cpp`, `SETDIALOGUETOKENHOLDER, -1`).
+			//
+			// `Object_SetName` именно переименовывает: снимает старый узел из
+			// `m_NameSearchTree` и ставит новый (`WServer_Obj.cpp:262-287`).
+			//
+			// Само имя `$PLAYER` при этом никому не нужно: в исходниках оно
+			// не встречается больше нигде, а любая цель, начинающаяся с `$`,
+			// разбирается раньше поиска по имени --
+			// `CWO_SimpleMessage::ResolveSpecialTargetName` отдаёт для
+			// `$player` отдельный SPECIAL_TARGET_PLAYER
+			// (`WObj_SimpleMessage.cpp:423-441`). В декомпиле ретейла строки
+			// `"$PLAYER"` нет ни в одном из пяти модулей, хотя строковые
+			// литералы там выводятся (`"$ROOM"`, `"$player"`, `"POwns"` и
+			// прочие видны) -- то есть ретейл имя игрока не перетирает.
+			//
+			// Оставляем имя от карты, если оно есть. `RIDDICK_PLAYERNAME=0`
+			// возвращает прежнее поведение.
+			static int s_Keep = -1;
+			if (s_Keep < 0)
+			{
+				const char* e = getenv("RIDDICK_PLAYERNAME");
+				s_Keep = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			const char* pCurName = GetName();
+			const bool bHasName = (pCurName && *pCurName);
+
+			{
+				static int s_Dbg = -1;
+				if (s_Dbg < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_DLG");
+					s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_Dbg)
+				{
+					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' keep=%d -> %s\n",
+						(int)m_iObject, KeyValuei, bHasName ? pCurName : "",
+						s_Keep, (s_Keep && bHasName) ? "kept" : "$PLAYER");
+					fflush(stderr);
+				}
+			}
+
+			if (!s_Keep || !bHasName)
+				m_pWServer->Object_SetName(m_iObject, "$PLAYER");
 			break;
 		}
 

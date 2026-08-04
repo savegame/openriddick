@@ -2817,6 +2817,42 @@ use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
   `[KEYITEM] approachdialogueitem='<знач>' numeric= retail= -> hash= isPlayer=`
   и `[SETITEM] '<NPC>' <вид>='<имя>' param0= isPlayer= stripped= hash=`.
 
+### RIDDICK_PLAYERNAME — имя игрока стиралось, диалоги рвались (2026-08-04)
+
+- **FIX** `RIDDICK_PLAYERNAME` (`WObj_CharCreate.cpp`, ключ `PLAYERNR`, по
+  умолчанию **включён**).
+
+  Ключ `PLAYERNR` делал `Object_SetName(m_iObject, "$PLAYER")`, то есть
+  **стирал** имя, которое персонажу дала карта. `Object_SetName` именно
+  переименовывает: снимает старый узел из `m_NameSearchTree` и ставит новый
+  (`WServer_Obj.cpp:262-287`).
+
+  Ломало это диалоги, потому что линки диалогов адресуются по имени объекта.
+  Замер `pa1_prisonarea`:
+
+  ```
+  LinkTarget: 'Victor'  -> iTarget=88   items='100'
+  LinkTarget: 'Victim'  -> iTarget=87   items='100'
+  LinkTarget: 'Abe'     -> iTarget=86   items='101'
+  LinkTarget: 'Riddick' -> iTarget=0    items='99'
+  ```
+
+  У NPC имена на месте, у игрока — нет. `EvalDialogueLink` при `iTarget <= 0`
+  уходит в ветку «цель не найдена» и обрывает разговор
+  (`SETDIALOGUETOKENHOLDER, -1`).
+
+  Имя `$PLAYER` при этом не нужно никому: в исходниках оно не встречается
+  больше нигде, а любая цель на `$` разбирается раньше поиска по имени —
+  `CWO_SimpleMessage::ResolveSpecialTargetName` отдаёт для `$player`
+  отдельный `SPECIAL_TARGET_PLAYER` (`WObj_SimpleMessage.cpp:423-441`).
+  В декомпиле ретейла строки `"$PLAYER"` нет ни в одном из пяти модулей,
+  хотя строковые литералы там выводятся (`"$ROOM"`, `"$player"`, `"POwns"`
+  видны) — то есть ретейл имя игрока не перетирает.
+
+  Правка: имя от карты сохраняется, `$PLAYER` ставится только безымянному
+  объекту. `RIDDICK_DBG_DLG=1` печатает
+  `[PLAYERNAME] obj= playerNr= mapName='<имя>' keep= -> kept|$PLAYER`.
+
 ### RIDDICK_DBG_LETTERBOX — кинополосы (2026-08-03, зонд переставлен)
 
 - **DBG** `RIDDICK_DBG_LETTERBOX=1` (`XREngine.cpp`, `Engine_PostProcess`):
