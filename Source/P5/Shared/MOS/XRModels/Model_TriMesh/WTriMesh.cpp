@@ -2539,15 +2539,39 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 					CXR_VBChain* pChain = pVB->GetVBChain();
 					fp32 Len = 1.0f;
 					int nV = pTVB->GetNumVertices(this);
+					// m_piPrim is uint16: six indices per vertex means the
+					// basis of at most 10922 vertices can be drawn per chain.
+					// Clamp instead of wrapping the index list around.
+					if (nV > 65535 / 6)
+						nV = 65535 / 6;
 					pChain->m_nV		= nV * 6;
 					pChain->m_pV		= pVBM->Alloc_V3(nV * 6);
-					pChain->m_pCol		= (CPixel32*)pVBM->Alloc(sizeof(CPixel32) * 6);
-					pChain->m_piPrim	= (uint16*)pVBM->Alloc(nV * 6);
-					if (!pChain->m_pCol || !pChain->m_piPrim)
+					// Three fixes to this debug path, all needed before it can
+					// be switched on (xr_debugflags bit 14 = tangent basis as
+					// wires; the loop below writes nV*6 colours and the chain
+					// declares nV*6 wire indices):
+					//  1. m_pCol was allocated for SIX colours while the loop
+					//     writes v*6+5 for every vertex -- a VB-arena overrun
+					//     of (nV-1)*6 CPixel32 as soon as a cluster has more
+					//     than one vertex;
+					//  2. m_piPrim was allocated nV*6 BYTES for nV*6 uint16
+					//     entries -- half the memory it indexes;
+					//  3. m_piPrim was never filled at all, so CRC_RIP_WIRES
+					//     drew arena garbage as line indices.
+					// Canonical pattern for a wire chain (m_nPrim counts
+					// INDICES, index array filled explicitly) is
+					// CXR_VBManager::RenderBox, XRVBManager.cpp:4062-4068.
+					pChain->m_pCol		= (CPixel32*)pVBM->Alloc(sizeof(CPixel32) * nV * 6);
+					pChain->m_piPrim	= (uint16*)pVBM->Alloc(sizeof(uint16) * nV * 6);
+					if (!pChain->m_pV || !pChain->m_pCol || !pChain->m_piPrim)
 						return;
 					pChain->m_PrimType	= CRC_RIP_WIRES;
 					pChain->m_nPrim		= nV * 6;
 					pVB->m_pTransform	= pMat;
+					// One line per (vertex, axis): vertices come out in draw
+					// order, so the index list is the identity.
+					for(int i = 0; i < nV * 6; i++)
+						pChain->m_piPrim[i] = (uint16)i;
 					for(int v = 0; v < nV; v++)
 					{
 						int iv = v;
