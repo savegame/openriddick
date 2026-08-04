@@ -12,6 +12,9 @@
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "WObj_Char.h"
 
 #include "../GameWorld/WServerMod.h"
@@ -44,7 +47,81 @@ bool CCharDialogueItems::Parse(uint32 _KeyHash, const CStr& _KeyValue)
 	switch (_KeyHash)
 	{
 	case MHASH5('APPR','OACH','DIAL','OGUE','ITEM'): // "APPROACHDIALOGUEITEM"   (legacy support)
-		m_Approach.Set(_KeyValue, false);
+		{
+			// РАСХОЖДЕНИЕ С РЕТЕЙЛОМ (сверено 2026-08-04).
+			//
+			// Наш снапшот хэширует значение ключа КАК СТРОКУ и всегда ставит
+			// bIsPlayer=false. Ретейл этот же ключ читает как ЧИСЛО:
+			// GameClasses_Win32_x86_dll_decomp.c:450057-450070,
+			//   iVar2 = GetValuei(...);            // целое значение ключа
+			//   str   = CStrF("%d", ...);          // обратно в строку
+			//   hash  = StrHash(str);
+			//   *(bool*)(this + 4) = iVar2 < 0;    // bIsPlayer = знак!
+			//   *(int*)this        = hash;
+			//
+			// Что это именно "APPROACHDIALOGUEITEM", доказано хэшем ключа:
+			// в декомпиле ветка выбирается по 0x409274C7, а
+			// StrHash("approachdialogueitem") = 0x409274C7. Тем же способом
+			// сошлись все шесть ключей (dialogueitem_approach = 5B0CA3E6,
+			// _threaten = 7FD54113, _ignore = 9673EA1C, _timeout = B8471D3F,
+			// _exit = 93C266B2) и слоты структуры (0/8/0x10/0x18/0x20/0x28)
+			// -- у остальных пяти наше поведение совпадает с ретейлом,
+			// расходится ровно этот, легаси-ключ.
+			//
+			// Следствие для данных: карта задаёт "-100". У нас получалось
+			// имя "-100" (StrHash = 7C767E5E, такого айтема нет ни в одном
+			// файле диалогов) и bIsPlayer=false, из-за чего реплику ещё и
+			// искали в файле ИГРОКА. По ретейлу это айтем "100"
+			// (StrHash = 0B8774B1 -- в логах успешно играется у ABE, VICTOR,
+			// VICTIM) и bIsPlayer=true, то есть говорит сам NPC из своего
+			// файла. Знак -- маркер, а не часть имени; так же его трактуют
+			// сообщение 0x1020 (`Abs(Param0)`, WObj_CharMsg.cpp) и
+			// EvalDialogueLink (`Str() + 1`, WObj_CharDialogue.cpp).
+			//
+			// Числовой путь берём только если значение действительно число --
+			// именованный айтем тогда обрабатывается как раньше.
+			static int s_Retail = -1;
+			if (s_Retail < 0)
+			{
+				const char* e = getenv("RIDDICK_DLGITEM_MINUS");
+				s_Retail = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			const char* pV = _KeyValue.Str();
+			bool bNumeric = (pV && *pV);
+			for (const char* p = (pV && *pV == '-') ? pV + 1 : pV; bNumeric && *p; p++)
+				if (*p < '0' || *p > '9')
+					bNumeric = false;
+			if (pV && *pV == '-' && pV[1] == 0)
+				bNumeric = false;
+
+			if (s_Retail && bNumeric)
+			{
+				const int V = _KeyValue.Val_int();
+				m_Approach.Set(CFStrF("%i", Abs(V)), V < 0);
+			}
+			else
+				m_Approach.Set(_KeyValue, false);
+
+			static int s_Dbg = -1;
+			if (s_Dbg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_DLG");
+				s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_Dbg)
+			{
+				static int s_n = 0;
+				if (s_n < 40)
+				{
+					++s_n;
+					fprintf(stderr, "[KEYITEM] approachdialogueitem='%s' numeric=%d retail=%d -> hash=%08X isPlayer=%d\n",
+						pV ? pV : "(null)", (int)bNumeric, s_Retail,
+						m_Approach.m_ItemHash, (int)m_Approach.m_bIsPlayer);
+					fflush(stderr);
+				}
+			}
+		}
 		return true;
 
 	case MHASH6('DIAL','OGUE','ITEM','_APP','ROAC','H'): // "DIALOGUEITEM_APPROACH"

@@ -69,10 +69,19 @@ static void Riddick_SetDialogueItem(CDialogueLink& _Link, const CWObject_Message
 	bool bStripped = false;
 	if (s_Strip && pName && pName[0] == '-' && pName[1] != 0)
 	{
-		// Ведущий '-' означает "реплику говорит игрок" -- ровно то же, что
-		// отрицательный Param0 в старом сообщении.
+		// Ведущий '-' -- маркер, а не часть имени. Полярность флага взята из
+		// ретейла: в `CCharDialogueItems::Parse` для легаси-ключа
+		// APPROACHDIALOGUEITEM он ставит `bIsPlayer = (value < 0)`
+		// (GameClasses_Win32_x86_dll_decomp.c:450067), то есть минус даёт
+		// **true**. При true `Char_ActivateDialogueItem` проигрывает реплику
+		// на самом NPC из его файла диалогов -- ровно так в логах играют
+		// айтем "100" персонажи ABE/VICTOR/VICTIM.
+		//
+		// Второй путь, EvalDialogueLink, сюда с минусом не приходит вовсе:
+		// он снимает его сам (`Str() + 1`), так что эта ветка трогает только
+		// SimpleMessage/консоль, где данные легаси-формата.
 		pName++;
-		bIsPlayer = false;
+		bIsPlayer = true;
 		bStripped = true;
 	}
 

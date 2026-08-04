@@ -2789,14 +2789,33 @@ use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
   * `EvalDialogueLink` (`WObj_CharDialogue.cpp:919-928`): при ведущем `'-'`
     в `pData` кладётся `Str() + 1`, а `Param0 = Flip ^ 1`.
 
-  Мимо шёл только третий путь — SimpleMessage `0x1021` («SetApproachItem»
-  из скриптов карты, `WObj_SimpleMessage.cpp:60`): он отдаёт `m_StrParam`
-  как есть, и минус доезжал до `StringToHash`. Правка снимает минус и
-  ставит `bIsPlayer = false` — ровно как в двух других путях. Применена ко
-  всем шести айтемам (approach/approach2/threaten/ignore/timeout/exit).
+  **Поправка после сверки с декомпилом (2026-08-04).** Первая версия правки
+  трогала только путь сообщений и ставила `bIsPlayer = false`. Сверка
+  показала, что и место, и полярность флага были другими.
+
+  Настоящий путь — **keyvalue**, `CCharDialogueItems::Parse`
+  (`WObj_CharCreate.cpp:46`), ключ `APPROACHDIALOGUEITEM`. Ретейл
+  (`GameClasses_Win32_x86_dll_decomp.c:450057-450070`) читает его значение
+  как **число**, форматирует обратно (`"%d"`) и берёт знак как флаг:
+  `bIsPlayer = (value < 0)`. Наш снапшот хэшировал строку целиком и всегда
+  ставил `false`. То есть у нас было и неверное имя (`"-100"` вместо
+  `"100"`), и неверный адресат (реплику искали в файле игрока вместо файла
+  самого NPC).
+
+  Что это именно этот ключ, доказано хэшем: ветка выбирается по
+  `0x409274C7`, а `StrHash("approachdialogueitem") = 0x409274C7`. Тем же
+  способом сошлись все шесть ключей и смещения слотов — таблица в
+  `Docs/Decomp_Map.md`. У остальных пяти ключей наше поведение совпадает с
+  ретейлом; расходился ровно этот, легаси.
+
+  Числовой путь берётся только если значение действительно число —
+  именованный айтем обрабатывается как раньше. Путь сообщений
+  (`Riddick_SetDialogueItem`, `WObj_CharMsg.cpp`) приведён к той же
+  конвенции: снять минус, `bIsPlayer = true`.
 
   `RIDDICK_DBG_DLG=1` печатает
-  `[SETITEM] '<NPC>' <вид>='<имя>' param0= isPlayer= stripped= hash=`.
+  `[KEYITEM] approachdialogueitem='<знач>' numeric= retail= -> hash= isPlayer=`
+  и `[SETITEM] '<NPC>' <вид>='<имя>' param0= isPlayer= stripped= hash=`.
 
 ### RIDDICK_DBG_LETTERBOX — кинополосы (2026-08-03, зонд переставлен)
 

@@ -201,6 +201,51 @@ not use without rewrite»), то есть в ретейле он был пере
 
 ---
 
+## Диалоговые айтемы персонажа (2026-08-04)
+
+Все опознания в этом разделе доказаны **обратным перебором djb2**: ветки в
+декомпиле выбираются по хэшу имени ключа, а `StrHash` (`FUN_10003140`,
+побайтово совпадает с `CStrBase::StrHash`, `MRTC_StrBase.cpp:1614`)
+обратима перебором коротких строк.
+
+| FUN / константа | Что это | Чем доказано |
+|---|---|---|
+| `FUN_10003140` | `CStrBase::StrHash` | djb2 ×0x21, свёртка регистра, ±0x1505 — код совпадает построчно |
+| `FUN_102b5350` | `CCharDialogueItems::Parse` | шесть веток по хэшам ключей, см. таблицу ниже |
+| `FUN_102e7e60` | `Char_GetDialogueApproachItem` | читает слоты 0x324/0x32c, порог приоритета 0x7f |
+| `FUN_102eb4f0` | `Char_ActivateDialogueItem` | шлёт 0x1077 (prio 0xc0), 0x10ae, 0x101b — как в исходнике |
+| `FUN_102b3d30` | `CCharDialogueItems::Override` | копирует 6 пар (хэш, флаг) при валидности |
+| `0x2a0d0` | `IS_VALID_ITEMHASH` | это `StrHash("0")`; макрос в `WDataRes_Sound.h:123` исключает 0 и `MHASH1('0')` |
+
+Ключи и слоты (`m_DialogueItems` = смещение **0x324** в персонаже):
+
+| Хэш ключа | Имя (перебором) | Слот | Действие ретейла |
+|---|---|---|---|
+| `409274C7` | `approachdialogueitem` | +0 | **число**: `hash = StrHash("%d")`, `bIsPlayer = (value < 0)` |
+| `5B0CA3E6` | `dialogueitem_approach` | +0 | строка, `bIsPlayer = 1` |
+| `CB507677` | `dialogueitem_approach_scared` | +8 | строка, `bIsPlayer = 1` |
+| `7FD54113` | `dialogueitem_threaten` | +0x10 | строка, `bIsPlayer = 1` |
+| `9673EA1C` | `dialogueitem_ignore` | +0x18 | строка, `bIsPlayer = 1` |
+| `B8471D3F` | `dialogueitem_timeout` | +0x20 | строка, `bIsPlayer = 1` |
+| `93C266B2` | `dialogueitem_exit` | +0x28 | строка, `bIsPlayer = 1` |
+
+Смещения слотов независимо подтверждает `Char_DebugDialogueInfo`
+(`GameClasses_Win32_x86_dll_decomp.c:473986`), где рядом с ними лежат
+литералы `"Approach"`, `"Scared"`, `"Threaten"`, `"Ignore"`, `"Timeout"`.
+
+**Расхождение с нашим снапшотом — ровно одно, легаси-ключ
+`approachdialogueitem`** (`WObj_CharCreate.cpp:46`): у нас
+`m_Approach.Set(_KeyValue, false)`, то есть значение хэшируется как строка
+и флаг всегда `false`. У остальных шести ключей поведение совпадает.
+
+**Ещё одно расхождение, найденное попутно:** ретейловый
+`Char_GetDialogueApproachItem` имеет третью ветку — при флаге AI-состояния
+`0x400` он отдаёт слот `+0x10` (Threaten) и выставляет вызывающему флаги
+`0x1800`. В нашем исходнике этой ветки нет вовсе, есть только проверка
+приоритета.
+
+---
+
 ## Известные различия исходников и шипнутого PC-билда
 
 Снапшот исходников — конфигурация **PS3**, а декомпилы — от **PC**-релиза.
