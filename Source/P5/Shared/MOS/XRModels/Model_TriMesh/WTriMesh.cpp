@@ -2530,12 +2530,42 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 			if (pV && pN && pTgU && pTgV)
 			{
 				CXR_VertexBuffer* pVB = pVBM->Alloc_VB(CXR_VB_ATTRIB);
-				if(pVB)
+				if(pVB && pVB->m_pAttrib)
 				{
-					*pVB->m_pAttrib	= *_pRenderParams->m_RenderVB.m_pAttrib;
+					// SIGSEGV here on the first cluster of the frame (run
+					// 2026-08-04, pa1_prisonarea): this block copies
+					// m_RenderVB.m_pAttrib, but on the UNIFIED path nothing
+					// ever assigns it -- the only assignment in this function
+					// sits inside `#ifdef NEVER` (:2607), and the unified
+					// renderer works off the shared static attributes
+					// (ms_RenderZBuffer) instead. The block predates the
+					// unified path and was never updated for it.
+					// So: copy the source attribute when there is one, and
+					// otherwise build a default, exactly like the depth-fog
+					// block above (:2481-2494).
+					if (_pRenderParams->m_RenderVB.m_pAttrib)
+						*pVB->m_pAttrib	= *_pRenderParams->m_RenderVB.m_pAttrib;
+					else
+					{
+						pVB->m_pAttrib->SetDefault();
+						if (_pRenderParams->m_pCurrentEngine)
+							_pRenderParams->m_pCurrentEngine->SetDefaultAttrib(pVB->m_pAttrib);
+					}
+					// Plain untextured lines whichever way the attribute was
+					// obtained: an inherited surface attribute would sample a
+					// diffuse texture with the wire "UVs" it has no business
+					// reading.
+					pVB->m_pAttrib->Attrib_TextureID(0, 0);
+					pVB->m_pAttrib->Attrib_Disable(CRC_FLAGS_ZWRITE);
+
 					CMat4Dfp32* pMat = pVBM->Alloc_M4();
 					if (!pMat) return;
-					*pMat	= *_pRenderParams->m_RenderVB.m_pTransform;
+					// m_pTransform is nullable on this path too -- :2465 and
+					// :4270 already test it before dereferencing.
+					if (_pRenderParams->m_RenderVB.m_pTransform)
+						*pMat	= *_pRenderParams->m_RenderVB.m_pTransform;
+					else
+						pMat->Unit();
 					CXR_VBChain* pChain = pVB->GetVBChain();
 					fp32 Len = 1.0f;
 					int nV = pTVB->GetNumVertices(this);

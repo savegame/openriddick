@@ -1435,7 +1435,20 @@ static bool GLES3_NoLFM()
 		const char* eOff = getenv("RIDDICK_NO_LFM");
 		if (eOff && *eOff && *eOff != '0') { s = 1; return s != 0; }
 		const char* eOn = getenv("RIDDICK_LFM");
-		s = (eOn && *eOn && *eOn != '1') ? 0 : 1;   // default: enabled
+		// Polarity was inverted (fixed 2026-08-04): the old test was
+		// `(eOn && *eOn && *eOn != '1') ? 0 : 1`, which returns "no LFM" for
+		// BOTH the unset case AND for RIDDICK_LFM=1 -- i.e. the documented
+		// way to switch the lightmap program ON actually left it OFF, and
+		// only RIDDICK_LFM=0 turned it on. The run of 2026-08-04
+		// (pa1_prisonarea, RIDDICK_FP20=1) is the observable consequence: no
+		// [GLES3-LFM]/[GLES3-NDS] line anywhere in the log, no bump, no
+		// specular, characters over-bright -- every FP20 pass the engine
+		// queued was drawn by the plain diffuse shader with the additive
+		// blend still on.
+		// Intended semantics (Docs/HacksAndHooks.md "FP20 LFM program",
+		// Handoff_Render_Lighting.md §5): default OFF, RIDDICK_LFM=<non-0>
+		// ON, RIDDICK_NO_LFM=<non-0> a hard override handled above.
+		s = (eOn && *eOn && *eOn != '0') ? 0 : 1;
 	}
 	return s != 0;
 }
@@ -1481,10 +1494,12 @@ static float GLES3_LFMScale()
 
 // RIDDICK_NDS=1 -- opt-in switch for the XRShader_FP20_NDS program (single
 // dynamic light: diffuse + normal map + Phong specular, see
-// CRC_GLES3::TrySetupNDSProgram / kGLES3_NDSVertSrc/FragSrc). Unlike LFM
-// (default-on, explicit opt-out) this one defaults OFF: it is new code
-// that needs the tangent-basis plumbing (locations 5/6, cache-path draws
-// only) to have been exercised for real before flipping it on generally.
+// CRC_GLES3::TrySetupNDSProgram / kGLES3_NDSVertSrc/FragSrc). Defaults OFF:
+// it is new code that needs the tangent-basis plumbing (locations 5/6,
+// cache-path draws only) to have been exercised for real before flipping it
+// on generally. (This comment used to describe LFM as "default-on, explicit
+// opt-out"; that was never true of the code -- see the polarity fix in
+// GLES3_NoLFM. Both programs are opt-in, RIDDICK_LFM=1 / RIDDICK_NDS=1.)
 // Default (unset) behaviour is byte-for-byte unchanged.
 static bool GLES3_NDSEnabled()
 {
