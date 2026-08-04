@@ -1765,3 +1765,77 @@ listener= users= snd=` сразу после `OnRefresh_Dialogue_Hash`. Она
 индекса и печатает предупреждение, если её нет. Индекс не случайный, а
 табличный; у конкретного персонажа такой реплики просто нет. Ретейл
 печатает то же самое.
+
+---
+
+## §29. Реплики играют, линки срабатывают — обрыв на входе в 3PI-режим
+
+**Прогон 21** (подход к двум персонажам: BARBER и SHABBY).
+
+### Что теперь работает
+
+Маска событий реплик показывает нормальную картину:
+
+```
+[6.03,  Char 86, ABE],    Events for 0B8774B1: mask=00000001 sub=1 choice=0 link=1 snd=860
+[26.50, Char 74, BARBER], Events for 0B8774B1: mask=00000081 sub=1 choice=0 link=1 snd=738
+[42.10, Char 380, SHABBY],Events for 0B8774B1: mask=00000081 sub=1 choice=0 link=1 snd=1512
+```
+
+`snd` ненулевой, субтитр есть, линк в ресурсе есть. Реплики запускаются
+(`result: 1`) у всех троих, приветствие по нажатию «использовать» проходит
+и у BARBER, и у SHABBY.
+
+**И линки срабатывают** — прежнее утверждение «за приветствием нет ни одной
+строки Link» было следствием слишком короткого прогона:
+
+```
+[33.17, Char 74, BARBER], SetItem (0): #Barber, -101   EvalDialogueLink1: Target: 'Barber', Item: -101
+[SETITEM] 'BARBER' approach='101' param0=0 isPlayer=1 stripped=0 hash=0B8774B2
+[33.17, Char 74, BARBER], Link: Riddick:99   EvalDialogueLink2: nTargets = 1
+   - Riddick, 99
+```
+
+Отсюда же видно, что события `SETITEM_*` приходят **после** окончания
+реплики, а не при загрузке уровня — поэтому в ранних логах их и не было.
+
+### Где обрыв теперь
+
+Линк идёт не на `"player"`, а на **имя объекта** (`Riddick:99`). Ветка
+`Targets[iSel].CompareNoCase("player")`, которая наполняет
+`m_liDialogueChoice`, при этом не выполняется — вместо неё
+`iTarget = Selection_GetSingleTarget("Riddick")` и
+`OBJMSG_CHAR_SETDIALOGUECHOICES` на найденный объект.
+
+Дальше `Char_SetDialogueChoices` (`WObj_CharDialogue.cpp:1397`): у игрока
+(`m_iPlayer != -1`) выборы уходят на клиент **только** внутри
+
+```cpp
+bool b3PI = (Mode != THIRDPERSONINTERACTIVE_MODE_NONE);
+if(b3PI) { CNetMsg Msg(PLAYER_NETMSG_SETDIALOGUECHOICES); ... }
+```
+
+иначе функция молча возвращает `true`, и список пропадает. А в 3PI-режим
+игрок входит в `Char_UpdateThirdPersonInteractive`
+(`WObj_CharMechanics.cpp:9147`), где стоит гейт
+
+```cpp
+bEnoughFocus = (DistanceToObject < 58.0f) && (FocusAmount > 0.5f)
+             && (DirCheck2 >= 0.2f) && !bIsMoving;
+```
+
+с `DirCheck2 = -Dot2(CameraDir, ObjDir)`, где `ObjDir` — направление
+**кости головы** NPC. Это тот же вид проверки, что в тесте слушателя дал
+перевёрнутый знак (§25), и вторая точка, где подозрение на битые матрицы
+ориентации может гасить игровую механику.
+
+Косвенно известно, что `bEnoughFocus` иногда истинен: авто-использование
+(`pChar->OnUse(m_iObject, 0)`) в логе срабатывает — строки `ActivateItem`
+есть без предшествующей `[USE] activate CHAR`.
+
+### Замер
+
+Добавлены три строки: `[3PI]` (`RIDDICK_DBG_3PI=1`) со всеми слагаемыми
+гейта, `LinkTarget: '<имя>' -> iTarget=` (резолвится ли цель линка) и
+`SetDialogueChoices: '<строка>' parsed= iPlayer= 3PIMode=` (последнее звено
+перед экраном).

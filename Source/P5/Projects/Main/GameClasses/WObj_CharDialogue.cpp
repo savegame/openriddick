@@ -1231,6 +1231,15 @@ void CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes &_Re
 			else
 				iTarget = m_pWServer->Selection_GetSingleTarget(Targets[iSel]);
 
+			// Разрешение цели линка. В контенте линк идёт не на "player", а на
+			// ИМЯ объекта ("Link: Riddick:99"), то есть на обычный
+			// Selection_GetSingleTarget. Если такого имени в мире нет,
+			// iTarget <= 0, разговор молча обрывается (ветка else ниже), и
+			// именно так выглядит наш симптом. Печатаем, что получилось.
+			DBG_OUT_LOG("[%.2f, Char %d, %s], LinkTarget: '%s' -> iTarget=%d items='%s'",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+				Targets[iSel].Str(), iTarget, Items[iSel].Str());
+
 			Char_SetListener(0);
 			if(iTarget > 0)
 			{
@@ -1419,6 +1428,15 @@ bool CWObject_Character::Char_SetDialogueChoices(const char *_pSt, int _iSender,
 			}
 		}
 	}
+
+	// Куда уходят выборы. У игрока (m_iPlayer != -1) они улетают netmsg'ом
+	// только если он уже в 3PI-режиме; иначе функция молча возвращает true и
+	// список пропадает. Печатаем исходную строку, сколько линков разобралось
+	// и режим -- это последнее звено перед экраном.
+	DBG_OUT_LOG("[%.2f, Char %d, %s], SetDialogueChoices: '%s' parsed=%d iPlayer=%d 3PIMode=%d sender=%d owner=%d",
+		m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+		_pSt ? _pSt : "(null)", m_liDialogueChoices.Len(), (int)pCD->m_iPlayer,
+		(int)(pCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK), _iSender, _iOwner);
 
 	if(/*m_liDialogueChoices.Len() == 1 || */(pCD->m_iPlayer == -1 && m_liDialogueChoices.Len() > 0))
 	{

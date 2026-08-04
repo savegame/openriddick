@@ -9458,6 +9458,48 @@ void CWObject_Character::Char_UpdateThirdPersonInteractive(CWO_Character_ClientD
 				_CD.m_3PI_FocusTicks = 100; //test
 			}
 		}
+
+		// RIDDICK_DBG_3PI=1 -- почему разговор не переходит в интерактивный
+		// режим. Замер прогона 21 показал, что приветственная реплика NPC
+		// теперь играется и даже отдаёт линк (`Link: Riddick:99`), но выборы
+		// до клиента не доходят: `Char_SetDialogueChoices` шлёт их netmsg'ом
+		// ТОЛЬКО когда игрок уже в 3PI-режиме диалога
+		// (`WObj_CharDialogue.cpp`, ветка `if(b3PI)`), а сюда игрок входит
+		// вот отсюда. Значит вопрос ровно один: доживает ли расчёт до
+		// `_CD.m_3PI_Mode = THIRDPERSONINTERACTIVE_MODE_DIALOGUE`.
+		//
+		// Два подозрительных гейта: `bEnoughFocus` (в него входит
+		// `DirCheck2 = -Dot2(CameraDir, ObjDir)` с порогом +0.2 -- тот же
+		// вид проверки, что в тесте слушателя дал перевёрнутый знак) и
+		// `bIsMoving`. Печатаем всё, из чего они складываются, и только при
+		// смене состояния.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_3PI");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On)
+			{
+				static int s_LastKey = -1;
+				static int s_n = 0;
+				const int Key = ((int)eFocus) | ((int)bEnoughFocus << 4) | ((int)b3PI << 5)
+					| ((int)bHaveChoices << 6) | ((int)bSpeaking << 7) | ((int)bIsMoving << 8)
+					| ((int)Mode << 9) | (iFocusObj << 16);
+				if (Key != s_LastKey && s_n < 80)
+				{
+					++s_n;
+					s_LastKey = Key;
+					fprintf(stderr, "[3PI] iFocus=%d eFocus=%d mode=%d b3PI=%d enough=%d dist=%.1f focusAmt=%.2f "
+						"dirCheck2=%.2f moving=%d rotating=%d choices=%d speaking=%d\n",
+						(int)iFocusObj, (int)eFocus, (int)Mode, (int)b3PI, (int)bEnoughFocus,
+						DistanceToObject, FocusAmount, DirCheck2,
+						(int)bIsMoving, (int)bIsRotating, (int)bHaveChoices, (int)bSpeaking);
+					fflush(stderr);
+				}
+			}
+		}
 	}
 
 	if (!b3PI)
