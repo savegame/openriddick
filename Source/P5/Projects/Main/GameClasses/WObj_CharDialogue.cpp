@@ -1240,6 +1240,41 @@ void CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes &_Re
 				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
 				Targets[iSel].Str(), iTarget, Items[iSel].Str());
 
+			// Цель не нашлась -- сравниваем с тем, как зовут игрока. Линки
+			// вида 'Riddick:99' обязаны попадать именно в него.
+			if (iTarget <= 0)
+			{
+				CWObject* pPl = m_pWServer->Object_Get(m_pWServer->Game_GetObject()->Player_GetObjectIndex(0));
+				DBG_OUT_LOG("    unresolved: player obj=%d name='%s' template='%s'",
+					pPl ? (int)pPl->m_iObject : -1,
+					(pPl && pPl->GetName()) ? pPl->GetName() : "",
+					(pPl && pPl->GetTemplateName()) ? pPl->GetTemplateName() : "");
+
+				// RIDDICK_DLGLINK_PLAYERFALLBACK=1 -- ВРЕМЕННЫЙ эксперимент,
+				// по умолчанию ВЫКЛЮЧЕН.
+				//
+				// Честно: в ретейле такого фолбэка нет -- он резолвит цель тем
+				// же `Selection_GetSingleTarget` и других веток не имеет
+				// (GameClasses_Win32_x86_dll_decomp.c:477592-477605). Значит
+				// настоящая причина в том, что у нас игрок не носит нужного
+				// имени, и правильная правка -- дать ему это имя. Но пока
+				// неизвестно, откуда ретейл его берёт, флаг позволяет за один
+				// прогон проверить, что дальше по цепочке всё цело: если с
+				// ним разговор доходит до конца, значит единственная поломка
+				// -- имя, и искать надо только его.
+				static int s_Fallback = -1;
+				if (s_Fallback < 0)
+				{
+					const char* e = getenv("RIDDICK_DLGLINK_PLAYERFALLBACK");
+					s_Fallback = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_Fallback && pPl)
+				{
+					iTarget = pPl->m_iObject;
+					DBG_OUT_LOG("    fallback: routing link to player obj=%d", iTarget);
+				}
+			}
+
 			Char_SetListener(0);
 			if(iTarget > 0)
 			{

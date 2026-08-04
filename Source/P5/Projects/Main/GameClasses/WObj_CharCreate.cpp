@@ -1230,9 +1230,19 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 				}
 				if (s_Dbg)
 				{
-					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' keep=%d -> %s\n",
+					// Замер прогона 23: карта имени игроку НЕ даёт
+					// (`mapName=''`), поэтому правка «сохранить имя карты»
+					// оказалась холостой, а `LinkTarget: 'Riddick'` по-прежнему
+					// не резолвится. Ретейл при этом резолвит его тем же
+					// `Selection_GetSingleTarget` (сверено:
+					// GameClasses_Win32_x86_dll_decomp.c:477592-477605, ветки
+					// `$this`/`$phone`/имя — фолбэка нет). Значит имя объекту
+					// даёт что-то ещё. Единственный оставшийся кандидат --
+					// имя шаблона, его и печатаем.
+					const char* pTpl = GetTemplateName();
+					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' template='%s' keep=%d -> %s\n",
 						(int)m_iObject, KeyValuei, bHasName ? pCurName : "",
-						s_Keep, (s_Keep && bHasName) ? "kept" : "$PLAYER");
+						pTpl ? pTpl : "", s_Keep, (s_Keep && bHasName) ? "kept" : "$PLAYER");
 					fflush(stderr);
 				}
 			}
