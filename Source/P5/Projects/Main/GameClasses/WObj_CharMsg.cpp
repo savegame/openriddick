@@ -28,6 +28,76 @@
 
 #include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
 
+// НАЙДЕНО (2026-08-04): имя диалогового айтема приходило в хэш вместе с
+// ведущим минусом, и реплика не находилась никогда.
+//
+// Замер (pa1_prisonarea, RIDDICK_DBG_DLG):
+//   ActivateItem: hash=7C767E5E isPlayer=0 ... bBegin=1
+//   BeginDialogue: speaker=74 startItem=7C767E5E
+//   PlayDialogue_Hash: 7C767E5E FAIL (no such item in dialogue resource)
+// Обратным перебором djb2 (StrHash = djb2 с приведением к нижнему регистру,
+// MRTC_StrBase.cpp:1614) 7C767E5E раскрывается ровно в строку **"-100"**.
+// А hash("100") = 0B8774B1 -- это один из хэшей, которые в том же логе
+// проигрываются успешно (ABE, VICTOR, VICTIM: "PlayDialogue_Hash: 0B8774B1
+// (result: 1)!"). То есть айтем существует, промахивался только ведущий
+// минус.
+//
+// Минус -- это разделитель, а не часть имени. Так его и трактуют оба
+// остальных пути движка:
+//   * старое сообщение 0x1020 (`_APPROACH_OLD`, случай ниже):
+//     `Set(CFStrF("%i", Abs(Param0)), (Param0 > 0))` -- знак кодирует
+//     "кто говорит", модуль это номер айтема;
+//   * `EvalDialogueLink` (WObj_CharDialogue.cpp:919-928): если строка
+//     начинается с '-', в pData кладётся `Str() + 1`, а Param0 = Flip^1.
+// Только путь через SimpleMessage (0x1021 "SetApproachItem" из скриптов
+// карты) отдавал строку как есть -- и минус доезжал до StringToHash.
+//
+// RIDDICK_DLGITEM_MINUS=0 возвращает прежнее поведение.
+static void Riddick_SetDialogueItem(CDialogueLink& _Link, const CWObject_Message& _Msg,
+									const char* _pCharName, const char* _pWhich)
+{
+	const char* pName = (const char*)_Msg.m_pData;
+	bool bIsPlayer = (_Msg.m_Param0 == 0);
+
+	static int s_Strip = -1;
+	if (s_Strip < 0)
+	{
+		const char* e = getenv("RIDDICK_DLGITEM_MINUS");
+		s_Strip = (e && *e && *e == '0') ? 0 : 1;
+	}
+
+	bool bStripped = false;
+	if (s_Strip && pName && pName[0] == '-' && pName[1] != 0)
+	{
+		// Ведущий '-' означает "реплику говорит игрок" -- ровно то же, что
+		// отрицательный Param0 в старом сообщении.
+		pName++;
+		bIsPlayer = false;
+		bStripped = true;
+	}
+
+	_Link.Set(pName, bIsPlayer);
+
+	static int s_Dbg = -1;
+	if (s_Dbg < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLG");
+		s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (s_Dbg)
+	{
+		static int s_n = 0;
+		if (s_n < 60)
+		{
+			++s_n;
+			fprintf(stderr, "[SETITEM] '%s' %s='%s' param0=%d isPlayer=%d stripped=%d hash=%08X\n",
+				_pCharName ? _pCharName : "-", _pWhich, pName ? pName : "(null)",
+				(int)_Msg.m_Param0, (int)bIsPlayer, (int)bStripped, _Link.m_ItemHash);
+			fflush(stderr);
+		}
+	}
+}
+
 //Part of Sammes message testing system
 /*
 extern TArray<SMessageCounter> g_slMessages;
@@ -1520,37 +1590,37 @@ aint CWObject_Character::OnMessage(const CWObject_Message& _Msg)
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH:
 		{
-			m_DialogueItems.m_Approach.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Approach, _Msg, GetName(), "approach");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH2:
 		{
-			m_DialogueItems.m_ApproachScared.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_ApproachScared, _Msg, GetName(), "approach2");
 			return 1;
 		}
-		
+
 	case OBJMSG_CHAR_SETDIALOGUEITEM_THREATEN:
 		{
-			m_DialogueItems.m_Threaten.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Threaten, _Msg, GetName(), "threaten");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_IGNORE:
 		{
-			m_DialogueItems.m_Ignore.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Ignore, _Msg, GetName(), "ignore");
 			return 1;
 		}
-	
+
 	case OBJMSG_CHAR_SETDIALOGUEITEM_TIMEOUT:
 		{
-			m_DialogueItems.m_Timeout.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Timeout, _Msg, GetName(), "timeout");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_EXIT:
 		{
-			m_DialogueItems.m_Exit.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Exit, _Msg, GetName(), "exit");
 			return 1;
 		}
 

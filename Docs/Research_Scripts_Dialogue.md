@@ -1549,3 +1549,74 @@ NPC разговаривают между собой полной цепочко
 пороге 64.0) и отвернулся. Различить можно только по сырым векторам,
 поэтому в ту же строку добавлена печать `MeToPlayer/PlayerLook/MyLook/
 MyPos/PlayerPos`. **Пока это не подтверждено — версия, а не вывод.**
+
+---
+
+## §26. Найдена причина: ведущий минус в имени диалогового айтема
+
+**Прогон 19** (`pa1_prisonarea`, те же флаги). Расширенная трасса дала
+цепочку целиком:
+
+```
+[26.20, Char 74, BARBER],  Clear listener. (old: 2559, $PLAYER)
+[26.20, Char 74, BARBER],  ActivateItem: hash=7C767E5E isPlayer=0 selfHash=00000000 selfValid=0 bBegin=1 iUser=2559
+[26.20, Char 2559, $PLAYER], BeginDialogue: speaker=74 startItem=7C767E5E
+[26.20, Char 2559, $PLAYER], PlayDialogue_Hash: 7C767E5E FAIL (no such item in dialogue resource)
+```
+
+### Как опознан хэш
+
+`StringToHash` = `CStrBase::StrHash` (`MRTC_String.h:690`) — djb2 с
+приведением к нижнему регистру (`MRTC_StrBase.cpp:1614`):
+`h = h*33 + tolower(c)`, старт `5381`, в конце `-= 5381`. Функция обратима
+перебором: четырёхсимвольные строки лежат в диапазоне `0x7Cxx_xxxx`,
+трёхсимвольные — в `0x0B87_xxxx`.
+
+Перебор дал единственное осмысленное решение: `7C767E5E` = **`"-100"`**.
+
+Проверка сходится и с другой стороны: `hash("100") = 0B8774B1`, а эта
+строка в том же логе играется успешно у трёх разных NPC:
+
+```
+[6.03,  Char 86, ABE],    PlayDialogue_Hash: 0B8774B1 (result: 1)!
+[9.00,  Char 88, VICTOR], PlayDialogue_Hash: 0B8774B1 (result: 1)!
+```
+
+Заодно расшифровались и остальные хэши из логов: `0B87759E`="176",
+`0B878E40`="709", `0B878E5B`="713". Реплики нумерованные, у каждого
+персонажа свой файл диалогов.
+
+### Почему минус доезжал до хэша
+
+Минус — разделитель, означающий «эту реплику говорит игрок». Два из трёх
+путей движка снимают его сами:
+
+| Путь | Обработка `'-'` |
+|---|---|
+| `0x1020 _APPROACH_OLD` (`WObj_CharMsg.cpp:1517`) | `Set(CFStrF("%i", Abs(Param0)), (Param0 > 0))` — знак в `Param0` |
+| `EvalDialogueLink` (`WObj_CharDialogue.cpp:919-928`) | `pData = Str() + 1`, `Param0 = Flip ^ 1` |
+| **`0x1021 SetApproachItem` через SimpleMessage** | **никак — строка уходит как есть** |
+
+Третий путь — это скрипты карты: `CWO_SimpleMessage::Parse`
+(`WObj_SimpleMessage.cpp:33`) режет строку по `;` и кладёт хвост в
+`m_StrParam`, а `CreateMessage` отдаёт его в `m_pData` без изменений.
+Именно им уровень раздаёт NPC approach-реплики — поэтому в трассе и не
+было строк `SetItem` из `EvalDialogueLink`, а `approach=1` при этом был.
+
+### Правка
+
+`Riddick_SetDialogueItem` (`WObj_CharMsg.cpp`) снимает ведущий `'-'` и
+ставит `bIsPlayer = false` — ровно как два других пути. Применено ко всем
+шести айтемам. Флаг отката `RIDDICK_DLGITEM_MINUS=0`.
+
+Ожидаемо после правки: `[SETITEM] ... stripped=1 hash=0B8774B1`, затем
+`PlayDialogue_Hash: 0B8774B1 (result: 1)` у игрока, `EvalDialogueLink` с
+целью `player` и непустой `m_liDialogueChoice` — то есть появившаяся
+подсказка выбора реплик.
+
+### Оставшийся отдельный дефект
+
+`[26.23, Char 74, BARBER], PlayDialogue_Hash: 0B878E5B FAIL` — у BARBER
+нет айтема «713» в собственном файле диалогов. Это тот же случай, что
+`failed Dialogue: IDLE_CALL Dialogueindex 711` из прежних логов; к
+разговору по инициативе игрока отношения не имеет.

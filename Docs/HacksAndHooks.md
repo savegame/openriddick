@@ -2761,6 +2761,43 @@ use='§LCHAR_NAME_AI_PA1_INMATE_BARBER' desc='§LCHAR_DESC_AI_PA1_INMATE_BARBER'
   `[CHOICES] char obj= nChoices= dlgTick=` — пуст ли список выборов, из
   которого строится подсказка.
 
+### RIDDICK_DLGITEM_MINUS — ведущий минус в имени диалогового айтема (2026-08-04)
+
+- **FIX** `RIDDICK_DLGITEM_MINUS` (`WObj_CharMsg.cpp`,
+  `Riddick_SetDialogueItem`, по умолчанию **включён**).
+
+  Найдено замером `RIDDICK_DBG_DLG` на `pa1_prisonarea`:
+
+  ```
+  ActivateItem: hash=7C767E5E isPlayer=0 selfValid=0 bBegin=1 iUser=2559
+  BeginDialogue: speaker=74 startItem=7C767E5E
+  PlayDialogue_Hash: 7C767E5E FAIL (no such item in dialogue resource)
+  ```
+
+  `StrHash` — это djb2 с приведением к нижнему регистру
+  (`MRTC_StrBase.cpp:1614`), поэтому хэш обратимо перебирается. `7C767E5E`
+  раскрывается ровно в строку **`"-100"`**, а `hash("100") = 0B8774B1` — это
+  один из хэшей, которые в том же логе **проигрываются успешно** (ABE,
+  VICTOR, VICTIM). То есть реплика существует, промахивался только ведущий
+  минус.
+
+  Минус — разделитель («реплику говорит игрок»), а не часть имени. Так его
+  трактуют оба остальных пути движка:
+  * старое сообщение `0x1020` (`_APPROACH_OLD`):
+    `Set(CFStrF("%i", Abs(Param0)), (Param0 > 0))` — знак кодирует, кто
+    говорит, модуль это номер айтема;
+  * `EvalDialogueLink` (`WObj_CharDialogue.cpp:919-928`): при ведущем `'-'`
+    в `pData` кладётся `Str() + 1`, а `Param0 = Flip ^ 1`.
+
+  Мимо шёл только третий путь — SimpleMessage `0x1021` («SetApproachItem»
+  из скриптов карты, `WObj_SimpleMessage.cpp:60`): он отдаёт `m_StrParam`
+  как есть, и минус доезжал до `StringToHash`. Правка снимает минус и
+  ставит `bIsPlayer = false` — ровно как в двух других путях. Применена ко
+  всем шести айтемам (approach/approach2/threaten/ignore/timeout/exit).
+
+  `RIDDICK_DBG_DLG=1` печатает
+  `[SETITEM] '<NPC>' <вид>='<имя>' param0= isPlayer= stripped= hash=`.
+
 ### RIDDICK_DBG_LETTERBOX — кинополосы (2026-08-03, зонд переставлен)
 
 - **DBG** `RIDDICK_DBG_LETTERBOX=1` (`XREngine.cpp`, `Engine_PostProcess`):
