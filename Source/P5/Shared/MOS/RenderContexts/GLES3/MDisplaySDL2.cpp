@@ -948,6 +948,8 @@ static const char* kGLES3_NDSFragSrc =
 	// same TSLV register afterwards). Trust the assembly here.
 	"  float selfShadow = clamp((0.25 + L.x) * 4.0, 0.0, 1.0);\n"
 	"  attn *= selfShadow;\n"
+	"  if (uDbgMode == 8) { oColor = vec4(vec3(selfShadow), 1.0); return; }\n"
+	"  if (uDbgMode == 9) { oColor = vec4(vec3(attn), 1.0); return; }\n"
 	"  if (uDbgMode == 1) { oColor = vec4(L * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 2) { oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
 	"  vec3 diffuse = uLightColor.rgb * diffuseTexel.rgb * 2.0 * clamp(dot(N, L), 0.0, 1.0);\n"
@@ -1184,6 +1186,8 @@ static const char* kGLES3_NDSPFragSrc =
 	"  vec3 R = 2.0 * dot(N, E) * N - E;\n"
 	"  float selfShadow = clamp((0.25 + L.x) * 4.0, 0.0, 1.0);\n"
 	"  attn *= selfShadow;\n"
+	"  if (uDbgMode == 8) { oColor = vec4(vec3(selfShadow), 1.0); return; }\n"
+	"  if (uDbgMode == 9) { oColor = vec4(vec3(attn), 1.0); return; }\n"
 	"  if (uDbgMode == 1) { oColor = vec4(L * 0.5 + 0.5, 1.0); return; }\n"
 	"  if (uDbgMode == 2) { oColor = vec4(N * 0.5 + 0.5, 1.0); return; }\n"
 	"  vec3 diffuse = uLightColor.rgb * diffuseTexel.rgb * 2.0 * clamp(dot(N, L), 0.0, 1.0);\n"
@@ -1599,7 +1603,7 @@ static bool GLES3_SkinDropNoPalette()
 	return s != 0;
 }
 
-// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj|lf -- debug output of
+// RIDDICK_DBG_NDS=tslv|normal|diffuse|spec|atten|proj|lf|selfshadow|attnfinal -- debug output of
 // the NDS/NDSP/NDSEATP/LF programs (only meaningful together with
 // RIDDICK_NDS=1). 'tslv' shows the normalized tangent-space light vector
 // as RGB, 'normal' the decoded normal-map normal, 'diffuse'/'spec'
@@ -1615,6 +1619,15 @@ static bool GLES3_SkinDropNoPalette()
 // TrySetupLFProgram) shows the ambient-cube contribution alone, with no
 // diffuse texture/colour multiply -- same isolation idea as 'atten'/
 // 'proj', just for the sixth (object-ambient) program.
+// 'selfshadow' is the ARB self-shadow term alone --
+// clamp((0.25 + L.x)*4, 0, 1), where L is the NORMALIZED tangent-space
+// light vector and L.x is dot(geometric normal, to-light) (component
+// order per shaders/VP.xrg, see the vertex shader comment). It and
+// 'proj' are the only two factors between 'diffuse'/'atten' and the
+// final colour, so when those two look right and the surface is still
+// black, one of these two is the answer. 'attnfinal' is the whole
+// attenuation product AFTER self-shadow (distance * projection *
+// self-shadow) -- what actually multiplies diffuse+specular.
 static int GLES3_DbgNDSMode()
 {
 	static int s = -1;
@@ -1631,6 +1644,8 @@ static int GLES3_DbgNDSMode()
 			else if (strcmp(e, "atten")   == 0) s = 5;
 			else if (strcmp(e, "proj")    == 0) s = 6;
 			else if (strcmp(e, "lf")      == 0) s = 7;
+			else if (strcmp(e, "selfshadow") == 0) s = 8;
+			else if (strcmp(e, "attnfinal")  == 0) s = 9;
 		}
 	}
 	return s;
