@@ -3855,6 +3855,29 @@ public:
 					(int)m_pCurAttrib->m_iTexCoordSet[0],
 					(int)m_pCurAttrib->m_iTexCoordSet[2], (int)m_pCurAttrib->m_iTexCoordSet[3],
 					iLight, iEye, iProj);
+				// Per-light SCISSOR, and whether it is even enabled for this
+				// draw. Next question after the decomp closed the texture
+				// path (Docs/HacksAndHooks.md): retail gets no repeated
+				// cookies from the same replicated cube, so the difference
+				// must be WHICH pixels this light's pass is allowed to touch.
+				// The engine computes a screen-space box from the light
+				// sphere (CalcCircleTangentPoints, WTriMesh.cpp:5209+) and
+				// puts it in the attribute; if CRC_FLAGS_SCISSOR is clear on
+				// our side, or the box covers the whole viewport, the pass
+				// paints far outside the cone and every cube face it reaches
+				// hands back another copy of the cone.
+				{
+					int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
+					m_pCurAttrib->m_Scissor.GetRect(sx0, sy0, sx1, sy1);
+					fprintf(stderr, "[GLES3-LIGHTBOX] scissorFlag=%d rect=(%d,%d..%d,%d) "
+						"lightPos=(%g %g %g) range=%g\n",
+						(m_pCurAttrib->m_Flags & CRC_FLAGS_SCISSOR) ? 1 : 0,
+						sx0, sy0, sx1, sy1,
+						(pFP->m_nParams > 0) ? pFP->m_pParams[0].k[0] : 0.0f,
+						(pFP->m_nParams > 0) ? pFP->m_pParams[0].k[1] : 0.0f,
+						(pFP->m_nParams > 0) ? pFP->m_pParams[0].k[2] : 0.0f,
+						(pFP->m_nParams > 1) ? pFP->m_pParams[1].k[1] : 0.0f);
+				}
 				// The three LINEAR texgen rows that build the cube lookup
 				// DIRECTION. Printed because the replicated-cookie artefact
 				// (2026-08-04) turns on which axis dominates inside the cone:
