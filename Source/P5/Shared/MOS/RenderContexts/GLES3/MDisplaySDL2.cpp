@@ -3867,7 +3867,7 @@ public:
 				// paints far outside the cone and every cube face it reaches
 				// hands back another copy of the cone.
 				{
-					int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
+					uint32 sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
 					m_pCurAttrib->m_Scissor.GetRect(sx0, sy0, sx1, sy1);
 					fprintf(stderr, "[GLES3-LIGHTBOX] scissorFlag=%d rect=(%d,%d..%d,%d) "
 						"lightPos=(%g %g %g) range=%g\n",
