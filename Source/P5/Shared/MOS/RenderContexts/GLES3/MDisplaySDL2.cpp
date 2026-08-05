@@ -3869,7 +3869,9 @@ public:
 				{
 					uint32 sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0;
 					m_pCurAttrib->m_Scissor.GetRect(sx0, sy0, sx1, sy1);
-					fprintf(stderr, "[GLES3-LIGHTBOX] scissorFlag=%d rect=(%d,%d..%d,%d) "
+					// %u, not %d: CScissorRect::GetRect takes uint32& (the
+					// build fix in 20d67dd).
+					fprintf(stderr, "[GLES3-LIGHTBOX] scissorFlag=%d rect=(%u,%u..%u,%u) "
 						"lightPos=(%g %g %g) range=%g\n",
 						(m_pCurAttrib->m_Flags & CRC_FLAGS_SCISSOR) ? 1 : 0,
 						sx0, sy0, sx1, sy1,
