@@ -875,6 +875,7 @@ static const char* kGLES3_NDSFragSrc =
 	"uniform sampler2D uNormalTex;\n" // Normal+Specular(alpha) (channel 2)
 	"uniform int uUseNormalMap;\n"
 	"uniform int uNormalTwoCh;\n"
+	"uniform int uNormalStdOrder;\n"
 	// program.env[0..3] of the ARB program -- see CRC_GLES3::
 	// TrySetupNDSProgram / the report for what each of the engine's 6
 	// CRC_ExtAttributes_FragmentProgram20::m_pParams slots means; params
@@ -920,6 +921,29 @@ static const char* kGLES3_NDSFragSrc =
 	"    float nz = sqrt(max(0.0, 1.0 - dot(nxy, nxy)));\n"
 	"    normalTexel = vec4(nxy * 0.5 + 0.5, nz * 0.5 + 0.5, 1.0);\n"
 	"  }\n"
+	// TANGENT-SPACE COMPONENT ORDER. The engine's TSLV/TSEV are NOT in
+	// the usual (TangU, TangV, N) order -- shaders/VP.xrg emits, in ALL
+	// eight texgen channels (:1565, 1884, 2356, 2683, 2972, 3246, 3550,
+	// 3816) and with the authors' own comment "This TSLV is flipped":
+	//     x = dot(R9 = model-space NORMAL, toLight)
+	//     y = dot(R1 = TangV,             toLight)
+	//     z = dot(R0 = TangU,             toLight)
+	// The self-shadow term corroborates it: the retail ARB uses TSLV.x
+	// (XRShader_SinglePass_Dst2_Proj_SpecNormal.fp, "Self shadowing"),
+	// which is only meaningful for the component along the normal.
+	// The ARB then does DP3(NormalMapTexel, TSLV) with NO swizzle, so
+	// the normal must reach that dot product in the SAME reversed
+	// order -- and our decode puts the reconstructed/dominant component
+	// in z, the standard place. That mismatch pairs the surface normal
+	// with the light's TangU component: light appears to come from the
+	// side, and a single flat plane splits into lighter and black
+	// regions along the tangent layout -- the courtyard floor, exactly
+	// as reported 2026-08-04.
+	// Reversing the decoded vector covers both cases: for the two-channel
+	// decode above it moves the reconstructed component to x, for a
+	// three-channel texel it reverses an authored standard vector.
+	// RIDDICK_NORMAL_STDORDER=1 keeps the old behaviour for A/B.
+	"  if (uNormalStdOrder == 0) normalTexel.rgb = normalTexel.bgr;\n"
 	// Attenuation -- ARB: SUB/DP3/MUL_SAT/ADD/MUL, i.e.
 	// (1 - saturate(distSq/Range^2))^2 (matches Docs/FP_Reference.md §4.2).
 	"  vec3 toLight = uLightPos.xyz - vPosMS;\n"
@@ -1116,6 +1140,7 @@ static const char* kGLES3_NDSPFragSrc =
 	"uniform sampler2D uNormalTex;\n"
 	"uniform int uUseNormalMap;\n"
 	"uniform int uNormalTwoCh;\n"
+	"uniform int uNormalStdOrder;\n"
 	"uniform vec4 uLightPos;\n"
 	"uniform vec4 uLightRange;\n"
 	"uniform vec4 uLightColor;\n"
@@ -1157,6 +1182,29 @@ static const char* kGLES3_NDSPFragSrc =
 	"    float nz = sqrt(max(0.0, 1.0 - dot(nxy, nxy)));\n"
 	"    normalTexel = vec4(nxy * 0.5 + 0.5, nz * 0.5 + 0.5, 1.0);\n"
 	"  }\n"
+	// TANGENT-SPACE COMPONENT ORDER. The engine's TSLV/TSEV are NOT in
+	// the usual (TangU, TangV, N) order -- shaders/VP.xrg emits, in ALL
+	// eight texgen channels (:1565, 1884, 2356, 2683, 2972, 3246, 3550,
+	// 3816) and with the authors' own comment "This TSLV is flipped":
+	//     x = dot(R9 = model-space NORMAL, toLight)
+	//     y = dot(R1 = TangV,             toLight)
+	//     z = dot(R0 = TangU,             toLight)
+	// The self-shadow term corroborates it: the retail ARB uses TSLV.x
+	// (XRShader_SinglePass_Dst2_Proj_SpecNormal.fp, "Self shadowing"),
+	// which is only meaningful for the component along the normal.
+	// The ARB then does DP3(NormalMapTexel, TSLV) with NO swizzle, so
+	// the normal must reach that dot product in the SAME reversed
+	// order -- and our decode puts the reconstructed/dominant component
+	// in z, the standard place. That mismatch pairs the surface normal
+	// with the light's TangU component: light appears to come from the
+	// side, and a single flat plane splits into lighter and black
+	// regions along the tangent layout -- the courtyard floor, exactly
+	// as reported 2026-08-04.
+	// Reversing the decoded vector covers both cases: for the two-channel
+	// decode above it moves the reconstructed component to x, for a
+	// three-channel texel it reverses an authored standard vector.
+	// RIDDICK_NORMAL_STDORDER=1 keeps the old behaviour for A/B.
+	"  if (uNormalStdOrder == 0) normalTexel.rgb = normalTexel.bgr;\n"
 	"  vec3 toLight = uLightPos.xyz - vPosMS;\n"
 	"  float distSq = dot(toLight, toLight);\n"
 	"  float attnLin = clamp(distSq * uLightRange.z, 0.0, 1.0);\n"
@@ -1674,6 +1722,21 @@ static bool GLES3_CubeNoChainGuess()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_CUBE_NOCHAINGUESS");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_NORMAL_STDORDER=1 -- keep the tangent-space normal in the usual
+// (TangU, TangV, N) order in the NDS/NDSP programs instead of reversing it
+// to the engine's (N, TangV, TangU). A/B for the 2026-08-04 fix; see the
+// block comment at the swizzle in kGLES3_NDSFragSrc for the evidence.
+static bool GLES3_NormalStdOrder()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NORMAL_STDORDER");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -2361,6 +2424,7 @@ public:
 		int m_NDSULightTSLoc = -1, m_NDSUEyeTSLoc = -1;
 		int m_NDSUTexLoc = -1, m_NDSUUseTexLoc = -1;
 		int m_NDSUNormalTexLoc = -1, m_NDSUUseNormalLoc = -1, m_NDSUNormalTwoChLoc = -1;
+		int m_NDSUNormalStdOrderLoc = -1;
 		int m_NDSULightPosLoc = -1, m_NDSULightRangeLoc = -1;
 		int m_NDSULightColorLoc = -1, m_NDSUSpecColorLoc = -1;
 		int m_NDSUDbgLoc = -1;
@@ -2486,6 +2550,7 @@ public:
 		int m_NDSPUProjULoc = -1, m_NDSPUProjVLoc = -1, m_NDSPUProjWLoc = -1;
 		int m_NDSPUTexLoc = -1, m_NDSPUUseTexLoc = -1;
 		int m_NDSPUNormalTexLoc = -1, m_NDSPUUseNormalLoc = -1, m_NDSPUNormalTwoChLoc = -1;
+		int m_NDSPUNormalStdOrderLoc = -1;
 		int m_NDSPULightPosLoc = -1, m_NDSPULightRangeLoc = -1;
 		int m_NDSPULightColorLoc = -1, m_NDSPUSpecColorLoc = -1;
 		int m_NDSPUProjTex1Loc = -1, m_NDSPUUseProj1Loc = -1;
@@ -3472,6 +3537,7 @@ public:
 			m_NDSShader.SetInt(m_NDSUNormalTexLoc, 1);
 			m_NDSShader.SetInt(m_NDSUUseNormalLoc, 1);
 			m_NDSShader.SetInt(m_NDSUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
+			m_NDSShader.SetInt(m_NDSUNormalStdOrderLoc, GLES3_NormalStdOrder() ? 1 : 0);
 
 			m_NDSShader.SetInt(m_NDSUDbgLoc, GLES3_DbgNDSMode());
 
@@ -3665,6 +3731,7 @@ public:
 			m_NDSPShader.SetInt(m_NDSPUNormalTexLoc, 1);
 			m_NDSPShader.SetInt(m_NDSPUUseNormalLoc, 1);
 			m_NDSPShader.SetInt(m_NDSPUNormalTwoChLoc, TextureID_IsTwoChannel(TexNormalID) ? 1 : 0);
+			m_NDSPShader.SetInt(m_NDSPUNormalStdOrderLoc, GLES3_NormalStdOrder() ? 1 : 0);
 
 			// Projection maps are CUBE maps -- see the shader comment and
 			// Docs/HacksAndHooks.md. TProj1/TProj2 come from
@@ -3886,6 +3953,7 @@ public:
 				m_NDSUNormalTexLoc  = m_NDSShader.UniformLocation("uNormalTex");
 				m_NDSUUseNormalLoc  = m_NDSShader.UniformLocation("uUseNormalMap");
 				m_NDSUNormalTwoChLoc = m_NDSShader.UniformLocation("uNormalTwoCh");
+				m_NDSUNormalStdOrderLoc = m_NDSShader.UniformLocation("uNormalStdOrder");
 				m_NDSULightPosLoc   = m_NDSShader.UniformLocation("uLightPos");
 				m_NDSULightRangeLoc = m_NDSShader.UniformLocation("uLightRange");
 				m_NDSULightColorLoc = m_NDSShader.UniformLocation("uLightColor");
@@ -3913,6 +3981,7 @@ public:
 				m_NDSPUNormalTexLoc  = m_NDSPShader.UniformLocation("uNormalTex");
 				m_NDSPUUseNormalLoc  = m_NDSPShader.UniformLocation("uUseNormalMap");
 				m_NDSPUNormalTwoChLoc = m_NDSPShader.UniformLocation("uNormalTwoCh");
+				m_NDSPUNormalStdOrderLoc = m_NDSPShader.UniformLocation("uNormalStdOrder");
 				m_NDSPULightPosLoc   = m_NDSPShader.UniformLocation("uLightPos");
 				m_NDSPULightRangeLoc = m_NDSPShader.UniformLocation("uLightRange");
 				m_NDSPULightColorLoc = m_NDSPShader.UniformLocation("uLightColor");
@@ -4068,7 +4137,14 @@ public:
 			// _01.._05 suffixes. Guessing wrong is not possible in silence --
 			// the names have to line up, and the decision is logged.
 			// RIDDICK_CUBE_NOCHAINGUESS=1 restricts this back to the flag.
-			const char* pName0 = (const char*)m_pTC->GetName(_TextureID);
+			// GetName returns CStr BY VALUE: keeping a const char* to it
+			// past the full expression dangles. That is exactly what the
+			// 2026-08-04 log caught -- `name='220600 0000000C'` and mojibake
+			// where the previous run had printed 'Cube_Lamp010_00' -- and it
+			// also fed garbage into the name comparison below, so the chain
+			// inference never had a chance. Hold the CStr, not its buffer.
+			const CStr Name0 = m_pTC->GetName(_TextureID);
+			const char* pName0 = Name0.Str();
 			bool bGuessed = false;
 			{
 				const int nVersions = m_pTC->EnumTextureVersions(_TextureID, 0, CTC_TEXTUREVERSION_ANY);
@@ -4086,7 +4162,8 @@ public:
 					{
 						FaceIDs[i] = pCont->GetTextureID(iLocal + i * nVersions);
 						if (FaceIDs[i] <= 0) { bNamesOK = false; break; }
-						const char* pN = (const char*)m_pTC->GetName(FaceIDs[i]);
+						const CStr NameI = m_pTC->GetName(FaceIDs[i]);
+						const char* pN = NameI.Str();
 						const int L = pN ? (int)strlen(pN) : 0;
 						// same stem, suffix _0<i>
 						if (L != Len0 || strncmp(pN, pName0, Len0 - 2) != 0 ||
