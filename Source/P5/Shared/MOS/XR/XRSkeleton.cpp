@@ -2770,9 +2770,25 @@ void CXR_Skeleton::Read(CDataFile* _pDFile)
 	//   * ссылки уходят за пределы m_liNodes -- читаем не тот чанк/размер;
 	//   * узлы указывают родителя, но не числятся ничьими детьми --
 	//     дерево надо строить по m_iNodeParent, а не по спискам.
+	//
+	// ГЕЙТ И ГАРД (2026-08-04). Зонд свою задачу выполнил (топология
+	// скелета признана здоровой, см. port_status), поэтому он теперь под
+	// RIDDICK_DBG_SKELTREE=1 и не шумит в каждом прогоне. И, что важнее,
+	// он ПАДАЛ на скелете без узлов: `lSeen[0] = 1` ниже индексирует
+	// массив нулевой длины, а TArray::operator[] разыменовывает
+	// m_pData->m_pList без проверки (Mda.h:744). Ловится на любом оружии:
+	// SIGSEGV в CXR_Skeleton::Read при загрузке 'XMD:weapons/ASR_Riot' на
+	// Pa2_M_Entrance (лог владельца). Пустой скелет -- штатные данные, а
+	// не порча: у модели просто нет костей.
 	{
+		static int s_Gate = -1;
+		if (s_Gate < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_SKELTREE");
+			s_Gate = (e && *e && *e != '0') ? 1 : 0;
+		}
 		static int s_n = 0;
-		if (s_n < 8)
+		if (s_Gate && s_n < 8 && m_lNodes.Len() > 0)
 		{
 			++s_n;
 			const int nN = m_lNodes.Len();
