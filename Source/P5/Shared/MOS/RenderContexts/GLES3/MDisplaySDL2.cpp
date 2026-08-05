@@ -1181,6 +1181,7 @@ static const char* kGLES3_NDSPFragSrc =
 	"uniform sampler2D uProjTex1_2D;\n"
 	"uniform sampler2D uProjTex2_2D;\n"
 	"uniform int uProj2D;\n"
+	"uniform int uProjUV;\n"
 	"uniform int uUseProj2;\n"
 	// RIDDICK_DBG_NDS: same enum as plain NDS (1=tslv,2=normal,3=diffuse,
 	// 4=spec,5=atten) plus 6=proj (the combined projection-map factor,
@@ -1275,9 +1276,26 @@ static const char* kGLES3_NDSPFragSrc =
 	"  if (uProj2D != 0) {\n"
 	"    if (projDir.x <= 0.0) projFactor = 0.0;\n"
 	"    else {\n"
-	"      vec3 p2d = vec3(projDir.yz * 0.5 + 0.5 * projDir.x, projDir.x);\n"
-	"      if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1_2D, p2d).a;\n"
-	"      if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2_2D, p2d).a;\n"
+	// Orientation of the 2D emulation. The content is authored for a
+	// CUBE lookup, so the honest 2D stand-in has to reproduce what GL
+	// does on the face the cone lives on (+X, since projDir.x is the
+	// forward axis): sc = -z, tc = -y, both divided by |x| and mapped
+	// to [0..1]. The first version used (y, z) directly, which is that
+	// mapping transposed -- and the owner read it off the screen
+	// immediately: "all the lamps look rotated 90 degrees about one
+	// axis", the cone landing on the floor instead of behind the lamp.
+	// RIDDICK_PROJ_UV=<0..7> walks the remaining swap/negate
+	// combinations without a rebuild: bit0 swap, bit1 negate u,
+	// bit2 negate v, applied AFTER the default mapping.
+	"      float pa = projDir.y / projDir.x;\n"
+	"      float pb = projDir.z / projDir.x;\n"
+	"      vec2 uv = vec2(-pb, -pa);\n"
+	"      if ((uProjUV & 1) != 0) uv = uv.yx;\n"
+	"      if ((uProjUV & 2) != 0) uv.x = -uv.x;\n"
+	"      if ((uProjUV & 4) != 0) uv.y = -uv.y;\n"
+	"      uv = uv * 0.5 + 0.5;\n"
+	"      if (uUseProj1 != 0) projFactor *= texture(uProjTex1_2D, uv).a;\n"
+	"      if (uUseProj2 != 0) projFactor *= texture(uProjTex2_2D, uv).a;\n"
 	"    }\n"
 	"  } else {\n"
 	"    if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
@@ -1833,6 +1851,20 @@ static bool GLES3_NormalStdOrder()
 // cube shaped. Default off -- the cube reading is what the shipped ARB
 // program XRShader_SinglePass_Dst2_Proj_SpecNormal.fp does (TEX ...,
 // texture[1], CUBE), and that file is the only direct evidence we have.
+// RIDDICK_PROJ_UV=<0..7> -- orientation A/B for the 2D projection emulation
+// (only meaningful with RIDDICK_PROJ_2D=1). bit0 swaps u/v, bit1 negates u,
+// bit2 negates v, on top of the default GL +X cube-face mapping.
+static int GLES3_ProjUV()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_PROJ_UV");
+		s = (e && *e) ? (atoi(e) & 7) : 0;
+	}
+	return s;
+}
+
 static bool GLES3_Proj2D()
 {
 	static int s = -1;
@@ -2671,6 +2703,7 @@ public:
 		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
 		int m_NDSPUCubeFlipYLoc = -1;
 		int m_NDSPUProjTex1_2DLoc = -1, m_NDSPUProjTex2_2DLoc = -1, m_NDSPUProj2DLoc = -1;
+		int m_NDSPUProjUVLoc = -1;
 		int m_NDSPUDbgLoc = -1;
 		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
 		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
@@ -3898,6 +3931,7 @@ public:
 			// whichever branch runs, and the 2D uploads are cache hits after
 			// the first frame.
 			m_NDSPShader.SetInt(m_NDSPUProj2DLoc, GLES3_Proj2D() ? 1 : 0);
+			m_NDSPShader.SetInt(m_NDSPUProjUVLoc, GLES3_ProjUV());
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_2D, TextureID_EnsureUploaded(TexProj1ID));
 			m_NDSPShader.SetInt(m_NDSPUProjTex1_2DLoc, 5);
@@ -4167,6 +4201,7 @@ public:
 				m_NDSPUProjTex1_2DLoc = m_NDSPShader.UniformLocation("uProjTex1_2D");
 				m_NDSPUProjTex2_2DLoc = m_NDSPShader.UniformLocation("uProjTex2_2D");
 				m_NDSPUProj2DLoc      = m_NDSPShader.UniformLocation("uProj2D");
+				m_NDSPUProjUVLoc      = m_NDSPShader.UniformLocation("uProjUV");
 				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
 				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
 				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
