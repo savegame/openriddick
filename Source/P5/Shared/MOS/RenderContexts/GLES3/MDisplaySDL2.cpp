@@ -1262,11 +1262,22 @@ static const char* kGLES3_NDSPFragSrc =
 	// owner circled (the engine ships XRShader_ReverseProjTest.fp, so
 	// the authors watched for this too). Clamp-to-edge on a cookie with
 	// black borders then kills everything outside the cone by itself.
+	// The divisor is X, not Z. CXR_Shader::CreateProjMapTexGenAttr
+	// (XRShader_FP20.cpp:52-73) builds the three rows as
+	//   row0 = light forward axis, UNSCALED
+	//   row1 = light right   / m_SpotWidth
+	//   row2 = light up      / m_SpotHeight
+	// each with w = -dot(row, LightPos), so the generated vector is
+	// (distance along forward, lateral/width, lateral/height) -- the
+	// FIRST component is the projective divisor. Measured rows agree:
+	// projU had magnitude 1 (unscaled), projV 0.4877 = 1/SpotWidth,
+	// projW 1.60033 = 1/SpotHeight.
 	"  if (uProj2D != 0) {\n"
-	"    if (projDir.z <= 0.0) projFactor = 0.0;\n"
+	"    if (projDir.x <= 0.0) projFactor = 0.0;\n"
 	"    else {\n"
-	"      if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1_2D, projDir).a;\n"
-	"      if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2_2D, projDir).a;\n"
+	"      vec3 p2d = vec3(projDir.yz * 0.5 + 0.5 * projDir.x, projDir.x);\n"
+	"      if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1_2D, p2d).a;\n"
+	"      if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2_2D, p2d).a;\n"
 	"    }\n"
 	"  } else {\n"
 	"    if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
@@ -4345,7 +4356,26 @@ public:
 						bGuessed = !bChain;
 						bChain = true;
 					}
-					else if (bChain)
+					else if (m_DbgEnabled)
+					{
+						// Names did not line up. Print what the five
+						// following container-local entries actually ARE --
+						// that is the difference between "the chain is there
+						// under other names" and "this really is a
+						// single-image cube and the five black faces have to
+						// come from somewhere else".
+						fprintf(stderr, "[GLES3-CUBE] chain probe for '%s' (iLocal=%d nVersions=%d):",
+							pName0 ? pName0 : "?", iLocal, nVersions);
+						for (int i = 1; i < 6; ++i)
+						{
+							const int FID = pCont->GetTextureID(iLocal + i * nVersions);
+							const CStr NM = (FID > 0) ? m_pTC->GetName(FID) : CStr("<none>");
+							fprintf(stderr, " [%d]=%d'%s'", i, FID, NM.Str());
+						}
+						fprintf(stderr, "\n");
+						fflush(stderr);
+					}
+					if (bChain && !bNamesOK)
 					{
 						// Flag says chain but the names disagree -- take the
 						// flag's word (PS3 does) and say so.
