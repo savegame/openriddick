@@ -3767,6 +3767,18 @@ public:
 					(int)m_pCurAttrib->m_iTexCoordSet[0],
 					(int)m_pCurAttrib->m_iTexCoordSet[2], (int)m_pCurAttrib->m_iTexCoordSet[3],
 					iLight, iEye, iProj);
+				// The three LINEAR texgen rows that build the cube lookup
+				// DIRECTION. Printed because the replicated-cookie artefact
+				// (2026-08-04) turns on which axis dominates inside the cone:
+				// with one image on all six faces the cone reappears on every
+				// face the direction can reach, so knowing the row that acts
+				// as "forward" tells us which single face the cookie belongs
+				// on (RIDDICK_CUBE_ONEFACE).
+				fprintf(stderr,
+					"[GLES3-NDSP] projU=(%g %g %g %g) projV=(%g %g %g %g) projW=(%g %g %g %g)\n",
+					LinUVW[iProj][0], LinUVW[iProj][1], LinUVW[iProj][2],  LinUVW[iProj][3],
+					LinUVW[iProj][4], LinUVW[iProj][5], LinUVW[iProj][6],  LinUVW[iProj][7],
+					LinUVW[iProj][8], LinUVW[iProj][9], LinUVW[iProj][10], LinUVW[iProj][11]);
 				fflush(stderr);
 			}
 			++m_DbgNDSDraws;

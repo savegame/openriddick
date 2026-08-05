@@ -480,8 +480,45 @@ GLuint CGLES3TextureUploader::UploadCube(CImage* const _pFaces[6])
 		return 0;
 	}
 
+	// RIDDICK_CUBE_ONEFACE=<0..5>: put the image on THAT face only and leave
+	// the rest black. A/B for the replicated-cookie artefact reported
+	// 2026-08-04 (i1_showers): the flashlight's cone appeared four or five
+	// times around the player, once per cube face, because
+	// CTC_TEXTUREFLAGS_CUBEMAP made us copy one 64x64 cookie
+	// (measured content: alpha 0..206, mean 67 -- a real cone, not a
+	// neutral white) onto all six. A real cone cookie only makes sense on
+	// the face the light looks down, with the other five black; this flag
+	// tests that reading without touching the content pipeline. Face order
+	// is GL's: 0=+X 1=-X 2=+Y 3=-Y 4=+Z 5=-Z.
+	int OneFace = -1;
+	{
+		const char* e = getenv("RIDDICK_CUBE_ONEFACE");
+		if (e && *e)
+		{
+			const int v = atoi(e);
+			if (v >= 0 && v <= 5) OneFace = v;
+		}
+	}
+	// Black filler for the unused faces, allocated once at the size of face 0.
+	unsigned char* pBlack = 0;
+	if (OneFace >= 0)
+	{
+		const int BW = _pFaces[0]->GetWidth(), BH = _pFaces[0]->GetHeight();
+		if (BW > 0 && BH > 0)
+			pBlack = (unsigned char*)calloc((size_t)BW * BH * 4, 1);
+	}
+
 	for (int i = 0; i < 6; ++i)
 	{
+		if (OneFace >= 0 && i != OneFace && pBlack)
+		{
+			glBindTexture(GL_TEXTURE_CUBE_MAP, Tex);
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			glTexImage2D((GLenum)(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i), 0, GL_RGBA8,
+				_pFaces[0]->GetWidth(), _pFaces[0]->GetHeight(), 0,
+				GL_RGBA, GL_UNSIGNED_BYTE, pBlack);
+			continue;
+		}
 		// NULL face -> reuse face 0 (CTC_TEXTUREFLAGS_CUBEMAP semantics).
 		CImage* pImg = _pFaces[i] ? _pFaces[i] : _pFaces[0];
 		// Mipmaps once at the end: glGenerateMipmap on a cube needs all six
@@ -492,6 +529,7 @@ GLuint CGLES3TextureUploader::UploadCube(CImage* const _pFaces[6])
 			fprintf(stderr, "[GLES3] UploadCube: face %d failed to upload\n", i);
 			++g_GLES3_UploadFail;
 			glDeleteTextures(1, &Tex);
+			if (pBlack) free(pBlack);
 			return 0;
 		}
 	}
@@ -507,6 +545,7 @@ GLuint CGLES3TextureUploader::UploadCube(CImage* const _pFaces[6])
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	if (pBlack) free(pBlack);
 	return Tex;
 }
 
