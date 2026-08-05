@@ -1178,6 +1178,9 @@ static const char* kGLES3_NDSPFragSrc =
 	// program back to the NDSP behaviour (single cookie).
 	"uniform samplerCube uProjTex2;\n"
 	"uniform int uCubeFlipY;\n"
+	"uniform sampler2D uProjTex1_2D;\n"
+	"uniform sampler2D uProjTex2_2D;\n"
+	"uniform int uProj2D;\n"
 	"uniform int uUseProj2;\n"
 	// RIDDICK_DBG_NDS: same enum as plain NDS (1=tslv,2=normal,3=diffuse,
 	// 4=spec,5=atten) plus 6=proj (the combined projection-map factor,
@@ -1245,8 +1248,30 @@ static const char* kGLES3_NDSPFragSrc =
 	"  vec3 projDir = vProjUVW;\n"
 	"  if (uCubeFlipY != 0) projDir.y = -projDir.y;\n"
 	"  float projFactor = 1.0;\n"
-	"  if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
-	"  if (uUseProj2 != 0) projFactor *= texture(uProjTex2, projDir).a;\n"
+	// RIDDICK_PROJ_2D=1 -- treat the LINEAR texgen as a PROJECTIVE 2D
+	// coordinate (u/w, v/w) instead of a cube direction.
+	// Why this is worth an A/B and not just a leftover: the three
+	// texgen rows measured on i1_showers are not an orthonormal basis,
+	// they carry per-axis SCALES -- projU ~1.0, projV ~0.4877,
+	// projW ~1.60033 (log line [GLES3-NDSP] projU/projV/projW). Scales
+	// like that are how a spot projection encodes cone aspect and FOV;
+	// a cube lookup would have no use for them.
+	// The w>0 guard is the part the first 2D implementation lacked:
+	// behind the light w flips sign and textureProj mirrors the cookie
+	// back into the scene, which is what produced the extra halos the
+	// owner circled (the engine ships XRShader_ReverseProjTest.fp, so
+	// the authors watched for this too). Clamp-to-edge on a cookie with
+	// black borders then kills everything outside the cone by itself.
+	"  if (uProj2D != 0) {\n"
+	"    if (projDir.z <= 0.0) projFactor = 0.0;\n"
+	"    else {\n"
+	"      if (uUseProj1 != 0) projFactor *= textureProj(uProjTex1_2D, projDir).a;\n"
+	"      if (uUseProj2 != 0) projFactor *= textureProj(uProjTex2_2D, projDir).a;\n"
+	"    }\n"
+	"  } else {\n"
+	"    if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
+	"    if (uUseProj2 != 0) projFactor *= texture(uProjTex2, projDir).a;\n"
+	"  }\n"
 	"  if (uDbgMode == 6) { oColor = vec4(vec3(projFactor), 1.0); return; }\n"
 	"  attn *= projFactor;\n"
 	"  if (uDbgMode == 5) { oColor = vec4(vec3(attn), 1.0); return; }\n"
@@ -1785,6 +1810,24 @@ static bool GLES3_NormalStdOrder()
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_NORMAL_STDORDER");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
+// RIDDICK_PROJ_2D=1 -- read the light's LINEAR texgen as a projective 2D
+// coordinate (u/w, v/w) with a w>0 guard, instead of as a cube direction.
+// See the block comment at its use in kGLES3_NDSPFragSrc: the measured
+// texgen rows carry per-axis scales, which is spot-projection shaped, not
+// cube shaped. Default off -- the cube reading is what the shipped ARB
+// program XRShader_SinglePass_Dst2_Proj_SpecNormal.fp does (TEX ...,
+// texture[1], CUBE), and that file is the only direct evidence we have.
+static bool GLES3_Proj2D()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_PROJ_2D");
 		s = (e && *e && *e != '0') ? 1 : 0;
 	}
 	return s != 0;
@@ -2616,6 +2659,7 @@ public:
 		int m_NDSPUProjTex1Loc = -1, m_NDSPUUseProj1Loc = -1;
 		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
 		int m_NDSPUCubeFlipYLoc = -1;
+		int m_NDSPUProjTex1_2DLoc = -1, m_NDSPUProjTex2_2DLoc = -1, m_NDSPUProj2DLoc = -1;
 		int m_NDSPUDbgLoc = -1;
 		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
 		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
@@ -3837,6 +3881,20 @@ public:
 			// Docs/HacksAndHooks.md. TProj1/TProj2 come from
 			// TextureID_EnsureUploadedCube, so these are cube names.
 			m_NDSPShader.SetInt(m_NDSPUCubeFlipYLoc, GLES3_CubeFlipY() ? 1 : 0);
+			// Both readings of the projection texgen are wired at once (see
+			// the shader): the cube on units 2/3, the same textures as plain
+			// 2D on units 5/6. Both samplers must have something valid bound
+			// whichever branch runs, and the 2D uploads are cache hits after
+			// the first frame.
+			m_NDSPShader.SetInt(m_NDSPUProj2DLoc, GLES3_Proj2D() ? 1 : 0);
+			glActiveTexture(GL_TEXTURE5);
+			glBindTexture(GL_TEXTURE_2D, TextureID_EnsureUploaded(TexProj1ID));
+			m_NDSPShader.SetInt(m_NDSPUProjTex1_2DLoc, 5);
+			glActiveTexture(GL_TEXTURE6);
+			glBindTexture(GL_TEXTURE_2D, TexProj2ID ? TextureID_EnsureUploaded(TexProj2ID)
+			                                        : TextureID_EnsureUploaded(TexProj1ID));
+			m_NDSPShader.SetInt(m_NDSPUProjTex2_2DLoc, 6);
+
 			glActiveTexture(GL_TEXTURE2);
 			glBindTexture(GL_TEXTURE_CUBE_MAP, TProj1);
 			m_NDSPShader.SetInt(m_NDSPUProjTex1Loc, 2);
@@ -4095,6 +4153,9 @@ public:
 				m_NDSPUProjTex2Loc   = m_NDSPShader.UniformLocation("uProjTex2");
 				m_NDSPUUseProj2Loc   = m_NDSPShader.UniformLocation("uUseProj2");
 				m_NDSPUCubeFlipYLoc  = m_NDSPShader.UniformLocation("uCubeFlipY");
+				m_NDSPUProjTex1_2DLoc = m_NDSPShader.UniformLocation("uProjTex1_2D");
+				m_NDSPUProjTex2_2DLoc = m_NDSPShader.UniformLocation("uProjTex2_2D");
+				m_NDSPUProj2DLoc      = m_NDSPShader.UniformLocation("uProj2D");
 				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
 				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
 				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
