@@ -1663,6 +1663,22 @@ static int GLES3_DbgNDSMode()
 // through OpenGL (RndrGL), so the shipped faces should already be in GL
 // orientation -- default off. Flip here rather than at upload time so the
 // test costs a run, not a re-upload path.
+// RIDDICK_CUBE_NOCHAINGUESS=1 -- do not infer a cube-map chain from the
+// _00.._05 name suffixes, trust CTC_TEXTUREFLAGS_CUBEMAPCHAIN alone.
+// Default off, i.e. the inference is ON, because on the shipped PC
+// content the flag is clear on cookies that are demonstrably chains
+// (see TextureID_EnsureUploadedCube).
+static bool GLES3_CubeNoChainGuess()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_CUBE_NOCHAINGUESS");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_CubeFlipY()
 {
 	static int s = -1;
@@ -4029,25 +4045,71 @@ public:
 
 			CTC_TextureProperties Props;
 			m_pTC->GetTextureProperties(_TextureID, Props);
-			const bool bChain = (Props.m_Flags & CTC_TEXTUREFLAGS_CUBEMAPCHAIN) != 0;
+			const uint32 TexFlags = (uint32)Props.m_Flags;
+			bool bChain = (TexFlags & CTC_TEXTUREFLAGS_CUBEMAPCHAIN) != 0;
 
 			CImage* pFaces[6] = { 0, 0, 0, 0, 0, 0 };
 			pFaces[0] = m_pTC->GetTexture(_TextureID, 0, -1);
 			if (!pFaces[0])
 				return 0;			// same retry policy as the 2D path
 
-			if (bChain)
+			// Chain walk, PS3-style (MRenderPS3_Texture.cpp:1084-1092).
+			//
+			// Run 2026-08-04 forced a second route in here: on the shipped PC
+			// content the cookie textures are plainly chains by name
+			// ('Cube_Lamp010_00', 'Cube_Lamp015_00', ...), but
+			// CTC_TEXTUREFLAGS_CUBEMAPCHAIN came back CLEAR, so this function
+			// replicated face 0 over the whole cube -- and face 0 of that lamp
+			// is a near-white plate, which is why the projection factor came
+			// out 1 everywhere and the cell blew out to white.
+			// So the flag is treated as a hint, not as the only evidence: the
+			// five following container-local entries are read regardless, and
+			// accepted as faces when their names are the same stem with the
+			// _01.._05 suffixes. Guessing wrong is not possible in silence --
+			// the names have to line up, and the decision is logged.
+			// RIDDICK_CUBE_NOCHAINGUESS=1 restricts this back to the flag.
+			const char* pName0 = (const char*)m_pTC->GetName(_TextureID);
+			bool bGuessed = false;
 			{
 				const int nVersions = m_pTC->EnumTextureVersions(_TextureID, 0, CTC_TEXTUREVERSION_ANY);
 				CTextureContainer* pCont = m_pTC->GetTextureContainer(_TextureID);
 				const int iLocal = m_pTC->GetLocal(_TextureID);
-				if (pCont && nVersions > 0 && iLocal >= 0)
+				const int Len0 = pName0 ? (int)strlen(pName0) : 0;
+				const bool bStemOK = (Len0 >= 3) && pName0[Len0 - 3] == '_' &&
+				                     pName0[Len0 - 2] == '0' && pName0[Len0 - 1] == '0';
+				if (pCont && nVersions > 0 && iLocal >= 0 &&
+				    (bChain || (bStemOK && !GLES3_CubeNoChainGuess())))
 				{
+					int FaceIDs[6] = { _TextureID, 0, 0, 0, 0, 0 };
+					bool bNamesOK = true;
 					for (int i = 1; i < 6; ++i)
 					{
-						const int FaceID = pCont->GetTextureID(iLocal + i * nVersions);
-						if (FaceID > 0)
-							pFaces[i] = m_pTC->GetTexture(FaceID, 0, -1);
+						FaceIDs[i] = pCont->GetTextureID(iLocal + i * nVersions);
+						if (FaceIDs[i] <= 0) { bNamesOK = false; break; }
+						const char* pN = (const char*)m_pTC->GetName(FaceIDs[i]);
+						const int L = pN ? (int)strlen(pN) : 0;
+						// same stem, suffix _0<i>
+						if (L != Len0 || strncmp(pN, pName0, Len0 - 2) != 0 ||
+						    pN[L - 2] != '0' || pN[L - 1] != (char)('0' + i))
+						{
+							bNamesOK = false;
+							break;
+						}
+					}
+					if (bNamesOK)
+					{
+						for (int i = 1; i < 6; ++i)
+							pFaces[i] = m_pTC->GetTexture(FaceIDs[i], 0, -1);
+						bGuessed = !bChain;
+						bChain = true;
+					}
+					else if (bChain)
+					{
+						// Flag says chain but the names disagree -- take the
+						// flag's word (PS3 does) and say so.
+						for (int i = 1; i < 6; ++i)
+							if (FaceIDs[i] > 0)
+								pFaces[i] = m_pTC->GetTexture(FaceIDs[i], 0, -1);
 					}
 				}
 			}
@@ -4055,9 +4117,11 @@ public:
 			const GLuint T = CGLES3TextureUploader::UploadCube(pFaces);
 			if (T && m_DbgEnabled)
 			{
-				fprintf(stderr, "[GLES3-CUBE] id=%d name='%s' %s -> cube tex=%u\n",
-					_TextureID, (const char*)m_pTC->GetName(_TextureID),
-					bChain ? "chain(6 faces)" : "single image on 6 faces", (unsigned)T);
+				fprintf(stderr, "[GLES3-CUBE] id=%d name='%s' flags=0x%x %s -> cube tex=%u\n",
+					_TextureID, pName0 ? pName0 : "?", (unsigned)TexFlags,
+					bChain ? (bGuessed ? "chain(6 faces, by name -- CUBEMAPCHAIN flag NOT set)"
+					                   : "chain(6 faces, by flag)")
+					       : "single image on 6 faces", (unsigned)T);
 				fflush(stderr);
 			}
 			m_lGLCubeTex[_TextureID] = T;
