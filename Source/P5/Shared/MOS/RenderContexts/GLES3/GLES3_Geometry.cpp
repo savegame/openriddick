@@ -62,7 +62,19 @@ static bool GLES3Geom_SkinningEnabled()
 	{
 		const char* e = getenv("RIDDICK_SKINNING");
 		const char* eHW = getenv("RIDDICK_HWSKIN");
-		s = ((e && *e && *e != '0') || (eHW && *eHW && *eHW != '0')) ? 1 : 0;
+		// RIDDICK_HWSKIN defaults to ON (see GLES3_HWSkinEnabled in
+		// MDisplaySDL2.cpp) -- and this copy MUST default the same way.
+		// It did not, for one build: the display context then advertised
+		// CRC_CAPS_FLAGS_MATRIXPALETTE and the engine duly sent animated
+		// meshes as VBID + palette, while this side kept stripping the
+		// MI0/MW0 blend registers out of the built vertex buffer. With no
+		// bone data the shader's skinning is a no-op passthrough, so every
+		// character rendered in its BIND POSE -- the T-posed player the
+		// owner found standing in the level, with the rest of the cast
+		// missing. Two copies of one switch have to agree; keep this line
+		// and GLES3_HWSkinEnabled in sync.
+		const bool bHW = !(eHW && *eHW == '0');
+		s = ((e && *e && *e != '0') || bHW) ? 1 : 0;
 	}
 	return s != 0;
 }

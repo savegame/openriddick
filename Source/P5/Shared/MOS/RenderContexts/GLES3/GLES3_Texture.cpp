@@ -108,6 +108,49 @@ void CGLES3TextureUploader::SwizzleBGRA_RGBA(unsigned char* _pPixels, int _nPixe
 	}
 }
 
+// Content probe for a cube face, run on the FINAL CPU buffer just before
+// glTexImage2D (RIDDICK_DBG_GL=1). The projection factor is ProjMapTexel.a,
+// so when an isolated 'proj' frame comes out uniform the first thing to
+// establish is whether the SOURCE is uniform -- otherwise we keep re-testing
+// the sampling math against a texture that has nothing in it.
+//
+// It sits here, and not on the CImage, because the first version did and
+// stayed silent on exactly the textures it was written for: the lamp cookies
+// ship S3TC-compressed (mem=0x11014), and a CImage-side probe has to skip
+// compressed data. By the time control reaches an upload the buffer is
+// always plain bytes -- decoded RGBA8 for the DXT path, converted pixels for
+// the raw one.
+//
+// _iAlphaByte is the byte the SAMPLER will return as alpha: 3 for RGBA8, and
+// 0 for the single-channel formats, whose swizzle maps A<-RED (GL_INTENSITY
+// semantics -- see the swizzle block at the end of Upload2D).
+static void GLES3_ProbeCubeFace(GLenum _FaceTarget, const unsigned char* _p,
+                                int _W, int _H, int _Bpp, int _iAlphaByte,
+                                unsigned _Fmt)
+{
+	if (_FaceTarget == GL_TEXTURE_2D || !_p || _W <= 0 || _H <= 0) return;
+	if (_Bpp <= 0 || _iAlphaByte < 0 || _iAlphaByte >= _Bpp) return;
+	static int sLogged = 0;
+	if (sLogged >= 12) return;
+	const char* e = getenv("RIDDICK_DBG_GL");
+	if (!e || !*e || *e == '0') return;
+	int mn = 255, mx = 0;
+	long long sum = 0;
+	const int n = _W * _H;
+	for (int i = 0; i < n; ++i)
+	{
+		const int v = _p[(size_t)i * _Bpp + _iAlphaByte];
+		if (v < mn) mn = v;
+		if (v > mx) mx = v;
+		sum += v;
+	}
+	++sLogged;
+	fprintf(stderr, "[GLES3-CUBE-SRC] face+%d %dx%d fmt=0x%x bpp=%d alpha(byte %d): min=%d max=%d mean=%d\n",
+		(int)(_FaceTarget - GL_TEXTURE_CUBE_MAP_POSITIVE_X), _W, _H,
+		_Fmt, _Bpp, _iAlphaByte, mn, mx, (int)(sum / (n ? n : 1)));
+	fflush(stderr);
+}
+
 GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps,
 	GLenum _FaceTarget, GLuint _ExistingTex)
 {
@@ -204,6 +247,8 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps,
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, PadW);
 		// Dump post-DXT-decode RGBA8 (padded to PadW; caller trims later).
 		MaybeDumpPPM("dxt", pDecoded, PadW, PadH, 4, (unsigned)_pImage->GetFormat());
+		GLES3_ProbeCubeFace(_FaceTarget, pDecoded, PadW, PadH, 4, 3,
+			(unsigned)_pImage->GetFormat());
 		glTexImage2D(_FaceTarget, 0, GL_RGBA8, W, H, 0,
 			GL_RGBA, GL_UNSIGNED_BYTE, pDecoded);
 		glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
@@ -315,6 +360,10 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps,
 	glBindTexture(kBindTarget, Tex);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	MaybeDumpPPM("bgra", pSrc, W, H, F.BytesPerPixel, (unsigned)_pImage->GetFormat());
+	GLES3_ProbeCubeFace(_FaceTarget, (const unsigned char*)pSrc, W, H,
+		F.BytesPerPixel,
+		(F.BytesPerPixel >= 4) ? 3 : ((_pImage->GetFormat() == IMAGE_FORMAT_I8A8) ? 1 : 0),
+		(unsigned)_pImage->GetFormat());
 	glTexImage2D(_FaceTarget, 0, F.InternalFormat, W, H, 0, F.Format, F.Type, pSrc);
 
 	{
@@ -416,49 +465,10 @@ GLuint CGLES3TextureUploader::Upload2D(CImage* _pImage, bool _bGenerateMipmaps,
 // rendered through OpenGL (RndrGL), so the shipped faces are already in GL
 // orientation. RIDDICK_CUBE_FLIPY=1 negates the lookup's Y in the shader if
 // that ever turns out to be wrong -- a one-flag A/B rather than a re-upload.
-// Content probe for the cookie itself (RIDDICK_DBG_GL=1). The projection
-// factor is ProjMapTexel.a, and for an IMAGE_FORMAT_I8 cookie that alpha IS
-// the single stored channel (our swizzle maps A<-RED, matching GL_INTENSITY
-// semantics the retail path relies on). So when an isolated 'proj' frame comes
-// out uniformly black or uniformly white, the first thing to establish is
-// whether the SOURCE is uniform -- otherwise we keep re-testing the sampling
-// math against a texture that has nothing in it. Prints min/max/mean of the
-// first channel of face 0.
-static void GLES3_LogCubeContent(const char* _pName, CImage* _pImg)
-{
-	static int sLogged = 0;
-	if (!_pImg || sLogged >= 8) return;
-	const char* e = getenv("RIDDICK_DBG_GL");
-	if (!e || !*e || *e == '0') return;
-	if (_pImg->IsCompressed()) return;			// probe raw formats only
-	const int W = _pImg->GetWidth(), H = _pImg->GetHeight();
-	const SGLES3Format F = CGLES3TextureUploader::MapFormat(_pImg->GetFormat());
-	if (W <= 0 || H <= 0 || !F.Supported || F.BytesPerPixel <= 0) return;
-	const unsigned char* p = (const unsigned char*)_pImg->Lock();
-	if (!p) return;
-	int mn = 255, mx = 0;
-	long long sum = 0;
-	const int n = W * H;
-	for (int i = 0; i < n; ++i)
-	{
-		const int v = p[(size_t)i * F.BytesPerPixel];
-		if (v < mn) mn = v;
-		if (v > mx) mx = v;
-		sum += v;
-	}
-	_pImg->Unlock();
-	++sLogged;
-	fprintf(stderr, "[GLES3-CUBE-SRC] '%s' %dx%d fmt=0x%x ch0: min=%d max=%d mean=%d\n",
-		_pName ? _pName : "?", W, H, (unsigned)_pImg->GetFormat(),
-		mn, mx, (int)(sum / (n ? n : 1)));
-	fflush(stderr);
-}
-
 GLuint CGLES3TextureUploader::UploadCube(CImage* const _pFaces[6])
 {
 	if (!_pFaces || !_pFaces[0]) return 0;
 
-	GLES3_LogCubeContent("cube face0", _pFaces[0]);
 
 	GLuint Tex = 0;
 	glGenTextures(1, &Tex);
