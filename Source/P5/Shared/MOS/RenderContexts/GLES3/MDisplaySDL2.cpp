@@ -2447,6 +2447,16 @@ public:
 		// as fpfb= next to nds=/lf=/lfm=, so the log finally says what
 		// FRACTION of the frame is unlit rather than just "it happens".
 		int  m_DbgFPFallback = 0;
+		// RIDDICK_DBG_NDS isolation: set per draw by SetupCommonUniforms when
+		// the program this draw ended up with cannot display the active debug
+		// mode. Without it the debug picture is unreadable for a reason that
+		// cost a run to spot (2026-08-04): only NDS/NDSP implement these
+		// modes, so LFM/LF/fallback draws kept painting their NORMAL output --
+		// and since debug modes also force the additive blend off, each of
+		// them REPLACED the pixel with an HDR-bright colour. The 'proj' shot
+		// of Riddick's cell was therefore white everywhere: not the cookie,
+		// the other passes on top of it.
+		bool m_DbgSuppressDraw = false;
 		// Set by SetVertexAttribPointers/SetVertexAttribPointersFromEntry
 		// (see BindEntryAttrib) to reflect whether locations 5/6 (tangent
 		// basis) are bound to REAL per-vertex data for the draw about to
@@ -5730,7 +5740,9 @@ public:
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _IB.m_IBO);
 			const GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : GL_TRIANGLES;
-			glDrawElements(DrawPrim, _nIdx, GL_UNSIGNED_SHORT, (const void*)_ByteOffset);
+			// RIDDICK_DBG_NDS isolation -- see m_DbgSuppressDraw.
+			if (!m_DbgSuppressDraw)
+				glDrawElements(DrawPrim, _nIdx, GL_UNSIGNED_SHORT, (const void*)_ByteOffset);
 
 			DisableVertexAttribPointers();
 			glBindVertexArray(0);
@@ -5957,6 +5969,10 @@ public:
 
 		void SetupCommonUniforms(bool _bAllowFog)
 		{
+			// Cleared per draw; set below when the chosen program cannot
+			// display the active RIDDICK_DBG_NDS mode (see the member).
+			m_DbgSuppressDraw = false;
+
 			// RIDDICK_FP20 diagnostic (RIDDICK_DBG_GL=1): the engine only
 			// ever attaches an FP20 ext-attrib once RIDDICK_FP20 has pulled
 			// XR_SHADERMODE off AUTO (see CRC_GLES3::Create), so this is a
@@ -5984,7 +6000,12 @@ public:
 			// missing a texture) falls through unchanged to the selection
 			// below, same as before this program existed.
 			if (TrySetupLFMProgram())
+			{
+				// LFM implements none of the RIDDICK_DBG_NDS modes (it has
+				// its own RIDDICK_DBG_LFM) -- hide it while one is active.
+				m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0);
 				return;
+			}
 
 			// XRShader_FP20_LF (per-object ambient light field -- see
 			// TrySetupLFProgram / kGLES3_LFVertSrc/FragSrc). Same contract as
@@ -5993,7 +6014,12 @@ public:
 			// "baked ambient" style passes, before the per-light NDS/NDSP
 			// programs below.
 			if (TrySetupLFProgram())
+			{
+				// LF implements exactly one of the modes: 'lf' (=7).
+				const int DbgM = GLES3_DbgNDSMode();
+				m_DbgSuppressDraw = (DbgM != 0 && DbgM != 7);
 				return;
+			}
 
 			// XRShader_FP20_NDS (single dynamic light: diffuse + normal map
 			// + Phong specular -- see TrySetupNDSProgram / kGLES3_NDSVertSrc/
@@ -6001,7 +6027,12 @@ public:
 			// as the LFM check above: on success the program is fully bound
 			// and this draw is done.
 			if (TrySetupNDSProgram())
+			{
+				// Plain NDS has no projection map, so it cannot answer
+				// 'proj' (=6); every other mode it implements.
+				m_DbgSuppressDraw = (GLES3_DbgNDSMode() == 6);
 				return;
+			}
 
 			// XRShader_FP20_NDSP / XRShader_FP20_NDSEATP (same single-light
 			// pass plus one or two projection-map cookies -- see
@@ -6010,6 +6041,14 @@ public:
 			// (RIDDICK_NDS=1) and fallback contract.
 			if (TrySetupNDSPProgram())
 				return;
+
+			// Reached here = no FP20 program took this draw: either it is
+			// ordinary geometry, or a light pass that fell back (fpfb=).
+			// While a RIDDICK_DBG_NDS mode is active such a draw would paint
+			// its normal, HDR-bright colour over the debug picture -- with
+			// the blend forced off it would REPLACE it. Hide it instead:
+			// what stays on screen is exactly the program being debugged.
+			m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0) && !IsUIDraw();
 
 			// Pick the program for this draw: UI/2D keeps the full
 			// m_UIShader (lights/fog/alpha test/second UV channel), world
@@ -6459,7 +6498,9 @@ public:
 							m_DbgVMemo      += pE->m_nV;
 							glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 							const GLenum CachedPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
-							glDrawElements(CachedPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+							// RIDDICK_DBG_NDS isolation -- see m_DbgSuppressDraw.
+							if (!m_DbgSuppressDraw)
+								glDrawElements(CachedPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 							DisableVertexAttribPointers();
 							glBindVertexArray(0);
 							++m_DbgDrawCached;
@@ -6663,7 +6704,9 @@ public:
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
-			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+			// RIDDICK_DBG_NDS isolation -- see m_DbgSuppressDraw.
+			if (!m_DbgSuppressDraw)
+				glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 
 			DbgDumpDraw("DrawIndexed", DrawPrim, pVerts, nVerts, _pInd, _nInd);
 			DumpGeomOBJ("DrawIndexed", pVerts, nVerts, _pInd, _nInd, _GLPrim);
@@ -7127,7 +7170,9 @@ public:
 
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, iRes.Buffer);
 			GLenum DrawPrim = m_DbgForceWire ? GL_LINE_STRIP : _GLPrim;
-			glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
+			// RIDDICK_DBG_NDS isolation -- see m_DbgSuppressDraw.
+			if (!m_DbgSuppressDraw)
+				glDrawElements(DrawPrim, _nInd, GL_UNSIGNED_SHORT, (const void*)(intptr_t)iRes.ByteOffset);
 			DbgDumpDraw("DrawUserVerts", DrawPrim, _pVerts, _nVerts, _pInd, _nInd);
 			DumpGeomOBJ("DrawUserVerts", _pVerts, _nVerts, _pInd, _nInd, _GLPrim);
 
