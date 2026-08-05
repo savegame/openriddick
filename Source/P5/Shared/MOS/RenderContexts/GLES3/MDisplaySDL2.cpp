@@ -876,6 +876,8 @@ static const char* kGLES3_NDSFragSrc =
 	"uniform int uUseNormalMap;\n"
 	"uniform int uNormalTwoCh;\n"
 	"uniform int uNormalStdOrder;\n"
+	"uniform sampler2D uSpecTex;\n"
+	"uniform int uUseSpecTex;\n"
 	// program.env[0..3] of the ARB program -- see CRC_GLES3::
 	// TrySetupNDSProgram / the report for what each of the engine's 6
 	// CRC_ExtAttributes_FragmentProgram20::m_pParams slots means; params
@@ -983,7 +985,25 @@ static const char* kGLES3_NDSFragSrc =
 	// "Texture2 = Normal+Specular map").
 	"  float specDot = clamp(dot(L, R), 0.0, 1.0);\n"
 	"  float specPow = pow(specDot, uSpecColor.a);\n"
-	"  vec3 specular = uSpecColor.rgb * specPow * normalTexel.a;\n"
+	// Specular MASK. The FP20 forward program has a dedicated
+	// specular map on its own texture unit -- "Texture1 = Specular
+	// Map // Default = 1,1,1,1" (XRShader_FP20.cpp:685, the pass-1
+	// header of the very program we implement) -- and the engine
+	// does bind one: a courtyard NDS draw arrives as
+	// tex=[9303 9305 9304 ...], i.e. diffuse/SPECULAR/normal.
+	// We used to ignore it and take the mask from normalTexel.a
+	// instead, which is the convention of the single-pass ARB
+	// variant (combined Normal+Specular map), not of this one. On
+	// two-channel normal maps (I8A8, most of this content) that
+	// alpha is a NORMAL component and the decode above overwrites
+	// it with 1.0 -- so the mask was uniformly 1 and every surface
+	// in the game got the same mirror-like highlight regardless of
+	// material (reported 2026-08-04: characters, walls and floor
+	// all shading like smooth plastic).
+	// uUseSpecTex=0 keeps the documented default of 1,1,1,1.
+	"  vec3 specMask = (uUseSpecTex != 0) ? texture(uSpecTex, vUV).rgb\n"
+	"                                     : vec3(normalTexel.a);\n"
+	"  vec3 specular = uSpecColor.rgb * specPow * specMask;\n"
 	"  if (uDbgMode == 4) { oColor = vec4(specular, 1.0); return; }\n"
 	"  vec3 result = (diffuse + specular) * attn;\n"
 	// Alpha is never written by this pass in the engine (Attrib_Disable
@@ -1141,6 +1161,8 @@ static const char* kGLES3_NDSPFragSrc =
 	"uniform int uUseNormalMap;\n"
 	"uniform int uNormalTwoCh;\n"
 	"uniform int uNormalStdOrder;\n"
+	"uniform sampler2D uSpecTex;\n"
+	"uniform int uUseSpecTex;\n"
 	"uniform vec4 uLightPos;\n"
 	"uniform vec4 uLightRange;\n"
 	"uniform vec4 uLightColor;\n"
@@ -1242,7 +1264,25 @@ static const char* kGLES3_NDSPFragSrc =
 	"  if (uDbgMode == 3) { oColor = vec4(diffuse, 1.0); return; }\n"
 	"  float specDot = clamp(dot(L, R), 0.0, 1.0);\n"
 	"  float specPow = pow(specDot, uSpecColor.a);\n"
-	"  vec3 specular = uSpecColor.rgb * specPow * normalTexel.a;\n"
+	// Specular MASK. The FP20 forward program has a dedicated
+	// specular map on its own texture unit -- "Texture1 = Specular
+	// Map // Default = 1,1,1,1" (XRShader_FP20.cpp:685, the pass-1
+	// header of the very program we implement) -- and the engine
+	// does bind one: a courtyard NDS draw arrives as
+	// tex=[9303 9305 9304 ...], i.e. diffuse/SPECULAR/normal.
+	// We used to ignore it and take the mask from normalTexel.a
+	// instead, which is the convention of the single-pass ARB
+	// variant (combined Normal+Specular map), not of this one. On
+	// two-channel normal maps (I8A8, most of this content) that
+	// alpha is a NORMAL component and the decode above overwrites
+	// it with 1.0 -- so the mask was uniformly 1 and every surface
+	// in the game got the same mirror-like highlight regardless of
+	// material (reported 2026-08-04: characters, walls and floor
+	// all shading like smooth plastic).
+	// uUseSpecTex=0 keeps the documented default of 1,1,1,1.
+	"  vec3 specMask = (uUseSpecTex != 0) ? texture(uSpecTex, vUV).rgb\n"
+	"                                     : vec3(normalTexel.a);\n"
+	"  vec3 specular = uSpecColor.rgb * specPow * specMask;\n"
 	"  if (uDbgMode == 4) { oColor = vec4(specular, 1.0); return; }\n"
 	"  vec3 result = (diffuse + specular) * attn;\n"
 	// Environment/Attribute/Transmission NOT sampled -- see class comment.
@@ -1605,19 +1645,27 @@ static bool GLES3_NDSEnabled()
 // never exceeds 48 bones, comfortably inside GLES3_MAX_BONES=64. The
 // full-skeleton case (70..120 bones) did not occur once.
 //
-// Kept opt-in because the flag flips engine-wide behaviour: skinned meshes
-// start arriving as VBID draws with a palette (the GPU path this backend
-// implements) instead of pre-transformed CPU vertex arrays. Implies
-// GLES3_SkinningEnabled() -- advertising the cap while the backend ignores
-// palettes would submit bone-local vertices, i.e. geometry scattered across
-// the world.
+// Flips engine-wide behaviour: skinned meshes start arriving as VBID draws
+// with a palette (the GPU path this backend implements) instead of
+// pre-transformed CPU vertex arrays. Implies GLES3_SkinningEnabled() --
+// advertising the cap while the backend ignores palettes would submit
+// bone-local vertices, i.e. geometry scattered across the world.
+//
+// DEFAULT ON since 2026-08-04. It stopped being an optimisation and became
+// correctness: the CPU path streams skinned geometry through SUIVert, which
+// carries NO tangent basis, so every per-light program refused those draws
+// and characters fell back to flat additive diffuse -- no bump, no specular,
+// over-bright. The run that flipped this on measured fpfb=0 (down from ~76
+// fallback draws per frame), skin=734, and the owner confirmed characters
+// finally shade like the retail game.
+// RIDDICK_HWSKIN=0 restores the CPU-skinning path.
 static bool GLES3_HWSkinEnabled()
 {
 	static int s = -1;
 	if (s < 0)
 	{
 		const char* e = getenv("RIDDICK_HWSKIN");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		s = (e && *e && *e == '0') ? 0 : 1;
 	}
 	return s != 0;
 }
@@ -2425,6 +2473,7 @@ public:
 		int m_NDSUTexLoc = -1, m_NDSUUseTexLoc = -1;
 		int m_NDSUNormalTexLoc = -1, m_NDSUUseNormalLoc = -1, m_NDSUNormalTwoChLoc = -1;
 		int m_NDSUNormalStdOrderLoc = -1;
+		int m_NDSUSpecTexLoc = -1, m_NDSUUseSpecTexLoc = -1;
 		int m_NDSULightPosLoc = -1, m_NDSULightRangeLoc = -1;
 		int m_NDSULightColorLoc = -1, m_NDSUSpecColorLoc = -1;
 		int m_NDSUDbgLoc = -1;
@@ -2561,6 +2610,7 @@ public:
 		int m_NDSPUTexLoc = -1, m_NDSPUUseTexLoc = -1;
 		int m_NDSPUNormalTexLoc = -1, m_NDSPUUseNormalLoc = -1, m_NDSPUNormalTwoChLoc = -1;
 		int m_NDSPUNormalStdOrderLoc = -1;
+		int m_NDSPUSpecTexLoc = -1, m_NDSPUUseSpecTexLoc = -1;
 		int m_NDSPULightPosLoc = -1, m_NDSPULightRangeLoc = -1;
 		int m_NDSPULightColorLoc = -1, m_NDSPUSpecColorLoc = -1;
 		int m_NDSPUProjTex1Loc = -1, m_NDSPUUseProj1Loc = -1;
@@ -3542,6 +3592,20 @@ public:
 			m_NDSShader.SetInt(m_NDSUTexLoc, 0);
 			m_NDSShader.SetInt(m_NDSUUseTexLoc, TDiffuse ? 1 : 0);
 
+
+			// Specular map: FP20 texture unit 1 (XRShader_FP20.cpp:685).
+			// Absent -> uUseSpecTex=0 and the shader falls back to the
+			// documented 1,1,1,1 default via normalTexel.a.
+			const int TexSpecID = (int)m_pCurAttrib->m_TextureID[1];
+			const GLuint TSpec = TexSpecID ? TextureID_EnsureUploaded(TexSpecID) : 0;
+			if (TSpec)
+			{
+				glActiveTexture(GL_TEXTURE4);
+				glBindTexture(GL_TEXTURE_2D, TSpec);
+			}
+			m_NDSShader.SetInt(m_NDSUSpecTexLoc, 4);
+			m_NDSShader.SetInt(m_NDSUUseSpecTexLoc, TSpec ? 1 : 0);
+
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, TNormal);
 			m_NDSShader.SetInt(m_NDSUNormalTexLoc, 1);
@@ -3735,6 +3799,20 @@ public:
 			if (TDiffuse) glBindTexture(GL_TEXTURE_2D, TDiffuse);
 			m_NDSPShader.SetInt(m_NDSPUTexLoc, 0);
 			m_NDSPShader.SetInt(m_NDSPUUseTexLoc, TDiffuse ? 1 : 0);
+
+
+			// Specular map: FP20 texture unit 1 (XRShader_FP20.cpp:685).
+			// Absent -> uUseSpecTex=0 and the shader falls back to the
+			// documented 1,1,1,1 default via normalTexel.a.
+			const int TexSpecID = (int)m_pCurAttrib->m_TextureID[1];
+			const GLuint TSpec = TexSpecID ? TextureID_EnsureUploaded(TexSpecID) : 0;
+			if (TSpec)
+			{
+				glActiveTexture(GL_TEXTURE4);
+				glBindTexture(GL_TEXTURE_2D, TSpec);
+			}
+			m_NDSPShader.SetInt(m_NDSPUSpecTexLoc, 4);
+			m_NDSPShader.SetInt(m_NDSPUUseSpecTexLoc, TSpec ? 1 : 0);
 
 			glActiveTexture(GL_TEXTURE1);
 			glBindTexture(GL_TEXTURE_2D, TNormal);
@@ -3964,6 +4042,8 @@ public:
 				m_NDSUUseNormalLoc  = m_NDSShader.UniformLocation("uUseNormalMap");
 				m_NDSUNormalTwoChLoc = m_NDSShader.UniformLocation("uNormalTwoCh");
 				m_NDSUNormalStdOrderLoc = m_NDSShader.UniformLocation("uNormalStdOrder");
+				m_NDSUSpecTexLoc = m_NDSShader.UniformLocation("uSpecTex");
+				m_NDSUUseSpecTexLoc = m_NDSShader.UniformLocation("uUseSpecTex");
 				m_NDSULightPosLoc   = m_NDSShader.UniformLocation("uLightPos");
 				m_NDSULightRangeLoc = m_NDSShader.UniformLocation("uLightRange");
 				m_NDSULightColorLoc = m_NDSShader.UniformLocation("uLightColor");
@@ -3992,6 +4072,8 @@ public:
 				m_NDSPUUseNormalLoc  = m_NDSPShader.UniformLocation("uUseNormalMap");
 				m_NDSPUNormalTwoChLoc = m_NDSPShader.UniformLocation("uNormalTwoCh");
 				m_NDSPUNormalStdOrderLoc = m_NDSPShader.UniformLocation("uNormalStdOrder");
+				m_NDSPUSpecTexLoc = m_NDSPShader.UniformLocation("uSpecTex");
+				m_NDSPUUseSpecTexLoc = m_NDSPShader.UniformLocation("uUseSpecTex");
 				m_NDSPULightPosLoc   = m_NDSPShader.UniformLocation("uLightPos");
 				m_NDSPULightRangeLoc = m_NDSPShader.UniformLocation("uLightRange");
 				m_NDSPULightColorLoc = m_NDSPShader.UniformLocation("uLightColor");
