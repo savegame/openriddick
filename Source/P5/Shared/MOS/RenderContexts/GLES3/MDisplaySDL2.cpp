@@ -1492,7 +1492,7 @@ static bool GLES3_NoTexGen()
 	return s != 0;
 }
 
-// RIDDICK_FP20=<n> -- EXPERIMENTAL/DBG. Wakes up CXR_Shader's shader-mode
+// RIDDICK_FP20=<n> -- DEFAULT ON (=0 disables). Wakes up CXR_Shader's shader-mode
 // queue, which is otherwise dead: CXR_Shader::PrepareFrame (XRShader.cpp:
 // 1258-1305) only sets bits in ModesAvail for FRAGMENTPROGRAM20 if the caps
 // flag is set AND both multitexture counts are >= 8; with the "honest" caps
@@ -1500,16 +1500,20 @@ static bool GLES3_NoTexGen()
 // stays 0, BitScanBwd32(0) == -1, m_ShaderMode == -1, and every
 // switch(m_ShaderMode) in RenderShading* is a no-op. Does NOT draw anything
 // new by itself -- see CRC_GLES3::Create (caps) and DbgLogFP20 (logging).
-// Any non-empty value other than "0" enables it; see GLES3_FP20ModeOverride
-// for what the value itself selects. Default (unset) behaviour is
-// byte-for-byte unchanged.
+// Any value other than "0" enables it; see GLES3_FP20ModeOverride for what
+// the value itself selects (N>1 pins that shader mode).
 static bool GLES3_FP20Enabled()
 {
 	static int s = -1;
 	if (s < 0)
 	{
+		// Enabled unless explicitly "0". The old test was `!= '1' ? 0 : 1`,
+		// which also switched the whole pipeline OFF for RIDDICK_FP20=<N>,
+		// N>1 -- the very syntax documented for pinning another shader mode,
+		// so that combination could never have worked (GLES3_FP20ModeOverride
+		// returned N while the caps were never advertised).
 		const char* e = getenv("RIDDICK_FP20");
-		s = (e && *e && *e != '1') ? 0 : 1;
+		s = (e && *e && *e == '0') ? 0 : 1;
 	}
 	return s != 0;
 }
@@ -1602,10 +1606,14 @@ static bool GLES3_NoLFM()
 		// specular, characters over-bright -- every FP20 pass the engine
 		// queued was drawn by the plain diffuse shader with the additive
 		// blend still on.
-		// Intended semantics (Docs/HacksAndHooks.md "FP20 LFM program",
-		// Handoff_Render_Lighting.md §5): default OFF, RIDDICK_LFM=<non-0>
-		// ON, RIDDICK_NO_LFM=<non-0> a hard override handled above.
-		s = (eOn && *eOn && *eOn != '0') ? 0 : 1;
+		// DEFAULT ON since 2026-08-05: RIDDICK_LFM=0 (or RIDDICK_NO_LFM=1,
+		// handled above) turns the lightmap program off, anything else
+		// leaves it on. It was opt-in while it looked like a sparkle
+		// generator, but that was the same tangent-basis defect that made
+		// everything else wrong; with the basis fixed the baked light is
+		// part of the correct picture, not an experiment
+		// (Docs/FP_Reference.md §4a: lightmaps do contribute in this game).
+		s = (eOn && *eOn && *eOn == '0') ? 1 : 0;
 	}
 	return s != 0;
 }
@@ -1649,22 +1657,29 @@ static float GLES3_LFMScale()
 	return s;
 }
 
-// RIDDICK_NDS=1 -- opt-in switch for the XRShader_FP20_NDS program (single
+// RIDDICK_NDS -- DEFAULT ON (=0 disables). The XRShader_FP20_NDS program (single
 // dynamic light: diffuse + normal map + Phong specular, see
-// CRC_GLES3::TrySetupNDSProgram / kGLES3_NDSVertSrc/FragSrc). Defaults OFF:
-// it is new code that needs the tangent-basis plumbing (locations 5/6,
-// cache-path draws only) to have been exercised for real before flipping it
-// on generally. (This comment used to describe LFM as "default-on, explicit
-// opt-out"; that was never true of the code -- see the polarity fix in
-// GLES3_NoLFM. Both programs are opt-in, RIDDICK_LFM=1 / RIDDICK_NDS=1.)
+// CRC_GLES3::TrySetupNDSProgram / kGLES3_NDSVertSrc/FragSrc). It was opt-in
+// while the tangent-basis plumbing (locations 5/6, cache-path draws only)
+// was unverified; both halves of that are settled now -- the component order
+// against shaders/VP.xrg and the FP20 header, and RIDDICK_HWSKIN default-on
+// leaving no draws without a basis. LFM (RIDDICK_LFM) is default-on for the
+// same reason.
 // Default (unset) behaviour is byte-for-byte unchanged.
 static bool GLES3_NDSEnabled()
 {
 	static int s = -1;
 	if (s < 0)
 	{
+		// DEFAULT ON since 2026-08-05 (=0 disables). Was opt-in while the
+		// tangent basis was unverified; that verification is done -- the
+		// component order came out of shaders/VP.xrg and the FP20 header,
+		// and with RIDDICK_HWSKIN default-on there are no draws left that
+		// lack a basis (fpfb=0 measured). Without NDS/NDSP the per-light
+		// programs never run and the world falls back to flat additive
+		// diffuse, which is not a state anyone should get by default.
 		const char* e = getenv("RIDDICK_NDS");
-		s = (e && *e && *e != '0') ? 1 : 0;
+		s = (e && *e && *e == '0') ? 0 : 1;
 	}
 	return s != 0;
 }
