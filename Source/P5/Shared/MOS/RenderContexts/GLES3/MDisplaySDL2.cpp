@@ -1182,6 +1182,7 @@ static const char* kGLES3_NDSPFragSrc =
 	"uniform sampler2D uProjTex2_2D;\n"
 	"uniform int uProj2D;\n"
 	"uniform int uProjUV;\n"
+	"uniform int uNoProj;\n"
 	"uniform int uUseProj2;\n"
 	// RIDDICK_DBG_NDS: same enum as plain NDS (1=tslv,2=normal,3=diffuse,
 	// 4=spec,5=atten) plus 6=proj (the combined projection-map factor,
@@ -1249,6 +1250,17 @@ static const char* kGLES3_NDSPFragSrc =
 	"  vec3 projDir = vProjUVW;\n"
 	"  if (uCubeFlipY != 0) projDir.y = -projDir.y;\n"
 	"  float projFactor = 1.0;\n"
+	// RIDDICK_NO_PROJ=1 -- drop the cookie entirely (projFactor stays 1)
+	// while the frame renders NORMALLY, with no program isolation. This
+	// is the A/B that answers "are the repeated halos the cookie or
+	// not?" with a readable picture: if the extra halos survive with the
+	// mask switched off, something else draws them.
+	// The isolated RIDDICK_DBG_NDS=proj cannot answer it -- each light
+	// carries its own screen scissor, often a few pixels wide
+	// ([GLES3-LIGHTBOX] rect=(513,288..519,404)), and with every other
+	// pass suppressed there is simply nothing on screen to look at.
+	// That is why the first attempt came back "black, nothing at all".
+	"  if (uNoProj == 0) {\n"
 	// RIDDICK_PROJ_2D=1 -- treat the LINEAR texgen as a PROJECTIVE 2D
 	// coordinate (u/w, v/w) instead of a cube direction.
 	// Why this is worth an A/B and not just a leftover: the three
@@ -1300,6 +1312,7 @@ static const char* kGLES3_NDSPFragSrc =
 	"  } else {\n"
 	"    if (uUseProj1 != 0) projFactor *= texture(uProjTex1, projDir).a;\n"
 	"    if (uUseProj2 != 0) projFactor *= texture(uProjTex2, projDir).a;\n"
+	"  }\n"
 	"  }\n"
 	"  if (uDbgMode == 6) { oColor = vec4(vec3(projFactor), 1.0); return; }\n"
 	"  attn *= projFactor;\n"
@@ -1869,6 +1882,37 @@ static bool GLES3_NormalStdOrder()
 // RIDDICK_PROJ_UV=<0..7> -- orientation A/B for the 2D projection emulation
 // (only meaningful with RIDDICK_PROJ_2D=1). bit0 swaps u/v, bit1 negates u,
 // bit2 negates v, on top of the default GL +X cube-face mapping.
+// RIDDICK_NO_PROJ=1 -- see the block comment at its use in
+// kGLES3_NDSPFragSrc: renders normally but with the light cookie
+// forced to 1, so the repeated-halo question gets a readable A/B.
+// RIDDICK_DBG_NDS_NOISO=1 -- keep the rest of the frame visible while a
+// RIDDICK_DBG_NDS mode is active. Isolation (default) is what makes a
+// debug mode readable in a multi-pass frame, but it also means a mode
+// whose program barely runs, or runs inside a few-pixel light scissor,
+// shows as a black screen -- which is exactly how the first 'proj' run
+// came back. This turns it off when context matters more than purity.
+static bool GLES3_DbgNDSIsolate()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_NDS_NOISO");
+		s = (e && *e && *e != '0') ? 0 : 1;
+	}
+	return s != 0;
+}
+
+static bool GLES3_NoProj()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_NO_PROJ");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static int GLES3_ProjUV()
 {
 	static int s = -1;
@@ -2718,7 +2762,7 @@ public:
 		int m_NDSPUProjTex2Loc = -1, m_NDSPUUseProj2Loc = -1;
 		int m_NDSPUCubeFlipYLoc = -1;
 		int m_NDSPUProjTex1_2DLoc = -1, m_NDSPUProjTex2_2DLoc = -1, m_NDSPUProj2DLoc = -1;
-		int m_NDSPUProjUVLoc = -1;
+		int m_NDSPUProjUVLoc = -1, m_NDSPUNoProjLoc = -1;
 		int m_NDSPUDbgLoc = -1;
 		int m_NDSPUAlphaFuncLoc = -1, m_NDSPUAlphaRefLoc = -1;
 		// Skinning (RIDDICK_SKINNING, kGLES3_SkinningGLSL) -- see
@@ -3972,6 +4016,7 @@ public:
 			// the first frame.
 			m_NDSPShader.SetInt(m_NDSPUProj2DLoc, GLES3_Proj2D() ? 1 : 0);
 			m_NDSPShader.SetInt(m_NDSPUProjUVLoc, GLES3_ProjUV());
+			m_NDSPShader.SetInt(m_NDSPUNoProjLoc, GLES3_NoProj() ? 1 : 0);
 			glActiveTexture(GL_TEXTURE5);
 			glBindTexture(GL_TEXTURE_2D, TextureID_EnsureUploaded(TexProj1ID));
 			m_NDSPShader.SetInt(m_NDSPUProjTex1_2DLoc, 5);
@@ -4242,6 +4287,7 @@ public:
 				m_NDSPUProjTex2_2DLoc = m_NDSPShader.UniformLocation("uProjTex2_2D");
 				m_NDSPUProj2DLoc      = m_NDSPShader.UniformLocation("uProj2D");
 				m_NDSPUProjUVLoc      = m_NDSPShader.UniformLocation("uProjUV");
+				m_NDSPUNoProjLoc      = m_NDSPShader.UniformLocation("uNoProj");
 				m_NDSPUDbgLoc        = m_NDSPShader.UniformLocation("uDbgMode");
 				m_NDSPUAlphaFuncLoc  = m_NDSPShader.UniformLocation("uAlphaFunc");
 				m_NDSPUAlphaRefLoc   = m_NDSPShader.UniformLocation("uAlphaRef");
@@ -6263,7 +6309,7 @@ public:
 			{
 				// LFM implements none of the RIDDICK_DBG_NDS modes (it has
 				// its own RIDDICK_DBG_LFM) -- hide it while one is active.
-				m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0);
+				m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0) && GLES3_DbgNDSIsolate();
 				return;
 			}
 
@@ -6277,7 +6323,7 @@ public:
 			{
 				// LF implements exactly one of the modes: 'lf' (=7).
 				const int DbgM = GLES3_DbgNDSMode();
-				m_DbgSuppressDraw = (DbgM != 0 && DbgM != 7);
+				m_DbgSuppressDraw = (DbgM != 0 && DbgM != 7) && GLES3_DbgNDSIsolate();
 				return;
 			}
 
@@ -6290,7 +6336,7 @@ public:
 			{
 				// Plain NDS has no projection map, so it cannot answer
 				// 'proj' (=6); every other mode it implements.
-				m_DbgSuppressDraw = (GLES3_DbgNDSMode() == 6);
+				m_DbgSuppressDraw = (GLES3_DbgNDSMode() == 6) && GLES3_DbgNDSIsolate();
 				return;
 			}
 
@@ -6308,7 +6354,7 @@ public:
 			// its normal, HDR-bright colour over the debug picture -- with
 			// the blend forced off it would REPLACE it. Hide it instead:
 			// what stays on screen is exactly the program being debugged.
-			m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0) && !IsUIDraw();
+			m_DbgSuppressDraw = (GLES3_DbgNDSMode() != 0) && !IsUIDraw() && GLES3_DbgNDSIsolate();
 
 			// Pick the program for this draw: UI/2D keeps the full
 			// m_UIShader (lights/fog/alpha test/second UV channel), world
