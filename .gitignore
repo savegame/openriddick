@@ -7,3 +7,4 @@ screenshots
 bsp
 .vscode
 Tools/out/
+__pycache__/
