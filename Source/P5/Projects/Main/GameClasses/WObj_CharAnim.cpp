@@ -375,29 +375,48 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 		if (s_Dbg)
 		{
 			// Per-object budget so one character cannot flood the log.
+			//
+			// Печатаем ПЕРИОДИЧЕСКИ (каждый 30-й вызов на объект), а не первые
+			// несколько кадров: вопрос «замирает ли анимация ходьбы» -- это
+			// вопрос о ПРОИЗВОДНОЙ времени слоя, и одиночный снимок на него не
+			// отвечает. Поэтому в строке есть dt (прирост m_Time с прошлой
+			// печати) и v (пройденное расстояние за тот же интервал):
+			//   v>0, dt==0  -- персонаж едет, анимация стоит: замер попал в цель,
+			//                  искать в AG2/подаче времени слоя;
+			//   v>0, dt>0   -- слой живой, и «замершая ходьба» -- уже не здесь,
+			//                  а ниже по конвейеру (палитра/скиннинг/рендер).
 			static int16 s_lObj[16] = { 0 };
-			static uint8 s_lCount[16] = { 0 };
+			static uint16 s_lCalls[16] = { 0 };
+			static uint16 s_lPrints[16] = { 0 };
+			static fp32 s_lPrevTime[16][4] = { { 0 } };
+			static CVec3Dfp32 s_lPrevPos[16];
 			int iSlot = -1;
 			for (int i = 0; i < 16; i++)
 			{
 				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
 				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
 			}
-			if (iSlot >= 0 && s_lCount[iSlot] < 6)
+			if (iSlot >= 0 && s_lPrints[iSlot] < 40 && ((s_lCalls[iSlot]++ % 30) == 0))
 			{
-				s_lCount[iSlot]++;
+				s_lPrints[iSlot]++;
 				const CVec3Dfp32 Pos = _pObj->GetPosition();
-				fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d",
-					(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers);
-				for (int i = 0; i < nLayers && i < 3; i++)
+				const fp32 Dist = (s_lPrints[iSlot] > 1) ? (Pos - s_lPrevPos[iSlot]).Length() : 0.0f;
+				s_lPrevPos[iSlot] = Pos;
+				fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f",
+					(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist);
+				for (int i = 0; i < nLayers && i < 4; i++)
+				{
 					// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
 					// layer as "full body" when base == 0 AND blend > 0.999; if no
 					// such layer exists it aborts and poisons every bone with QNaN.
-					fprintf(stderr, "  L%d{seq=%d base=%d t=%.3f ts=%.3f blend=%.3f fl=0x%x}",
+					const fp32 dT = _pLayers[i].m_Time - s_lPrevTime[iSlot][i];
+					s_lPrevTime[iSlot][i] = _pLayers[i].m_Time;
+					fprintf(stderr, "  L%d{seq=%d base=%d t=%.3f dt=%.3f ts=%.3f blend=%.3f fl=0x%x}",
 						i, (int)(_pLayers[i].m_spSequence != NULL),
-						(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time,
+						(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time, dT,
 						_pLayers[i].m_TimeScale, _pLayers[i].m_Blend,
 						(unsigned)_pLayers[i].m_Flags);
+				}
 				fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);
 				fflush(stderr);
 			}
@@ -1577,6 +1596,36 @@ bool CWObject_Character::OnGetAnimState(CWObject_CoreData* _pObj, CWorld_PhysSta
 						AimMat = MatLook;
 					}
 				
+					// ЗОНД [SKELMAP] (RIDDICK_DBG_BONES=1): связка «объект ->
+					// экземпляр скелета». Строки [BONES] подписаны указателем
+					// экземпляра, и без этой таблицы их нельзя отнести к
+					// конкретному персонажу -- а именно это и нужно, когда
+					// жалоба звучит как «у ЭТОГО NPC не играет ходьба».
+					// Печатается один раз на пару (объект, экземпляр).
+					{
+						static int s_DbgMap = -1;
+						if (s_DbgMap < 0)
+						{
+							const char* e = getenv("RIDDICK_DBG_BONES");
+							s_DbgMap = (e && *e && *e != '0') ? 1 : 0;
+						}
+						if (s_DbgMap && pSkelInstance)
+						{
+							static const void* s_lInst[32] = { 0 };
+							static int s_nInst = 0;
+							bool bSeen = false;
+							for (int i = 0; i < s_nInst; i++)
+								if (s_lInst[i] == (const void*)pSkelInstance) { bSeen = true; break; }
+							if (!bSeen && s_nInst < 32)
+							{
+								s_lInst[s_nInst++] = (const void*)pSkelInstance;
+								M_TRACEALWAYS("[SKELMAP] obj=%d isPlayer=%d inst=%p nodes=%d\n",
+									(int)_pObj->m_iObject, (int)(pCD->m_iPlayer != -1),
+									(void*)pSkelInstance, (int)pSkel->m_lNodes.Len());
+							}
+						}
+					}
+
 					// ЗОНД [OK-GATE] (RIDDICK_DBG_OK=1). Вся пост-анимация --
 					// обратная кинематика, лицевая система, коррекция камеры --
 					// сидит за ЭТИМ ОДНИМ условием (см. Docs/Research_OK_Report.md

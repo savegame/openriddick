@@ -120,6 +120,20 @@
 - `GameWorld_Win32_x86_dll_decomp.c` (~778k строк) — GameWorld DLL: геймплей, AG2 (MOVETOKENS/GRAPHBLOCKS/FULLSTATES), форматы записей каталога.
 - `MXR_dll_decomp.c` — оригинальная библиотека загрузки BSP-уровней.
 - `MSystem_dll_decomp.c` — чтение файлов уровней, формат архива и пр. (разобрано частично).
+- `GameClasses_Win32_x86_dll_decomp.c` (~36 МБ) — игровые классы: персонажи, оружие, ОК/пост-анимация, HUD, диалоги.
+- `RndrGL_dll_decomp.c` — PC-рендерер (OpenGL), эталон для нашего GLES3-бэкенда.
+- `MCCDyn_dll_decomp.c` (~5,5 МБ, добавлен 2026-08-08) — **рантайм-ядро MCC**
+  (`Shared/MCC/`): менеджер памяти `CDA_MemoryManager` (классы размеров,
+  heap-чанки, дефрагментация), потоки и пул (`MRTC_Thread*`,
+  `MRTC_ThreadPoolThread`), `MRTC_VPUManager` (задачи/джобы), реестр классов
+  и `MRTC_ObjectManager`, системный слой `MRTC_SystemInfo::OS_*`
+  (файлы, async-чтение, время, размер памяти, TCP), файловый стек —
+  `CCFile`, `CDataFile`, `CDiskUtil`, `CStream_Disk/Memory/XDF/
+  LinearCompressedZLib`, кэш байтстримов (`CByteStream*`), хэши
+  (`CStringHashConst`, `CHash2D`).
+  Чем полезен: эталон для `MRTC_System_Linux.cpp`, для загрузчиков
+  архивов/стримов и для вопросов «как ретейл читает этот файл».
+  Геймплея и рендера в нём НЕТ.
 - `MOVETOKENS_calls.txt` — выборка Ghidra-функций вокруг MOVETOKENS/GRAPHBLOCKS (CXRAG2 = анимации персонажей, графы анимаций).
 - `Docs/` — заметки по форматам (BSP_PC_Format.md и др.).
 
