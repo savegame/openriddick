@@ -1770,6 +1770,24 @@ static bool GLES3_SkinningEnabled()
 // A/B tool: if the scattered/stretched polygons disappear under this flag,
 // those draws are the artifact and the engine side has to be looked at;
 // if they stay, look elsewhere. NOT a fix -- it removes real geometry.
+// RIDDICK_DBG_PALMOVE=1 -- считать, меняется ли КАЖДЫЙ кадр палитра костей,
+// которую бэкенд реально грузит в uBoneMat. Зонд стоит на самой границе GPU
+// (см. счётчики m_DbgPal* и строку [GLES3-PAL]), потому что движковая
+// сторона уже измерена и здорова: слои идут, время слоя растёт, локальные
+// матрицы и мировая палитра меняются. Ответ читается одной цифрой:
+// diff >> same -- в шейдер уходит живая анимация, «застывшая ходьба» не
+// здесь; same >> diff при движущемся персонаже -- грузим одно и то же.
+static bool GLES3_DbgPalMove()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_PALMOVE");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+
 static bool GLES3_SkinDropNoPalette()
 {
 	static int s = -1;
@@ -2695,6 +2713,28 @@ public:
 		// streaming paths never carry bone data -- SUIVert has no room for
 		// it -- so they leave m_DrawBoneCount at 0 and never set this).
 		bool m_SkinNoPalette = false;
+
+		// ЗОНД [GLES3-PAL] (RIDDICK_DBG_PALMOVE=1): МЕНЯЕТСЯ ли палитра,
+		// которую мы реально грузим в uBoneMat, от кадра к кадру.
+		//
+		// Зачем именно здесь: движковая сторона уже измерена и здорова --
+		// слои идут, время слоя растёт, локальные матрицы и мировая палитра
+		// меняются. Если при этом на экране персонаж скользит в застывшей
+		// позе, остаётся ровно одно место: то, что уходит в шейдер. Этот
+		// зонд смотрит на байты у самой границы GPU.
+		//
+		// Опознать конкретный draw между кадрами нечем (палитры живут в
+		// арене, адреса переиспользуются), поэтому сравниваем по ПОРЯДКОВОМУ
+		// номеру скиннед-draw'а внутри сцены: порядок отрисовки кадр за
+		// кадром устойчив, а нужна не адресация, а доля совпадений.
+		// diff >> same -- палитры живые, дефект не здесь; same >> diff при
+		// движущемся персонаже -- грузим одно и то же.
+		int    m_DbgPalOrd = 0;
+		uint32 m_lDbgPalPrev[256] = { 0 };
+		uint32 m_lDbgPalCur[256] = { 0 };
+		int    m_DbgPalSame = 0;
+		int    m_DbgPalDiff = 0;
+		int    m_DbgPalScenes = 0;
 		// Draws whose CACHED geometry entry carries bone indices (CRC_VREG_MI0),
 		// printed as "mi0=N". Deliberately separate from skin=N: mi0 counts
 		// "this draw is matrix-palette geometry", skin counts "we actually
@@ -5324,6 +5364,25 @@ public:
 		void BeginScene(CRC_Viewport* _pVP)
 		{
 			++m_DbgBeginScenes;
+
+			// ЗОНД [GLES3-PAL]: смена сцены -- это и есть та граница, по
+			// которой сравниваются палитры. Текущие суммы становятся
+			// «прошлыми», порядковый номер скиннед-draw'а обнуляется.
+			if (GLES3_DbgPalMove())
+			{
+				for (int i = 0; i < 256; ++i)
+					m_lDbgPalPrev[i] = m_lDbgPalCur[i];
+				m_DbgPalOrd = 0;
+				if (++m_DbgPalScenes >= 120)
+				{
+					fprintf(stderr, "[GLES3-PAL] scenes=%d skinnedDraws same=%d diff=%d\n",
+						m_DbgPalScenes, m_DbgPalSame, m_DbgPalDiff);
+					fflush(stderr);
+					m_DbgPalScenes = 0;
+					m_DbgPalSame = 0;
+					m_DbgPalDiff = 0;
+				}
+			}
 			PinShaderModeIfNeeded();
 			// Make sure "the backbuffer" means the screen FBO even if
 			// the engine never called SetRenderTarget this frame (the
@@ -5969,7 +6028,31 @@ public:
 					sScratch[i].k[2] = 0.0f; sScratch[i].k[3] = 0.0f;
 				}
 				glUniform4fv(_LocBoneMat, GLES3_MAX_BONES * 3, (const float*)sScratch);
-			}
+
+					// ЗОНД [GLES3-PAL] -- см. объявление счётчиков. Сумма
+					// берётся с ТЕХ ЖЕ байтов, что ушли в glUniform4fv, а не
+					// с движковой палитры: вопрос именно «что увидел шейдер».
+					if (GLES3_DbgPalMove())
+					{
+						const uint32* pW = (const uint32*)sScratch;
+						const int nW = nBones * 3 * 4;	// vec4 -> 4 слова
+						uint32 CRC = 2166136261u;		// FNV-1a: хватает на «менялось/нет»
+						for (int i = 0; i < nW; ++i)
+						{
+							CRC ^= pW[i];
+							CRC *= 16777619u;
+						}
+						if (m_DbgPalOrd < 256)
+						{
+							if (m_lDbgPalPrev[m_DbgPalOrd] == CRC)
+								++m_DbgPalSame;
+							else
+								++m_DbgPalDiff;
+							m_lDbgPalCur[m_DbgPalOrd] = CRC;
+						}
+						++m_DbgPalOrd;
+					}
+				}
 
 			_Sh.SetInt(_LocBoneCount, m_DrawBoneCount);
 			++m_DbgSkinDraws;
