@@ -15,6 +15,7 @@ History:
 
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
+#include <stdlib.h>	// getenv (зонды RIDDICK_DBG_OK)
 #include "CPostAnimSystem.h"
 #include "WObj_Char/WObj_CharDarkling_ClientData.h"
 #include "WObj_CharClientData.h"
@@ -2112,6 +2113,41 @@ bool CPostAnimSystem::CheckOKTorRunFeetIK(CWO_Character_ClientData *_pCD, uint8 
 		return false;
 	}
 
+	// ЗОНД [FEETIK-GATE] (RIDDICK_DBG_OK=1): какое именно из пяти условий
+	// выключает ножную ОК. Второе из них -- «не делать для игрока» -- это
+	// решение авторов, а не наш дефект (Docs/Research_OK_Report.md §4), и
+	// путать его с поломкой дороже всего.
+	{
+		static int s_Dbg = -1;
+		if (s_Dbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_OK");
+			s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_Dbg)
+		{
+			const bool bIgnoreAG2 = (_pCD->m_AnimGraph2.GetStateFlagsHiCombined() & AG2_STATEFLAGHI_IKSYSTEM_IGNOREFEET) != 0;
+			const bool bPlayerExcl = (_pCD->m_iPlayer != -1 && _FeetType == FEET_TYPE_HUMAN_BIPED);
+			const bool bBehavior   = (_pCD->m_iPlayer == -1 && (_pCD->m_AnimGraph2.GetStateFlagsLo() & AG2_STATEFLAG_BEHAVIORACTIVE) != 0);
+			const bool bNoAnimPhys = (_pCD->m_Phys_Flags & PLAYER_PHYSFLAGS_NOANIMPHYS) != 0;
+			static int s_nLogged = 0;
+			static int s_LastKey = -1;
+			const int Key = (bIgnoreAG2 ? 1 : 0) | (bPlayerExcl ? 2 : 0) |
+			                (bBehavior ? 4 : 0) | (bNoAnimPhys ? 8 : 0) |
+			                ((int)_FeetType << 4) | ((_pCD->m_iPlayer != -1) ? 0x1000 : 0);
+			if (Key != s_LastKey && s_nLogged < 40)
+			{
+				s_LastKey = Key;
+				++s_nLogged;
+				M_TRACEALWAYS("[FEETIK-GATE] isPlayer=%d feetType=%d | ignoreFeetAG2=%d playerExcl=%d "
+					"behaviorActive=%d noAnimPhys=%d -> earlyOut=%d\n",
+					(int)(_pCD->m_iPlayer != -1), (int)_FeetType,
+					(int)bIgnoreAG2, (int)bPlayerExcl, (int)bBehavior, (int)bNoAnimPhys,
+					(int)(bIgnoreAG2 || bPlayerExcl || bBehavior || bNoAnimPhys));
+			}
+		}
+	}
+
 	if(_pCD->m_AnimGraph2.GetStateFlagsHiCombined() & AG2_STATEFLAGHI_IKSYSTEM_IGNOREFEET ||	// don't do if ignore-flag is on
 		(_pCD->m_iPlayer != -1 && _FeetType == FEET_TYPE_HUMAN_BIPED) ||					// don't do for the player (right now anyways)
 		(_pCD->m_iPlayer == -1 && (_pCD->m_AnimGraph2.GetStateFlagsLo()  &AG2_STATEFLAG_BEHAVIORACTIVE)) || // dont't do while in behavior
@@ -2792,8 +2828,45 @@ void CPostAnimSystem::EvalFeetIK(CXR_Skeleton* _pSkel, CXR_SkeletonInstance* _pS
 			CMat4Dfp32 OverrideMat = m_RightFootDestination;
 			AddZMovementForFoot(pCDFirst, 0, m_RightFootSin, OverrideMat, 0.35f, 5.0f);
 
-			m_IKSolver.SetIKMode(CIKSystem::IK_MODE_RIGHT_FOOT);
-			m_IKSolver.DoDualHandIK(_pSkel, _pSkelInstance, &OverrideMat, _pWPhysState, pCDFirst);
+			// ЗОНД [KNEE-SRC] (RIDDICK_DBG_OK=1) -- различитель встречной
+			// версии из Docs/Research_OK_Report.md §5: если позиция колена ДО
+			// решателя стоит кадр за кадром, а ПОСЛЕ меняется в такт шагу,
+			// значит колено двигает только IK, и «нога шевелится» вообще не
+			// свидетельство о здоровье анимации. Сравниваем строку
+			// трансляции локальной матрицы -- этого достаточно, чтобы
+			// отличить «стоит» от «шевелится».
+			{
+				static int s_Dbg = -1;
+				if (s_Dbg < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_OK");
+					s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_nLogged = 0;
+				if (s_Dbg && s_nLogged < 30 && _pSkelInstance && _pSkelInstance->m_pBoneLocalPos &&
+				    _pSkel && _pSkel->m_lNodes.Len() > PLAYER_ROTTRACK_RKNEE)
+				{
+					const CVec3Dfp32 Pre = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(3);
+					m_IKSolver.SetIKMode(CIKSystem::IK_MODE_RIGHT_FOOT);
+					m_IKSolver.DoDualHandIK(_pSkel, _pSkelInstance, &OverrideMat, _pWPhysState, pCDFirst);
+					const CVec3Dfp32 Post = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(3);
+					// Предыдущий кадр -- чтобы отличить «не меняется вообще» от
+					// «меняется, но решатель тут ни при чём».
+					static CVec3Dfp32 s_PrevPre(0,0,0);
+					const fp32 dPrev = (Pre - s_PrevPre).Length();
+					s_PrevPre = Pre;
+					++s_nLogged;
+					M_TRACEALWAYS("[KNEE-SRC] RKNEE pre=(%.3f %.3f %.3f) post=(%.3f %.3f %.3f) "
+						"dIK=%.4f dPrevFrame=%.4f\n",
+						Pre.k[0], Pre.k[1], Pre.k[2], Post.k[0], Post.k[1], Post.k[2],
+						(fp32)(Post - Pre).Length(), dPrev);
+				}
+				else
+				{
+					m_IKSolver.SetIKMode(CIKSystem::IK_MODE_RIGHT_FOOT);
+					m_IKSolver.DoDualHandIK(_pSkel, _pSkelInstance, &OverrideMat, _pWPhysState, pCDFirst);
+				}
+			}
 		}
 		else
 		{

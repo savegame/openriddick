@@ -1577,6 +1577,53 @@ bool CWObject_Character::OnGetAnimState(CWObject_CoreData* _pObj, CWorld_PhysSta
 						AimMat = MatLook;
 					}
 				
+					// ЗОНД [OK-GATE] (RIDDICK_DBG_OK=1). Вся пост-анимация --
+					// обратная кинематика, лицевая система, коррекция камеры --
+					// сидит за ЭТИМ ОДНИМ условием (см. Docs/Research_OK_Report.md
+					// §1): не прошёл гейт, и отваливается всё разом, а не только
+					// IK. Поэтому первый вопрос при «замерших костях» -- проходит
+					// ли конкретный персонаж сюда вообще.
+					// Печатается только при СМЕНЕ результата гейта или его
+					// входов, кап 40 строк: иначе это строка на кадр на каждого
+					// персонажа в кадре.
+					{
+						static int s_Dbg = -1;
+						if (s_Dbg < 0)
+						{
+							const char* e = getenv("RIDDICK_DBG_OK");
+							s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+						}
+						if (s_Dbg)
+						{
+							const bool bGate =
+								!bRagdoll &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_LADDER) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_ACTIONCUTSCENE) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_LEDGE2) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_HANGRAIL) &&
+								(pSkel->m_lNodes.Len() > PLAYER_ROTTRACK_CAMERA) &&
+								(pCD->m_Aim_SkeletonType != 0 || pCD->m_ForcedAimingMode != 0);
+							static int s_nLogged = 0;
+							static int s_LastKey = -1;
+							const int Key = (bGate ? 1 : 0)
+								| ((int)Char_ControlMode << 1)
+								| ((pCD->m_Aim_SkeletonType != 0) ? 0x10000 : 0)
+								| ((pCD->m_ForcedAimingMode != 0) ? 0x20000 : 0)
+								| (bRagdoll ? 0x40000 : 0);
+							if (Key != s_LastKey && s_nLogged < 40)
+							{
+								s_LastKey = Key;
+								++s_nLogged;
+								M_TRACEALWAYS("[OK-GATE] obj=%d isPlayer=%d gate=%d | ragdoll=%d ctrlMode=%d "
+									"nodes=%d(>%d) aimSkelType=%d forcedAim=%d\n",
+									(int)_pObj->m_iObject, (int)(pCD->m_iPlayer != -1), (int)bGate,
+									(int)bRagdoll, (int)Char_ControlMode,
+									(int)pSkel->m_lNodes.Len(), (int)PLAYER_ROTTRACK_CAMERA,
+									(int)pCD->m_Aim_SkeletonType, (int)pCD->m_ForcedAimingMode);
+							}
+						}
+					}
+
 					if (!bRagdoll && 
 						(Char_ControlMode != PLAYER_CONTROLMODE_LADDER)&&
 						(Char_ControlMode != PLAYER_CONTROLMODE_ACTIONCUTSCENE)&&
