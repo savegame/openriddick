@@ -91,6 +91,15 @@ BAD_PREFIXES = {"if", "for", "while", "switch", "return", "else", "case",
 STRLIT_RE = re.compile(r'"((?:[^"\\]|\\.){0,200})"')
 CLASSMETHOD_STR_RE = re.compile(r'^[A-Za-z_]\w*(?:<[^">]*>)?::~?[A-Za-z_]\w*$')
 
+# Этап "A" (продолжение исследования, см. сообщение координатора): ещё два
+# типа якорей.
+#   - MRTC_IMPLEMENT_DYNAMIC(ClassName, ...) / MRTC_IMPLEMENT_SERIAL_WOBJECT(...)
+#     и близкие варианты — регистрация класса движка. Первый (неквалифицированный
+#     идентификатором) аргумент — имя класса.
+#   - RegFunction("name", ...) — регистрация консольной команды.
+IMPLEMENT_RE = re.compile(r"\bMRTC_IMPLEMENT_[A-Z_]*\s*\(\s*([A-Za-z_]\w*)")
+REGFUNCTION_RE = re.compile(r"\bRegFunction\s*\(\s*\"([A-Za-z0-9_]+)\"")
+
 
 def iter_source_files():
     for dirpath, dirnames, filenames in os.walk(SRC_ROOT):
@@ -148,10 +157,21 @@ def do_source():
                     if CLASSMETHOD_STR_RE.match(lit):
                         anchors_out.write(f"{module}\t{lit}\t{rel}\t{i}\tclassmethod\n")
                         n_anchors += 1
+                for rm in REGFUNCTION_RE.finditer(line):
+                    anchors_out.write(f"{module}\t{rm.group(1)}\t{rel}\t{i}\tcommand\n")
+                    n_anchors += 1
+            im = IMPLEMENT_RE.search(line)
+            if im:
+                cls = im.group(1)
+                # class-name arg only (skip if the "class name" position is
+                # actually a plain type keyword or too short to be useful)
+                if len(cls) >= 3 and cls not in BAD_PREFIXES:
+                    anchors_out.write(f"{module}\t{cls}\t{rel}\t{i}\tclassname\n")
+                    n_anchors += 1
 
     methods_out.close()
     anchors_out.close()
-    print(f"[source] files={n_files} methods={n_methods} classmethod_anchors={n_anchors}")
+    print(f"[source] files={n_files} methods={n_methods} anchors_total={n_anchors}")
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +269,28 @@ def do_decomp():
             per_file_ends[dllfile].append(int(e))
             per_file_funs[dllfile].append(fun)
 
+    # Словари якорей-имён из source_anchors.tsv (classname/command), чтобы
+    # ловить их в декомпиле даже когда они короче общего generic-порога
+    # (8 символов) — многие команды/классы короче.
+    classname_set = set()
+    command_set = set()
+    src_anchors_path = os.path.join(OUT_DIR, "source_anchors.tsv")
+    if os.path.exists(src_anchors_path):
+        with open(src_anchors_path, encoding="utf-8") as f:
+            next(f)
+            for line in f:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) != 5:
+                    continue
+                _module, lit, _file, _line, ctx = parts
+                if ctx == "classname":
+                    classname_set.add(lit)
+                elif ctx == "command":
+                    command_set.add(lit)
+    else:
+        print("[decomp] WARNING: source_anchors.tsv not found — run 'source' first "
+              "for classname/command anchors", file=sys.stderr)
+
     for dllfile in DECOMP_FILES:
         path = os.path.join(ROOT, dllfile)
         if not os.path.exists(path):
@@ -265,10 +307,17 @@ def do_decomp():
                     continue
                 for sm in STRLIT_RE.finditer(line):
                     lit = sm.group(1)
-                    if len(lit) < 4:
+                    if len(lit) < 3:
                         continue
-                    kind = "classmethod" if CLASSMETHOD_STR_RE.match(lit) else "generic"
-                    if kind == "generic" and len(lit) < 8:
+                    if CLASSMETHOD_STR_RE.match(lit):
+                        kind = "classmethod"
+                    elif lit in classname_set:
+                        kind = "classname"
+                    elif lit in command_set:
+                        kind = "command"
+                    elif len(lit) >= 8:
+                        kind = "generic"
+                    else:
                         continue  # cut noise for generic short strings
                     idx = bisect.bisect_right(starts, lineno) - 1
                     if idx < 0 or lineno > ends[idx]:
