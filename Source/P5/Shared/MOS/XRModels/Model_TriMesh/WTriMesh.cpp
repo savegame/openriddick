@@ -5748,6 +5748,62 @@ bAnim = false;
 
 	CalcBoxScissor(RenderParams.m_pVBM->Viewport_Get(), &_VMat, BoundBoxW, RenderParams.m_RenderBoundScissor);
 
+	// ЗОНД [ANIMGATE] (RIDDICK_DBG_ANIMGATE=1) -- ПОЧЕМУ у этого меша
+	// выключилась анимация.
+	//
+	// Это последний гейт перед отрисовкой: при bAnim=false кластеры с
+	// костями рисуются БЕЗ палитры, то есть в bind-позе, а положение
+	// приходит обычной MODEL-матрицей. На экране это ровно «персонаж
+	// скользит в застывшей позе» -- та самая жалоба. Счётчик
+	// [GLES3-SKIN] "no palette for a skinned draw" в бэкенде считает
+	// следствие; здесь видна причина, и вместе с именем меша -- у какого
+	// именно ассета.
+	//
+	// Отдельно печатается m_lspLOD.Len(): LOD-меши -- это САМОСТОЯТЕЛЬНЫЕ
+	// CXR_Model_TriangleMesh со своим m_bMatrixPalette, и «дальний NPC
+	// застыл, ближний анимируется» выглядело бы именно так. Форсировать
+	// нулевой LOD можно родным ключом движка, без пересборки:
+	//   RIDDICK_ENV="XR_LODOFFSET=-1000000"
+	{
+		static int s_Dbg = -1;
+		if (s_Dbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_ANIMGATE");
+			s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_Dbg)
+		{
+			// Печать при СМЕНЕ вердикта для данного меша, кап на процесс:
+			// иначе это строка на каждый меш на каждый кадр.
+			static const void* s_lMesh[32] = { 0 };
+			static uint8 s_lKey[32] = { 0 };
+			static int s_nMesh = 0;
+			static int s_nLogged = 0;
+			const uint8 Key = (uint8)((pSkelInstance ? 1 : 0) | (bAnim ? 2 : 0) |
+			                          (bHWAnim ? 4 : 0) | (m_bMatrixPalette ? 8 : 0));
+			int iSlot = -1;
+			for (int i = 0; i < s_nMesh; i++)
+				if (s_lMesh[i] == (const void*)this) { iSlot = i; break; }
+			if (iSlot < 0 && s_nMesh < 32)
+			{
+				iSlot = s_nMesh++;
+				s_lMesh[iSlot] = (const void*)this;
+				s_lKey[iSlot] = (uint8)~Key;	// заведомо не равен -- первая печать
+			}
+			if (iSlot >= 0 && s_lKey[iSlot] != Key && s_nLogged < 120)
+			{
+				s_lKey[iSlot] = Key;
+				++s_nLogged;
+				fprintf(stderr, "[ANIMGATE] mesh=%s skelInst=%p hwAnim=%d matPalette=%d nLOD=%d nVB=%d -> bAnim=%d\n",
+					m_MeshName.GetFilenameNoExt().GetStr(), (void*)pSkelInstance,
+					(int)bHWAnim, (int)m_bMatrixPalette,
+					(int)m_lspLOD.Len(), (int)GetNumVertexBuffers(),
+					(int)(bAnim && m_bMatrixPalette));
+				fflush(stderr);
+			}
+		}
+	}
+
 	if (pSkelInstance && bAnim && !m_bMatrixPalette)
 	{
 		bAnim = false;

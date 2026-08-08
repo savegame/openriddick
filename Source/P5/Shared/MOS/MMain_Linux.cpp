@@ -81,6 +81,7 @@ static void Linux_LogActiveDebugFlags()
 		"RIDDICK_STARTMAP", "RIDDICK_AUTOSTART", "RIDDICK_AUTOSTART_MODE",
 		"RIDDICK_VBHEAP", "RIDDICK_DBG_VBM", "RIDDICK_DBG_PALETTE",
 		"RIDDICK_DBG_PALMOVE", "RIDDICK_DBG_OK", "RIDDICK_NO_IK", "RIDDICK_ENV",
+		"RIDDICK_DBG_ANIMGATE",
 	};
 	const int nNames = (int)(sizeof(s_lNames) / sizeof(s_lNames[0]));
 
