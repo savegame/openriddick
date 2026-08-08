@@ -2113,10 +2113,17 @@ bool CPostAnimSystem::CheckOKTorRunFeetIK(CWO_Character_ClientData *_pCD, uint8 
 		return false;
 	}
 
-	// ЗОНД [FEETIK-GATE] (RIDDICK_DBG_OK=1): какое именно из пяти условий
+	// ЗОНД [FEETIK-GATE] (RIDDICK_DBG_OK=1): какое именно из условий
 	// выключает ножную ОК. Второе из них -- «не делать для игрока» -- это
 	// решение авторов, а не наш дефект (Docs/Research_OK_Report.md §4), и
 	// путать его с поломкой дороже всего.
+	//
+	// ВАЖНО: это НЕ ранний выход. Условие ниже лишь ГАСИТ блендинг
+	// (m_FeetBlendVal -> 0 со скоростью FEETBLENDSPEED), и пока блендинг не
+	// дошёл до нуля, решатель продолжает вызываться -- CheckOKTorRunFeetIK
+	// вернёт false только когда обе величины обнулятся. Поэтому поле
+	// называется blendOut, а не earlyOut: строки зонда и вызовы [KNEE-SRC]
+	// какое-то время сосуществуют совершенно законно.
 	{
 		static int s_Dbg = -1;
 		if (s_Dbg < 0)
@@ -2140,7 +2147,7 @@ bool CPostAnimSystem::CheckOKTorRunFeetIK(CWO_Character_ClientData *_pCD, uint8 
 				s_LastKey = Key;
 				++s_nLogged;
 				M_TRACEALWAYS("[FEETIK-GATE] isPlayer=%d feetType=%d | ignoreFeetAG2=%d playerExcl=%d "
-					"behaviorActive=%d noAnimPhys=%d -> earlyOut=%d\n",
+					"behaviorActive=%d noAnimPhys=%d -> blendOut=%d\n",
 					(int)(_pCD->m_iPlayer != -1), (int)_FeetType,
 					(int)bIgnoreAG2, (int)bPlayerExcl, (int)bBehavior, (int)bNoAnimPhys,
 					(int)(bIgnoreAG2 || bPlayerExcl || bBehavior || bNoAnimPhys));
@@ -2829,12 +2836,16 @@ void CPostAnimSystem::EvalFeetIK(CXR_Skeleton* _pSkel, CXR_SkeletonInstance* _pS
 			AddZMovementForFoot(pCDFirst, 0, m_RightFootSin, OverrideMat, 0.35f, 5.0f);
 
 			// ЗОНД [KNEE-SRC] (RIDDICK_DBG_OK=1) -- различитель встречной
-			// версии из Docs/Research_OK_Report.md §5: если позиция колена ДО
-			// решателя стоит кадр за кадром, а ПОСЛЕ меняется в такт шагу,
+			// версии из Docs/Research_OK_Report.md §5: если ориентация колена
+			// ДО решателя стоит кадр за кадром, а ПОСЛЕ меняется в такт шагу,
 			// значит колено двигает только IK, и «нога шевелится» вообще не
-			// свидетельство о здоровье анимации. Сравниваем строку
-			// трансляции локальной матрицы -- этого достаточно, чтобы
-			// отличить «стоит» от «шевелится».
+			// свидетельство о здоровье анимации.
+			//
+			// Смотрим строку 0 локальной матрицы, а НЕ трансляцию: решатель
+			// пишет в кость только поворот и явно сохраняет-восстанавливает
+			// позицию (CIKSystem.cpp:1700-1702, `StorePos`). Первая версия
+			// зонда мерила именно трансляцию и по построению давала dIK=0 --
+			// тавтологию, а не измерение.
 			{
 				static int s_Dbg = -1;
 				if (s_Dbg < 0)
@@ -2846,10 +2857,10 @@ void CPostAnimSystem::EvalFeetIK(CXR_Skeleton* _pSkel, CXR_SkeletonInstance* _pS
 				if (s_Dbg && s_nLogged < 30 && _pSkelInstance && _pSkelInstance->m_pBoneLocalPos &&
 				    _pSkel && _pSkel->m_lNodes.Len() > PLAYER_ROTTRACK_RKNEE)
 				{
-					const CVec3Dfp32 Pre = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(3);
+					const CVec3Dfp32 Pre = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(0);
 					m_IKSolver.SetIKMode(CIKSystem::IK_MODE_RIGHT_FOOT);
 					m_IKSolver.DoDualHandIK(_pSkel, _pSkelInstance, &OverrideMat, _pWPhysState, pCDFirst);
-					const CVec3Dfp32 Post = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(3);
+					const CVec3Dfp32 Post = _pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_RKNEE].GetRow(0);
 					// Предыдущий кадр -- чтобы отличить «не меняется вообще» от
 					// «меняется, но решатель тут ни при чём».
 					static CVec3Dfp32 s_PrevPre(0,0,0);
