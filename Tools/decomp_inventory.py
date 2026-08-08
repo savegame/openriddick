@@ -181,6 +181,30 @@ def do_source():
 FUN_SIG_RE = re.compile(r"^[A-Za-z_][\w \*]*\bFUN_([0-9a-fA-F]{8})\s*\(")
 FUN_ANY_RE = re.compile(r"\bFUN_([0-9a-fA-F]{8})\b")
 
+# Брейс-каунтер границ функций (ниже) считает '{'/'}' СИМВОЛЬНО по строке.
+# БАГ, найденный в проходе "граф вызовов" (2026-08-08): Ghidra печатает
+# сравнения с символьными литералами вида `cVar1 < '{'` (MXR_dll_decomp.c:233161,
+# видно в CTriangleMeshCore::Read-области) — одинарные кавычки НЕ исключались
+# из подсчёта скобок, значит один такой символ '{' или '}' в char-литерале
+# перманентно сбивает баланс глубины state-машины на весь остаток файла:
+# ни один FUN_ после точки сбоя больше не попадает в decomp_funcs.tsv.
+# Обнаружено на 4 из 6 декомпилов (см. Docs/Decomp_Coverage.md, раздел про
+# граф вызовов): "мёртвый хвост" — GameClasses 42%, GameWorld 80%, MXR 68%,
+# MSystem 57% строк файла после первого сбоя вообще не индексируются.
+# Фикс: вырезать содержимое '...'-литералов (как уже делает STRLIT_RE для
+# "..."-литералов при разборе якорей) ПЕРЕД подсчётом скобок.
+CHARLIT_RE = re.compile(r"'(?:[^'\\]|\\.)'")
+
+
+def _strip_literals_for_brace_count(line):
+    # Одинарные кавычки — самое частое и разрушительное (см. выше); заодно
+    # снимаем и двойные, на случай если где-то в декомпиле встретится
+    # '{'/'}' внутри "..."-строки (не поймано на практике, но дёшево не
+    # рисковать симметрично).
+    line = CHARLIT_RE.sub("''", line)
+    line = STRLIT_RE.sub('""', line)
+    return line
+
 
 def do_decomp():
     funcs_out = open(os.path.join(OUT_DIR, "decomp_funcs.tsv"), "w")
@@ -237,7 +261,8 @@ def do_decomp():
                             awaiting_brace = True
                     continue
                 # inside function body: track brace depth + collect callees
-                depth += line.count("{") - line.count("}")
+                stripped_line = _strip_literals_for_brace_count(line)
+                depth += stripped_line.count("{") - stripped_line.count("}")
                 for cm in FUN_ANY_RE.finditer(line):
                     fid = cm.group(1)
                     if fid != cur_fun:
