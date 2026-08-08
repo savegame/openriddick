@@ -2479,6 +2479,51 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	return bFoundMatch;
 }
 
+// ЗОНД [AG2-IMP] (RIDDICK_DBG_AG2=1) -- ПОЧЕМУ импульс не превратился в
+// действие.
+//
+// Атака в этом движке -- не отдельная система, а АНИМАЦИЯ: ИИ шлёт импульс
+// (`CAI_Core::SetWantedGesture`/`SetWantedMove`, AICore.cpp:13223/13239),
+// граф находит на него реакцию, реакция запускает состояние, а урон вешает
+// событие внутри анимации. Поэтому «NPC бегает за мной и не бьёт» и
+// «анимация не играется» -- с высокой вероятностью ОДИН отказ, и увидеть
+// его надо здесь, до всякого рендера.
+//
+// У функции ПЯТЬ разных ранних выходов, и это пять разных диагнозов --
+// поэтому зонд печатает не «не сработало», а какой именно:
+//   res      -- не удалось захватить ресурсы графа;
+//   notoken  -- нет токена с таким ID;
+//   nostate  -- force-путь без экземпляра состояния;
+//   nograph  -- у токена нет анимграфа (авторский TEMP HACK);
+//   noreact  -- САМОЕ ИНТЕРЕСНОЕ: граф загружен, но реакции на этот импульс
+//               в текущем graphblock нет. Значит либо мы не дочитали граф,
+//               либо персонаж стоит не в том блоке.
+// Отказы печатаются всегда (до капа), успехи -- каждый 20-й, чтобы в логе
+// была видна и норма, а не только сбои.
+#define RIDDICK_AG2IMP_LOG(reason)                                            \
+	do {                                                                      \
+		if (s_AG2ImpOn() && s_AG2ImpN < 300) {                                \
+			++s_AG2ImpN;                                                      \
+			fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d -> FAIL(%s)\n", \
+				(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue,     \
+				(int)_iToken, reason);                                        \
+			fflush(stderr);                                                   \
+		}                                                                     \
+	} while (0)
+
+static bool s_AG2ImpOn()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_AG2");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+static int s_AG2ImpN = 0;
+static int s_AG2ImpOk = 0;
+
 bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& _Impulse, int8 _iToken, bool _bForce)
 {
 	// First try to find a matching reaction to current block, if a reaction is found
@@ -2486,7 +2531,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	// another graphblock might or might not be defined
 
 	if (!AcquireAllResources(_pContext))
+	{
+		RIDDICK_AG2IMP_LOG("res");
 		return false;
+	}
 #ifdef AG2_RECORDPROPERTYCHANGES
 	m_pEvaluator->m_PropertyRecorder.AddImpulse(_pContext, _Impulse, _iToken);
 #endif
@@ -2505,7 +2553,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 
 	// No token found...
 	if (iToken == -1)
+	{
+		RIDDICK_AG2IMP_LOG("notoken");
 		return false;
+	}
 
 	// Get a matching reaction from animgraph
 	CAG2AnimGraphID iAnimGraph;
@@ -2513,7 +2564,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	{
 		CWAG2I_StateInstance *pStateInstance = m_lTokens[iToken].GetTokenStateInstanceUpdate();
 		if(!pStateInstance)
+		{
+			RIDDICK_AG2IMP_LOG("nostate");
 			return false;
+		}
 
 		iAnimGraph = pStateInstance->GetAnimGraphIndex();
 	}
@@ -2522,13 +2576,38 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 
 	{ // TEMP HACK!
 		if (iAnimGraph == -1)
+		{
+			RIDDICK_AG2IMP_LOG("nograph");
 			return false;
+		}
 	}
 
 	const CXRAG2* pAnimGraph = GetAnimGraph(iAnimGraph);
 	CAG2ReactionIndex iReaction = pAnimGraph->GetMatchingReaction(m_lTokens[iToken].GetGraphBlock(),_Impulse);
 	if (iReaction == -1)
+	{
+		// Здесь дополнительно печатается graphblock: реакции ищутся В НЁМ, и
+		// «нет реакции» почти всегда значит «персонаж не в том блоке», а не
+		// «в графе нет такого импульса вообще».
+		if (s_AG2ImpOn() && s_AG2ImpN < 300)
+		{
+			++s_AG2ImpN;
+			fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d block=%d -> FAIL(noreact)\n",
+				(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue,
+				(int)_iToken, (int)m_lTokens[iToken].GetGraphBlock());
+			fflush(stderr);
+		}
 		return false;
+	}
+
+	if (s_AG2ImpOn() && (s_AG2ImpOk++ % 20) == 0 && s_AG2ImpN < 300)
+	{
+		++s_AG2ImpN;
+		fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d block=%d -> ok reaction=%d (успех #%d)\n",
+			(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue, (int)_iToken,
+			(int)m_lTokens[iToken].GetGraphBlock(), (int)iReaction, s_AG2ImpOk);
+		fflush(stderr);
+	}
 
 	// Ok, found a reaction, check for target graphblock and / or state
 	const CXRAG2_Reaction* pReaction = pAnimGraph->GetReaction(iReaction);
