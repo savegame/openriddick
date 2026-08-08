@@ -262,3 +262,49 @@ not use without rewrite»), то есть в ретейле он был пере
 * Формат `.XW`, `.XTC2`, `CImage v0x0400`, AG2 v5/v6 — PC-специфичные, в
   PS3-исходнике их нет вовсе (см. `Docs/BSP_PC_Format.md` и журнал в
   `CLAUDE.md`).
+* **Границы DLL не совпадают с границами директорий нашего снапшота** —
+  например код с регистро-строками `GUI\VIDSEL\PIXELASPECT`/
+  `VIDEO_DISPLAY_WIDTH` (у нас в `Projects/Main/Exe/XRApp.cpp` и
+  `Projects/Main/GameWorld/WFrontEndMod_Menus.cpp`) в декомпиле похоже
+  лежит в `GameClasses.dll`, а не в exe. Догадка, не сверено построчно.
+  Подробности — `Docs/Decomp_Coverage.md`, §3.4/§5.
+
+---
+
+## Автоматическое сопоставление по якорям "Класс::Метод" (исследование покрытия, этап 2)
+
+Методика, полный отчёт и метрики — `Docs/Decomp_Coverage.md`. Получено
+скриптами `Tools/decomp_inventory.py` + `Tools/decomp_match.py`: находится
+строковый литерал `"Класс::Метод"` (обычно первый аргумент
+`Error_static`-подобного вызова) одновременно в исходнике (как реальный
+метод `Класс::Метод`) и в декомпиле (внутри конкретной `FUN_xxxxxxxx`).
+Ниже — **только однозначные** пары (литерал встретился ровно в одном
+месте исходника); неоднозначные (например тексты, продублированные в
+`MRTC_System_Win32.cpp`/`MRTC_System_PS3.cpp`/`MRTC_System_Linux.cpp` под
+разные платформы) в карту не включены — сам факт совпадения имени метода
+там уже подтверждён, но привязка к конкретному `.cpp` неоднозначна.
+
+Доказательство для всех строк ниже одно и то же: строка `Error_static`
+(или аналог) со строго тем же текстом `"Класс::Метод"` встречается только
+в указанном файле исходника, и найдена ровно в теле указанной
+`FUN_xxxxxxxx` в декомпиле (проверено скриптом, не построчно вручную —
+чуть слабее, чем ручная сверка выше, но строже, чем догадка).
+
+| FUN | Декомпил | Класс::Метод | Файл:строка исходника |
+|---|---|---|---|
+| `FUN_102775e0` | GameClasses | `CAutoVarContainer::AutoVar_Read` | `Shared/MOS/Classes/GameWorld/WObjects/WObj_AutoVar.cpp:183` |
+| `FUN_102774e0` | GameClasses | `CAutoVarContainer::AutoVar_Write` | `Shared/MOS/Classes/GameWorld/WObjects/WObj_AutoVar.cpp:161` |
+| `FUN_1010cd70` | MSystem | `CSCC_Codec_RAW::AddData` | `Shared/MOS/MSystem/Sound/MSound_Codec.cpp:84` |
+| `FUN_1010ce00` | MSystem | `CSCC_Codec_RAW::CreateDecoder` | `Shared/MOS/MSystem/Sound/MSound_Codec.cpp:90` |
+| `FUN_1010cce0` | MSystem | `CSCC_Codec_RAW::CreateEncoder` | `Shared/MOS/MSystem/Sound/MSound_Codec.cpp:78` |
+| `FUN_102843a0` | GameClasses | `CWObject_Character::OnClientPredict` | `Projects/Main/GameClasses/WObj_Char/WObj_CharDarkling.cpp:668` |
+| `FUN_102ab770` | GameClasses | `CWObject_Character::OnClientRefresh` | `Projects/Main/GameClasses/WObj_Char.cpp:3557` |
+| `FUN_10172950` | GameClasses | `CWObject_SoundVolume::OnCreateClientUpdate` | `Shared/MOS/Classes/GameWorld/WObjects/WObj_SoundVolume.cpp:126` |
+| `FUN_10079600` | MXR | `CXR_EngineImpl::VBM_Begin` | `Shared/MOS/XR/XREngine.cpp:2531` |
+| `FUN_10048d50` | MXR | `CXR_VBManager::Clip_Add` | `Shared/MOS/XR/XRVBManager.cpp:3980` |
+| `FUN_10044c00` | MXR | `CXR_VBManager::Viewport_Add` | `Shared/MOS/XR/XRVBManager.cpp:3959` |
+
+**Догадка (не сверено построчно):** `FUN_104bb830` в
+`GameClasses_Win32_x86_dll_decomp.c` — вероятно логика видеонастроек
+(`GUI\VIDSEL\PIXELASPECT`/`VIDEO_DISPLAY_WIDTH`, см. `Decomp_Coverage.md`
+§3.4) — кандидат для будущих расследований `vid_pixelaspect`/`VIDEO_*`.
