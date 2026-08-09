@@ -324,7 +324,29 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 #endif
 		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL) && !bAllowXTUnderXDF;
 
-		if (m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos && !_nVirtual && !CByteStream::XDF_GetRecord() && !bXDFBlocksXT)
+		const bool bUseXT = m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos
+			&& !_nVirtual && !CByteStream::XDF_GetRecord() && !bXDFBlocksXT;
+
+#ifdef PLATFORM_LINUX
+		// ЗОНД (без флага, кап 10): ПОЧЕМУ не выбран xt-путь.
+		// Условие составное из шести частей, и «текстура приехала пустой»
+		// одинаково выглядит при отказе любой из них. Печатаем все.
+		if (!bUseXT)
+		{
+			static int s_nLog = 0;
+			if (s_nLog < 10)
+			{
+				++s_nLog;
+				M_TRACEALWAYS("[XTC2] iLocal=%d xt-путь НЕ выбран: hasXT0=%d mipStart=%d picMip=%d "
+					"xtPos=%u nVirtual=%d record=%d xdfBlocks=%d\n",
+					_iLocal, (int)m_bHasXT0, _iMipMapStart, (int)Desc.m_iPicMip,
+					(unsigned)Desc.m_TextureXT0FilePos, _nVirtual,
+					(int)(CByteStream::XDF_GetRecord() != NULL), (int)bXDFBlocksXT);
+			}
+		}
+#endif
+
+		if (bUseXT)
 		{
 			M_ASSERT(Desc.m_PaletteFilePos == 0 && Desc.m_iPalette < 0, "Palette not supported for xt0");
 
