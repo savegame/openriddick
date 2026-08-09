@@ -21,6 +21,10 @@
 #include "MFile_XDF.h"
 #include "MFile_Stream_XDF.h"
 #include "MFile_Stream_Disk.h"
+#ifdef PLATFORM_LINUX
+#include "MFile_DiskUtil.h"	// CDiskUtil::FileExists -- запасное чтение
+#include <string.h>			// memset
+#endif
 
 /*************************************************************************************************\
 |¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
@@ -94,6 +98,35 @@ bool CStream_XDF::EndOfFile()
 
 void CStream_XDF::Fallback_Read(void* dest, mint _Size)
 {
+#ifdef PLATFORM_LINUX
+	// ЗАПАСНОЙ ПУТЬ НЕ ДОЛЖЕН УБИВАТЬ ПРОЦЕСС.
+	//
+	// Сюда приходят, когда нужных байт нет в смонтированном XDF, и тогда их
+	// пробуют дочитать с диска. Но у нас выключены исключения, поэтому
+	// неудачное открытие внутри `INL_OpenFallbackFile` разворачивается в
+	// `FileError` -> `M_BREAKPOINT` -> SIGILL: «запасной вариант» роняет игру
+	// жёстче, чем отсутствие данных.
+	//
+	// Так и вышло на PS3-наборе: `.xtc` крупных банков там лежит ТОЛЬКО
+	// внутри XDF (россыпью на диске есть лишь `.XT0/.XT1`), и промах по XDF
+	// упирался в несуществующий файл. Правильное поведение для запасного
+	// пути -- вернуть нули и жить дальше: получится не та текстура, но игра
+	// продолжит грузиться, а строка `[FILE] OPEN FAILED` выше назовёт файл.
+	if (!m_spFallbackStream && !CDiskUtil::FileExists(m_FileName))
+	{
+		memset(dest, 0, _Size);
+		m_FilePos += _Size;
+		static int s_nWarn = 0;
+		if (s_nWarn < 20)
+		{
+			++s_nWarn;
+			M_TRACEALWAYS("[XDF] запасное чтение невозможно: файла '%s' нет на диске "
+				"(нужно %d байт с позиции %d) -- отдаю нули\n",
+				m_FileName.Str(), (int)_Size, (int)m_FilePos);
+		}
+		return;
+	}
+#endif
 	INL_OpenFallbackFile();
 	m_spFallbackStream->Seek(m_FilePos);
 	m_spFallbackStream->Read(dest, _Size);
