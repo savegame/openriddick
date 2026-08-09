@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <execinfo.h>
+#include <dirent.h>	// Linux_WarnCaseDuplicates
+#include <strings.h>	// strcasecmp
 
 // Fatal-signal handler: print a backtrace to stderr before dying, so
 // run logs pinpoint silent crashes (SIGSEGV etc.) without gdb.
@@ -102,6 +104,50 @@ static void Linux_LogActiveDebugFlags()
 	fflush(stderr);
 }
 
+// Предупредить о ДУБЛЯХ ПО РЕГИСТРУ в корне данных.
+//
+// Движок просит файлы в одном регистре (`Content\...`), а на диске они
+// могут лежать в другом (`CONTENT/...`) -- это штатно разруливает
+// `Linux_ResolvePath`. Но если в каталоге окажутся ОБА варианта, разрешение
+// молча уйдёт в тот, что совпал буква в букву, и дальше не найдётся ничего.
+// Симптом при этом максимально обманчивый: игра падает на первом же файле
+// («не найден отладочный шрифт»), хотя данные на месте.
+//
+// Такой дубль однажды создал наш же код (см. Docs/HacksAndHooks.md,
+// «mkdir создавал каталог-двойник»); баг исправлен, но уже созданные
+// каталоги сами не исчезнут. Поэтому -- громкая строка при старте.
+static void Linux_WarnCaseDuplicates()
+{
+	DIR* pDir = opendir(".");
+	if (!pDir)
+		return;
+
+	char lNames[256][256];
+	int nNames = 0;
+	struct dirent* pE;
+	while ((pE = readdir(pDir)) != NULL && nNames < 256)
+	{
+		if (!strcmp(pE->d_name, ".") || !strcmp(pE->d_name, ".."))
+			continue;
+		strncpy(lNames[nNames], pE->d_name, sizeof(lNames[0]) - 1);
+		lNames[nNames][sizeof(lNames[0]) - 1] = 0;
+		++nNames;
+	}
+	closedir(pDir);
+
+	for (int i = 0; i < nNames; i++)
+		for (int j = i + 1; j < nNames; j++)
+			if (strcasecmp(lNames[i], lNames[j]) == 0)
+			{
+				fprintf(stderr,
+					"[ДАННЫЕ] ВНИМАНИЕ: в корне данных два элемента, различающихся только регистром: "
+					"'%s' и '%s'. Разрешение путей уйдёт в тот, что совпал буквально, и файлы могут "
+					"не находиться. Лишний (обычно пустой) следует удалить.\n",
+					lNames[i], lNames[j]);
+				fflush(stderr);
+			}
+}
+
 int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 {
 	Linux_InstallCrashHandler();
@@ -120,6 +166,7 @@ int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 				fprintf(stderr, "openriddick: -datapath: cannot chdir to '%s'\n", _argv[i + 1]);
 				return 1;
 			}
+			Linux_WarnCaseDuplicates();
 			i++;
 			continue;
 		}
