@@ -15,6 +15,7 @@ CTextureContainer_VirtualXTC2::CTextureContainer_VirtualXTC2()
 	MAUTOSTRIP(CTextureContainer_VirtualXTC2_ctor, MAUTOSTRIP_VOID);
 	m_bIsCached = false;
 	m_bHasXT0 = false;
+	m_XT0Length = 0;
 }
 
 CTextureContainer_VirtualXTC2::~CTextureContainer_VirtualXTC2()
@@ -196,15 +197,39 @@ void CTextureContainer_VirtualXTC2::ReadImageDirectory(CDataFile* _pDFile)
 
 void CTextureContainer_VirtualXTC2::PostCreate()
 {
+	// Формат таблицы .xt0/.xt1 -- сверено с ретейлом
+	// (`MSystem_dll_decomp.c:167979-168065`, `PostCreate`). Наш срез читал
+	// его НЕВЕРНО, и на PS3-наборе это давало падение
+	// `Index out of range. 3031301/1878`. Отличий от ретейла было три:
+	//
+	//  1. В первом слове счётчика СТАРШИЙ БИТ -- флаг, а не часть числа.
+	//     Ретейл берёт `count & 0x7fffffff`, а бит 31 кладёт в флаг
+	//     контейнера (`flags ^= ((raw >> 29) ^ flags) & 4`). Без маски цикл
+	//     уходил далеко за таблицу и читал полезные данные как индексы.
+	//  2. Ретейл запоминает ДЛИНУ `.xt0` -- она нужна пункту 3.
+	//  3. Есть ещё файл `.xt1`, и это НЕ второй независимый набор:
+	//     смещения в нём отсчитываются от конца `.xt0`
+	//     (`m_TextureXT0FilePos = XT0Length + offset`), то есть два файла
+	//     логически склеены в один поток. Мы `.xt1` не читали вовсе, а на
+	//     PS3-диске он есть у всех крупных банков (`ALLTEXTURES.00N`).
+	//
+	// Смысл флага бита 31 из декомпила не восстановлен (ретейл кладёт его в
+	// третий бит того же слова, где у нас `m_bIsCached`/`m_bHasXT0`, и мы
+	// нигде его не читаем) -- поэтому он сознательно не заводится, чтобы не
+	// выдумывать семантику. Записано в Docs/HacksAndHooks.md.
+	m_XT0Length = 0;
+
 	if (CDiskUtil::FileExists(m_FileName + ".xt0"))
 	{
 		m_bHasXT0 = true;
 
 		CCFile File;
 		File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+		m_XT0Length = (uint32)File.Length();
 
 		uint32 nTextures;
 		File.ReadLE(nTextures);
+		nTextures &= 0x7fffffff;
 
 		while (nTextures)
 		{
@@ -212,7 +237,32 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 			uint32 FileOffset;
 			File.ReadLE(iLocal);
 			File.ReadLE(FileOffset);
-			m_lTextureDesc[iLocal].m_TextureXT0FilePos = FileOffset;
+			if (iLocal < (uint32)m_lTextureDesc.Len())
+				m_lTextureDesc[iLocal].m_TextureXT0FilePos = FileOffset;
+			--nTextures;
+		}
+	}
+
+	if (CDiskUtil::FileExists(m_FileName + ".xt1"))
+	{
+		m_bHasXT0 = true;
+
+		CCFile File;
+		File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
+
+		uint32 nTextures;
+		File.ReadLE(nTextures);
+		nTextures &= 0x7fffffff;
+
+		while (nTextures)
+		{
+			uint32 iLocal;
+			uint32 FileOffset;
+			File.ReadLE(iLocal);
+			File.ReadLE(FileOffset);
+			// Смещение -- от конца .xt0, см. пункт 3 выше.
+			if (iLocal < (uint32)m_lTextureDesc.Len())
+				m_lTextureDesc[iLocal].m_TextureXT0FilePos = m_XT0Length + FileOffset;
 			--nTextures;
 		}
 	}
@@ -221,7 +271,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 void CTextureContainer_VirtualXTC2::ClearCache()
 {
 	// Close XT0 file
-    m_XT0File.Close();    
+    m_XT0File.Close();
+    m_XT1File.Close();
 }
 void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pTexture, int _iMipMapStart, int _iMipMapEnd, int _nVirtual)
 {
@@ -238,12 +289,28 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 		if (m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos && !_nVirtual && !CByteStream::XDF_GetRecord() && !CByteStream::XDF_GetUse())
 		{
 			M_ASSERT(Desc.m_PaletteFilePos == 0 && Desc.m_iPalette < 0, "Palette not supported for xt0");
-			if (!m_XT0File.IsOpen())
+
+			// `.xt0` и `.xt1` -- один логический поток: смещения из `.xt1`
+			// при чтении таблицы сдвинуты на длину `.xt0` (см. PostCreate).
+			// Значит выбор файла и есть сравнение с этой длиной, а внутри
+			// `.xt1` позиция отсчитывается заново.
+			const bool bInXT1 = (m_XT0Length != 0) && (Desc.m_TextureXT0FilePos >= m_XT0Length);
+			if (bInXT1)
 			{
-				m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+				if (!m_XT1File.IsOpen())
+					m_XT1File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
+				m_XT1File.Seek(Desc.m_TextureXT0FilePos - m_XT0Length);
+				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT1File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 			}
-			m_XT0File.Seek(Desc.m_TextureXT0FilePos);
-			_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT0File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+			else
+			{
+				if (!m_XT0File.IsOpen())
+				{
+					m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+				}
+				m_XT0File.Seek(Desc.m_TextureXT0FilePos);
+				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT0File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+			}
 
 			if (_iMipMapEnd == _iMipMapStart) // Nothing more to do
 				return;

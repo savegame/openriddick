@@ -115,6 +115,11 @@ public:
 	uint32 m_bHasXT0 : 1;
 
 	CCFile m_XT0File;
+	// `.xt1` -- продолжение `.xt0` одним логическим потоком; длина `.xt0`
+	// нужна, чтобы понять, в каком из двух файлов лежит текстура
+	// (см. PostCreate и сверку с `MSystem_dll_decomp.c:167979-168065`).
+	CCFile m_XT1File;
+	uint32 m_XT0Length;
 
 	TThinArray<spCImagePalette> m_lspPalettes;
 	TThinArray<CTextureDesc> m_lTextureDesc;
