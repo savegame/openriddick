@@ -3967,9 +3967,24 @@ void CXRealityApp::Create()
 				CStr Path = Paths.GetStrSep(";");
 				if(Path.GetDevice() == "")
 					Path = m_pSystem->m_ExePath + Path;
-				if(CDiskUtil::FileExists(Path + "FONTS\\" + MiniFont ".xfc"))
+				const bool bFound = CDiskUtil::FileExists(Path + "FONTS\\" + MiniFont ".xfc");
+#ifdef PLATFORM_LINUX
+				// ЗОНД (без флага): отладочный шрифт -- первый файл, который
+				// движок ищет на диске, и если он не нашёлся, дальше
+				// `Error` = `M_BREAKPOINT` = SIGILL без единого слова о том,
+				// ГДЕ искали. А искомое имя собирается из трёх частей
+				// (`m_ExePath` + компонент `DEFAULTGAMEPATH` + `FONTS\...`),
+				// и ошибка может быть в любой. Печатаем каждый кандидат.
+				M_TRACEALWAYS("[FONT] пробую '%s' -> %s\n",
+					(Path + "FONTS\\" + MiniFont ".xfc").Str(), bFound ? "есть" : "нет");
+#endif
+				if(bFound)
 					ValidPath = Path;
 			}
+#ifdef PLATFORM_LINUX
+			M_TRACEALWAYS("[FONT] exePath='%s' DEFAULTGAMEPATH='%s'\n",
+				m_pSystem->m_ExePath.Str(), OrgPaths.Str());
+#endif
 			
 			if (ValidPath == "")
 				Error("Create", CStrF("Could not find debugfont %s at: %s, Game: %s", CStrF("FONTS\\%s.xfc", MiniFont).Str(), m_pSystem->GetEnvironment()->GetValue("DEFAULTGAMEPATH", "Content\\").Str(), Game.Str()));
