@@ -2,6 +2,9 @@
 #include "PCH.h"
 #include "MSystem.h"
 #include "MTextureContainerXTC2.h"
+#ifdef PLATFORM_LINUX
+#include <stdlib.h>	// getenv (RIDDICK_XTC2_XT_UNDER_XDF)
+#endif
 
 // WORLDDATA_TEXTURECONTAINERS, Memused:    1 404 684 in 6674 allocations, Activity: 84974 Allocations, 78300 Deletions
 MRTC_IMPLEMENT_DYNAMIC(CTextureContainer_VirtualXTC2, CTextureContainer);
@@ -213,10 +216,12 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 	//     логически склеены в один поток. Мы `.xt1` не читали вовсе, а на
 	//     PS3-диске он есть у всех крупных банков (`ALLTEXTURES.00N`).
 	//
-	// Смысл флага бита 31 из декомпила не восстановлен (ретейл кладёт его в
-	// третий бит того же слова, где у нас `m_bIsCached`/`m_bHasXT0`, и мы
-	// нигде его не читаем) -- поэтому он сознательно не заводится, чтобы не
-	// выдумывать семантику. Записано в Docs/HacksAndHooks.md.
+	// Смысл бита 31 ПОЗЖЕ восстановлен по `ReadTexture` ретейла
+	// (`MSystem_dll_decomp.c:168150-168200`): это признак ZLIB-СЖАТИЯ
+	// полезных данных -- при нём ретейл заводит `CStream_LinearCompressedZLib`
+	// и после `Seek` читает пару служебных LE-слов, работая через substream.
+	// Поддержки сжатия у нас пока нет; если банк окажется сжатым, начинать
+	// надо отсюда. Записано в Docs/HacksAndHooks.md.
 	m_XT0Length = 0;
 
 	if (CDiskUtil::FileExists(m_FileName + ".xt0"))
@@ -286,7 +291,40 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 		
 		_pTexture->m_iLocal = _iLocal;
 
-		if (m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos && !_nVirtual && !CByteStream::XDF_GetRecord() && !CByteStream::XDF_GetUse())
+		// ОСОЗНАННОЕ ОТСТУПЛЕНИЕ ОТ РЕТЕЙЛА, только под Linux и отключаемое.
+		//
+		// Авторское условие (и такое же в декомпиле,
+		// `MSystem_dll_decomp.c:168150`) запрещает путь `.xt0/.xt1`, пока
+		// смонтирован XDF: предполагается, что нужные байты отдаст сам архив.
+		// На PS3-наборе это не так. Измерено: при `XDFUse(GUIPrecache.XDF)`
+		// чтение уходит в `Fallback_Read` на позицию 546 591 216 -- это
+		// смещение в объединённом xt-потоке, а вовсе не внутри небольшого
+		// файла-индекса `.xtc`. Самого `.xtc` россыпью на диске нет (только
+		// `.XT0/.XT1`), поэтому запасной путь упирался в пустоту, и текстура
+		// приезжала нулевой (`[GLES3-TEX-FAIL] id=6325 0x0 format=0x0`), а
+		// следом движок ловил «Access mask not cleared» на следующей.
+		//
+		// Поэтому: если у контейнера ЕСТЬ xt-данные для этой текстуры, читаем
+		// их и при смонтированном XDF. Условие `!XDF_GetRecord()` сохранено --
+		// при ЗАПИСИ архива обход штатного пути действительно недопустим.
+		// `RIDDICK_XTC2_XT_UNDER_XDF=0` возвращает авторское поведение.
+		bool bAllowXTUnderXDF = true;
+#ifdef PLATFORM_LINUX
+		{
+			static int s = -1;
+			if (s < 0)
+			{
+				const char* e = getenv("RIDDICK_XTC2_XT_UNDER_XDF");
+				s = (e && *e && *e == '0') ? 0 : 1;
+			}
+			bAllowXTUnderXDF = (s != 0);
+		}
+#else
+		bAllowXTUnderXDF = false;
+#endif
+		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL) && !bAllowXTUnderXDF;
+
+		if (m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos && !_nVirtual && !CByteStream::XDF_GetRecord() && !bXDFBlocksXT)
 		{
 			M_ASSERT(Desc.m_PaletteFilePos == 0 && Desc.m_iPalette < 0, "Palette not supported for xt0");
 
