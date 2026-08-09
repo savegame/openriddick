@@ -25,6 +25,11 @@
 #include <errno.h>
 #endif // COMPILER_GNU
 
+#ifdef PLATFORM_LINUX
+#include <errno.h>
+#include <string.h>	// strerror -- см. [FILE] OPEN/WRITE FAILED ниже
+#endif
+
 /*************************************************************************************************\
 |¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CStream_Disk
@@ -100,6 +105,20 @@ void CStream_Disk::OpenExt(const CStr _Name, int _Mode, float _Priority, aint _N
 #ifdef PLATFORM_CONSOLE
 		M_TRACEALWAYS("Could not open file: %s\n", _Name.Str());
 #endif
+#ifdef PLATFORM_LINUX
+		// У НАС ЭТО ПАДЕНИЕ, А НЕ ИСКЛЮЧЕНИЕ. В сборке выключены исключения
+		// (`M_EXCEPTIONS` == 0), поэтому `FileError` разворачивается в
+		// `M_FILEERROR` -> `M_BREAKPOINT` (`Target_Linux_SDL2.h:75`), то есть
+		// `ud2` и SIGILL. Обычный «не смог открыть файл» превращается в
+		// необъяснимый крэш БЕЗ ЕДИНОГО СЛОВА о том, какой файл и почему:
+		// один такой прогон уже стоил сеанса отладки (async-write поток,
+		// `MFile_AsyncCopy.cpp:518`).
+		// Поэтому здесь строка печатается всегда, до срыва: имя, режим и
+		// системная причина. Поведение не меняется -- меняется только то,
+		// что после падения известна причина.
+		M_TRACEALWAYS("[FILE] OPEN FAILED name='%s' mode=0x%x errno=%d (%s)\n",
+			_Name.Str(), (unsigned)_Mode, (int)errno, strerror(errno));
+#endif
 		FileError("Open", _Name, errno);
 	}
 
@@ -152,7 +171,16 @@ void CStream_Disk::Write(const void* _pSrc, mint _Size)
 #endif
 	m_Stream.Write((char*) _pSrc, _Size);
 #ifndef M_RTM
-	if (!m_Stream.Good()) FileError("Write", m_FileName, errno);
+	if (!m_Stream.Good())
+	{
+#ifdef PLATFORM_LINUX
+		// Та же причина, что и в OpenExt: без этой строки запись, упавшая на
+		// полном диске или read-only пути, выглядит как SIGILL из ниоткуда.
+		M_TRACEALWAYS("[FILE] WRITE FAILED name='%s' size=%d errno=%d (%s)\n",
+			m_FileName.Str(), (int)_Size, (int)errno, strerror(errno));
+#endif
+		FileError("Write", m_FileName, errno);
+	}
 #endif
 };
 
