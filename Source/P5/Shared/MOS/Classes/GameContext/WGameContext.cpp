@@ -3433,7 +3433,54 @@ void CGameContext::Command_ChangeMap(CStr _Name, CStr _Flags)
 		_Name.Str(), FileName.Str(), (int)CDiskUtil::FileExists(FileName),
 		FileNameXDF.Str(), (int)CDiskUtil::FileExists(FileNameXDF));
 #endif
-	if (!CDiskUtil::FileExists(FileName) && !CDiskUtil::FileExists(FileNameXDF))
+	bool bMapFound = CDiskUtil::FileExists(FileName) || CDiskUtil::FileExists(FileNameXDF);
+
+#ifdef PLATFORM_LINUX
+	// PS3-набор не кладёт НИ `worlds\<name>.xw`, НИ `XDF\<name>_Server.xdf` --
+	// уровень лежит целиком бандлом `XDF\<NAME>_<маска>_Load.xdf`
+	// (на диске, например, `PA1_ARRIVAL_00001010_LOAD.XDF`).
+	//
+	// Это не «другая схема»: имя строит САМ ДВИЖОК, в
+	// `CWServer_World` (`WServer_World.cpp:919-925`):
+	//     XDFSpawnMask.CaptureFormated("%08x", m_CurSpawnMask & SERVER_SPAWNFLAGS_XDF_MASK);
+	//     XDFStart(XDFBaseName + "_" + XDFSpawnMask + "_Load");
+	// То есть `00001010` -- это spawn-маска в hex, а PC-версия просто ВДОБАВОК
+	// шипует loose-мир и `_Server.xdf`. Проверка выше знает только про
+	// PC-вариант, поэтому на PS3-данных мы отваливались здесь -- до того
+	// места, где движок сам смонтировал бы правильный бандл.
+	//
+	// Маску на этом шаге взять неоткуда (сервер ещё не создан), поэтому
+	// ищем по имени: `<BASE>_*_LOAD.XDF` в каталоге `XDF`. Ничего не
+	// монтируем и не грузим -- только снимаем ложный запрет, дальше работает
+	// авторский путь.
+	if (!bMapFound)
+	{
+		const CStr Base = _Name.GetFilenameNoExt().UpperCase();
+		const CStr XDFDir = m_spWData->ResolvePath("") + "XDF\\";
+		CDirectoryNode Dir;
+		Dir.ReadDirectory(XDFDir + "*");
+		const int nFiles = Dir.GetFileCount();
+		for (int i = 0; i < nFiles; i++)
+		{
+			CDir_FileRec* pRec = Dir.GetFileRec(i);
+			if (!pRec || pRec->IsDirectory())
+				continue;
+			const CStr Up = pRec->m_Name.UpperCase();
+			if (Up.Find(Base + "_") == 0 && Up.Find("_LOAD.XDF") > 0)
+			{
+				M_TRACEALWAYS("(Command_ChangeMap) PS3-бандл найден: '%s' -- шлюз снят\n",
+					pRec->m_Name.Str());
+				bMapFound = true;
+				break;
+			}
+		}
+		if (!bMapFound)
+			M_TRACEALWAYS("(Command_ChangeMap) бандла '%s_*_LOAD.XDF' нет в '%s'\n",
+				Base.Str(), XDFDir.Str());
+	}
+#endif
+
+	if (!bMapFound)
 	{
 #ifdef PLATFORM_CONSOLE
 		CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
