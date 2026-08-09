@@ -741,6 +741,26 @@ static bool Linux_CaseResolve(char* _pPath)
 			}
 			if (!bFound)
 			{
+				// RIDDICK_DBG_FILEPATH=1 -- на КАКОМ компоненте развалилось
+				// разрешение пути. Без этого «файла нет» неотличимо от
+				// «каталог выше разрешился не туда», а разница принципиальная:
+				// именно второе дал каталог-двойник `Content` рядом с
+				// `CONTENT`, и стоило это двух прогонов.
+				{
+					static int s_On = -1;
+					if (s_On < 0)
+					{
+						const char* e = getenv("RIDDICK_DBG_FILEPATH");
+						s_On = (e && *e && *e != '0') ? 1 : 0;
+					}
+					if (s_On)
+					{
+						fprintf(stderr, "[PATH] не найден компонент '%s' в каталоге '%s' (путь '%s')\n",
+							Comp, Buf[0] ? Buf : ".", _pPath);
+						fflush(stderr);
+					}
+				}
+
 				// НЕ ВЫБРАСЫВАЕМ УЖЕ РАЗРЕШЁННЫЙ ПРЕФИКС.
 				//
 				// Раньше здесь стоял голый `return false`, и путь оставался
