@@ -22,7 +22,6 @@
 #include "MFile_Stream_XDF.h"
 #include "MFile_Stream_Disk.h"
 #ifdef PLATFORM_LINUX
-#include "MFile_DiskUtil.h"	// CDiskUtil::FileExists -- запасное чтение
 #include <string.h>			// memset
 #endif
 
@@ -112,7 +111,11 @@ void CStream_XDF::Fallback_Read(void* dest, mint _Size)
 	// упирался в несуществующий файл. Правильное поведение для запасного
 	// пути -- вернуть нули и жить дальше: получится не та текстура, но игра
 	// продолжит грузиться, а строка `[FILE] OPEN FAILED` выше назовёт файл.
-	if (!m_spFallbackStream && !CDiskUtil::FileExists(m_FileName))
+	// Проверка обязана быть ЧИСТО ДИСКОВОЙ. Первая версия звала
+	// `CDiskUtil::FileExists`, а тот сначала спрашивает XDF-поток -- и для
+	// нашего файла отвечал «есть» (он и правда есть, но ВНУТРИ архива).
+	// Условие не срабатывало, и падение повторялось один в один.
+	if (!m_spFallbackStream && !MRTC_SystemInfo::OS_FileExists(m_FileName.Str()))
 	{
 		memset(dest, 0, _Size);
 		m_FilePos += _Size;
