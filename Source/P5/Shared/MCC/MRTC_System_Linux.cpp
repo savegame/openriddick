@@ -831,6 +831,32 @@ void* MRTC_SystemInfo::OS_FileOpen(const char *_pFileName, bool _bRead, bool _bW
 
 	char Path[2048];
 	Linux_ResolvePath(_pFileName, Path, sizeof(Path));
+
+	// СОЗДАНИЕ ФАЙЛА ПОДРАЗУМЕВАЕТ СОЗДАНИЕ КАТАЛОГА.
+	//
+	// Движок пишет профиль/сейв по пути вида `Content\Save\Player\_profile`
+	// и не создаёт `Save\Player\` -- на исходных платформах каталог был на
+	// карте памяти заранее. У нас `open(O_CREAT)` в несуществующем каталоге
+	// возвращает ENOENT, и дальше это НЕ мягкая ошибка: исключения в сборке
+	// выключены, поэтому `FileError` разворачивается в `M_BREAKPOINT`, то
+	// есть SIGILL. Игра падала после меню и даже просто на движении курсора
+	// вверх-вниз -- любое действие, которое трогает профиль.
+	// Поэтому при создании файла достраиваем недостающие каталоги.
+	if (_bCreate)
+	{
+		for (char* p = Path + 1; *p; ++p)
+		{
+			if (*p != '/')
+				continue;
+			*p = 0;
+			// EEXIST -- норма; прочие ошибки игнорируем: если каталог
+			// действительно не создаётся, это увидит сам open() ниже,
+			// и уже он сообщит настоящую причину.
+			mkdir(Path, 0755);
+			*p = '/';
+		}
+	}
+
 	int fd = open(Path, Flags, 0644);
 	if (fd < 0)
 		return NULL;
@@ -1155,7 +1181,30 @@ aint PS3File_FindFirst( const char *_pPath, char *_pRet, int &_FileSize, bool &_
 		strcpy(pFind->m_Directory, ".");
 	}
 
-	pFind->m_pDir = opendir(pFind->m_Directory[0] ? pFind->m_Directory : "/");
+	// ПЕРЕЧИСЛЕНИЕ КАТАЛОГА ТОЖЕ ДОЛЖНО БЫТЬ РЕГИСТРОНЕЗАВИСИМЫМ.
+	//
+	// Открытие файлов у нас давно идёт через `Linux_ResolvePath` (движок
+	// просит `Content\...`, а на диске может лежать `CONTENT/...`), но здесь
+	// стоял голый `opendir` по имени как есть. На PC-наборе это не вылезало
+	// случайно: там каталог и правда называется `Content`, буква в букву.
+	// На PS3-наборе всё в верхнем регистре -- `CONTENT/XDF` -- и `opendir`
+	// молча возвращал NULL. Один этот пропуск давал ТРИ симптома разом:
+	// `0 texture containers loaded` (против 687 на PC), `0 wave containers`,
+	// `0 sfxdescs` и «бандла уровня нет в Content\XDF\» -- при том, что все
+	// эти файлы на диске есть.
+	{
+		char DirBuf[1024];
+		const char* pDir = pFind->m_Directory[0] ? pFind->m_Directory : "/";
+		Linux_ResolvePath(pDir, DirBuf, sizeof(DirBuf));
+		pFind->m_pDir = opendir(DirBuf);
+		if (pFind->m_pDir)
+		{
+			// Дальше читаем из РАЗРЕШЁННОГО каталога, иначе относительные
+			// имена, которые сложит вызывающий, снова упрутся в регистр.
+			strncpy(pFind->m_Directory, DirBuf, sizeof(pFind->m_Directory) - 1);
+			pFind->m_Directory[sizeof(pFind->m_Directory) - 1] = 0;
+		}
+	}
 	if (!pFind->m_pDir)
 	{
 		free(pFind);
