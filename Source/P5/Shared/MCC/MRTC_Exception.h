@@ -158,6 +158,31 @@ public:
 #define DbgErr(_Msg) \
 { DTraceCurrentFilePos("Exception"); CCException::DoThrow(); }
 
+#elif defined(PLATFORM_LINUX)
+// БЕЗ `this`.
+//
+// Авторские макросы передают в отчёт указатель на объект, из-за чего
+// `Error`/`MemError`/`DbgErr` МОЖНО звать только из методов класса. В
+// исходном Win32-билде это выполнялось, но за годы (PS3-эпоха и наши
+// правки) появились вызовы из свободных функций -- при `M_EXCEPTIONS 0` они
+// компилировались, потому что макрос разворачивался в `M_BREAKPOINT` без
+// `this`. Стоило включить исключения, как всплыло, например
+// `MSound_LoadSFXDescScript` (`MSound_SFXDesc.cpp:1301`).
+//
+// Чинить каждую площадку по отдельности -- десятки правок и по сборке на
+// каждую пропущенную. Дешевле убрать саму причину: передавать `NULL`
+// вместо `this`. Цена -- в отчёте не будет указателя объекта; локация,
+// сообщение и позиция в исходнике остаются на месте, а именно они и
+// читаются. Ограничение «только из метода» при этом исчезает совсем.
+#define Error(_Location, _Msg) \
+{ DTraceCurrentFilePos("Exception"); CCException::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg); }
+
+#define Error_static(_Location, _Msg) \
+{ DTraceCurrentFilePos("Exception"); CCException::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg); }
+
+#define DbgErr(_Msg) \
+{ DTraceCurrentFilePos("Exception"); CCException::DoThrow(NULL, "?", MACRO_EXCEPT_SOURCE_POS, _Msg); }
+
 #else
 #define Error(_Location, _Msg) \
 { DTraceCurrentFilePos("Exception"); CCException::DoThrow(this, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg); }
@@ -215,6 +240,14 @@ public:
 #define MemError_static(_Location) \
 {DTraceCurrentFilePos("Exception"); CCExceptionMemory::DoThrow();}
 
+#elif defined(PLATFORM_LINUX)
+// Без `this` -- по той же причине, что и у `Error` выше.
+#define MemError(_Location) \
+{DTraceCurrentFilePos("Exception"); CCExceptionMemory::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS);}
+
+#define MemError_static(_Location) \
+{DTraceCurrentFilePos("Exception"); CCExceptionMemory::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS);}
+
 #else
 
 #define MemError(_Location) \
@@ -261,6 +294,12 @@ public:
 {DTraceCurrentFilePos("Exception"); CCExceptionFile::DoThrow();}
 #define FileError_static(_Location, _Msg, _ErrCode) \
 {DTraceCurrentFilePos("Exception"); CCExceptionFile::DoThrow();}
+#elif defined(PLATFORM_LINUX)
+// Без `this` -- по той же причине, что и у `Error` выше.
+#define FileError(_Location, _Msg, _ErrCode) \
+{DTraceCurrentFilePos("Exception"); CCExceptionFile::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg, _ErrCode);}
+#define FileError_static(_Location, _Msg, _ErrCode) \
+{DTraceCurrentFilePos("Exception"); CCExceptionFile::DoThrow(NULL, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg, _ErrCode);}
 #else
 #define FileError(_Location, _Msg, _ErrCode) \
 {DTraceCurrentFilePos("Exception"); CCExceptionFile::DoThrow(this, _Location, MACRO_EXCEPT_SOURCE_POS, _Msg, _ErrCode);}
