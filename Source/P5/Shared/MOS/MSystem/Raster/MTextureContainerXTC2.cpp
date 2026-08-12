@@ -225,6 +225,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 	m_XT0Length = 0;
 
 	int s_nXT0Entries = 0, s_nXT0Applied = 0, s_nXT0OutOfRange = 0;
+	int s_nXT1Entries = 0, s_nXT1Applied = 0;
+	bool s_bHasXT1 = false;
 
 	if (CDiskUtil::FileExists(m_FileName + ".xt0"))
 	{
@@ -256,19 +258,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 		}
 	}
 
-#ifdef PLATFORM_LINUX
-	// ЗОНД [XTC2-TBL] (без флага, по строке на контейнер): сколько записей
-	// в таблице .xt0 и сколько из них легло в дескрипторы.
-	// Замер показал `xtPos=0` у текстуры 4445 при `hasXT0=1` -- то есть
-	// таблица есть, а записи для этой текстуры в ней нет. Различить
-	// «таблица короткая», «индексы за пределами массива» и «таблица прочлась
-	// неверно» можно только этими тремя числами.
-	M_TRACEALWAYS("[XTC2-TBL] '%s': xt0 записей=%d применено=%d вне диапазона=%d, дескрипторов=%d, длина xt0=%u\n",
-		m_FileName.Str(), s_nXT0Entries, s_nXT0Applied, s_nXT0OutOfRange,
-		(int)m_lTextureDesc.Len(), (unsigned)m_XT0Length);
-#endif
-
-	if (CDiskUtil::FileExists(m_FileName + ".xt1"))
+	s_bHasXT1 = CDiskUtil::FileExists(m_FileName + ".xt1");
+	if (s_bHasXT1)
 	{
 		m_bHasXT0 = true;
 
@@ -278,6 +269,7 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 		uint32 nTextures;
 		File.ReadLE(nTextures);
 		nTextures &= 0x7fffffff;
+		s_nXT1Entries = (int)nTextures;
 
 		while (nTextures)
 		{
@@ -287,10 +279,33 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 			File.ReadLE(FileOffset);
 			// Смещение -- от конца .xt0, см. пункт 3 выше.
 			if (iLocal < (uint32)m_lTextureDesc.Len())
+			{
 				m_lTextureDesc[iLocal].m_TextureXT0FilePos = m_XT0Length + FileOffset;
+				++s_nXT1Applied;
+			}
 			--nTextures;
 		}
 	}
+
+#ifdef PLATFORM_LINUX
+	// ЗОНД [XTC2-TBL] (без флага, по строке на контейнер). Печатается ПОСЛЕ
+	// обоих файлов: первая версия стояла между ними и потому не показывала
+	// главного -- добирает ли `.xt1` те текстуры, которых нет в `.xt0`.
+	// Замер 2026-08-08 (только xt0): 1429/1878, 3396/6916, 1093/1821, 71/536 --
+	// то есть таблицы читаются верно (всё применено, ничего вне диапазона),
+	// но покрывают лишь часть текстур.
+	{
+		int nNoPos = 0;
+		for (int i = 0; i < m_lTextureDesc.Len(); i++)
+			if (!m_lTextureDesc[i].m_TextureXT0FilePos)
+				++nNoPos;
+		M_TRACEALWAYS("[XTC2-TBL] '%s': xt0=%d/%d (вне диапазона %d) xt1=%s %d/%d | "
+			"дескрипторов=%d, БЕЗ позиции=%d, длина xt0=%u\n",
+			m_FileName.Str(), s_nXT0Applied, s_nXT0Entries, s_nXT0OutOfRange,
+			s_bHasXT1 ? "есть" : "нет", s_nXT1Applied, s_nXT1Entries,
+			(int)m_lTextureDesc.Len(), nNoPos, (unsigned)m_XT0Length);
+	}
+#endif
 }
 
 void CTextureContainer_VirtualXTC2::ClearCache()
@@ -358,9 +373,9 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 			{
 				++s_nLog;
 				M_TRACEALWAYS("[XTC2] iLocal=%d xt-путь НЕ выбран: hasXT0=%d mipStart=%d picMip=%d "
-					"xtPos=%u nVirtual=%d record=%d xdfBlocks=%d\n",
+					"xtPos=%u dataPos=%u nVirtual=%d record=%d xdfBlocks=%d\n",
 					_iLocal, (int)m_bHasXT0, _iMipMapStart, (int)Desc.m_iPicMip,
-					(unsigned)Desc.m_TextureXT0FilePos, _nVirtual,
+					(unsigned)Desc.m_TextureXT0FilePos, (unsigned)Desc.m_TextureDataFilePos, _nVirtual,
 					(int)(CByteStream::XDF_GetRecord() != NULL), (int)bXDFBlocksXT);
 			}
 		}
