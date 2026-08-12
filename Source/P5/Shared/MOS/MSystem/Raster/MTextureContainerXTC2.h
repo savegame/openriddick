@@ -120,6 +120,9 @@ public:
 	// (см. PostCreate и сверку с `MSystem_dll_decomp.c:167979-168065`).
 	CCFile m_XT1File;
 	uint32 m_XT0Length;
+	// Полезные данные в `.xt0/.xt1` могут быть ZLIB-сжаты; признак -- старший
+	// бит слова-счётчика таблицы (см. PostCreate и ReadTexture).
+	bool m_bXTCompressed;
 
 	TThinArray<spCImagePalette> m_lspPalettes;
 	TThinArray<CTextureDesc> m_lTextureDesc;

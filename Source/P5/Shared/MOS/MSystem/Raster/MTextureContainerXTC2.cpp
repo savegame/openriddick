@@ -4,6 +4,7 @@
 #include "MTextureContainerXTC2.h"
 #ifdef PLATFORM_LINUX
 #include <stdlib.h>	// getenv (RIDDICK_XTC2_XT_UNDER_XDF)
+#include "../../../SDK/ZLib/zlib.h"	// распаковка xt-данных, см. ReadTexture
 #endif
 
 // WORLDDATA_TEXTURECONTAINERS, Memused:    1 404 684 in 6674 allocations, Activity: 84974 Allocations, 78300 Deletions
@@ -19,6 +20,7 @@ CTextureContainer_VirtualXTC2::CTextureContainer_VirtualXTC2()
 	m_bIsCached = false;
 	m_bHasXT0 = false;
 	m_XT0Length = 0;
+	m_bXTCompressed = false;
 }
 
 CTextureContainer_VirtualXTC2::~CTextureContainer_VirtualXTC2()
@@ -220,8 +222,9 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 	// (`MSystem_dll_decomp.c:168150-168200`): это признак ZLIB-СЖАТИЯ
 	// полезных данных -- при нём ретейл заводит `CStream_LinearCompressedZLib`
 	// и после `Seek` читает пару служебных LE-слов, работая через substream.
-	// Поддержки сжатия у нас пока нет; если банк окажется сжатым, начинать
-	// надо отсюда. Записано в Docs/HacksAndHooks.md.
+	// Сжатие ПОДТВЕРЖДЕНО hex-дампом (2026-08-08): на позиции текстуры лежит
+	// `<сжатый размер> <исходный размер> 78 DA ...`, где `78 DA` -- заголовок
+	// zlib. Распаковка реализована в `ReadTexture`.
 	m_XT0Length = 0;
 
 	int s_nXT0Entries = 0, s_nXT0Applied = 0, s_nXT0OutOfRange = 0;
@@ -238,6 +241,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 
 		uint32 nTextures;
 		File.ReadLE(nTextures);
+		// Бит 31 -- признак ZLIB-сжатия полезных данных (см. шапку функции).
+		m_bXTCompressed = (nTextures & 0x80000000u) != 0;
 		nTextures &= 0x7fffffff;
 		s_nXT0Entries = (int)nTextures;
 
@@ -268,6 +273,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 
 		uint32 nTextures;
 		File.ReadLE(nTextures);
+		if (nTextures & 0x80000000u)
+			m_bXTCompressed = true;
 		nTextures &= 0x7fffffff;
 		s_nXT1Entries = (int)nTextures;
 
@@ -357,7 +364,20 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 #else
 		bAllowXTUnderXDF = false;
 #endif
-		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL) && !bAllowXTUnderXDF;
+		// СУЖЕНИЕ РАДИ PC-НАБОРА.
+		//
+		// Отступление применяется только там, где авторский путь ФИЗИЧЕСКИ не
+		// может сработать -- когда самого `.xtc` нет на диске россыпью (случай
+		// PS3: отгружены только `.xt0/.xt1`). На PC-наборе `.xtc` лежит на
+		// месте, проверка ниже даёт false, и поведение остаётся авторским
+		// байт в байт. Проверка чисто дисковая: `CDiskUtil::FileExists` спросил
+		// бы ещё и XDF и всегда отвечал бы «есть».
+		bool bXTCOnDisk = true;
+#ifdef PLATFORM_LINUX
+		bXTCOnDisk = MRTC_SystemInfo::OS_FileExists(m_FileName.Str());
+#endif
+		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL)
+			&& (!bAllowXTUnderXDF || bXTCOnDisk);
 
 		// ЭКСПЕРИМЕНТ RIDDICK_XTC2_DATAPOS_AS_XT=1 (по умолчанию ВЫКЛЮЧЕН).
 		//
@@ -434,12 +454,13 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 			// Значит выбор файла и есть сравнение с этой длиной, а внутри
 			// `.xt1` позиция отсчитывается заново.
 			const bool bInXT1 = (m_XT0Length != 0) && (XTPos >= m_XT0Length);
+			CCFile* pXT = NULL;
 			if (bInXT1)
 			{
 				if (!m_XT1File.IsOpen())
 					m_XT1File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
 				m_XT1File.Seek(XTPos - m_XT0Length);
-				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT1File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+				pXT = &m_XT1File;
 			}
 			else
 			{
@@ -448,8 +469,47 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 					m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
 				}
 				m_XT0File.Seek(XTPos);
-				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT0File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+				pXT = &m_XT0File;
 			}
+
+#ifdef PLATFORM_LINUX
+			if (m_bXTCompressed)
+			{
+				// ZLIB-СЖАТЫЕ ДАННЫЕ.
+				//
+				// Формат опознан по hex-дампу сорвавшихся чтений: на позиции
+				// текстуры лежит `<сжатый размер> <исходный размер> 78 DA ...`,
+				// где `78 DA` -- заголовок zlib. Это ровно то, что делает
+				// ретейл (`MSystem_dll_decomp.c:168196`): при взведённом бите
+				// сжатия он читает после `Seek` ДВА LE-слова и работает через
+				// `CStream_LinearCompressedZLib` поверх substream.
+				//
+				// Мы распаковываем в память и подсовываем картинке memory-поток:
+				// та же семантика, но без отдельного класса потока.
+				uint32 CompSize = 0, RawSize = 0;
+				pXT->ReadLE(CompSize);
+				pXT->ReadLE(RawSize);
+				if (!CompSize || !RawSize || CompSize > (1u << 28) || RawSize > (1u << 28))
+					Error("ReadTexture", CStrF("Плохой заголовок сжатия: comp=%u raw=%u", CompSize, RawSize));
+
+				TArray<uint8> lComp, lRaw;
+				lComp.SetLen(CompSize);
+				lRaw.SetLen(RawSize);
+				pXT->Read(lComp.GetBasePtr(), CompSize);
+
+				uLongf Out = RawSize;
+				const int Z = uncompress((Bytef*)lRaw.GetBasePtr(), &Out,
+					(const Bytef*)lComp.GetBasePtr(), (uLong)CompSize);
+				if (Z != Z_OK || Out != RawSize)
+					Error("ReadTexture", CStrF("zlib: код %d, распаковано %u из %u", Z, (unsigned)Out, RawSize));
+
+				CCFile Mem;
+				Mem.ConnectMemoryStream(lRaw.GetBasePtr(), (int)RawSize, (int)RawSize, CFILE_BINARY|CFILE_READ);
+				_pTexture->m_lMipMaps[_iMipMapStart].Read(&Mem, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+			}
+			else
+#endif
+			_pTexture->m_lMipMaps[_iMipMapStart].Read(pXT, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 
 			if (_iMipMapEnd == _iMipMapStart) // Nothing more to do
 				return;
