@@ -305,7 +305,14 @@ public:
 			}
 		}
 		M_CATCH(
-		catch(CCException)
+		// `catch(...)`, а не `catch(CCException)`: этот заголовок включается ОЧЕНЬ
+		// рано (`MCC_VPUShared.h` -> `MRTC_VPUShared.h`), задолго до
+		// `MRTC_Exception.h`, поэтому типа `CCException` здесь ещё нет. Пока
+		// `M_CATCH` был пустышкой, это не мешало; с включёнными исключениями стало
+		// ошибкой компиляции. Обработчику тип и не нужен -- он только прибирает за
+		// собой и пробрасывает дальше, а ловить ВСЁ здесь даже правильнее: утечки
+		// не будет и при исключении из конструктора элемента.
+		catch(...)
 		{
 			Destroy(pArray);
 			throw;
@@ -398,7 +405,8 @@ public:
 			}
 		}
 		M_CATCH(
-		catch(CCException)
+		// см. пояснение выше -- тип здесь ещё не объявлен
+		catch(...)
 		{
 			Destroy(pArray);
 			throw;
@@ -585,7 +593,8 @@ bint TThinArray<T, t_CAllocator, TArrayData>::SetLen(int _Len)
 		Clear();
 	}
 	M_CATCH(
-	catch(CCException)
+	// см. пояснение выше -- тип здесь ещё не объявлен
+	catch(...)
 	{
 		TArrayData::Destroy(pNew);
 		throw;

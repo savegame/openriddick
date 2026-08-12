@@ -224,6 +224,8 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 	// надо отсюда. Записано в Docs/HacksAndHooks.md.
 	m_XT0Length = 0;
 
+	int s_nXT0Entries = 0, s_nXT0Applied = 0, s_nXT0OutOfRange = 0;
+
 	if (CDiskUtil::FileExists(m_FileName + ".xt0"))
 	{
 		m_bHasXT0 = true;
@@ -235,6 +237,7 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 		uint32 nTextures;
 		File.ReadLE(nTextures);
 		nTextures &= 0x7fffffff;
+		s_nXT0Entries = (int)nTextures;
 
 		while (nTextures)
 		{
@@ -243,10 +246,27 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 			File.ReadLE(iLocal);
 			File.ReadLE(FileOffset);
 			if (iLocal < (uint32)m_lTextureDesc.Len())
+			{
 				m_lTextureDesc[iLocal].m_TextureXT0FilePos = FileOffset;
+				++s_nXT0Applied;
+			}
+			else
+				++s_nXT0OutOfRange;
 			--nTextures;
 		}
 	}
+
+#ifdef PLATFORM_LINUX
+	// ЗОНД [XTC2-TBL] (без флага, по строке на контейнер): сколько записей
+	// в таблице .xt0 и сколько из них легло в дескрипторы.
+	// Замер показал `xtPos=0` у текстуры 4445 при `hasXT0=1` -- то есть
+	// таблица есть, а записи для этой текстуры в ней нет. Различить
+	// «таблица короткая», «индексы за пределами массива» и «таблица прочлась
+	// неверно» можно только этими тремя числами.
+	M_TRACEALWAYS("[XTC2-TBL] '%s': xt0 записей=%d применено=%d вне диапазона=%d, дескрипторов=%d, длина xt0=%u\n",
+		m_FileName.Str(), s_nXT0Entries, s_nXT0Applied, s_nXT0OutOfRange,
+		(int)m_lTextureDesc.Len(), (unsigned)m_XT0Length);
+#endif
 
 	if (CDiskUtil::FileExists(m_FileName + ".xt1"))
 	{
