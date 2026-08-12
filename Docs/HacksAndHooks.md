@@ -4035,3 +4035,34 @@ Falling back XDF file content\xdf\pa1_arrival.rul, Pos ac1c1...
 дороже, чем честное падение. Заглушка допустима только там, где данные
 заведомо не влияют на управление — как magenta-текстура в
 `TextureID_EnsureUploaded`.
+
+### XDF: запись без содержимого — это не «файл есть» (2026-08-08)
+
+- **FIX** `MFile_Stream_XDF.h`, `INL_FileExists`, под `PLATFORM_LINUX`.
+
+После отмены заглушки зависание ушло (6 167 строк лога вместо 60 220,
+процесс завершается штатно), и **`Command_ChangeMap` впервые пропустил
+PS3-бандл**: `PS3-бандл найден: 'Pa1_arrival_00001010_load.xdf' -- шлюз
+снят`, загрузка мира началась. Но развалилась на монтировании
+`pa1_arrival_Common.XDF`:
+
+```
+[HEAP-TRIPWIRE] GetFreeSizeClass bad size -1409282048 fragment 0
+ASSERT: GetFreeSizeClass: bogus size class (MMemMgrHeap.cpp:481)
+Falling back XDF file content\xdf\pa1_arrival.rul, Pos 0000e289
+ASSERT: Memory manager error, Could not find chunk memory belong to
+```
+
+Полтора гигабайта в одном выделении — это `SetLen` по счётчику, прочитанному
+из мусора. Источник мусора: `CDiskUtil::FileExists` подтверждал
+`XDF\pa1_arrival.rul`, которого в наборе нет вовсе.
+
+Почему подтверждал: `INL_FileExists` отвечал «есть» по одному факту наличия
+ЗАПИСИ в архиве. Но нулевой `m_FileDate` у записи означает заглушку без
+содержимого — ровно так это и трактует соседний `INL_OpenExt`, вызывая в
+этом случае `INL_OpenFallbackFile()`. То есть `FileExists` и `Open`
+расходились в понимании одного и того же поля.
+
+Теперь согласованы: нет содержимого — нет файла, решение принимает дисковый
+слой. **PC не задет:** там такие файлы лежат на диске, и
+`CDiskUtil::FileExists` по-прежнему отвечает «есть» через дисковый поток.

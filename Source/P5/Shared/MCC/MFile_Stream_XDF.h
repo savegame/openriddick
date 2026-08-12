@@ -78,7 +78,35 @@ public:
 //			M_TRACEALWAYS("XDF file mismatch %s\n", _name.Str());
 
 
-		return iFile >= 0;	
+		if (iFile < 0)
+			return false;
+
+#ifdef PLATFORM_LINUX
+		// ЗАПИСЬ БЕЗ СОДЕРЖИМОГО -- ЭТО НЕ «ФАЙЛ ЕСТЬ».
+		//
+		// Нулевой `m_FileDate` у записи означает, что в архиве лежит только
+		// заглушка, а настоящие данные надо брать с диска -- ровно так это и
+		// трактует `INL_OpenExt` ниже, вызывая `INL_OpenFallbackFile()`.
+		// А `FileExists` про это не знал и отвечал «есть» по одному факту
+		// наличия записи.
+		//
+		// Чем это обернулось на PS3-наборе: `CDiskUtil::FileExists` подтверждал
+		// `XDF\pa1_arrival.rul` (списка общих ресурсов там нет вовсе), движок
+		// шёл его читать, получал мусор и делал `SetLen` на нём --
+		// `[HEAP-TRIPWIRE] bad size -1409282048`, то есть попытка выделить
+		// полтора гигабайта, и загрузка мира разваливалась.
+		//
+		// Теперь ответ согласован с `Open`: нет содержимого -- нет файла, и
+		// решение принимает дисковый слой. На PC-наборе такие файлы лежат на
+		// диске, поэтому `CDiskUtil::FileExists` по-прежнему отвечает «есть».
+		{
+			CXDF::CXDF_File* pFile = pXDF->GetFile(iFile);
+			if (pFile && !pFile->m_FileDate)
+				return false;
+		}
+#endif
+
+		return true;
 	}
 
 	M_INLINE void INL_Open(const CStr _name, int _mode)
