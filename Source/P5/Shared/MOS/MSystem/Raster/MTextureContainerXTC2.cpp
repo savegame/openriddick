@@ -504,7 +504,9 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 					Error("ReadTexture", CStrF("zlib: код %d, распаковано %u из %u", Z, (unsigned)Out, RawSize));
 
 				CCFile Mem;
-				Mem.ConnectMemoryStream(lRaw.GetBasePtr(), (int)RawSize, (int)RawSize, CFILE_BINARY|CFILE_READ);
+				// Публичная перегрузка `Open(void*, len, maxlen, mode)`;
+				// `ConnectMemoryStream` -- приватная кухня той же операции.
+				Mem.Open(lRaw.GetBasePtr(), (int)RawSize, (int)RawSize, CFILE_BINARY|CFILE_READ);
 				_pTexture->m_lMipMaps[_iMipMapStart].Read(&Mem, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 			}
 			else
