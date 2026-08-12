@@ -84,7 +84,7 @@ static void Linux_LogActiveDebugFlags()
 		"RIDDICK_VBHEAP", "RIDDICK_DBG_VBM", "RIDDICK_DBG_PALETTE",
 		"RIDDICK_DBG_PALMOVE", "RIDDICK_DBG_OK", "RIDDICK_NO_IK", "RIDDICK_ENV",
 		"RIDDICK_DBG_ANIMGATE", "RIDDICK_DBG_FILEPATH",
-		"RIDDICK_XTC2_XT_UNDER_XDF",
+		"RIDDICK_XTC2_XT_UNDER_XDF", "RIDDICK_XTC2_DATAPOS_AS_XT",
 	};
 	const int nNames = (int)(sizeof(s_lNames) / sizeof(s_lNames[0]));
 

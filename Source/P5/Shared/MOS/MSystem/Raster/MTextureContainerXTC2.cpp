@@ -359,7 +359,37 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 #endif
 		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL) && !bAllowXTUnderXDF;
 
-		const bool bUseXT = m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos
+		// ЭКСПЕРИМЕНТ RIDDICK_XTC2_DATAPOS_AS_XT=1 (по умолчанию ВЫКЛЮЧЕН).
+		//
+		// Замер: у части текстур записи в таблице `.xt0/.xt1` нет вовсе
+		// (`alltextures.001`: 432 из 6916), и для них движок идёт читать сам
+		// `.xtc` -- которого на PS3-диске россыпью не существует. При этом
+		// позиция, которую он там ищет, СОВПАДАЕТ с `m_TextureDataFilePos`
+		// (546 591 176 у текстуры 4445), а длина `.xt0` того же контейнера --
+		// 391 865 253. Разница 154 725 923 укладывалась бы в `.xt1`.
+		//
+		// Отсюда версия: `m_TextureDataFilePos` адресует ЕДИНЫЙ xt-поток, а не
+		// файл `.xtc`. Версия НЕ подтверждена -- ни в декомпиле, ни размерами
+		// файлов, поэтому это флаг для одного прогона, а не поведение по
+		// умолчанию. Если картинки на экране окажутся правильными, версия
+		// подтвердится и можно будет закрепить.
+		bool bDataPosAsXT = false;
+#ifdef PLATFORM_LINUX
+		{
+			static int s = -1;
+			if (s < 0)
+			{
+				const char* e = getenv("RIDDICK_XTC2_DATAPOS_AS_XT");
+				s = (e && *e && *e != '0') ? 1 : 0;
+			}
+			bDataPosAsXT = (s != 0);
+		}
+#endif
+		uint32 XTPos = Desc.m_TextureXT0FilePos;
+		if (!XTPos && bDataPosAsXT && m_bHasXT0)
+			XTPos = Desc.m_TextureDataFilePos;
+
+		const bool bUseXT = m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && XTPos
 			&& !_nVirtual && !CByteStream::XDF_GetRecord() && !bXDFBlocksXT;
 
 #ifdef PLATFORM_LINUX
@@ -389,12 +419,12 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 			// при чтении таблицы сдвинуты на длину `.xt0` (см. PostCreate).
 			// Значит выбор файла и есть сравнение с этой длиной, а внутри
 			// `.xt1` позиция отсчитывается заново.
-			const bool bInXT1 = (m_XT0Length != 0) && (Desc.m_TextureXT0FilePos >= m_XT0Length);
+			const bool bInXT1 = (m_XT0Length != 0) && (XTPos >= m_XT0Length);
 			if (bInXT1)
 			{
 				if (!m_XT1File.IsOpen())
 					m_XT1File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
-				m_XT1File.Seek(Desc.m_TextureXT0FilePos - m_XT0Length);
+				m_XT1File.Seek(XTPos - m_XT0Length);
 				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT1File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 			}
 			else
@@ -403,7 +433,7 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 				{
 					m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
 				}
-				m_XT0File.Seek(Desc.m_TextureXT0FilePos);
+				m_XT0File.Seek(XTPos);
 				_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT0File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 			}
 
