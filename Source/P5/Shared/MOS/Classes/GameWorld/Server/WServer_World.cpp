@@ -950,6 +950,29 @@ ConOutL("(CWorld_ServerCore::World_Init) WorldName: " + m_WorldName);
 			{
 				int32 nResources;
 				Input.ReadLE(nResources);
+
+#ifdef PLATFORM_LINUX
+				// ЗОНД + ЗАЩИТА (без флага).
+				//
+				// На PS3-наборе чтение этого списка расходится: движок
+				// выделяет полтора гигабайта (`[HEAP-TRIPWIRE] bad size
+				// -1409282048`) и потом просит прочитать столько же байт.
+				// Счётчик и длина файла печатаются, чтобы отличить «формат
+				// другой с самого начала» от «рассинхрон на середине»,
+				// а неправдоподобный счётчик отсекается ДО `SetLen` --
+				// иначе менеджер памяти рушится раньше, чем мы успеваем
+				// что-либо понять.
+				const fint RulLen = Input.Length();
+				M_TRACEALWAYS("[RUL] '%s': длина=%d, счётчик ресурсов=%d\n",
+					Filename.Str(), (int)RulLen, (int)nResources);
+				// Каждая запись -- как минимум длина строки, то есть 4 байта.
+				if (nResources < 0 || (RulLen > 0 && (fint)nResources * 4 > RulLen))
+				{
+					M_TRACEALWAYS("[RUL] счётчик неправдоподобен для такой длины -- список пропущен\n");
+					nResources = 0;
+				}
+#endif
+
 				lCommon.SetLen(nResources);
 
 				for(int i = 0; i < nResources; ++i)
