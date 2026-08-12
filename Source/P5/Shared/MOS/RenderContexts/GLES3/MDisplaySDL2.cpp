@@ -4597,7 +4597,38 @@ public:
 			// Note: file-backed containers (VirtualXTC) page the texel
 			// data in inside GetTexture itself (Load(iLocal, iMip)), so
 			// no extra force-load call is needed here.
-			CImage* pImg = m_pTC->GetTexture(_TextureID, 0, -1);
+			// НЕДОСТУПНАЯ ТЕКСТУРА -- НЕ ПОВОД РОНЯТЬ ЗАГРУЗКУ.
+			//
+			// `GetTexture` не только возвращает NULL, но и БРОСАЕТ: битый
+			// заголовок, недочитанные данные, «Access mask not cleared» после
+			// сорвавшегося чтения. С включёнными исключениями такое
+			// раскручивалось до самого верха и штатно закрывало игру -- лучше
+			// прежнего SIGILL, но для одной текстуры всё равно чересчур.
+			//
+			// Реальный случай: на PS3-наборе у 432 текстур банка
+			// `alltextures.001` полезных данных нет ВООБЩЕ -- их полный `.xtc`
+			// (свыше 546 МБ) на диск не попал, отгружены только `.xt0/.xt1`
+			// (391 + 34 МБ). Такие текстуры на PS3 просто не запрашиваются, а у
+			// нас запрашиваются -- и это повод показать заглушку, а не
+			// прекращать загрузку уровня.
+			CImage* pImg = NULL;
+			M_TRY
+			{
+				pImg = m_pTC->GetTexture(_TextureID, 0, -1);
+			}
+			M_CATCH(
+			catch (CCException)
+			{
+				if (!m_lTexLogged[_TextureID])
+				{
+					m_lTexLogged[_TextureID] = 1;
+					fprintf(stderr, "[GLES3-TEX-FAIL] id=%d  name='%s'  GetTexture() бросил исключение -> заглушка\n",
+						_TextureID, (const char*)m_pTC->GetName(_TextureID));
+					fflush(stderr);
+				}
+				return GetPlaceholderTex();
+			}
+			)
 			if (!pImg)
 			{
 				if (!m_lTexLogged[_TextureID])
