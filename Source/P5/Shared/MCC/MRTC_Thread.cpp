@@ -93,7 +93,34 @@ uint32 MRTC_Thread_Core::Thread_Proc(void* _pContext)
 
 	MRTC_Thread_Core* pThread = (MRTC_Thread_Core*)_pContext;
 	MRTC_SystemInfo::Thread_SetName(pThread->Thread_GetName());
+#if defined(PLATFORM_LINUX) && M_EXCEPTIONS
+	// ИСКЛЮЧЕНИЕ НЕ ДОЛЖНО УХОДИТЬ ИЗ ПОТОКА МОЛЧА.
+	//
+	// С включёнными исключениями (Target_Linux_SDL2.h) `Error`/`FileError`
+	// бросают. В главном потоке их ловит `Linux_Main` и печатает отчёт, а у
+	// рабочих потоков обработчика не было вовсе -- вылет из процедуры потока
+	// означает `std::terminate`, то есть abort БЕЗ ЕДИНОГО СЛОВА о причине.
+	// Для нас это не теория: падение на PS3-наборе случилось именно в потоке
+	// `Async write`.
+	//
+	// Здесь исключение не «проглатывается»: поток печатает, что именно
+	// произошло, и завершается штатно (`Thread_Exit`), чтобы остальная
+	// система увидела корректный выход, а не оборванный процесс.
+	M_TRY
+	{
+		pThread->Thread_Exit(pThread->Thread_Main());
+	}
+	M_CATCH(
+	catch (CCException _Ex)
+	{
+		M_TRACEALWAYS("[ПОТОК] '%s': исключение -- %s\n",
+			pThread->Thread_GetName(), _Ex.GetExceptionInfo().GetString().Str());
+		pThread->Thread_Exit(0);
+	}
+	)
+#else
 	pThread->Thread_Exit(pThread->Thread_Main());
+#endif
 	return 0; // Never executes
 }
 

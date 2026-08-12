@@ -129,7 +129,12 @@ if(ENGINE_MODULES)
     add_compile_definitions(TARGET_LINUX_SDL2)
     # Old-codebase compile flags:
     #  -flax-vector-conversions: the vec128 SSE code freely mixes __m128/__m128i
-    set(P5_ENGINE_CXX_FLAGS -w -flax-vector-conversions)
+    #  -fexceptions: движок включён с M_EXCEPTIONS 1 (Target_Linux_SDL2.h) --
+    #    ошибки бросают CCException вместо M_BREAKPOINT. У C++ это поведение
+    #    по умолчанию, флаг стоит явно, чтобы связь была видна и случайный
+    #    -fno-exceptions где-нибудь ниже не отключил половину обработки ошибок
+    #    молча (симптом был бы неотличим от прежних SIGILL).
+    set(P5_ENGINE_CXX_FLAGS -w -flax-vector-conversions -fexceptions)
 
     add_subdirectory(Source/P5/Shared)
     add_subdirectory(Source/P5/Projects/Main/GameWorld)
