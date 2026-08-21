@@ -2106,3 +2106,48 @@ m_pWServer->Message_SendToObject(Msg, iBest);
 parsed=1 iPlayer=0 3PIMode=2` и появление выборов на экране после нажатия
 use. Флаг `RIDDICK_DLGLINK_PLAYERFALLBACK` больше не нужен (выключен и
 оставлен как диагностика).
+
+### Прогон 25 (2026-08-21, `pa1_prisonarea`, `RIDDICK_DBG_DLG=1`, run_prison.log)
+
+Фикс подтверждён на всех трёх звеньях до гейта доставки:
+
+```
+[PLAYERNAME] obj=497 playerNr=0 mapName='' template='player_pa1_prisonarea' keep=1 -> Riddick
+[PLAYERNAME] obj=2559 playerNr=0 mapName='' template='player_pa1_prisonarea' keep=1 -> Riddick
+[27.00, Char 74, BARBER], Link: Riddick:99  EvalDialogueLink2: nTargets = 1
+[27.00, Char 74, BARBER], LinkTarget: 'Riddick' -> iTarget=2559 items='99'
+[27.00, Char 2559, Riddick], SetDialogueChoices: '99' parsed=1 iPlayer=0 3PIMode=0 sender=74 owner=2559
+```
+
+Оба инстанса игрока (спавн мира и появившийся позже объект 2559) получили
+имя; линк резолвится (было `iTarget=0`); выборы парсятся уже НА объекте
+игрока (`iPlayer=0`). Диалоги по use стартуют: BARBER @20.33 и SHABBY
+@27.70 (`BeginDialogue ... res=1`), реплики звучат; фоновая NPC-цепочка
+ABE→VICTOR→VICTIM играет по кругу.
+
+**Почему `3PIMode=0`, а не 2** — и это не дефект фикса. Во время реплики
+барбера игрок отошёл:
+
+```
+[22.07, Char 74, BARBER], Resetting listener because of failed tests
+  (Distance: 64.5 [64.0], DirCheck1: -1.0 [0.1], ...)
+  MyPos=(429 -528 54) PlayerPos=(411 -590 54)
+```
+
+Механика 3PI при потере фокуса сбрасывает режим в NONE
+(`WObj_CharMechanics.cpp:9626-9630`). Когда реплика дозвучала и цепочка
+автоматически продолжилась (`SetItem #Barber,-101` → `Link: Riddick:99`),
+гейт `b3PI` в `Char_SetDialogueChoices` (:1487-1495) закономерно не
+пропустил netmsg — разговор брошен, выборов нет. Это штатное поведение
+ретейла («ушёл — разговор оборвался»).
+
+Осталось подтвердить финал петли: подойти, нажать use и **стоять на
+месте** до конца реплики — ожидаем `3PIMode=2` в строке
+`SetDialogueChoices`, за ним доставку клиенту и подзаголовки-выборы
+(`OBJMSG_GAME_ADDSUBTITLE` из `Char_SetDialogueChoices_Client`). В
+прогоне 25 лог обрывается сразу после начала разговора с SHABBY
+(открыто гейм-меню).
+
+Попутное из прогона: 59 ассертов `TagAnimSetFromBlockReaction Invalid
+State` (WAG2I_Resources.cpp:341) — известная зона guard'ов PC-данных;
+`[DLG] lookup failed for 'Dlg_Player_Base'` ×2 — норма (All.xcd в PC-наборе нет).
