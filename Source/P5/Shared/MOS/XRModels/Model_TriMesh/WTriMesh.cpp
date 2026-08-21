@@ -5779,8 +5779,19 @@ bAnim = false;
 			static uint8 s_lKey[32] = { 0 };
 			static int s_nMesh = 0;
 			static int s_nLogged = 0;
+			// Биты 16/32 (прогон 27): pal -- есть ли у скелет-инстанса
+			// массив матриц (GetBoneTransforms()); при skelInst!=0 pal==0
+			// кластер с костями проходит мимо Cluster_SetMatrixPalette
+			// (ветка `if (pMatrixPalette)` ниже) и уходит в бэкенд без
+			// палитры -- ровно источник спама "[GLES3-SKIN] no palette".
+			// lod -- рисуется ли САМ LOD-меш (у него свой m_bMatrixPalette
+			// и своё чтение костей). nBoneVB печатается при выводе: сколько
+			// VB этого меша несли BONEDEFORM; ноль при живых данных =
+			// кости потерялись в нашем загрузчике.
+			const bool bPal = (pSkelInstance && pSkelInstance->GetBoneTransforms());
 			const uint8 Key = (uint8)((pSkelInstance ? 1 : 0) | (bAnim ? 2 : 0) |
-			                          (bHWAnim ? 4 : 0) | (m_bMatrixPalette ? 8 : 0));
+			                          (bHWAnim ? 4 : 0) | (m_bMatrixPalette ? 8 : 0) |
+			                          (bPal ? 16 : 0) | ((m_iLOD != 0) ? 32 : 0));
 			int iSlot = -1;
 			for (int i = 0; i < s_nMesh; i++)
 				if (s_lMesh[i] == (const void*)this) { iSlot = i; break; }
@@ -5794,10 +5805,16 @@ bAnim = false;
 			{
 				s_lKey[iSlot] = Key;
 				++s_nLogged;
-				fprintf(stderr, "[ANIMGATE] mesh=%s skelInst=%p hwAnim=%d matPalette=%d nLOD=%d nVB=%d -> bAnim=%d\n",
-					m_MeshName.GetFilenameNoExt().GetStr(), (void*)pSkelInstance,
-					(int)bHWAnim, (int)m_bMatrixPalette,
-					(int)m_lspLOD.Len(), (int)GetNumVertexBuffers(),
+				int nBoneVB = 0;
+				const int nVB = GetNumVertexBuffers();
+				for (int i = 0; i < nVB; ++i)
+					if (GetVertexBuffer(i)->m_bHaveBones) ++nBoneVB;
+				fprintf(stderr,
+					"[ANIMGATE] mesh=%s lod=%d skelInst=%p hwAnim=%d matPalette=%d pal=%d "
+					"nLOD=%d nVB=%d nBoneVB=%d -> bAnim=%d\n",
+					m_MeshName.GetFilenameNoExt().GetStr(), (int)m_iLOD,
+					(void*)pSkelInstance, (int)bHWAnim, (int)m_bMatrixPalette, (int)bPal,
+					(int)m_lspLOD.Len(), nVB, nBoneVB,
 					(int)(bAnim && m_bMatrixPalette));
 				fflush(stderr);
 			}
