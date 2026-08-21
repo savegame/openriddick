@@ -1217,30 +1217,72 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 				s_Keep = (e && *e && *e == '0') ? 0 : 1;
 			}
 
-			// НАЙДЕНО (2026-08-21, §33): откуда ретейл берёт имя для линков
-			// вида 'Riddick:99'. Прошёл grep'ом все декомпилы -- строка
-			// "Riddick" присваивается объекту ровно ОДИН раз во всём
-			// ретейле: FUN_102095b0 (GameClasses_decomp:344353), путь спавна
-			// игрока в game-mod'е вызывает Object_SetName(objID, "Riddick")
-			// при появлении персонажа игрока. Поэтому там
-			// Selection_GetSingleTarget("Riddick") резолвится, а у нас --
-			// нет: карта имени не даёт (`mapName=''`), шаблон называется
-			// 'player_<map>' (прогон 23-24), и безымянному объекту мы
-			// ставили служебное "$PLAYER", которого в ретейле вообще нет.
-			// Итог: линки на игрока по имени обрывали разговор -- этим и
-			// объясняется нестабильность «иногда диалог есть, иногда нет»:
-			// работали только цепочки с целью буквально 'Player' или на NPC
-			// по имени.
+			// ИМЯ ИГРОКА (§33, уточнено §34 2026-08-21).
 			//
-			// Правка: безымянному персонажу игрока даём имя "Riddick" --
-			// как ретейл. Имя от карты приоритетнее (осторожнее с авторским
-			// контентом); RIDDICK_PLAYERNAME=0 откатывает к "$PLAYER".
+			// Правка (даём безымянному персонажу игрока имя "Riddick")
+			// подтверждена прогонами 25-26: линк 'Riddick:99' резолвится,
+			// диалоговая петля замыкается. НО обоснование §33 было неверным
+			// и здесь исправлено, потому что от него зависит, чего ждать
+			// дальше.
+			//
+			// FUN_102095b0 (GameClasses_decomp:344237-344630), где ретейл
+			// зовёт Object_SetName(obj, "Riddick") -- это МУЛЬТИПЛЕЕР, а не
+			// путь спавна одиночной игры. В теле той же функции:
+			// "weapon_mp_cr_ulaks" (:344389), "Characters/Johns_rcap/..."
+			// (:344602); соседние функции того же класса оперируют
+			// "multiplayer_pb_Riddick" (:339565, :342523) и
+			// "weapon_mp_pb_riddick" (:340317), а массивы класса --
+			// CWObject_GameDM::CWObject_PickupInfo. Это режим Pitch Black,
+			// где один игрок ИГРАЕТ ЗА Риддика и потому носит это имя.
+			//
+			// В одиночной игре персонаж игрока создаётся иначе:
+			// GetDefualtSpawnClass() = "player_<мир>" (WObj_GameMod.cpp:16,
+			// 1575-1586) -> CWObject_GameCampaign::OnClientConnected
+			// (:1633, форсированный индекс 2559) -> Player_Respawn ->
+			// Object_Create(шаблон). Object_SetName на этом пути НЕТ.
+			//
+			// Сверх того (проверено по декомпилу):
+			//  * ни хэша 0x3d1d48ad ("PLAYERNR"), ни 0xe40b7151 ("$PLAYER")
+			//    в декомпилах нет вообще -- ретейловый Player_SetObject
+			//    (FUN_1019ed50, опознан по "PLAYEROBJ"/"GAMEOBJ") шлёт не
+			//    ключ, а сообщение 0x10df. То есть ретейл имя игрока не
+			//    перетирает просто потому, что этого переименования у него
+			//    нет; наш $PLAYER был чужеродным.
+			//  * ретейловый CWObject::OnEvalKey совпадает с исходником по
+			//    списку игнора (0x29ae68f1 BRUSHFLAGS, 0xbb22c193
+			//    LIGHT_MINLEVEL, 0x761be584 LIGHT_FLAGS, 0xc9ff4d0e
+			//    LIGHT_SHADOWMODEL, 0x7c9af741 NAME, 0xd3639553 COMMENT):
+			//    имя объекту даёт ТОЛЬКО ключ TARGETNAME.
+			// Значит в SP имя "Riddick" ретейл может получать лишь из
+			// данных -- TARGETNAME шаблона player_<мир>/player_base в
+			// SERVER\TEMPLATES (WDataRes_Core.cpp:271) либо переносом в
+			// дельта-стейте (имя пишется/читается: WObjCore.cpp:2447,
+			// WObj_CharIO.cpp:175). У нас шаблон имени не дал
+			// (`mapName=''`), поэтому строка ниже -- порт-сайд замена
+			// данных, а не копия кода ретейла. Открытый вопрос: теряем ли
+			// мы TARGETNAME шаблона (тогда это дефект загрузки шаблонов) --
+			// закрывается зондом по ключам шаблона, см. §34.
+			//
+			// Имя от карты приоритетнее (авторский контент);
+			// RIDDICK_PLAYERNAME=0 откатывает к "$PLAYER".
 			const char* pPlayerName = "Riddick";
 			if (!s_Keep)
 				pPlayerName = "$PLAYER";
 
 			const char* pCurName = GetName();
 			const bool bHasName = (pCurName && *pCurName);
+
+			// Ключ PLAYERNR приходит ДВАЖДЫ за смену тела игрока
+			// (CWObject_Game::Player_SetObject, WObj_Game.cpp:191-205):
+			// сначала "-1" СТАРОМУ объекту (отцепление), потом номер --
+			// новому. Имя даём только при подцеплении: иначе имя "Riddick"
+			// остаётся висеть на отцепленном, но живом теле (дубль игрока,
+			// катсценный двойник, m_iDummyPlayer), а
+			// Selection_GetSingleTarget при нескольких объектах с одним
+			// именем выбирает СЛУЧАЙНЫЙ (WServer_Core.cpp:739) -- половина
+			// линков ушла бы мимо. При отцеплении своё синтетическое имя
+			// снимаем (имя от карты не трогаем).
+			const bool bAttach = (KeyValuei >= 0);
 
 			{
 				static int s_Dbg = -1;
@@ -1252,16 +1294,36 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 				if (s_Dbg)
 				{
 					const char* pTpl = GetTemplateName();
-					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' template='%s' keep=%d -> %s\n",
+
+					// dup= сколько объектов сейчас отзывается на это имя.
+					// Всё, что больше 1, -- это разъезжающиеся линки:
+					// Selection_GetSingleTarget выбирает из них случайный.
+					int nDup = 0;
+					{
+						TSelection<CSelection::SMALL_BUFFER> Sel;
+						m_pWServer->Selection_AddTarget(Sel, pPlayerName);
+						const int16* pSel = NULL;
+						nDup = (int)m_pWServer->Selection_Get(Sel, &pSel);
+					}
+
+					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' template='%s' keep=%d dup=%d -> %s\n",
 						(int)m_iObject, KeyValuei, bHasName ? pCurName : "",
-						pTpl ? pTpl : "", s_Keep,
-						bHasName ? "kept" : pPlayerName);
+						pTpl ? pTpl : "", s_Keep, nDup,
+						!bAttach ? "detach" : (bHasName ? "kept" : pPlayerName));
 					fflush(stderr);
 				}
 			}
 
-			if (!s_Keep || !bHasName)
-				m_pWServer->Object_SetName(m_iObject, pPlayerName);
+			if (bAttach)
+			{
+				if (!s_Keep || !bHasName)
+					m_pWServer->Object_SetName(m_iObject, pPlayerName);
+			}
+			else if (bHasName && CFStr(pCurName).CompareNoCase(pPlayerName) == 0)
+			{
+				// Отцепили тело игрока -- имя должно уйти вместе с ролью.
+				m_pWServer->Object_SetName(m_iObject, "");
+			}
 			break;
 		}
 

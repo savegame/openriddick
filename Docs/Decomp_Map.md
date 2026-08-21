@@ -770,3 +770,33 @@ Read, ранее часть была в "мёртвой зоне" и не рез
 (таблицы выше) и с исправленным инструментом, так что следующий заход может
 начать не с нуля, а с этого кластера адресов + смещения `+8` для
 LOD-массива.
+
+---
+
+## GameClasses: диалоги, игрок, game-mod (проход 2026-08-21, §34 Research_Scripts_Dialogue)
+
+| FUN | Что это | Доказательство |
+|---|---|---|
+| `FUN_102ebe50` (`:476836`) | `CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes&)` (`WObj_CharDialogue.cpp:908`) | те же ветки целей линка в том же порядке: `"player"` (`:477493`), `"$this"`, `"$phone"` → `Selection_GetSingleTarget` (vtable `+0x4cc`), иначе имя; ветки команд `"POwns"` (`:477440`), `"ParamEquals"` (`:477674`); RANDOMLINK через `"%s:%s"` (`:477246`) |
+| `FUN_102eb160` (`:476411`) | `CWObject_Character::Char_SetDialogueChoices(const char*, int, int)` (`WObj_CharDialogue.cpp:1443`) | тот же разбор списка через `Char_ParseDialogueChoice`, затем развилка `m_iPlayer == -1` (`+0x2d16`) → `PlayDialogue_Hash(list[0], 2)`, иначе гейт `m_3PI_Mode & 3` (`+0x2074`) → netmsg `0x27` |
+| `FUN_102eb4f0` (`:476559`) | `CWObject_Character::Char_ActivateDialogueItem(CDialogueLink, int)` (`WObj_CharDialogue.cpp:1869`) | цепочка `DESTROYCAUSUALDIALOGUE` (msg `0x1077`, param `0xc0` = `CAI_Action::PRIO_FORCED`) → `Char_SetListener(0)` → `SETDIALOGUETOKENHOLDER` (`0x10ae`) → `PlayDialogue_Hash` → `BEGINDIALOGUE` (`0x101b`); совпадает построчно |
+| `~:475718-475740` | `CWObject_Character::Char_BeginDialogue(int, int)` (`WObj_CharDialogue.cpp:72`) | `if (startItem != 0)` → `OnMessage(SETDIALOGUETOKENHOLDER, m_iObject,0,m_iObject)` через vtable `+0x74` → `PlayDialogue_Hash(item, 2)`; **плюс** замок `m_ClientFlags |= 0x48600000` при `m_3PI_NoCamera == 0` у обоих (в снапшоте закомментировано) |
+| `~:445009-445040` | `CWObject_Character::OnRefresh` — снятие/переустановка замка разговора (`WObj_Char.cpp:2998-3010`) | `m_iPlayer == -1` → выход; `m_ClientFlags & 0x8000000` (PLAYERSPEAK); реплика кончилась → `& 0xb79fffff`, иначе → `| 0x48600000` |
+| `FUN_1019ed50` (`:275030`) | `CWObject_Game::Player_SetObject(int, int)` (`WObj_Game.cpp:188`) | `CRegistry::SetValuei(pReg, "PLAYEROBJ", ...)` и `"GAMEOBJ"`; вместо ключа `PLAYERNR` шлёт сообщение `0x10df` (-1 старому объекту, номер — новому) |
+| `FUN_10297250` (`:434777`) | `CWObject_CharPlayer::OnInitInstance(const aint*, int)` (`WObj_CharPlayer.cpp:37`) | `m_iPlayer` (`+0x2d16`) из `_pParam[0]`, затем биты `_pParam[1]`: `STARTCROUCHED`(4), `NIGHTVISION`(0x10), `OGR_NOCLIP`(0x1000), `OGR_SPECIALCLASS`(0x2000) |
+| `FUN_102095b0` (`:344237`) | game-mod **мультиплеера** (Pitch Black / Riot), спавн игроков — аналога в PS3-снапшоте НЕТ | в теле: `Object_SetName(obj,"Riddick")` (`:344353`), `"weapon_mp_cr_ulaks"` (`:344389`), `"Characters/Johns_rcap/Johns_rcap"` (`:344602`); класс — `CWObject_GameDM` (строки `TThinArray<struct CWObject_GameDM::CWObject_PickupInfo,...>`); соседи оперируют `"multiplayer_pb_Riddick"` (`:339565`, `:342523`) |
+| `~:590326-590345`, `~:906917-906936` | `CWObject::OnEvalKey` — ключ `TARGETNAME` (`WObjCore.cpp:2286`) | хэш `0x4fa7bb28` → `World_MangleTargetName` (vtable `+0x390`) → `Object_SetName` (vtable `+0x480`); список игнора совпадает с исходником (`0x29ae68f1` BRUSHFLAGS, `0xbb22c193` LIGHT_MINLEVEL, `0x761be584` LIGHT_FLAGS, `0xc9ff4d0e` LIGHT_SHADOWMODEL, `0x7c9af741` NAME, `0xd3639553` COMMENT) |
+
+Вспомогательное, полезное при следующих сверках GameClasses:
+
+* `FUN_103b87b0` — конструктор `CWObject_Message(id, p0, p1, iSender, Reason, ...)`;
+  первый числовой аргумент после буфера — id сообщения.
+* vtable `CWorld_Server`: `+0x460` `Object_Get`, `+0x480` `Object_SetName`,
+  `+0x4d4` `Message_SendToObject`, `+0x4cc` `Selection_GetSingleTarget`,
+  `+0x454` `Registry_GetClient`, `+0x390` `World_MangleTargetName`,
+  `+0x544` `Game_GetObject`, `+0x19c` `Game_GetObjectIndex`.
+* Нумерация `OBJMSG_CHAR_*` в ретейле **сдвинута** относительно снапшота на
+  участке автонумерации (после `0x1081`): у нас `SETDIALOGUETOKENHOLDER` =
+  `0x108a`, в ретейле — `0x10ae`. Явно заданные значения (`< 0x1082`)
+  совпадают: проверено на `0x1077` `DESTROYCAUSUALDIALOGUE` и `0x103d`
+  `EQUIPITEMTYPE`. Сопоставлять такие сообщения только по контексту.

@@ -2997,12 +2997,45 @@ GetLook(GetPositionMatrix()).GetString().Str()
 	
 	if(_pCD->m_iPlayer != -1)
 	{
+		// Замок разговора (§34). Ставится в Char_BeginDialogue
+		// (WObj_CharDialogue.cpp), снимается здесь. Сверено с ретейлом,
+		// GameClasses_decomp:445009-445040 -- та же развилка под тем же
+		// внешним условием (`m_iPlayer == -1` -> выход, `m_ClientFlags &
+		// 0x8000000` = PLAYERSPEAK):
+		//   реплика доиграла  -> m_ClientFlags &= 0xb79fffff (= ~0x48600000)
+		//   реплика играет    -> m_ClientFlags |= 0x48600000
+		// то есть маска снимается ЦЕЛИКОМ (включая NOCROUCH, которого в
+		// снапшоте не было) и, пока реплика идёт, ставится заново каждый
+		// тик -- иначе замок сбивает любой другой код, трогающий
+		// m_ClientFlags. Откат: RIDDICK_DLG_LOCK=0 (тогда ведём себя как
+		// снапшот: только снятие, без переустановки).
 		if(m_ClientFlags & PLAYER_CLIENTFLAGS_PLAYERSPEAK)
 		{
+			static int s_Lock = -1;
+			if (s_Lock < 0)
+			{
+				const char* e = getenv("RIDDICK_DLG_LOCK");
+				s_Lock = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			// При RIDDICK_DLG_LOCK=0 маска ровно снапшотная (без NOCROUCH),
+			// чтобы откат был полным: и замок не ставится, и лишний бит не
+			// снимается (NOCROUCH выставляют и другие механики --
+			// WObj_CharMechanics.cpp:506, WObj_CharCreate.cpp:2806).
+			uint32 DialogueLockMask = PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+			                          PLAYER_CLIENTFLAGS_PLAYERSPEAK;
+			if (s_Lock)
+				DialogueLockMask |= PLAYER_CLIENTFLAGS_NOCROUCH;
+
 			if (!_pCD->m_DialogueInstance.IsValid())
 			{
 				// Player has stopped talking.
-				ClientFlags() &= ~(PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK | PLAYER_CLIENTFLAGS_PLAYERSPEAK);
+				ClientFlags() &= ~DialogueLockMask;
+			}
+			else if (s_Lock)
+			{
+				// Still talking -- retail re-arms the lock every tick.
+				ClientFlags() |= DialogueLockMask;
 			}
 		}
 

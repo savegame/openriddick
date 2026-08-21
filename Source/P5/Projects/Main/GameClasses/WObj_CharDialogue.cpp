@@ -165,6 +165,62 @@ bool CWObject_Character::Char_BeginDialogue(int _iSpeaker, int _iStartItem)
 	{
 		OnMessage(CWObject_Message(OBJMSG_CHAR_SETDIALOGUETOKENHOLDER, m_iObject, 0, m_iObject));
 		PlayDialogue_Hash(_iStartItem, DIALOGUEFLAGS_FROMLINK, 0);
+
+		// НАЙДЕНО (§34, 2026-08-21): «разговор не держит игрока».
+		//
+		// В этом самом месте ретейл ставит на говорящего замок разговора,
+		// а в нашем снапшоте эта строка ЗАКОММЕНТИРОВАНА (см. выше,
+		// `//ClientFlags() |= NOMOVE | NOLOOK | DIALOGUE;`) -- снапшот PS3
+		// отстал от шипнутого билда.
+		//
+		// Ретейл, Char_BeginDialogue (GameClasses_decomp:475718-475740),
+		// та же последовательность: msg 0x10ae (SETDIALOGUETOKENHOLDER,
+		// m_iObject,0,m_iObject) через vtable+0x74 (OnMessage) ->
+		// PlayDialogue_Hash(item, 2 = DIALOGUEFLAGS_FROMLINK) -> и затем
+		//
+		//   if (pCD->0x2075 == 0 && pSpeakerCD->0x2075 == 0)
+		//       m_ClientFlags |= 0x48600000;
+		//
+		// 0x2075 -- это `m_3PI_NoCamera` (лежит сразу за `m_3PI_Mode` по
+		// 0x2074, порядок AutoVar'ов совпадает: WObj_CharClientData.h:818-819),
+		// а 0x48600000 при PLAYER_CLIENTFLAGS_USERSHIFT=17 раскладывается
+		// ровно в NOMOVE | NOLOOK | PLAYERSPEAK | NOCROUCH.
+		//
+		// Почему это важно именно для диалогов: PLAYERSPEAK -- это
+		// `bSpeaking` в Char_UpdateThirdPersonInteractive
+		// (WObj_CharMechanics.cpp:9162). Он и вводит игрока в 3PI (:9533),
+		// и не даёт из него вывалиться (:9217/:9236), а без 3PI
+		// `Char_SetDialogueChoices` молча выбрасывает netmsg с выборами
+		// (:1487-1495; гейт сверен с ретейлом, FUN_102eb160). Отсюда же
+		// отложенное наблюдение прогона 26: в ретейле из разговора нельзя
+		// уйти шагом -- это NOMOVE/NOLOOK, а не работа камеры.
+		//
+		// Снимается замок там же, где и раньше (WObj_Char.cpp:3000-3006),
+		// когда реплика доиграла; ретейл маску снимает целиком
+		// (0xb79fffff = ~0x48600000, GameClasses_decomp:445022) и, пока
+		// реплика играет, каждый тик ставит её заново (:445037).
+		//
+		// Отличие от ретейла осознанное: ставим замок только игроку
+		// (`m_iPlayer != -1`). Снятие маски и в ретейле, и у нас гейтится
+		// по игроку (декомпил :445009, `m_iPlayer == -1 -> выход`), так что
+		// NPC-у из NPC-NPC-болтовни флаги остались бы висеть навсегда.
+		//
+		// Откат: RIDDICK_DLG_LOCK=0.
+		static int s_Lock = -1;
+		if (s_Lock < 0)
+		{
+			const char* e = getenv("RIDDICK_DLG_LOCK");
+			s_Lock = (e && *e && *e == '0') ? 0 : 1;
+		}
+
+		if (s_Lock && pCD->m_iPlayer != -1 && pCD->m_3PI_NoCamera == 0 && pSpeakerCD->m_3PI_NoCamera == 0)
+		{
+			ClientFlags() |= PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+			                 PLAYER_CLIENTFLAGS_PLAYERSPEAK | PLAYER_CLIENTFLAGS_NOCROUCH;
+
+			DBG_OUT_LOG("[%.2f, Char %d, %s], DialogueLock: on (speaker=%d)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _iSpeaker);
+		}
 	}
 
 	// Pausing AI should not be relevant in the Darkness semi dialogue mode
@@ -1222,6 +1278,77 @@ void CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes &_Re
 				}
 				pCD->m_liDialogueChoice.MakeDirty();
 				pCD->m_DialogueChoiceTick = pCD->m_GameTick;
+
+				// РЕТЕЙЛ ДЕЛАЕТ ЗДЕСЬ БОЛЬШЕ (§34), эксперимент, по
+				// умолчанию ВЫКЛЮЧЕН: RIDDICK_DLG_AUTOSINGLE=1.
+				//
+				// EvalDialogueLink ретейла (FUN_102ebe50, ветка "player" --
+				// GameClasses_decomp:477493-477596) после наполнения списка
+				// выборов проверяет
+				//
+				//   if (bSingle && (pPlayerCD->m_3PI_Mode & 3) == 2)   // MODE_DIALOGUE
+				//
+				// и тогда: шлёт игроку 0x103d (EQUIPITEMTYPE, param 0 --
+				// убрать оружие), зовёт Char_ActivateDialogueItem
+				// (FUN_102eb4f0, опознан по цепочке DESTROYCAUSUALDIALOGUE
+				// 0xc0 -> SETDIALOGUETOKENHOLDER 0x10ae -> BEGINDIALOGUE
+				// 0x101b) для ПЕРВОГО выбора от имени игрока и ставит ему
+				// m_ClientFlags |= 0x48600000. То есть при единственном
+				// варианте ответа реплика игрока стартует сама, без нажатия
+				// use.
+				//
+				// `bSingle` в ретейле -- «у игрока ровно один вариант»:
+				// nRandoms==1 в RANDOMLINK (:477218), либо линк с целью
+				// player и без запятой (:477253), либо линк буквально
+				// "Player:99" (:477329). Для "Player:99" ретейл замок НЕ
+				// ставит (:477573) -- это «Риддик буркнул под нос», а не
+				// разговор.
+				//
+				// Почему выключено: наблюдаемого дефекта на этой ветке у нас
+				// нет (прогон 26 закрыл петлю), а авто-старт реплики меняет
+				// поток разговора и в худшем случае продублирует строку,
+				// которую уже играет путь диалогового инстанса. Флаг даёт
+				// проверить это за один прогон.
+				{
+					static int s_AutoSingle = -1;
+					if (s_AutoSingle < 0)
+					{
+						const char* e = getenv("RIDDICK_DLG_AUTOSINGLE");
+						s_AutoSingle = (e && *e && *e != '0') ? 1 : 0;
+					}
+
+					if (s_AutoSingle && pCD->m_liDialogueChoice.Len() == 1)
+					{
+						const CFStr FullLink = bUseNewBuf ? NewBuf : CFStr(_Res.m_pLink);
+						bool bSingle = true;
+						for (const char* pIt = Items[iSel].Str(); pIt && *pIt; pIt++)
+							if (*pIt == ',')
+							{
+								bSingle = false;
+								break;
+							}
+						const bool bNoLock = (FullLink.CompareNoCase("Player:99") == 0);
+
+						CWObject_Character* pPlayerChar = CWObject_Character::IsCharacter(iTarget, m_pWServer);
+						CWO_Character_ClientData* pPlayerCD = pPlayerChar ? GetClientData(pPlayerChar) : NULL;
+						const uint8 PlayerMode = pPlayerCD
+							? (uint8)(pPlayerCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK)
+							: (uint8)THIRDPERSONINTERACTIVE_MODE_NONE;
+
+						if (bSingle && pPlayerChar && PlayerMode == THIRDPERSONINTERACTIVE_MODE_DIALOGUE)
+						{
+							DBG_OUT_LOG("[%.2f, Char %d, %s], AutoSingle: activating '%s' on player %d (noLock=%d)",
+								m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+								Items[iSel].Str(), iTarget, (int)bNoLock);
+
+							Char_ActivateDialogueItem(pCD->m_liDialogueChoice[0], iTarget);
+
+							if (!bNoLock)
+								pPlayerChar->ClientFlags() |= PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+								                             PLAYER_CLIENTFLAGS_PLAYERSPEAK | PLAYER_CLIENTFLAGS_NOCROUCH;
+						}
+					}
+				}
 				return;
 			}
 			else if(Targets[iSel].CompareNoCase("$this") == 0)

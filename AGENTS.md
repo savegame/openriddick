@@ -92,6 +92,14 @@
     кластер-локальных палитр максимум по 48 костей (потолок 64), а без
     флага `skin=0` — GPU-скиннинг не выполняется вообще. Смотреть после
     включения: `skin=`, `maxbones=`, `skinovercap=`, `verts=`/`vconv=`.
+  - **Диалоги** (2026-08-21, подробно — `Docs/HacksAndHooks.md` и
+    `Docs/Research_Scripts_Dialogue.md` §33-34): `RIDDICK_DBG_DLG=1` —
+    штатная трасса диалоговой системы; `RIDDICK_PLAYERNAME=0` — не давать
+    игроку имя `Riddick` (вернуть `$PLAYER`); `RIDDICK_DLG_LOCK=0` — снять
+    замок разговора (`NOMOVE|NOLOOK|PLAYERSPEAK|NOCROUCH` в
+    `Char_BeginDialogue`, как в ретейле; без него игрок не входит в 3PI и
+    выборы не доходят); `RIDDICK_DLG_AUTOSINGLE=1` — ретейловый авто-старт
+    единственного ответа игрока (по умолчанию выкл).
   - `RIDDICK_DBG_PALETTE=1` — `[MP] calls= indirect=(max N bones) full=(max N)`
     в `Cluster_SetMatrixPalette`: размеры палитр независимо от того, какой
     путь (CPU/GPU) выбран движком.
