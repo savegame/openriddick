@@ -422,9 +422,12 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 						if (_pLayers[i].m_spSequence != NULL)
 						{
 							Dur = _pLayers[i].m_spSequence->GetDuration();
+							// Публичный CMTime-оверлоад (XRAnim.h:697); fp32-
+							// версия того же метода -- protected.
 							vec128 MV;
 							CQuatfp32 RT;
-							_pLayers[i].m_spSequence->EvalTrack0(_pLayers[i].m_Time, MV, RT);
+							_pLayers[i].m_spSequence->EvalTrack0(
+								CMTime::CreateFromSeconds(_pLayers[i].m_Time), MV, RT);
 							MV = M_VSetW0(MV);
 							MvLen = CVec4Dfp32(MV).Length();
 							RotK = RT.k[3];
