@@ -1199,15 +1199,14 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			// `Object_SetName` именно переименовывает: снимает старый узел из
 			// `m_NameSearchTree` и ставит новый (`WServer_Obj.cpp:262-287`).
 			//
-			// Само имя `$PLAYER` при этом никому не нужно: в исходниках оно
-			// не встречается больше нигде, а любая цель, начинающаяся с `$`,
+			// Служебное имя `$PLAYER` никому не нужно: в исходниках оно не
+			// встречается больше нигде, а любая цель, начинающаяся с `$`,
 			// разбирается раньше поиска по имени --
 			// `CWO_SimpleMessage::ResolveSpecialTargetName` отдаёт для
 			// `$player` отдельный SPECIAL_TARGET_PLAYER
 			// (`WObj_SimpleMessage.cpp:423-441`). В декомпиле ретейла строки
-			// `"$PLAYER"` нет ни в одном из пяти модулей, хотя строковые
-			// литералы там выводятся (`"$ROOM"`, `"$player"`, `"POwns"` и
-			// прочие видны) -- то есть ретейл имя игрока не перетирает.
+			// `"$PLAYER"` нет ни в одном из пяти модулей -- ретейл вместо
+			// этого даёт игроку настоящее имя "Riddick" (см. §33 ниже).
 			//
 			// Оставляем имя от карты, если оно есть. `RIDDICK_PLAYERNAME=0`
 			// возвращает прежнее поведение.
@@ -1217,6 +1216,28 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 				const char* e = getenv("RIDDICK_PLAYERNAME");
 				s_Keep = (e && *e && *e == '0') ? 0 : 1;
 			}
+
+			// НАЙДЕНО (2026-08-21, §33): откуда ретейл берёт имя для линков
+			// вида 'Riddick:99'. Прошёл grep'ом все декомпилы -- строка
+			// "Riddick" присваивается объекту ровно ОДИН раз во всём
+			// ретейле: FUN_102095b0 (GameClasses_decomp:344353), путь спавна
+			// игрока в game-mod'е вызывает Object_SetName(objID, "Riddick")
+			// при появлении персонажа игрока. Поэтому там
+			// Selection_GetSingleTarget("Riddick") резолвится, а у нас --
+			// нет: карта имени не даёт (`mapName=''`), шаблон называется
+			// 'player_<map>' (прогон 23-24), и безымянному объекту мы
+			// ставили служебное "$PLAYER", которого в ретейле вообще нет.
+			// Итог: линки на игрока по имени обрывали разговор -- этим и
+			// объясняется нестабильность «иногда диалог есть, иногда нет»:
+			// работали только цепочки с целью буквально 'Player' или на NPC
+			// по имени.
+			//
+			// Правка: безымянному персонажу игрока даём имя "Riddick" --
+			// как ретейл. Имя от карты приоритетнее (осторожнее с авторским
+			// контентом); RIDDICK_PLAYERNAME=0 откатывает к "$PLAYER".
+			const char* pPlayerName = "Riddick";
+			if (!s_Keep)
+				pPlayerName = "$PLAYER";
 
 			const char* pCurName = GetName();
 			const bool bHasName = (pCurName && *pCurName);
@@ -1230,25 +1251,17 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 				}
 				if (s_Dbg)
 				{
-					// Замер прогона 23: карта имени игроку НЕ даёт
-					// (`mapName=''`), поэтому правка «сохранить имя карты»
-					// оказалась холостой, а `LinkTarget: 'Riddick'` по-прежнему
-					// не резолвится. Ретейл при этом резолвит его тем же
-					// `Selection_GetSingleTarget` (сверено:
-					// GameClasses_Win32_x86_dll_decomp.c:477592-477605, ветки
-					// `$this`/`$phone`/имя — фолбэка нет). Значит имя объекту
-					// даёт что-то ещё. Единственный оставшийся кандидат --
-					// имя шаблона, его и печатаем.
 					const char* pTpl = GetTemplateName();
 					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' template='%s' keep=%d -> %s\n",
 						(int)m_iObject, KeyValuei, bHasName ? pCurName : "",
-						pTpl ? pTpl : "", s_Keep, (s_Keep && bHasName) ? "kept" : "$PLAYER");
+						pTpl ? pTpl : "", s_Keep,
+						bHasName ? "kept" : pPlayerName);
 					fflush(stderr);
 				}
 			}
 
 			if (!s_Keep || !bHasName)
-				m_pWServer->Object_SetName(m_iObject, "$PLAYER");
+				m_pWServer->Object_SetName(m_iObject, pPlayerName);
 			break;
 		}
 

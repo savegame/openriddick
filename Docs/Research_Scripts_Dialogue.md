@@ -2035,3 +2035,74 @@ if ((*(short *)(iVar2 + 0x2d16) == -1) && list && len > 0) {   // m_iPlayer == -
 
 Следующий шаг — найти, что в ретейле включает 3PI (или ставит
 `PLAYERSPEAK`) при реплике NPC, адресованной игроку.
+
+---
+
+## §33. РЕШЕНО: ретейл называет игрока "Riddick" из кода спавна (2026-08-21)
+
+### Где ретейл берёт имя
+
+Прошёл grep'ом все декомпилы (`GameClasses`, `GameWorld`, `MCCDyn`, `MSystem`,
+`MXR`, `RndrGL`, `DarkAthena_exe`) на строку `"Riddick"`. Присваивается объекту
+ровно **одно место во всём ретейле**:
+
+```c
+// FUN_102095b0 (GameClasses_Win32_x86_dll_decomp.c:344237, вызов на :344353)
+(**(code **)(**(int **)((int)this + 0x2b0) + 0x480))
+          (*(undefined4 *)(iVar5 + 0x224), "Riddick");
+```
+
+`vtable+0x460(objID)` рядом — это `Object_Get`, значит `vtable+0x480` —
+`Object_SetName`. Контекст функции: итерация игроков (`Player_GetNum()`,
+`m_lspPlayers`), выдача `weapon_mp_cr_ulaks` при отсутствии оружия слота 8,
+состояния респавна 0/2/3, netmsg `0x10a0` — то есть **путь спавна игрока в
+game-mod'е**. При появлении персонажа игрока ретейл вызывает
+`Object_SetName(objID, "Riddick")`.
+
+Строки `"weapon_mp_cr_ulaks"` в нашем PS3-снапшоте нет — этот кусок game-mod'а
+между снапшотом и ретейлом расходился, поэтому в исходнике правка не видна.
+
+### Почему диалоги были нестабильны
+
+Цепочка замкнулась:
+
+1. Линки диалогов адресуют следующую реплику **по имени объекта**
+   (`Link: Riddick:99`) или литерально `Player`/именем NPC.
+2. `Selection_GetSingleTarget("Riddick")` у нас давала 0 → разговор обрывался
+   (`SETDIALOGUETOKENHOLDER, -1`). Работали только цепочки с целью `Player`
+   (§31) — отсюда «иногда да, иногда нет».
+3. Фолбэк §32 доставлял выборы игроку, но их выбрасывал гейт 3PI
+   (`Char_SetDialogueChoices` шлёт netmsg только при `m_3PI_Mode != 0`;
+   сверено с ретейлом — там тот же гейт, `*(byte*)(pCD+0x2074) & 3`).
+
+Недостающее звено §32 найдено там, где не искали: **при нажатии use на
+персонаже игрок входит в 3PI сразу**, до отправки `OBJMSG_CHAR_USE`
+(`WObj_Char.cpp:807-811`):
+
+```cpp
+pCD->m_3PI_FocusObject = iBest;
+pCD->m_3PI_Mode = THIRDPERSONINTERACTIVE_MODE_DIALOGUE;   // вход в 3PI
+pChar->Char_SetListener(m_iObject);
+m_iLastAutoUseObject = iBest;
+m_pWServer->Message_SendToObject(Msg, iBest);
+```
+
+То есть при честном «подошёл и нажал use» игрок УЖЕ в 3PI к моменту, когда
+реплика NPC заканчивается и линк `Riddick:99` приходит игроку — выборы
+уходят netmsg'ом, UI показывает варианты. Гейт §32 не ломается, он просто
+требовал нормального сценария начала разговора (а авто-use на подходе,
+`WObj_CharMechanics.cpp:9523`, 3PI не включает — закомментировано ещё в
+снапшоте — поэтому приветствие «само» выборы игроку и не доставляет).
+
+### Правка
+
+`WObj_CharCreate.cpp`, keyvalue `PLAYERNR`: безымянному персонажу игрока
+ставится имя **"Riddick"** вместо служебного `"$PLAYER"`. Имя от карты
+приоритетнее. Откат: `RIDDICK_PLAYERNAME=0` (прежнее поведение). Зонд
+`[PLAYERNAME]` печатает выбранное имя.
+
+Ожидание для прогона: `[PLAYERNAME] ... -> Riddick`, затем
+`LinkTarget: 'Riddick' -> iTarget=2559` (не 0), `SetDialogueChoices: '99'
+parsed=1 iPlayer=0 3PIMode=2` и появление выборов на экране после нажатия
+use. Флаг `RIDDICK_DLGLINK_PLAYERFALLBACK` больше не нужен (выключен и
+оставлен как диагностика).
