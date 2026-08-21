@@ -810,9 +810,19 @@ void CWAG2I_Token::EnterState(const CWAG2I_Context* _pContext, int16 _iMoveToken
 					Msg += ", iAnim -1";
 				}
 
-				//CStr Msg2 = Msg.GetStrSep("->");
-				//Msg = Msg.Del(0,Msg.Len()/2);
-				//ConOutL(Msg2);
+				// Прогон 31 (застывшая ходьба): к трассе входа -- свойства
+				// направления на момент входа. Номера -- значения enum
+				// PROPERTY_FLOAT_* (WAG2_ClientData_Game.h:329-341), здесь
+				// недоступного по зависимостям: 18=MOVEVELOCITY,
+				// 20=MOVEANGLE (градусы относительно взгляда),
+				// 22=MOVEANGLEUNIT. Флап FWD<->BWD через тик при ровном
+				// маршруте = эти числа прыгают через порог 90/180.
+				if (m_pAG2I->GetEvaluator() != NULL)
+					Msg += CStrF(" vel=%.1f ang=%.0f angU=%.3f",
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(18),
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(20),
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(22));
+
 				ConOutL(Msg);
 				//if (AG2IDebugFlags & 16)
 				{
