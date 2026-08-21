@@ -376,15 +376,18 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 		{
 			// Per-object budget so one character cannot flood the log.
 			//
-			// Печатаем ПЕРИОДИЧЕСКИ (каждый 30-й вызов на объект), а не первые
-			// несколько кадров: вопрос «замирает ли анимация ходьбы» -- это
-			// вопрос о ПРОИЗВОДНОЙ времени слоя, и одиночный снимок на него не
-			// отвечает. Поэтому в строке есть dt (прирост m_Time с прошлой
-			// печати) и v (пройденное расстояние за тот же интервал):
-			//   v>0, dt==0  -- персонаж едет, анимация стоит: замер попал в цель,
-			//                  искать в AG2/подаче времени слоя;
-			//   v>0, dt>0   -- слой живой, и «замершая ходьба» -- уже не здесь,
-			//                  а ниже по конвейеру (палитра/скиннинг/рендер).
+			// Печатаем ПЕРИОДИЧЕСКИ и ТОЛЬКО на ходу (прогон 28: вопрос
+			// сузился -- idle-экшены играют, застывает именно ходьба; в
+			// i1_showers-замере obj=109 с dt>0 мог оказаться «работающим»
+			// персонажем, атрибуции не было). В строке:
+			//   v      -- пройденное расстояние с прошлой печати;
+			//   dt     -- прирост m_Time слоя за тот же интервал;
+			//   dur    -- длительность клипа слоя;
+			//   mv/rot -- СЭМПЛ КОРНЕВОГО ТРЕКА клипа на текущем t слоя
+			//             (|move| и скаляр поворота). Если t растёт, а
+			//             mv/rot не меняются -- сэмплер/данные клипа
+			//             отдают константу; если и t стоит -- время слоя.
+			//   v>0 при dt==0 -- время слоя не подаётся: искать в AG2.
 			static int16 s_lObj[16] = { 0 };
 			static uint16 s_lCalls[16] = { 0 };
 			static uint16 s_lPrints[16] = { 0 };
@@ -396,29 +399,46 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
 				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
 			}
-			if (iSlot >= 0 && s_lPrints[iSlot] < 40 && ((s_lCalls[iSlot]++ % 30) == 0))
+			if (iSlot >= 0 && ((s_lCalls[iSlot]++ % 10) == 0))
 			{
-				s_lPrints[iSlot]++;
 				const CVec3Dfp32 Pos = _pObj->GetPosition();
-				const fp32 Dist = (s_lPrints[iSlot] > 1) ? (Pos - s_lPrevPos[iSlot]).Length() : 0.0f;
-				s_lPrevPos[iSlot] = Pos;
-				fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f",
-					(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist);
-				for (int i = 0; i < nLayers && i < 4; i++)
+				const fp32 Dist = (Pos - s_lPrevPos[iSlot]).Length();
+				// Стоит на месте -- не печатаем вовсе (prev-позицию тоже не
+				// трогаем: первый ходячий снимок покажет путь за простой).
+				if (Dist >= 0.5f && s_lPrints[iSlot] < 60)
 				{
-					// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
-					// layer as "full body" when base == 0 AND blend > 0.999; if no
-					// such layer exists it aborts and poisons every bone with QNaN.
-					const fp32 dT = _pLayers[i].m_Time - s_lPrevTime[iSlot][i];
-					s_lPrevTime[iSlot][i] = _pLayers[i].m_Time;
-					fprintf(stderr, "  L%d{seq=%d base=%d t=%.3f dt=%.3f ts=%.3f blend=%.3f fl=0x%x}",
-						i, (int)(_pLayers[i].m_spSequence != NULL),
-						(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time, dT,
-						_pLayers[i].m_TimeScale, _pLayers[i].m_Blend,
-						(unsigned)_pLayers[i].m_Flags);
+					s_lPrints[iSlot]++;
+					s_lPrevPos[iSlot] = Pos;
+					fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f",
+						(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist);
+					for (int i = 0; i < nLayers && i < 4; i++)
+					{
+						// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
+						// layer as "full body" when base == 0 AND blend > 0.999; if no
+						// such layer exists it aborts and poisons every bone with QNaN.
+						const fp32 dT = _pLayers[i].m_Time - s_lPrevTime[iSlot][i];
+						s_lPrevTime[iSlot][i] = _pLayers[i].m_Time;
+						fp32 MvLen = -1.0f, RotK = -1.0f, Dur = -1.0f;
+						if (_pLayers[i].m_spSequence != NULL)
+						{
+							Dur = _pLayers[i].m_spSequence->GetDuration();
+							vec128 MV;
+							CQuatfp32 RT;
+							_pLayers[i].m_spSequence->EvalTrack0(_pLayers[i].m_Time, MV, RT);
+							MV = M_VSetW0(MV);
+							MvLen = CVec4Dfp32(MV).Length();
+							RotK = RT.k[3];
+						}
+						fprintf(stderr,
+							"  L%d{seq=%d base=%d t=%.3f dt=%.3f ts=%.3f blend=%.3f dur=%.2f mv=%.3f rotw=%.3f fl=0x%x}",
+							i, (int)(_pLayers[i].m_spSequence != NULL),
+							(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time, dT,
+							_pLayers[i].m_TimeScale, _pLayers[i].m_Blend, Dur, MvLen, RotK,
+							(unsigned)_pLayers[i].m_Flags);
+					}
+					fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);
+					fflush(stderr);
 				}
-				fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);
-				fflush(stderr);
 			}
 		}
 	}
