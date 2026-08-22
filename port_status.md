@@ -533,13 +533,24 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
      стика с курсом, а не работа доворота.
    * Отдельный вопрос (второстепенный): Moderatef не сдвигает tca даже
      на ~0.02 -- проверить отдельно.
-   * СЛЕДСТВИЕ ДЛЯ ФИКСА: либо AI должен писать Control_Move в
-     локальных координатах персонажа (как ретейл?), либо доворот должен
-     использовать свойство фактического относительного угла
-     MOVEANGLEUNIT(22) вместо CONTROL(16) для m_iPlayer==-1. ПЕРЕД
-     ПРАВКОЙ -- сверить с декомпилом, как AI ретейла пакует
-     CONTROL_MOVE для патрулей (AICore/steering, GameClasses), и что
-     реально лежит в m_Control_Move NPC.
+   **СЛЕДСТВИЕ ДЛЯ ФИКСА (уточнено разбором AICore).** AI НЕ виноват:
+   `m_bWorldspaceMovement` по умолчанию false (только дарклинги с
+   DARKLING_FLAGS_WORLDSPACE, AICore.cpp:19003), локальная ветка
+   steering'а (:6392-6404) считает стик правильно:
+   `Heading = HeadingToPosition(..., GetNextLook()[2])` -- ЗАГОЛОВОК К
+   ЦЕЛИ ОТНОСИТЕЛЬНО НАПРАВЛЕНИЯ ВЗГЛЯДА. Постоянный боковой стик
+   (mauc=0.750) при постоянно меняющемся курсе означает, что СИСТЕМА
+   ВЗГЛЯДА КРУТИТСЯ ВМЕСТЕ С КУРСОМ (look живёт и доворачивается), а
+   ВОТ YAW ПОЗИЦИОННОЙ МАТРИЦЫ ОБЪЕКТА ЗА ВЗГЛЯДОМ НЕ СЛЕДУЕТ.
+   Недостающее звено ОДНО: кто в ретейле синхронизирует yaw объекта
+   NPC с Control_Look/look-heading. Кандидаты: хвост серверного
+   refresh'а (запись матрицы из Look-углов), физика (Phys_GetUserAccelleration
+   ставит только транслейт, WObj_CharPhys.cpp:747-749), либо регион
+   FUN_1034bc90 (не декомпилирован). Задача следующей сессии: найти в
+   декомпиле запись yaw объектной матрицы из Look-углов для NPC
+   (якорь: CreateMatrixFromAngles(0,...) рядом с SetPosition /
+   Object_SetRotation; в декомпиле -- vtable-вызов SetRotation рядом с
+   чтением Control_Look). После находки -- сверка с нашим деревом и фикс.
 
    **Полная команда прогона 34:** пересборка, затем
    `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.
