@@ -800,3 +800,58 @@ LOD-массива.
   `0x108a`, в ретейле — `0x10ae`. Явно заданные значения (`< 0x1082`)
   совпадают: проверено на `0x1077` `DESTROYCAUSUALDIALOGUE` и `0x103d`
   `EQUIPITEMTYPE`. Сопоставлять такие сообщения только по контексту.
+
+## Поворот тела персонажа (2026-08-22)
+
+Контекст: «застывшая ходьба» NPC (курс уплывает от фасинга, тело не
+крутится, граф флапает состояниями направления). Все FUN в
+GameClasses_Win32_x86_dll_decomp.c сверены по машинному коду шипнутого
+Content/GameClasses_Win32_x86.dll (base 0x10000000). ГЛАВНЫЙ ФАКТ:
+CalculateBodyAngles (наш WObj_CharAnim.cpp:468, `#if 0`) в PC-ретейле
+ОТСУТСТВУЕТ ТАК ЖЕ -- записей в m_Anim_BodyAngleZ вне сети/сообщений/
+размещения нет вовсе; Client_Anim вычищен одинаково. Расхождения
+снапшота с ретейлом здесь НЕТ. Живой доворот тела = цепочка
+TurnCorrection (см. ниже), и она в снапшоте есть и активна.
+
+| FUN / адрес | Что это | Доказательство |
+|---|---|---|
+| `FUN_1035fac0` | `CWObject_Character::OnClientUpdate` (`WObj_CharIO.cpp:1394`) | Error_static «Unable to unpack client update.»; распаковка `piVar4[0x2af] = (short)obj[+0x1F0] * 1/65536` = наша :1415 |
+| `FUN_102a9f00` | `OnRefresh_ServerOnly` (`WObj_Char.cpp:2755`) | в конце: `fld [pCD+0xABC]; fmul qword 65536.0 ([0x10741028]); call _ftol; mov word [obj+0x1F0],ax` = наша :2929; перед этим `Client_Anim(...,4)` |
+| `FUN_10685660` | MSVC `_ftol` (float→int) | cvttss2si-хелпер |
+| `FUN_1038c1a0` | `Client_Anim` (`WObj_CharAnim.cpp:827`, усечённая) | только выбор IK-режима + бленд 0.15 (=PLAYER_ANIMBLENDSPEEDVISUAL); 3 вызова с last arg 4/4/16 = наши :1790/:2928/:3422; CalculateBodyAngles внутри НЕТ |
+| `FUN_102be9c0` | `GetAnimPhysAldreadyAdjusted` (`WObj_CharMisc.cpp:177`) | switch(2→0.5 BACKWARD, 3→-0.25 LEFT, 4→0.25 RIGHT, иначе 0) — совпадение байт-в-байт |
+| `FUN_102bf5b0` | `AdjustTurnCorrection` (`WObj_CharMisc.cpp:199`) | ранний выход при MoveType==0; WrapBodyAngle-паттерн; модерация ×100 (Moderatef); кламп ±(byte pCD+0x206)/360 (=GetMaxBodyOffset()/360); запись сеттером FUN_10301a70 |
+| `FUN_1029d120` | `OnRefresh_ServerPredicted(_Extras)` (`WObj_Char.cpp:3338/3092`) | вызывает FUN_102bf5b0 c MoveType из obj+0x205 под флагом байта [AG2I+0xA] (=AG2_STATEFLAG_USETURNCORRECTION), иначе push 5 (ANIMPHYSMOVETYPE_RESET) — структура нашей пары if/else |
+| `FUN_102aa880` | `OnClientRefresh_TrueClient` (`WObj_Char.cpp:3418+`) | тик-инкремент с веткой m_iPlayer==-1; FUN_1038c1a0(...,16); FUN_102bf5b0 c MoveType из obj+0x205 |
+| `FUN_10301a70` | autovar-сеттер `m_TurnCorrectionTargetAngle` | ровно 4 вызывающих = 4 места записи в снапшоте (CharMisc.cpp:257, CharClientData.cpp:1642, CharMsg.cpp:7780, CharPhys.cpp:1870) |
+| `FUN_1034bc90` | НЕ декомпилирован (Ghidra timeout, регион ~0x1034bc90..0x103572f0) | в сырых байтах опознаны обработчики OBJMSG_AIQUERY_GETBODYANGLEZ / CHAR_SETBODYANGLEZ (копия fp32 через указатель сообщения) и телепортный `Heading=1-AngleFromVector(fwd)` (@0x10356654) = наш WObj_CharMsg.cpp:3101/2118/3211. Здесь же, вероятно, OnGetAnimState — КАНДИДАТ НА ПОВТОРНЫЙ ЭКСПОРТ ИЗ GHIDRA |
+| `FUN_10305540` | `CWO_Character_ClientData::Clear`/reset | обнуляет 0xAB8..0xAC4 (углы тела), 0xAC8 (LastMove), 0xAD4/0xAE0 (moderated move), кватернионы 0xAF0/0xB00 с w=1.0 |
+
+### Раскладка CWO_Character_ClientData (ретейл, УСТАНОВЛЕННО)
+
+`+0x28` m_GameTick(i32); `+0x38` m_GameTime(f64); `+0x4E4`
+m_Control_Press; `+0x4EC` m_Control_Released; `+0xA9C`
+m_TurnCorrectionAngleChange; `+0xAB8` m_Anim_LastBodyAngleZ;
+**`+0xABC` m_Anim_BodyAngleZ**; `+0xAC0` m_Anim_LastBodyAngleY;
+`+0xAC4` m_Anim_LastBodyAngleX; `+0xAC8` m_LastMove(vec3);
+`+0xAD4` m_Anim_ModeratedMove; `+0xAE0` m_Anim_ModeratedMovePrim;
+`+0xAF0` m_Anim_LastLook (w@+0xAFC); `+0xB00` m_Anim_Look (w@+0xB0C);
+`+0x206` байт MaxBodyOffset (AG2); `+0x2D16` m_iPlayer(i16).
+CWObject_CoreData: **`+0x1F0` m_iAnim1(i16)** =
+(int16)(BodyAngleZ*65536); `+0x205` AnimPhysMoveType(byte);
+`+0x1D4` controlmode-нибл (>>8 & 0xF).
+
+Поля m_Anim_TurningState / m_Anim_BodyAngleZTarget /
+m_Anim_BodyAngleX/Y в PC-ретейле не найдены ни по смещениям, ни по коду
+-- выпилены вместе с CalculateBodyAngles ещё до релиза.
+
+### Следствие для «застывшей ходьбы»
+
+Цепочка ретейла: флаг состояния AG2 USETURNCORRECTION + свойства
+MOVEANGLEUNIT/MOVEANGLEUNITCONTROL -> AdjustTurnCorrection (наша,
+WObj_CharMisc.cpp:199, активна) -> m_TurnCorrectionTargetAngle ->
+OnGetAnimState доворачивает MatBody при рендере. Проверять у нас:
+(а) выставлен ли у ходячих NPC флаг USETURNCORRECTION и AnimPhysMoveType
+(иначе ранний выход); (б) пишутся ли свойства MOVEANGLEUNIT* (при пустых
+rot-треках должны считаться из корневого движения AG2); (в) доходит ли
+вызов AdjustTurnCorrection до NPC.

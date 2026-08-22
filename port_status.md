@@ -486,6 +486,36 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
      выяснить, чем 281 отличается от 310 в момент эпизода (control mode?
      состояние графа? флаги AI?).
 
+   **Декомпил-экспедиция (2026-08-22, суб-агент; подробности и таблица
+   соответствий -- Docs/Decomp_Map.md «Поворот тела персонажа»).**
+   * CalculateBodyAngles мёртв И В PC-РЕТейле: записей в m_Anim_BodyAngleZ
+     (+0xABC) вне сети/сообщений/размещения нет. `#if 0` соответствует
+     ретейлу, расхождения нет. Client_Anim вычищен одинаково
+     (FUN_1038c1a0 = только IK-режим).
+   * ЖИВОЙ доворот тела = TurnCorrection-цепочка: флаг состояния AG2
+     USETURNCORRECTION -> AdjustTurnCorrection -> m_TurnCorrectionTargetAngle
+     -> OnGetAnimState доворачивает MatBody ПРИ РЕНДЕРЕ (визуальное тело,
+     не физика!). У нас вся цепочка ЕСТЬ и текстуально совпадает:
+     WObj_CharMisc.cpp:199 (AdjustTurnCorrection), WObj_Char.cpp:3116-3128
+     (гейт), WObj_CharAnim.cpp:996-1005 (BodyAngle) / :1149-1151
+     (применение). Для NPC WantedAngle = свойство MOVEANGLEUNITCONTROL(16)
+     = угол ВИРТУАЛЬНОГО СТИКА от AI (WObj_CharClientData.cpp:1236).
+   * Офсеты ретейла установлены: BodyAngleZ +0xABC, m_iAnim1 obj+0x1F0,
+     AnimPhysMoveType obj+0x205, MaxBodyOffset байт pCD+0x206.
+     FUN_1034bc90 (~43КБ) НЕ декомпилирован (Ghidra timeout) -- там
+     OnGetAnimState и обработчики GET/SETBODYANGLEZ; кандидат на
+     повторный экспорт.
+   * Остаточный вопрос: почему у части NPC доворот не срабатывает. Новая
+     ревизия [MOVE] печатает tc= (флаг USETURNCORRECTION), mt=
+     (AnimPhysMoveType -- при 0 ранний выход), tca= (TargetAngle),
+     maxbo= (кламп), mauc= (свойство 16). Различитель прогона 34:
+     tc=0 -- состояния клипов не просят доворот; mt=0 -- ранний выход;
+     mauc=0 -- AI не задаёт виртуальный стик; tca стоит при живых
+     остальных -- Moderatef/кламп.
+
+   **Полная команда прогона 34:** пересборка, затем
+   `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.
+
    **Отдельное наблюдение (не разбиралось):** Риддик не приседает, пока не
    переоденется в душевых, после переодевания приседание работает. Смена
    одежды меняет модель и её граф анимаций — вероятная связь с тем же
