@@ -2595,7 +2595,25 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 			fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d block=%d -> FAIL(noreact)\n",
 				(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue,
 				(int)_iToken, (int)m_lTokens[iToken].GetGraphBlock());
-			fflush(stderr);
+			// Прогон 38: дамп среза реакций блока. GetMatchingReaction ищет
+			// БИНАРНЫМ ПОИСКОМ по [base, base+num) в m_lFullReactions; если
+			// наш загрузчик v6 читает Base/Num неверно или список не
+			// отсортирован -- поиск промахивается мимо живых реакций.
+			const CXRAG2_GraphBlock* pDbgBlock = pAnimGraph->GetGraphBlock(m_lTokens[iToken].GetGraphBlock());
+			if (pDbgBlock)
+			{
+				const int iBase = pDbgBlock->GetBaseReactionIndex();
+				const int nR = pDbgBlock->GetNumReactions();
+				fprintf(stderr, "[AG2-IMP]   block reactions: base=%d num=%d\n", iBase, nR);
+				for (int i = 0; i < nR && i < 16; ++i)
+				{
+					const CXRAG2_Reaction* pR = pAnimGraph->GetReaction(iBase + i);
+					if (pR)
+						fprintf(stderr, "[AG2-IMP]   r[%d]: type=%d val=%d\n", i,
+							(int)pR->m_Impulse.m_ImpulseType, (int)pR->m_Impulse.m_ImpulseValue);
+				}
+				fflush(stderr);
+			}
 		}
 		return false;
 	}
