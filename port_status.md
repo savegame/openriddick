@@ -542,25 +542,31 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    (mauc=0.750) при постоянно меняющемся курсе означает, что СИСТЕМА
    ВЗГЛЯДА КРУТИТСЯ ВМЕСТЕ С КУРСОМ (look живёт и доворачивается), а
    ВОТ YAW ПОЗИЦИОННОЙ МАТРИЦЫ ОБЪЕКТА ЗА ВЗГЛЯДОМ НЕ СЛЕДУЕТ.
-   Недостающее звено ОДНО: кто в ретейле синхронизирует yaw объекта
-   NPC с Control_Look/look-heading. Кандидаты: хвост серверного
-   refresh'а (запись матрицы из Look-углов), физика (Phys_GetUserAccelleration
-   ставит только транслейт, WObj_CharPhys.cpp:747-749), либо регион
-   FUN_1034bc90 (не декомпилирован).
-   **Прогресс 2026-08-22 (вечер):** пользователь выгрузил FUN_1034bc90.c
-   -- это OnMessage (switch по ID; обработчики GET/SETBODYANGLEZ :1571/
-   :5501 и телепортный Heading=1-AngleFromVector :1396 -- всё сходится
-   с таблицей выше, доворота там нет). Найдена ретейловая функция физики
-   персонажа: FUN_102f20c0 (Decomp_Map.md, якорь «WARNING: Invalid
-   control-mode %d»). СЛЕДУЮЩИЙ ШАГ: сравнить в FUN_102f20c0 обработку
-   Look-матрицы с нашей WObj_CharPhys.cpp:747-749 (у нас -- только
-   транслейт: `Look.CreateMatrixFromAngles(0,MatLook);
-   GetPosition().SetMatrixRow(MatLook,3)`, причём семантика
-   vec.SetMatrixRow(mat,row) = записать ВЕКТОР в строку матрицы,
-   MMath.h:181 -- то есть объектная матрица из Look НЕ строится).
-   Гипотеза: в ретейле та же функция дополнительно применяет yaw Look к
-   объектной матрице (или rot-velocity), что и есть недостающий доворот.
-   Чистый реэкспорт FUN_102f20c0 из Ghidra ускорит сверку.
+   **Прогресс 2026-08-22 (вечер, продолжение).** Декомпил GameClasses
+   пересобран пользователем, суб-агент сверил физику: FUN_102f20c0 НЕ
+   доворачивает объект (единственный стор -- StepSize; rotvel через
+   Object_SetRotVelocity как у нас; Look-матрица только для чтения).
+   Гипотеза «ретейл применяет yaw Look в физике» ОПРОВЕРГНУТА.
+   Полная таблица соответствий и офсеты -- Decomp_Map.md («GameClasses,
+   пересборка 2026-08-22»). Дыры декомпила для Ghidra:
+   0x1034bd00..0x10357200 (OnGetAnimState), 0x10335220..0x1033e210,
+   0x103572f0..0x1035dc20. Попутное расхождение (не NPC): кламп длины
+   Move ИГРОКА в retail активен, у нас закомментирован
+   («2K x06 revert», WObj_CharPhys.cpp:700-741).
+
+   Новые зацепки в нашем дереве:
+   * WPhysState_Move.cpp:649: `bPhysRotate = flags & (ROTATION ||
+     APPLYROTVEL)` -- логическое ИЛИ констант даёт 1, то есть проверяется
+     ТОЛЬКО бит ROTATION; APPLYROTVEL(M_Bit(11)) мёртв. Если ретейл
+     ставит персонажам APPLYROTVEL и интегрирует rotvel через него --
+     у нас это отваливается. Требуется сверка с GameWorld-декомпилом.
+   * PROPERTY_FLOAT_ANGLEDIFF(30) не пишет НИКТО (ANGLEDIFFS(31) пишется
+     из TurnCorrectionTargetAngle, который у патрульного ~0). У
+     патрульного 281 в трассе НЕТ ни одного TURN-состояния -- вход в
+     повороты, похоже, закрыт.
+   * [MOVE] дополнен look= (Control_Look_Wanted[2]*360): последний
+     различитель -- вращается ли СИСТЕМА ВЗГЛЯДА вместе с курсом при
+     замершем фасинге (вывод прогона 33), и как look связан с face.
 
    **Полная команда прогона 34:** пересборка, затем
    `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.

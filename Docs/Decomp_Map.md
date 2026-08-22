@@ -857,3 +857,55 @@ rot-треках должны считаться из корневого дви�
 вызов AdjustTurnCorrection до NPC.
 
 | `FUN_102f20c0` (`:480194`) | Физика персонажа по control-режимам -- аналог `CWObject_Character::Char_Physics`/`Phys_GetUserAccelleration` (`WObj_CharPhys.cpp:640+`) | строковый литерал «WARNING: Invalid control-mode %d» (`:481157` = наш :1505); switch по control-mode с case'ами FREE/ANIMATION/ANIMSYNC; внутри вызовы Client_Anim-пары и упаковка |
+
+## GameClasses, пересборка 2026-08-22 (физика персонажа; якоря по новой нумерации файла)
+
+| FUN | Наши функции | Доказательство |
+|---|---|---|
+| `FUN_102f20c0` (`:483689`) | `CWObject_Character::Phys_GetUserAccelleration` (`WObj_CharPhys.cpp:654-1573`) | литерал «WARNING: Invalid control-mode %d» (:484652 = наш :1505); switch по control-mode (case 9 -> FUN_10312ea0 = наш :794); хвост Get/SetRotVelocity при mode!=9 (:484722-484731 = наш :1554-1561); стор StepSize=12.0f в obj+0x1b8 (:483806 = наш :666) |
+| `FUN_10312ea0` (`:500619`) | `Char_ControlMode_Anim2` (`WObj_CharControlModeAnim.cpp:9`) | те же 3 ветки: PERFECTPLACEMENT (SetVel+SetRotVel :500834/:500845), ExactPositionState!=-1 (pCD+0x1f4), общий путь FUN_103cfcc0 + ground-проба z-=0.02 (vtbl+0x74) + VelocityScaleModifier `(1-pCD[0x2d20])*pCD[0x2d24]*pCD[0x2d28]` (:501205) |
+| `FUN_103cfcc0` (`:613343`) | `CWAG2I::GetAnimVelocity` | вызов из FUN_10312ea0 (:500998), коды возврата 0/1/2/3 совпадают |
+| `FUN_103ccb30`/`FUN_103cd7a0`/`FUN_103cdae0` | `GetAnimVelocityToDestination/FromDestination` (+RotVelocityToDest) | ветка ExactPosition FUN_10312ea0 (:500776-500795) |
+| `FUN_10042e70`/`FUN_10042f70`/`FUN_10043080` | `CMat4Dfp32::M_x_RotX/RotY/RotZ` | fsin/fcos над строками 0-2; инлайн CreateMatrixFromAngles в FUN_102f20c0 :483930-483932 |
+| `FUN_10687430`/`FUN_10687530`/`FUN_10687660` | `sqrt`/`sin`/`cos` (x87) | паттерны `1.0/FUN_10687430()` |
+| `FUN_10191210` | кватернион -> `CAxisRotfp32` | перед Object_SetRotVelocity (FUN_10312ea0 :500843/:500910) |
+| `FUN_100a5ab0` | `CQuatfp32::Create(const CMat4Dfp32&)` | PERFECTPLACEMENT (:500782) |
+| `FUN_103d1630` | `CWAG2I_Context` ctor | первый вызов FUN_10312ea0 (:500725), аргумент pCD+0x38 = m_GameTime |
+| `FUN_102b3dd0`/`FUN_102bea20`/`FUN_102bea60` | `GetClientData`/`Char_GetControlMode`/`Char_GetPhysType` | FUN_102f20c0 (:483810-483814) |
+
+### Офсеты PC-retail (GameClasses, УСТАНОВЛЕННО)
+
+CWObject_CoreData: **матрица m_Pos целиком +0x50** (row3/позиция
++0x80..0x8c); MoveVelocity +0xe0..0xec; ClientFlags +0x19c;
+iObject(short) +0x1a0; StepSize +0x1b8 (=12.0f); мир +0x2b0.
+CWO_Character_ClientData: GameTime +0x38; m_AnimGraph2 +0x84 (+0x50 --
+инстанс AG2, vtbl+0x38 = GetAG2I); кэш Destination-матрицы +0x90;
+ExactPositionState(short) +0x1f4; m_AnimRotVel(float) +0xaa0;
+Phys_Flags +0x2a8c; флаг-байт спринт-капа +0x2abc (bit7);
+m_iPlayer(short) +0x2d16; скейлы +0x2d20/+0x2d24/+0x2d28.
+vtable CWorld_PhysState: +0x74 Phys_IntersectWorld; +0x168
+Message_SendToWorld; +0x18c Object_GetCD-подобный геттер; +0x1c0
+Object_GetRotVelocity; +0x204 Object_SetVelocity; +0x210
+Object_SetRotVelocity; +0x2b4/+0x2e4/+0x2f0 -- звук/эффекты.
+Глобальный шаблон единичной матрицы: 0x10820ca0..0x10820cdf.
+
+### ГЛАВНЫЙ ВЫВОД по фасингу NPC (2026-08-22)
+
+`FUN_102f20c0` НЕ пишет поворот в объектную матрицу (единственный стор
+в объект -- StepSize=12.0f); Look-матрица используется только для чтения
+(spectator/FREE-ускорение); в режиме ANIMATION доворот идёт через
+Object_SetRotVelocity -- ровно как в нашем порту. Гипотеза «ретейл
+применяет yaw Look в физике» ОПРОВЕРГНУТА. Расхождение порт/ретейл
+искать: (1) интеграция rotvel в матрицу в GameWorld DLL
+(WServer_Phys/WPhysState_Move -- у нас см. CalcDestPos,
+OBJECT_PHYSFLAGS_ROTATION/APPLYROTVEL); (2) недекомпилированный
+клиентский регион.
+
+Дыры декомпила (просить у Ghidra): 0x1034bd00..0x10357200
+(OnGetAnimState/OnRender/Char_GetAnimLayers -- строк «Skeleton
+missmatch», «Start turning left» в файле нет), 0x10335220..0x1033e210,
+0x103572f0..0x1035dc20.
+
+Расхождение снапшот/retail (не влияет на NPC): кламп длины Move ИГРОКА
+(0.065/0.5, гейт pCD+0x2abc&0x80) в retail активен (:483825-483861), у
+нас закомментирован («2K x06 revert», WObj_CharPhys.cpp:700-741).

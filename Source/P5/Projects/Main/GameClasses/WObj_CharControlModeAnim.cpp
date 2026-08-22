@@ -135,7 +135,7 @@ CVec3Dfp32 CWObject_Character::Char_ControlMode_Anim2(const CSelection& _Selecti
 					VelAng = CVec2Dfp32(RealVel.k[0], RealVel.k[1]).GetAngle() * 360.0f;
 				fprintf(stderr, "[MOVE] obj=%d res=%d anim=%.3f real=%.3f "
 					"animV=(%.2f %.2f %.2f) face=%.0f velang=%.0f rotw=%.3f "
-					"tc=%d mt=%d tca=%.3f maxbo=%d mauc=%.3f pos=(%.1f %.1f %.1f)\n",
+					"tc=%d mt=%d tca=%.3f maxbo=%d mauc=%.3f look=%.0f pos=(%.1f %.1f %.1f)\n",
 					(int)_pObj->m_iObject, (int)Res, MoveVelocity.Length(), RealStep,
 					MoveVelocity.k[0], MoveVelocity.k[1], MoveVelocity.k[2],
 					FaceAng, VelAng, RotVelocity.k[3],
@@ -144,6 +144,7 @@ CVec3Dfp32 CWObject_Character::Char_ControlMode_Anim2(const CSelection& _Selecti
 					pCD->m_TurnCorrectionTargetAngle,
 					(int)pCD->m_AnimGraph2.GetMaxBodyOffset(),
 					pCD->m_AnimGraph2.GetPropertyFloat(16),
+					pCD->m_Control_Look_Wanted[2] * 360.0f,
 					Pos.k[0], Pos.k[1], Pos.k[2]);
 				fflush(stderr);
 			}
