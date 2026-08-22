@@ -546,11 +546,21 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    NPC с Control_Look/look-heading. Кандидаты: хвост серверного
    refresh'а (запись матрицы из Look-углов), физика (Phys_GetUserAccelleration
    ставит только транслейт, WObj_CharPhys.cpp:747-749), либо регион
-   FUN_1034bc90 (не декомпилирован). Задача следующей сессии: найти в
-   декомпиле запись yaw объектной матрицы из Look-углов для NPC
-   (якорь: CreateMatrixFromAngles(0,...) рядом с SetPosition /
-   Object_SetRotation; в декомпиле -- vtable-вызов SetRotation рядом с
-   чтением Control_Look). После находки -- сверка с нашим деревом и фикс.
+   FUN_1034bc90 (не декомпилирован).
+   **Прогресс 2026-08-22 (вечер):** пользователь выгрузил FUN_1034bc90.c
+   -- это OnMessage (switch по ID; обработчики GET/SETBODYANGLEZ :1571/
+   :5501 и телепортный Heading=1-AngleFromVector :1396 -- всё сходится
+   с таблицей выше, доворота там нет). Найдена ретейловая функция физики
+   персонажа: FUN_102f20c0 (Decomp_Map.md, якорь «WARNING: Invalid
+   control-mode %d»). СЛЕДУЮЩИЙ ШАГ: сравнить в FUN_102f20c0 обработку
+   Look-матрицы с нашей WObj_CharPhys.cpp:747-749 (у нас -- только
+   транслейт: `Look.CreateMatrixFromAngles(0,MatLook);
+   GetPosition().SetMatrixRow(MatLook,3)`, причём семантика
+   vec.SetMatrixRow(mat,row) = записать ВЕКТОР в строку матрицы,
+   MMath.h:181 -- то есть объектная матрица из Look НЕ строится).
+   Гипотеза: в ретейле та же функция дополнительно применяет yaw Look к
+   объектной матрице (или rot-velocity), что и есть недостающий доворот.
+   Чистый реэкспорт FUN_102f20c0 из Ghidra ускорит сверку.
 
    **Полная команда прогона 34:** пересборка, затем
    `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.

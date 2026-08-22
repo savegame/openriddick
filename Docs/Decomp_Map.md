@@ -855,3 +855,5 @@ OnGetAnimState доворачивает MatBody при рендере. Пров�
 (иначе ранний выход); (б) пишутся ли свойства MOVEANGLEUNIT* (при пустых
 rot-треках должны считаться из корневого движения AG2); (в) доходит ли
 вызов AdjustTurnCorrection до NPC.
+
+| `FUN_102f20c0` (`:480194`) | Физика персонажа по control-режимам -- аналог `CWObject_Character::Char_Physics`/`Phys_GetUserAccelleration` (`WObj_CharPhys.cpp:640+`) | строковый литерал «WARNING: Invalid control-mode %d» (`:481157` = наш :1505); switch по control-mode с case'ами FREE/ANIMATION/ANIMSYNC; внутри вызовы Client_Anim-пары и упаковка |
