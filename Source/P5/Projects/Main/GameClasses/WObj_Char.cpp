@@ -3119,6 +3119,27 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 		int32 AnimPhysMoveType = (int32)_pCD->m_AnimGraph2.GetAnimPhysMoveType();
 		//ConOutL(CStrF("PhysMoveType: %d",AnimPhysMoveType));
 		AdjustTurnCorrection(_pObj, _pCD, AnimPhysMoveType,_pWPhysState);
+		// Прогон 37: серверное значение tca -- сравнить с клиентским
+		// ([MOVE] tca=). Если серверное живое, а клиентское 0 -- сломана
+		// репликация autovar'а m_TurnCorrectionTargetAngle.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MOVE");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 200)
+			{
+				++s_n;
+				fprintf(stderr, "[TCA-S] obj=%d mt=%d mauc=%.3f tca=%.4f\n",
+					(int)_pObj->m_iObject, AnimPhysMoveType,
+					_pCD->m_AnimGraph2.GetPropertyFloat(16),
+					_pCD->m_TurnCorrectionTargetAngle);
+				fflush(stderr);
+			}
+		}
 		/*if (_pCD->m_iPlayer == -1)
 			ConOut(CStrF("Before: %f After: %f", Before, After));*/
 	}
