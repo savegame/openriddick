@@ -3184,12 +3184,13 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 					CWO_ClientData_AnimGraph2Interface* pEv =
 						pAG2I->GetEvaluator();
 					fp32 DestSpeed = pEv ? pEv->GetDestinationSpeed() : -1.0f;
-					fprintf(stderr,
-						"[TS] obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
-						(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
-						(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
-						pSI->GetTimeScale_Cached(), DestSpeed,
-						pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
+				fprintf(stderr,
+					"[TS] %s obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
+					_pWPhysState->IsServer() ? "S" : "C",
+					(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
+					(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
+					pSI->GetTimeScale_Cached(), DestSpeed,
+					pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
 					fflush(stderr);
 				}
 			}

@@ -1695,10 +1695,16 @@ void CWAG2I_StateInstance::Read(CCFile* _pFile)
 		{
 			_pFile->ReadLE(m_lTimes[i]);
 		}
-		_pFile->WriteLE(m_SyncAnimScale);
-		_pFile->WriteLE(m_AnchorTime);
-		_pFile->WriteLE(m_Duration1);
-		_pFile->WriteLE(m_Duration2);
+		// ФИКС (2026-08-23): было WriteLE -- копипаст из Write() внутри
+		// Read(). Поток после этих четырёх полей читался со сдвигом
+		// (NumKeys/m_iState/... = мусор), а сами поля оставались
+		// несинхронизированными. Симптом: у ходячих NPC слои анимации
+		// получали ts=0.000 (масштаб времени состояния ноль) --
+		// «застывшая поза + скольжение».
+		_pFile->ReadLE(m_SyncAnimScale);
+		_pFile->ReadLE(m_AnchorTime);
+		_pFile->ReadLE(m_Duration1);
+		_pFile->ReadLE(m_Duration2);
 	}
 	
 	int16 NumKeys;
