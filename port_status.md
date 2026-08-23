@@ -687,6 +687,27 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    * Попутно: единичный BOOL PROPERTYINDEX (:641) -- отдельный мелкий
      вопрос (какой bool-индекс вне 13).
 
+   **Прогон 46 (run.log, S/C префикс). КЛИЕНТСКИЙ ИНСТАНС -- вот где
+   ноль.** Серверные [TS] S obj=281: ts=1.000 x80/80 здоровы.
+   Клиентских [TS] C obj=281 нет вовсе (OnRefresh_ServerPredicted_Extras
+   для непредсказанных NPC не зовётся), а замершие слои на клиенте:
+   t=0.000 ts=0.000 dur=1.03/1.07.
+   * Механизм найден в коде репликации: DIRTYFLAG_SYNCANIMSCALE пакуется
+     ТОЛЬКО при `m_bHasSyncAnim`
+     (WAG2I_StateInst.cpp:1378-1383) -- боевые блоки ADAPTIVE (не sync),
+     их масштаб не реплицируется никогда.
+   * Клиентская инициализация тоже неполная: в OnClientUpdate при
+     ENTERMOVETOKEN для SYNCANIM-флага вызывается InitSyncAnims (:1449),
+     а аналога для ADAPTIVETIMESCALE (EnterState_AdaptiveTimeScale)
+     НЕТ -- клиентский инстанс живёт с Clear()-значениями
+     (m_SyncAnimScale=-1, m_AnimLoopDuration=0).
+   * КАНИДИДАТ ФИКСА (следующая сессия): в OnClientUpdate для
+     ADAPTIVETIMESCALE-флага вызвать EnterState_AdaptiveTimeScale (по
+     аналогии с SYNCANIM :1449) либо реплицировать SyncAnimScale без
+     условия m_bHasSyncAnim. ПЕРЕД правкой -- сверить с декомпилом
+     FUN_1035fac0-окрестностей (OnClientUpdate персонажа) и
+     StateInst::OnClientUpdate, что делает ретейл.
+
    **Про кулаки (новое от пользователя):** кулаки нельзя даже взять --
    нет кнопки/возможности. Граф умеет экипировка: IDLE_GUN_EQUIPWEAPON
    видна в трассе. Разобраться, каким контролом в ретейле выбирается
