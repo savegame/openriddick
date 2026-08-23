@@ -889,6 +889,14 @@ void CWAG2I_StateInstance::UpdateAdaptiveTimeScale(const CWAG2I_Context* _pConte
 	// уходит прямо в масштаб времени слоя -- ловим явно.
 	if (!(_SyncAnimScale > -1.0e6f && _SyncAnimScale < 1.0e6f))
 		_SyncAnimScale = 1.0f;
+	// ФИКС застывшей ходьбы NPC (2026-08-23): масштаб <=0 -- это НЕ
+	// «замедлить до остановки», а неинициализированное значение
+	// клиентского эвалюатора (дефолт m_AdaptiveTimeScale=0 из Clear(),
+	// WAG2_ClientData.cpp:65; пер-тиковый SetAdaptiveTimeScale работает
+	// только для локального игрока). ts=m_SyncAnimScale=0 замораживал
+	// слои боевых блоков ходьбы -- «скользит в застывшей позе».
+	if (_SyncAnimScale <= 0.0f)
+		_SyncAnimScale = 1.0f;
 	_SyncAnimScale = Max(0.0f,Min(4.0f,_SyncAnimScale));
 	if (_SyncAnimScale == m_SyncAnimScale)
 		return;
