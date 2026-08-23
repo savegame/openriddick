@@ -1449,6 +1449,21 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 				if (pState->GetFlags(1) & CHAR_STATEFLAGHI_SYNCANIM)
 					EnterState_InitSyncAnims(_pContext);
 
+				// ФИКС застывшей ходьбы (2026-08-23): клиент зеркалил
+				// инициализацию только SYNCANIM-состояний. Состояния с
+				// ADJUSTSTATETIMESCALE/ADAPTIVETIMESCALE (все боевые блоки
+				// ходьбы COMBAT_*_WALK*) на сервере получают m_TimeScale
+				// через InitSyncVelocity/AdaptiveTimeScale
+				// (EnterState_Setup :971-976), а клиентский инстанс оставался
+				// с Clear()-значениями -- слои таких состояний получали
+				// ts=0/t=0, персонаж «скользил в застывшей позе». Зеркалим
+				// обе ветки так же, как это делает серверный
+				// EnterState_Setup.
+				else if (pState->GetFlags(1) & CHAR_STATEFLAGHI_ADJUSTSTATETIMESCALE)
+					EnterState_InitSyncVelocity(_pContext);
+				else if (pState->GetFlags(1) & CHAR_STATEFLAGHI_ADAPTIVETIMESCALE)
+					EnterState_AdaptiveTimeScale(_pContext);
+
 				m_Priority = pState->GetPriority();
 			}
 			else
