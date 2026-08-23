@@ -3195,8 +3195,6 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 			}
 		}
 	}
-		}
-	}
 
 	// ===========================================================================================
 	// Player stuff
