@@ -3143,6 +3143,10 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 		/*if (_pCD->m_iPlayer == -1)
 			ConOut(CStrF("Before: %f After: %f", Before, After));*/
 	}
+	else
+	{
+		AdjustTurnCorrection(_pObj, _pCD, ANIMPHYSMOVETYPE_RESET,_pWPhysState);
+	}
 
 	// Прогон 43: путь времени состояния ходячего NPC. Замирание слоёв
 	// показало ts=0.000 у COMBAT_RIFLE_WALK* при файловых scale=1.0+ --
@@ -3166,21 +3170,18 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 			if (pSI)
 			{
 				++s_n;
-				fp32 DestSpeed = _pCD->m_AnimGraph2.GetEvaluator()
-					? _pCD->m_AnimGraph2.GetEvaluator()->GetDestinationSpeed() : -1.0f;
+				CWO_ClientData_AnimGraph2Interface* pEv =
+					pAG2I->GetEvaluator();
+				fp32 DestSpeed = pEv ? pEv->GetDestinationSpeed() : -1.0f;
 				fprintf(stderr,
 					"[TS] obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
 					(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
 					(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
 					pSI->GetTimeScale_Cached(), DestSpeed,
-					_pCD->m_AnimGraph2.GetEvaluator()->GetAdaptiveTimeScale());
+					pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
 				fflush(stderr);
 			}
 		}
-	}
-	else
-	{
-		AdjustTurnCorrection(_pObj, _pCD, ANIMPHYSMOVETYPE_RESET,_pWPhysState);
 	}
 
 	// ===========================================================================================
