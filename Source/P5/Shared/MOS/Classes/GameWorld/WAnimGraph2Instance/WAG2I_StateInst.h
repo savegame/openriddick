@@ -171,6 +171,8 @@ class CWAG2I_StateInstance // <m_EnqueueTime, m_iEnterAction>
 		fp32 GetEnterAnimTimeOffset_Cached() const { return m_Enter_AnimTimeOffset; }
 		fp32 GetAnimLoopDuration_Cached() const { return m_AnimLoopDuration; }
 		fp32 GetTimeScale_Cached() const { return m_TimeScale; }
+		fp32 GetSyncAnimScale_Cached() const { return m_SyncAnimScale; }
+		bool HasAdaptiveTimeScale_Cached() const { return m_bHasAdaptiveTimeScale != 0; }
 		int8 GetLoopControlAnimLayerIndex_Cached() const { return m_iLoopControlAnimLayer; }
 		int8 GetAnimGraphIndex() const { return m_iAnimGraph; }
 		bool HasAnimation() const { return m_bHasAnimation; }

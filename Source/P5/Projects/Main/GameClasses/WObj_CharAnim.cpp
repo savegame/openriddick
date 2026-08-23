@@ -399,18 +399,40 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
 				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
 			}
-			if (iSlot >= 0 && ((s_lCalls[iSlot]++ % 10) == 0))
-			{
-				const CVec3Dfp32 Pos = _pObj->GetPosition();
-				const fp32 Dist = (Pos - s_lPrevPos[iSlot]).Length();
-				// Стоит на месте -- не печатаем вовсе (prev-позицию тоже не
-				// трогаем: первый ходячий снимок покажет путь за простой).
-				if (Dist >= 0.5f && s_lPrints[iSlot] < 60)
+				if (iSlot >= 0 && ((s_lCalls[iSlot]++ % 10) == 0))
 				{
-					s_lPrints[iSlot]++;
-					s_lPrevPos[iSlot] = Pos;
-					fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f",
-						(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist);
+					const CVec3Dfp32 Pos = _pObj->GetPosition();
+					const fp32 Dist = (Pos - s_lPrevPos[iSlot]).Length();
+					// Стоит на месте -- не печатаем вовсе (prev-позицию тоже не
+					// трогаем: первый ходячий снимок покажет путь за простой).
+					if (Dist >= 0.5f && s_lPrints[iSlot] < 60)
+					{
+						s_lPrints[iSlot]++;
+						s_lPrevPos[iSlot] = Pos;
+						// Прогон 47: состояние КЛИЕНТСКОГО инстанса token 0 --
+						// именно из него создаются слои на рендере.
+						int16 StIdx = -1; fp32 InstTS = -1, Sync = -1;
+						bool bAdaptive = false, bSync = false, bHasAnim = false;
+						CWAG2I* pAG2Idbg = pCD->m_AnimGraph2.GetAG2I();
+						if (pAG2Idbg && pAG2Idbg->GetNumTokens() > 0)
+						{
+							const CWAG2I_Token* pTokDbg = pAG2Idbg->GetToken(0);
+							if (pTokDbg && pTokDbg->GetNumStateInstances() > 0)
+							{
+								const CWAG2I_StateInstance* pSI =
+									pTokDbg->GetStateInstance(pTokDbg->GetNumStateInstances()-1);
+								if (pSI)
+								{
+									StIdx = pSI->GetStateIndex();
+									InstTS = pSI->GetTimeScale_Cached();
+									Sync = pSI->GetSyncAnimScale_Cached();
+									bAdaptive = pSI->HasAdaptiveTimeScale_Cached();
+								}
+							}
+						}
+						fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f st=%d its=%.3f sync=%.3f adapt=%d",
+							(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist,
+							(int)StIdx, InstTS, Sync, (int)bAdaptive);
 					for (int i = 0; i < nLayers && i < 4; i++)
 					{
 						// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
