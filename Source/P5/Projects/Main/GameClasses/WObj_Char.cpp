@@ -3143,6 +3143,41 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 		/*if (_pCD->m_iPlayer == -1)
 			ConOut(CStrF("Before: %f After: %f", Before, After));*/
 	}
+
+	// Прогон 43: путь времени состояния ходячего NPC. Замирание слоёв
+	// показало ts=0.000 у COMBAT_RIFLE_WALK* при файловых scale=1.0+ --
+	// значит ноль приходит из инстанса состояния (sync/adaptive/natural).
+	// Печатаем FlagsHi-биты механизма (SYNCANIM=0x4,
+	// ADJUSTSTATETIMESCALE=0x20, ADAPTIVETIMESCALE=0x10000000),
+	// DestinationSpeed и масштабы инстанса token 0.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_n = 0;
+		CWAG2I* pAG2I = _pCD->m_AnimGraph2.GetAG2I();
+		if (s_On && pAG2I && pAG2I->GetNumTokens() > 0 && s_n < 300)
+		{
+			const CWAG2I_Token* pTok = pAG2I->GetToken(0);
+			const CWAG2I_StateInstance* pSI = pTok ? pTok->GetTokenStateInstance() : NULL;
+			if (pSI)
+			{
+				++s_n;
+				fp32 DestSpeed = _pCD->m_AnimGraph2.GetEvaluator()
+					? _pCD->m_AnimGraph2.GetEvaluator()->GetDestinationSpeed() : -1.0f;
+				fprintf(stderr,
+					"[TS] obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
+					(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
+					(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
+					pSI->GetTimeScale_Cached(), DestSpeed,
+					_pCD->m_AnimGraph2.GetEvaluator()->GetAdaptiveTimeScale());
+				fflush(stderr);
+			}
+		}
+	}
 	else
 	{
 		AdjustTurnCorrection(_pObj, _pCD, ANIMPHYSMOVETYPE_RESET,_pWPhysState);
