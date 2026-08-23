@@ -1946,6 +1946,34 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Прогон 49: ловля момента создания слоя с нулевым масштабом.
+		// Печатаем ТОЛЬКО аномалию (TimeScale<0.01) с полным контекстом:
+		// какая ветка времени (0=sync,1=adaptive,2=natural), входные
+		// значения и члены инстанса.
+		if (TimeScale < 0.01f)
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_AG2");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 150)
+			{
+				++s_n;
+				int Branch = m_bHasSyncAnim ? 0 : (m_bHasAdaptiveTimeScale ? 1 : 2);
+				fprintf(stderr,
+					"[TS0] iSt=%d iAnim=%d br=%d jL=%d LT=%.3f CT=%.3f fTS=%.3f syncS=%.3f mTS=%.3f adapt=%d enterT=%.3f gt=%.3f\n",
+					(int)m_iState, (int)iAnim, Branch, (int)jAnimLayer,
+					LoopedTime.GetTime(), ContinousTime.GetTime(),
+					pAnimLayer->GetTimeScale(), m_SyncAnimScale, m_TimeScale,
+					(int)m_bHasAdaptiveTimeScale, m_EnterTime.GetTime(),
+					_pContext->m_GameTime.GetTime());
+				fflush(stderr);
+			}
+		}
+
 		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
 		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
 		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
