@@ -654,6 +654,26 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    Связано с общим вопросом атак. NOTE: MELEEPRIMARY-импульсы у NPC
    тоже падают в noreact -- та же причина (не тот блок).
 
+   **Сверка каталогов импульсов с шипнутыми данными (2026-08-22,
+   catalogs.json по EXPORTEDIMPULSETNAMES из всех 42 .xah).**
+   * Каталог ТИПОВ (32): расхождения со снапшотом -- `9 = ADDITIVEHURT`
+     (у нас было SIDESTEP), `19 = HURTITEMACTION` (у нас GLANCE); плюс
+     7 типов, отсутствовавших у нас: CONTINUOUSFIRE(25),
+     TELEPHONERECEIVER(26), KILLEXTRATOKENS(27), FIGHTDAMAGE(28),
+     MELEE(29), MELEEATTACK(30), LEAN(31). Enum приведён к PC-каталогу;
+     живых отправок старых имён не было (GLANCE -- только в
+     закомментированном коде AI_Action.cpp:16681). Единый каталог для
+     всех графов (AG2Plant.xah дополнительно определяет MISC=1).
+   * Каталог ЗНАЧЕНИЙ: 885 записей (BEHAVIORTYPE_* 262 шт. -- idle-
+     поведения, DIALOG* 227, SNEAKATTACK/COUNTERATTACK/FINISHMOVE --
+     стелс-убийства, UNARMED/SHANK/CLUB/ULAKMELEE, FIGHTDAMAGE,
+     IDLE/HOSTILE/COMBAT-группы оружейных значений). Это источник
+     истины для будущих правок AG2_IMPULSEVALUE_*.
+   * Дальнейшая сверка значений (ITEMACTION уже совпал целиком) -- по
+     мере портирования соответствующих фич; /tmp/opencode/catalogs.json
+     и ag2parse.py сохранены (временные -- перенести в Docs при
+     необходимости).
+
    **ФИКС ПРИМЕНЁН (2026-08-22, по отчёту суб-агента).**
    `WAG2_ClientData_Game.h`: NUMWEAPONTYPES 7->10
    (STANCETYPEOFFSET автоматически 14->20), UNARMED/GUN/RIFLE_CROUCH
@@ -680,23 +700,6 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    * Осталось из этого кластера: застывшая ориентация (yaw не следует
      за курсом/взглядом -- прогон 35) и вопрос кулаков игрока; проверить
      оба на фоне новой сетки -- возможно, часть ушла вместе с фиксом.
-   `WAG2_ClientData_Game.h`: NUMWEAPONTYPES 7->10
-   (STANCETYPEOFFSET автоматически 14->20), UNARMED/GUN/RIFLE_CROUCH
-   7/10/13 -> 10/13/16 (= оружие+crouch*10); m_SupportedStances[5]->[7]
-   (+ циклы Clear/Copy и M_ASSERT iBox<5 -> <7 в StanceSupported,
-   WAG2_ClientData_Game.cpp:322). Проверка «==15» оставлена -- это тип
-   ЭКИПИРОВАННОГО предмета (ancient weapon), не позиция сетки.
-   Порядок стансов IDLE/HOSTILE/COMBAT/WARY/PANIC подтверждён данными
-   (HOSTILE+RIFLE=26 -> блок 182, COMBAT+GUN=43 -> 183, COMBAT+RIFLE=46
-   -> 184, crouch +10: 53/56).
-   ОЖИДАНИЕ ПРОГОНА 39: NPC при обнаружении игрока переходят в боевые
-   блоки (в трассе появятся состояния COMBAT_*/HOSTILE_*), стреляют;
-   [AG2-IMP] показывает ok вместо FAIL(noreact); удары кулаками (у тех,
-   кто без оружия) играются. Возможные новые симптомы после фикса
-   фиксировать отдельно (изменилась вся сетка переходов).
-
-   **Полная команда прогона 39:** пересборка, затем команда та же:
-   `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 RIDDICK_DBG_AG2=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.
 
    **Отдельное наблюдение (не разбиралось):** Риддик не приседает, пока не
    переоденется в душевых, после переодевания приседание работает. Смена
