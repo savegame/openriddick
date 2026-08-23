@@ -654,8 +654,23 @@ NDS/NDSP закрыл вопрос. A/B — `RIDDICK_NORMAL_STDORDER=1`.
    Связано с общим вопросом атак. NOTE: MELEEPRIMARY-импульсы у NPC
    тоже падают в noreact -- та же причина (не тот блок).
 
-   **Полная команда прогона 39:** пересборка не нужна если правок нет;
-   команда та же:
+   **ФИКС ПРИМЕНЁН (2026-08-22, по отчёту суб-агента).**
+   `WAG2_ClientData_Game.h`: NUMWEAPONTYPES 7->10
+   (STANCETYPEOFFSET автоматически 14->20), UNARMED/GUN/RIFLE_CROUCH
+   7/10/13 -> 10/13/16 (= оружие+crouch*10); m_SupportedStances[5]->[7]
+   (+ циклы Clear/Copy и M_ASSERT iBox<5 -> <7 в StanceSupported,
+   WAG2_ClientData_Game.cpp:322). Проверка «==15» оставлена -- это тип
+   ЭКИПИРОВАННОГО предмета (ancient weapon), не позиция сетки.
+   Порядок стансов IDLE/HOSTILE/COMBAT/WARY/PANIC подтверждён данными
+   (HOSTILE+RIFLE=26 -> блок 182, COMBAT+GUN=43 -> 183, COMBAT+RIFLE=46
+   -> 184, crouch +10: 53/56).
+   ОЖИДАНИЕ ПРОГОНА 39: NPC при обнаружении игрока переходят в боевые
+   блоки (в трассе появятся состояния COMBAT_*/HOSTILE_*), стреляют;
+   [AG2-IMP] показывает ok вместо FAIL(noreact); удары кулаками (у тех,
+   кто без оружия) играются. Возможные новые симптомы после фикса
+   фиксировать отдельно (изменилась вся сетка переходов).
+
+   **Полная команда прогона 39:** пересборка, затем команда та же:
    `RIDDICK_DIRECT_RENDER=1 RIDDICK_STARTMAP=i1_showers RIDDICK_AUTOSTART=1 RIDDICK_AG2_DEBUGFLAGS=0xD RIDDICK_DBG_SKEL=1 RIDDICK_DBG_MOVE=1 RIDDICK_DBG_AG2=1 ./build/desktop-x86_64/bin/openriddick -datapath /mnt/data_storage/sashikknox/Games/Riddick`.
 
    **Отдельное наблюдение (не разбиралось):** Риддик не приседает, пока не

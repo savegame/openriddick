@@ -321,7 +321,8 @@ bool CWO_Clientdata_Character_AnimGraph2::StanceSupported(int32 _WeaponType, int
 	M_ASSERT(_Stance < AG2_NUMSTANCES, "Invalid stance!");
 	int32 Shift = _WeaponType + _Stance * AG2_IMPULSEVALUE_NUMWEAPONTYPES;
 	int32 iBox = Shift / 8;
-	M_ASSERT(iBox < 5,"WEAPONTYPE OR STANCE INVALID");
+	// Сетка 2026-08-22: NUMWEAPONTYPES=10, стансов 5 -> shift до 49 -> бокс 6.
+	M_ASSERT(iBox < 7,"WEAPONTYPE OR STANCE INVALID");
 	Shift = Shift % 8;
 	return (m_SupportedStances[iBox] & (1 << Shift)) != 0;
 }
@@ -334,7 +335,7 @@ void CWO_Clientdata_Character_AnimGraph2::SetSupportedStances(const CWAG2I_Conte
 	m_bSupportedStancesSet = true;
 
 	// Clear out old supported stances
-	for (int32 i = 0; i < 5; i++)
+	for (int32 i = 0; i < 7; i++)
 		m_SupportedStances[i] = 0;
 
 	// Go through and check which stances are supported?

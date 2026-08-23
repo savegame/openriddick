@@ -183,12 +183,21 @@ enum
 	AG2_IMPULSEVALUE_GROUPTYPE_SHOTGUN = 3,
 	AG2_IMPULSEVALUE_GROUPTYPE_ANCIENT = 4,
 
-	AG2_IMPULSEVALUE_WEAPONTYPE_UNARMEDCROUCH = 7,
-	AG2_IMPULSEVALUE_WEAPONTYPE_GUNCROUCH = 10,
-	AG2_IMPULSEVALUE_WEAPONTYPE_RIFLECROUCH = 13,
+	// ПОЧИНКА СТАНСОВ/БОЕВЫХ ПЕРЕХОДОВ (2026-08-22, суб-агент, парсинг
+	// AG2AnimPhys.xah/IronLord/Revas): шипнутые PC-данные используют
+	// сетку WEAPONTYPE-импульса = оружие + присед*10 + станс*СТАНССТРИД,
+	// где СТАНССТРИД=20 и NUMWEAPONTYPES=10 (блоки-условия: 26 =
+	// HOSTILE_RIFLE, 43 = COMBAT_GUN, 46 = COMBAT_RIFLE, 53/56 = их
+	// crouch-варианты; EXPLORE_CROUCH = 10 = UNARMED+crouch). Старые
+	// значения 7/14 давали значения импульса, не совпадающие ни с одним
+	// блоком -- NPC не переключались в боевые блоки и не могли атаковать
+	// (ITEMACTION_PRIMARYATTACK/MELEEPRIMARY падали в FAIL(noreact)).
+	AG2_IMPULSEVALUE_WEAPONTYPE_UNARMEDCROUCH = 10,
+	AG2_IMPULSEVALUE_WEAPONTYPE_GUNCROUCH = 13,
+	AG2_IMPULSEVALUE_WEAPONTYPE_RIFLECROUCH = 16,
 
 	// For idle/hostile/combat/wary/panic, just find appropriate type
-	AG2_IMPULSEVALUE_NUMWEAPONTYPES = 7,
+	AG2_IMPULSEVALUE_NUMWEAPONTYPES = 10,
 
 	// Offset between stance levels
 	AG2_IMPULSEVALUE_STANCETYPEOFFSET = 2 * AG2_IMPULSEVALUE_NUMWEAPONTYPES,
@@ -775,7 +784,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		int32 m_LastToggleCrouch;
 		CAG2StateIndex m_iExactPositionState;
 		// Bitfield to mark which stances are supported (shift = weapontype + stance*weapontypeoffset)
-		int8 m_SupportedStances[5];
+		int8 m_SupportedStances[7];
 		int8 m_ForcedAimingType;
 		uint8 m_AnimphysMoveType;
 		uint8 m_MaxBodyOffset;
@@ -810,7 +819,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		virtual void Clear()
 		{
 			CWO_ClientData_AnimGraph2Interface::Clear();
-			for (int32 i = 0; i < 5; i++)
+			for (int32 i = 0; i < 7; i++)
 				m_SupportedStances[i] = 0;
 			m_JumpDirection = 0.0f; 
 			m_ForcedAimingType = -1;
@@ -844,7 +853,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		{
 			MSCOPESHORT(CWO_Clientdata_Character_AnimGraph2::Copy);
 			CWO_ClientData_AnimGraph2Interface::Copy(_CD);
-			for (int32 i = 0; i < 5; i++)
+			for (int32 i = 0; i < 7; i++)
 				m_SupportedStances[i] = _CD.m_SupportedStances[i];
 			m_JumpDirection = _CD.m_JumpDirection;
 			m_PhysImpulse = _CD.m_PhysImpulse;
