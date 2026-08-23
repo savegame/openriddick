@@ -10,9 +10,9 @@ void CWorld_ServerCore::Con_svinfo(int _Info)
 	{
 	case 0 :
 		{
-			ConOut(CStrF("Object heap:§x200%d", m_lspObjects.Len()));
-			ConOut(CStrF("Objects free:§x200%d", m_spObjectHeap->MaxAvail()));
-			ConOut(CStrF("Next GUID:§x200%d", m_NextGUID));
+			ConOut(CStrF("Object heap:Â§x200%d", m_lspObjects.Len()));
+			ConOut(CStrF("Objects free:Â§x200%d", m_spObjectHeap->MaxAvail()));
+			ConOut(CStrF("Next GUID:Â§x200%d", m_NextGUID));
 			break;
 		}
 	case 1 :

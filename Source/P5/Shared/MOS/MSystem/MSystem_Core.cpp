@@ -4,6 +4,10 @@
 #include "MFloat.h"
 #include "MSystem_Core.h"
 
+#ifdef PLATFORM_LINUX
+#include <stdlib.h>	// getenv (RIDDICK_ENV / RIDDICK_NO_IK)
+#endif
+
 #include "../XR/XRSurfaceContext.h"
 #include "../XR/XRVBContext.h"
 
@@ -562,6 +566,78 @@ void CSystemCore::CreateSystems()
 					}
 					if (Fixed != "")
 						spEnv->SetValue("DEFAULTGAMEPATH", Fixed);
+				}
+			}
+
+			// -----------------------------------------------------------------
+			// Переопределение ключей движкового окружения из переменных среды.
+			//
+			// У движка есть СВОИ выключатели -- они читаются из Environment.cfg
+			// через CRegistry ("DISABLE_HAND_IK", "XR_VBHEAP", "SND_MAXWAVES"
+			// и десятки других). Дотянуться до них правильнее, чем заводить свой
+			// RIDDICK_*-флаг рядом с каждым: авторская логика уже написана и
+			// проверена, а лишний флаг её только дублирует.
+			// Штатный способ авторов -- отдельный файл через "-env <файл>";
+			// здесь то же самое, но точечно и без правки шипнутых данных.
+			//
+			//   RIDDICK_ENV="DISABLE_HAND_IK=1;XR_VBHEAP=65536"
+			//   RIDDICK_NO_IK=1|all|feet|hands   -- ярлык к трём ключам ОК
+			//
+			// Значения пишутся ПОСЛЕ чтения Environment.cfg, поэтому
+			// перекрывают файл; RIDDICK_ENV применяется последним и перекрывает
+			// ярлык.
+			{
+				spCRegistry spEnv = m_spRegistry->Find("ENV");
+
+				const char* pNoIK = getenv("RIDDICK_NO_IK");
+				if (spEnv && pNoIK && *pNoIK && *pNoIK != '0')
+				{
+					CStr Mode = CStr(pNoIK).LowerCase();
+					const bool bAll   = (Mode == "1" || Mode == "all");
+					const bool bFeet  = bAll || (Mode.Find("feet") >= 0);
+					const bool bHands = bAll || (Mode.Find("hand") >= 0);
+					if (bFeet)
+					{
+						// Ножная ОК: человек и дарклинг -- разные выключатели.
+						spEnv->SetValuei("DISABLE_CHAR_PLAYER_IK", 1);
+						spEnv->SetValuei("DISABLE_CHAR_DARKLING_IK", 1);
+					}
+					if (bHands)
+						spEnv->SetValuei("DISABLE_HAND_IK", 1);
+					LogFile(CStrF("(CSystemCore::CreateSystems) RIDDICK_NO_IK=%s -> feet=%d hands=%d",
+						pNoIK, (int)bFeet, (int)bHands));
+				}
+
+				const char* pEnvOverride = getenv("RIDDICK_ENV");
+				if (spEnv && pEnvOverride && *pEnvOverride)
+				{
+					CStr Rest(pEnvOverride);
+					while (Rest != "")
+					{
+						CStr Pair = Rest.GetStrSep(";");
+						Pair.Trim();
+						if (Pair == "")
+							continue;
+						CStr Key, Value;
+						if (Pair.Find("=") >= 0)
+						{
+							Key = Pair.GetStrSep("=");
+							Value = Pair;
+						}
+						else
+						{
+							// "КЛЮЧ" без значения читается как "включить".
+							Key = Pair;
+							Value = "1";
+						}
+						Key.Trim();
+						Value.Trim();
+						if (Key == "")
+							continue;
+						spEnv->SetValue(Key.Str(), Value);
+						LogFile(CStrF("(CSystemCore::CreateSystems) RIDDICK_ENV: %s = %s",
+							Key.Str(), Value.Str()));
+					}
 				}
 			}
 #endif

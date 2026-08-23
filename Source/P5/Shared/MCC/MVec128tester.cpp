@@ -2,7 +2,7 @@
 
 // #define CPU_VEC128EMU
 
-#include "MRTC_Callgraph.h"
+#include "MRTC_CallGraph.h"
 #include "../../Shared/MOS/MMain.h"
 #include "../../Shared/MOS/Classes/Render/MRenderCapture.h"
 #include "../../Shared/MOS/Classes/Win/MWinGrph.h"

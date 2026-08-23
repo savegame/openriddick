@@ -5,6 +5,54 @@
 #include "WBlockNavGrid.h"
 #include "WDynamics.h"
 
+#include <stdio.h>	// RIDDICK_DBG_PHYS diagnostic
+#include <stdlib.h>	// getenv
+
+// RIDDICK_DBG_PHYS=1: report WHAT an object collided with when
+// Object_SetPhysics() refuses to place it.
+//
+// Why: the Pa1/i1_pigsville logs are full of
+//   [Object N, '...' (OBJECT)] Unable to set model physics (fail count: k)
+// which means Phys_IntersectWorld() says the object is already inside
+// something at its spawn position -- for props hanging in mid-air (fly
+// swarms, pickups) that should never be true. The same collision world is
+// what carries the player and the AI, so a wrong one would also explain the
+// player sinking through the floor and NPCs sliding at impossible speeds.
+// The distinguishing datum is the hit: m_iObject == 0 means the world/BSP
+// collision hull itself, anything else means another object (i.e. flags and
+// masks, not geometry). The plane and the penetration depth say whether the
+// hull is merely offset or genuinely inside-out.
+static bool PhysDbg_Enabled()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_PHYS");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+static void PhysDbg_ReportSetFail(const char* _pWhere, int _iObj, const CWO_PhysicsState& _PhysState,
+	const CMat4Dfp32& _Pos, const CCollisionInfo& _CInfo)
+{
+	static int s_nLogged = 0;
+	if (s_nLogged >= 200)
+		return;
+	++s_nLogged;
+
+	const CVec3Dfp32 p = CVec3Dfp32::GetMatrixRow(_Pos, 3);
+	fprintf(stderr, "[PHYS] %s obj=%d REFUSED at (%.1f %.1f %.1f) nPrim=%d objFlags=0x%x "
+		"isectFlags=0x%x -> hit=%d plane=(%.3f %.3f %.3f | %.2f) depth=%.2f coll=%d valid=%d\n",
+		_pWhere, _iObj, p.k[0], p.k[1], p.k[2],
+		(int)_PhysState.m_nPrim, (unsigned)_PhysState.m_ObjectFlags,
+		(unsigned)_PhysState.m_ObjectIntersectFlags,
+		(int)_CInfo.m_iObject,
+		_CInfo.m_Plane.n.k[0], _CInfo.m_Plane.n.k[1], _CInfo.m_Plane.n.k[2], _CInfo.m_Plane.d,
+		_CInfo.m_Distance, (int)_CInfo.m_bIsCollision, (int)_CInfo.m_bIsValid);
+	fflush(stderr);
+}
+
 #ifdef _DEBUG
 	#include "MFloat.h"
 	#define DEBUG_CHECK_ROW(v, r)\
@@ -208,7 +256,16 @@ bool CWorld_PhysState::Object_SetPhysics(int _iObj, const CWO_PhysicsState& _Phy
 	}
 	if(_PhysState.m_nPrim > 0)
 	{
-		if (Phys_IntersectWorld((CSelection*) NULL, _PhysState, pObj->m_Pos, pObj->m_Pos, _iObj)) 
+		if (PhysDbg_Enabled())
+		{
+			CCollisionInfo CInfo;
+			if (Phys_IntersectWorld((CSelection*) NULL, _PhysState, pObj->m_Pos, pObj->m_Pos, _iObj, &CInfo))
+			{
+				PhysDbg_ReportSetFail("SetPhysics", _iObj, _PhysState, pObj->m_Pos, CInfo);
+				return false;
+			}
+		}
+		else if (Phys_IntersectWorld((CSelection*) NULL, _PhysState, pObj->m_Pos, pObj->m_Pos, _iObj))
 			return false;
 	}
 
@@ -885,7 +942,7 @@ int CWorld_PhysState::Object_IsAncectorOf(int _iAnc, int _iObj)
 
 
 /************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯| 
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯| 
 | Object event listener management
 |____________________________________________________________________________________|
 \************************************************************************************/

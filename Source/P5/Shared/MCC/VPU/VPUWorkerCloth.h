@@ -3,8 +3,8 @@
 //#pragma optimize( "", off )
 //#pragma inline_depth(0)
 
-#include "../../Mos/XR/XRAnimData.h"
-#include "../../Mos/XR/XRClothCommon.h"
+#include "../../MOS/XR/XRAnimData.h"
+#include "../../MOS/XR/XRClothCommon.h"
 
 
 

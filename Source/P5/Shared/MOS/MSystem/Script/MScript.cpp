@@ -272,7 +272,7 @@ namespace NScript
 					TempTrace.Capture(pStrStart, pStr - pStrStart);
 					M_TRACEALWAYS("%s\n", TempTrace.Str());
 					LogFile(CStrF("%s", TempTrace.Str()));
-					ConOut("§c"ErrorColorScript + TempTrace);
+					ConOut("Â§c"ErrorColorScript + TempTrace);
 					if (Line == _Line)
 					{
 						CStr Temp;
@@ -283,7 +283,7 @@ namespace NScript
 						M_TRACEALWAYS("%s - %s\n", pBuffer, _pError);
 						LogFile(CStrF("%s - %s", pBuffer, _pError));
 						Temp.Capture(TempTrace.Str(), _Character);
-						ConOut("§A0" + Temp + CStrF("§AF^ - §cf88%s", _pError));
+						ConOut("Â§A0" + Temp + CStrF("Â§AF^ - Â§cf88%s", _pError));
 					}
 					++Line;
 				}
@@ -349,15 +349,15 @@ namespace NScript
 					{
 						Line = FindLineFromCharacter(_pStr, Character);
 					}
-	//				ConOut(CStrF("§cf55Parse error: %s", Context.m_ErrorStr.Str()));
-					ConOut(CStrF("§c"ErrorColor"Error at: %s(%d)", _pSourceIdentifier, Line + 1));
+	//				ConOut(CStrF("Â§cf55Parse error: %s", Context.m_ErrorStr.Str()));
+					ConOut(CStrF("Â§c"ErrorColor"Error at: %s(%d)", _pSourceIdentifier, Line + 1));
 
 					M_TRACEALWAYS("\nXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX Parse error XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
 					if (Line >= 0)
 					{
 						if (strchr(_pSourceIdentifier, '\\'))
 						{
-							ConOut(CStrF("§cf88Parse error: %s", Context.m_ErrorStr.Str()));
+							ConOut(CStrF("Â§cf88Parse error: %s", Context.m_ErrorStr.Str()));
 							LogFile(CStrF("%s(%d) : %s", _pSourceIdentifier, Line + 1 + _LineOffset, Context.m_ErrorStr.Str()));
 							M_TRACEALWAYS("%s(%d) : %s\n", _pSourceIdentifier, Line + 1 + _LineOffset, Context.m_ErrorStr.Str());
 						}
@@ -372,7 +372,7 @@ namespace NScript
 					{
 						M_TRACEALWAYS("%s(-1) : %s\n", _pSourceIdentifier, Context.m_ErrorStr.Str());
 						LogFile(CStrF("%s(-1) : %s", _pSourceIdentifier, Context.m_ErrorStr.Str()));
-						ConOut(CStrF("§cf88Parse error: %s", Context.m_ErrorStr.Str()));
+						ConOut(CStrF("Â§cf88Parse error: %s", Context.m_ErrorStr.Str()));
 					}
 					M_TRACEALWAYS(  "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n\n", Context.m_ErrorStr.Str());
 				}

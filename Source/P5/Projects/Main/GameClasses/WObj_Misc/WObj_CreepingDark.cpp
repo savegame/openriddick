@@ -3,7 +3,7 @@
 #include "../WObj_Game/WObj_GameCore.h"
 #include "../WObj_Sys/WObj_Trigger.h"
 #include "WObj_TentacleSystem.h"
-#include "../../../../Shared/mos/XRModels/Model_BSP4Glass/WBSP4Glass.h"
+#include "../../../../Shared/MOS/XRModels/Model_BSP4Glass/WBSP4Glass.h"
 
 void RenderSphere(CWorld_PhysState* _pWPhys, const CVec3Dfp32& _Pos, fp32 _Size, fp32 _Duration = 1.0f, int32 _Color = 0xffffffff);
 
@@ -2122,13 +2122,13 @@ void CWObject_CreepingDark::OnIncludeClass(CMapData* _pWData, CWorld_Server *_pW
 {
 	CWObject_CreepingDarkParent::OnIncludeClass(_pWData, _pWServer);
 	// Darkness sounds
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp01");	// Creeping Dark – Enter sound
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp02");	// Creeping Dark – Leave sound
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp03");	// Creeping Dark – Loop sound
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp04");	// Creeping Dark – exit loop sound
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp05");	// Creeping Dark – Attack sound
-	_pWData->GetResourceIndex_Sound("Gam_drk_crp06");	// Creeping Dark – Move sound
-	_pWData->GetResourceIndex_Sound("Gam_ten_dev01");	// Creeping Dark – Devour
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp01");	// Creeping Dark â€“ Enter sound
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp02");	// Creeping Dark â€“ Leave sound
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp03");	// Creeping Dark â€“ Loop sound
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp04");	// Creeping Dark â€“ exit loop sound
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp05");	// Creeping Dark â€“ Attack sound
+	_pWData->GetResourceIndex_Sound("Gam_drk_crp06");	// Creeping Dark â€“ Move sound
+	_pWData->GetResourceIndex_Sound("Gam_ten_dev01");	// Creeping Dark â€“ Devour
 
 	_pWData->GetResourceIndex_Model("CreepingDark");	// Creeping Dark - Trail effect
 

@@ -33,7 +33,7 @@ int CCollisionFunctions::BoxPolygon(const TOBB<fp64>& _Box,
 		trirev[1] = tri[1];
 		trirev[0] = tri[2];
 
-		// TODO: Ska man logga om inte alla fÂr plats?
+		// TODO: Ska man logga om inte alla f√•r plats?
 		if (nTotCollisions >= _MaxCollisions)
 		{
 			return nTotCollisions;
@@ -78,7 +78,7 @@ int CCollisionFunctions::BoxPolygon(const TOBB<fp32>& _Box,
 		trirev[1] = tri[1].Getfp64();
 		trirev[0] = tri[2].Getfp64();
 
-		// TODO: Ska man logga om inte alla fÂr plats?
+		// TODO: Ska man logga om inte alla f√•r plats?
 
 		if (nTotCollisions >= _MaxCollisions)
 		{
@@ -433,7 +433,7 @@ int CCollisionFunctions::BoxTriangle_Clip(const TOBB<fp64>& _Box,
 		CVec3Dfp64 vRotCol = _Box.m_A[iB0];
 
 		if (vNr[iB0] > 0) {
-			// TODO: Hur ‰r det med halva h‰r...
+			// TODO: Hur √§r det med halva h√§r...
 
 			vCenter.k[0] = _Box.m_C.k[0] - v0.k[0] - _Box.m_E[iB0]*0.5 * vRotCol.k[0];
 			vCenter.k[1] = _Box.m_C.k[1] - v0.k[1] - _Box.m_E[iB0]*0.5 * vRotCol.k[1];

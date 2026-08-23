@@ -3,7 +3,7 @@
 #include "MFloat.h"
 #include "WBSP2Model.h"
 #include "WBSP2Def.h"
-#include "../../../mcc/MRTC_VPUManager.h"
+#include "../../../MCC/MRTC_VPUManager.h"
 
 // #define MODEL_BSP_NOATTRSHARING
 // -------------------------------------------------------------------
@@ -445,7 +445,7 @@ CXR_VertexBuffer* CXR_Model_BSP2::Light_CreateShadowVolume(CBSP2_RenderParams* _
 
 						if (nEdges >= nMaxEdges)
 						{
-							ConOut(CStrF("§cf80WARNING: (CXR_Model_BSP2::StencilLight_Create) Too many edges. (Face %d/%d)", f, nFaces));
+							ConOut(CStrF("Â§cf80WARNING: (CXR_Model_BSP2::StencilLight_Create) Too many edges. (Face %d/%d)", f, nFaces));
 							{
 								// Clear edge tags
 								for(int e = 0; e < nEdges; e++)

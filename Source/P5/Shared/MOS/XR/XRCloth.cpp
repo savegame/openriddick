@@ -39,7 +39,7 @@
  */
 
 /*
-	- Gör inte uträkningar för ben som inte "används"
+	- GÃ¶r inte utrÃ¤kningar fÃ¶r ben som inte "anvÃ¤nds"
 
  */
 
@@ -68,15 +68,15 @@ The second problem is cloth-cloth collisions. Complexity of current methods does
 These are the two problems we work on. If some people have ideas, they can discuss them in this forum.
 
 Thanks.
-Répondre
+RÃ©pondre
 
-Retour à la liste des messages
+Retour Ã  la liste des messages
 
 
-Re: Numerical integration		Tom, le 05 Aou à 13:08	
+Re: Numerical integration		Tom, le 05 Aou Ã  13:08	
 I think post-correction will never perfectly fix the over-elongation issue, but it remains the only acceptable solution for real-time. The self-collision could maybe be simplified by using an octree structure and a the cloth curvature angle. If big enough, then that means the cloth is likely to be bent enough to present self collisions. The collision response is another part of the problem :)
-Répondre
-Re: Numerical integration (Verlet vs. Implicit)		Mikko Kauppila, le 05 Aou à 13:10	
+RÃ©pondre
+Re: Numerical integration (Verlet vs. Implicit)		Mikko Kauppila, le 05 Aou Ã  13:10	
 The Verlet method indeed is quite stable (not perfectly so, I think), but the problem is that it requires a fixed time step (I think it's possible to reconstruct the method so it supports arbitrary steps, too).
 
 To freely quote Baraff: One of the main problems in cloth is that if you apply a pull to one corner of the cloth, the opposite corner must react to the pull *quickly*. Considering that we use the euler method and have a NxN rectangular cloth grid, the opposite corner gets no information about the pull before N euler steps. In other words, explicit techniques only have local interactions - and this applies to the Verlet method too. Explicit tehniques (and the Verlet method) are only suitable for small values of N, therefore.
@@ -86,10 +86,10 @@ Implicit techniques solve this problem by reformulating the problem into a linea
 You said implicit methods consume a lot of CPU time. Let's prove this wrong. Considering the above and the requirements for stability, the fascinating fact that explicit methods are algorithmically of complexity O(n) is destroyed (considering we use some method to reduce the time step if instability is found to arise). As pointed out by Baraff, the resulting algorithm can be even of complexity O(n^2) - or more, depending on the stiffness. On the other hand, implicit method was found to be roughly O(n^1.4).
 
 - Mikko Kauppila
-Répondre
-Re(2): Numerical integration (Verlet vs. Implicit)		Sean Lynch, le 28 Dec à 21:43	
+RÃ©pondre
+Re(2): Numerical integration (Verlet vs. Implicit)		Sean Lynch, le 28 Dec Ã  21:43	
 Doesn't this assume only one relaxation step per integration step? One could simply iterate the relaxation step until the amoun of motion was below a threshold, or do it enough times that the opposite end of the cloth reacts fast enough. You could have arbitrarily large cloths this way.
-Répondre
+RÃ©pondre
 
  */
 
@@ -133,8 +133,8 @@ void CXR_SkeletonCloth::Create(int _iCloth,
 		return;
 	}
 
-	//	TODO: Detta är inte snyggt...
-	//		Använd CIndexPool16 istället
+	//	TODO: Detta Ã¤r inte snyggt...
+	//		AnvÃ¤nd CIndexPool16 istÃ¤llet
 
 	int maxid = Cloth.m_MaxID;
 	m_MaxID = maxid;
@@ -226,14 +226,14 @@ void CXR_SkeletonCloth::Create(int _iCloth,
 	{
 		if (!m_liJointVertices[pIds[i]].m_count)
 		{
-			ConOutL("§cf00ERROR: Invalid cloth setup!");
+			ConOutL("Â§cf00ERROR: Invalid cloth setup!");
 			M_TRACEALWAYS("ERROR: Invalid cloth setup!\n");
 			for (uint j = 0; j < _nModels; j++)
 			{
 				CXR_Model_TriangleMesh* pTriMesh = safe_cast<CXR_Model_TriangleMesh>(_lpModels[j]);
 				if (pTriMesh)
 				{
-					ConOutL(CStrF("§cf00 - %s", pTriMesh->m_FileName.Str()));
+					ConOutL(CStrF("Â§cf00 - %s", pTriMesh->m_FileName.Str()));
 					M_TRACEALWAYS("- %s\n", pTriMesh->m_FileName.Str());
 				}
 			}
@@ -898,8 +898,8 @@ void CXR_SkeletonCloth::SortCyclicOrder(const CXR_Skeleton* _pSkel, TStaticArray
 void CXR_SkeletonCloth::GetNeighbourJoints(const CXR_Skeleton* _pSkel, int _iJoint, TStaticArray<int, 10>& _liNeighbours)
 {
 	/*
-	TODO: Det verkar kunna bli duplikat här.
-	Varför, fixa? Kan ha göra med felaktigt uppsatta skelett i Maya.
+	TODO: Det verkar kunna bli duplikat hÃ¤r.
+	VarfÃ¶r, fixa? Kan ha gÃ¶ra med felaktigt uppsatta skelett i Maya.
 	*/
 
 	const CXR_Cloth& cloth = _pSkel->m_lCloth[m_iCloth];

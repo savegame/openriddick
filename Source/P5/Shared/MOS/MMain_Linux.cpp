@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <signal.h>
 #include <execinfo.h>
+#include <dirent.h>	// Linux_WarnCaseDuplicates
+#include <strings.h>	// strcasecmp
 
 // Fatal-signal handler: print a backtrace to stderr before dying, so
 // run logs pinpoint silent crashes (SIGSEGV etc.) without gdb.
@@ -40,9 +42,117 @@ static void Linux_InstallCrashHandler()
 
 #define MOSMain_ShowError(Err) fprintf(stderr, "%s\n", (const char*)(Err))
 
+// Every RIDDICK_* switch this build knows about, printed at startup so a
+// log always states which diagnostics were actually compiled in and armed.
+// Reason this exists: a run whose flag produced no output is ambiguous --
+// it can mean "the flag did nothing" or "this binary predates the flag" --
+// and telling those apart cost two round-trips with the person running the
+// game. Now the banner answers it before the first frame.
+static void Linux_LogActiveDebugFlags()
+{
+	static const char* s_lNames[] =
+	{
+		// render
+		"RIDDICK_DBG_GL", "RIDDICK_DBG_VIEW", "RIDDICK_DBG_VPCALC", "RIDDICK_DBG_MVP",
+		"RIDDICK_DBG_SHADER", "RIDDICK_DBG_NDS", "RIDDICK_DBG_LFM", "RIDDICK_DBG_MODELS",
+		"RIDDICK_DBG_SURF", "RIDDICK_DBG_XTC", "RIDDICK_DBG_VP",
+		"RIDDICK_FP20", "RIDDICK_NDS", "RIDDICK_LFM", "RIDDICK_LFM_SCALE",
+		"RIDDICK_DIFFUSE_ONLY", "RIDDICK_NO_FOG", "RIDDICK_NO_SCISSOR", "RIDDICK_NO_LIGHT",
+		"RIDDICK_NO_VBCACHE", "RIDDICK_DIRECT_RENDER", "RIDDICK_CULL_MODE",
+		"RIDDICK_SKINNING", "RIDDICK_HWSKIN", "RIDDICK_SKIN_DROPNOPALETTE", "RIDDICK_IDXCHECK",
+		"RIDDICK_SKIP_SKINNED", "RIDDICK_SKIP_SHADOWVOL",
+		"RIDDICK_SKIP_CHARS", "RIDDICK_SKIP_PROPS", "RIDDICK_SKIP_SPRITES",
+		"RIDDICK_SKIP_SPOTVOL", "RIDDICK_SKIP_SKY", "RIDDICK_SKIP_PARTICLES",
+		"RIDDICK_ONLY_BSP", "RIDDICK_FORCE_TEX", "RIDDICK_ZPREPASS_COLOR",
+		"RIDDICK_NO_CLAMP",
+		// gameplay / scripts
+		"RIDDICK_DBG_USE", "RIDDICK_DBG_MSG", "RIDDICK_LOG_MSG", "RIDDICK_DBG_AG2FX",
+		"RIDDICK_DBG_PHYS", "RIDDICK_DBG_PATH", "RIDDICK_DBG_SKEL",
+		"RIDDICK_DBG_AG2FMT", "RIDDICK_DBG_ITEM", "RIDDICK_DBG_RATE", "RIDDICK_DBG_MOVE",
+		"RIDDICK_DBG_BONES", "RIDDICK_DBG_AG2",
+		"RIDDICK_AG2_DEBUGFLAGS", "RIDDICK_AG2_DEBUGOBJ", "RIDDICK_DBG_DLGLEN",
+		"RIDDICK_DBG_ANIMTIME", "RIDDICK_DBG_SEQ", "RIDDICK_DBG_ANIMV",
+		"RIDDICK_ADAPTPROP", "RIDDICK_DBG_MASK", "RIDDICK_FULLTRACKMASK",
+		"RIDDICK_DBG_SEL", "RIDDICK_CHAR_ACTIVATE", "RIDDICK_DLGHASH",
+		"RIDDICK_DBG_LETTERBOX", "RIDDICK_DBG_FOCUS",
+		"RIDDICK_DBG_DLG", "RIDDICK_DBG_USEDLG", "RIDDICK_DBG_CHOICES",
+		"RIDDICK_DLGITEM_MINUS", "RIDDICK_DBG_3PI", "RIDDICK_PLAYERNAME",
+		"RIDDICK_DLGLINK_PLAYERFALLBACK", "RIDDICK_NO_WIDESCREEN",
+		"RIDDICK_WIDESCREEN_ALWAYS", "RIDDICK_DBG_ANGLES",
+		// misc
+		"RIDDICK_STARTMAP", "RIDDICK_AUTOSTART", "RIDDICK_AUTOSTART_MODE",
+		"RIDDICK_VBHEAP", "RIDDICK_DBG_VBM", "RIDDICK_DBG_PALETTE",
+		"RIDDICK_DBG_PALMOVE", "RIDDICK_DBG_OK", "RIDDICK_NO_IK", "RIDDICK_ENV",
+		"RIDDICK_DBG_ANIMGATE", "RIDDICK_DBG_FILEPATH",
+		"RIDDICK_XTC2_XT_UNDER_XDF", "RIDDICK_XTC2_DATAPOS_AS_XT",
+	};
+	const int nNames = (int)(sizeof(s_lNames) / sizeof(s_lNames[0]));
+
+	fprintf(stderr, "[FLAGS] active:");
+	int nOn = 0;
+	for (int i = 0; i < nNames; i++)
+	{
+		const char* v = getenv(s_lNames[i]);
+		if (v && *v && !(v[0] == '0' && v[1] == 0))
+		{
+			fprintf(stderr, " %s=%s", s_lNames[i], v);
+			++nOn;
+		}
+	}
+	if (!nOn)
+		fprintf(stderr, " (none)");
+	fprintf(stderr, "\n");
+	fflush(stderr);
+}
+
+// Предупредить о ДУБЛЯХ ПО РЕГИСТРУ в корне данных.
+//
+// Движок просит файлы в одном регистре (`Content\...`), а на диске они
+// могут лежать в другом (`CONTENT/...`) -- это штатно разруливает
+// `Linux_ResolvePath`. Но если в каталоге окажутся ОБА варианта, разрешение
+// молча уйдёт в тот, что совпал буква в букву, и дальше не найдётся ничего.
+// Симптом при этом максимально обманчивый: игра падает на первом же файле
+// («не найден отладочный шрифт»), хотя данные на месте.
+//
+// Такой дубль однажды создал наш же код (см. Docs/HacksAndHooks.md,
+// «mkdir создавал каталог-двойник»); баг исправлен, но уже созданные
+// каталоги сами не исчезнут. Поэтому -- громкая строка при старте.
+static void Linux_WarnCaseDuplicates()
+{
+	DIR* pDir = opendir(".");
+	if (!pDir)
+		return;
+
+	char lNames[256][256];
+	int nNames = 0;
+	struct dirent* pE;
+	while ((pE = readdir(pDir)) != NULL && nNames < 256)
+	{
+		if (!strcmp(pE->d_name, ".") || !strcmp(pE->d_name, ".."))
+			continue;
+		strncpy(lNames[nNames], pE->d_name, sizeof(lNames[0]) - 1);
+		lNames[nNames][sizeof(lNames[0]) - 1] = 0;
+		++nNames;
+	}
+	closedir(pDir);
+
+	for (int i = 0; i < nNames; i++)
+		for (int j = i + 1; j < nNames; j++)
+			if (strcasecmp(lNames[i], lNames[j]) == 0)
+			{
+				fprintf(stderr,
+					"[ДАННЫЕ] ВНИМАНИЕ: в корне данных два элемента, различающихся только регистром: "
+					"'%s' и '%s'. Разрешение путей уйдёт в тот, что совпал буквально, и файлы могут "
+					"не находиться. Лишний (обычно пустой) следует удалить.\n",
+					lNames[i], lNames[j]);
+				fflush(stderr);
+			}
+}
+
 int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 {
 	Linux_InstallCrashHandler();
+	Linux_LogActiveDebugFlags();
 	// -datapath <dir>: run the engine from the game-resource directory
 	// (the engine loads everything relative to the working directory,
 	// e.g. Content\, Environment.cfg, Sbz1/...)
@@ -57,6 +167,7 @@ int Linux_Main(int _argc, char** _argv, const char* _pAppClassName)
 				fprintf(stderr, "openriddick: -datapath: cannot chdir to '%s'\n", _argv[i + 1]);
 				return 1;
 			}
+			Linux_WarnCaseDuplicates();
 			i++;
 			continue;
 		}

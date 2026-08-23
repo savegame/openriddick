@@ -1,12 +1,15 @@
 #include "PCH.h"
 
+#include <stdio.h>	// RIDDICK_CHAR_ACTIVATE probe
+#include <stdlib.h>
+
 #include "WObj_Char.h"
 
 #include "../GameWorld/WClientMod_Defines.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
 #include "../../Shared/MOS/XR/XRBlockNav.h"
 
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "WRPG/WRPGFist.h"
 #include "WObj_Game/WObj_GameCore.h"
 
@@ -30,7 +33,7 @@
 #include "WObj_Misc/WObj_SwingDoor.h"
 #include "WObj_Char/WObj_CharShapeshifter.h"
 
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
 
 #ifdef PLATFORM_DOLPHIN
 #include "../../../Shared/MOS/MRndrDolphin/DisplayContext.h"
@@ -72,8 +75,8 @@ static int16 GetObjFlags(int _iObj, CWorld_PhysState* _pWPhysState)
 //-------------------------------------------------------------------
 
 
-/*��������������������������������������������������������������������������������������������*\
-	File:			Character gameplay mechanics, a.k.a "soph�gen"
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+	File:			Character gameplay mechanics, a.k.a "sophögen"
 \*____________________________________________________________________________________________*/
 
 int CWObject_Character::Char_CheatsEnabled()
@@ -609,8 +612,8 @@ CVec3Dfp32 CWObject_Character::GetCharacterCenter(CWObject_CoreData* _pChar, CWo
 		int iBone = 8;
 		const CMat4Dfp32& BoneWorldMatrix = AnimState.m_pSkeletonInst->m_pBoneTransform[iBone];
 
-		// True beh�vs tydligen (vet inte varf�r) n�r man skall s�tta saker i origin p� ett ben, utan att ha n�n worldpos innan.
-		if (true) // (False funkar minst f�r sniper & crossbow(!aimassist) p� berserker & lich) (for attaching models)
+		// True behövs tydligen (vet inte varför) när man skall sätta saker i origin på ett ben, utan att ha nån worldpos innan.
+		if (true) // (False funkar minst för sniper & crossbow(!aimassist) på berserker & lich) (for attaching models)
 		{
 			CXR_Skeleton *pSkeleton = (CXR_Skeleton*)pModel->GetParam(MODEL_PARAM_SKELETON);
 			const CXR_SkeletonNode& Node = pSkeleton->m_lNodes[iBone];
@@ -3120,12 +3123,12 @@ void CWObject_Character::Char_AddDarknessPowerups(const int32& _iFromCorpseObj, 
 			case PLAYER_DARKNESSPOWERUP_COREPOWER:
 				{
 					uint AddDarknessPowers = ResolveDarknessFlags(Data);
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK), "�LDARKNESS_NEWPOWER|�LDARKNESS_CREEPINGDARK");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DEMONARM), "�LDARKNESS_NEWPOWER|�LDARKNESS_DEMONARM");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS), "�LDARKNESS_NEWPOWER|�LDARKNESS_ANCIENTWEAPONS");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_BLACKHOLE), "�LDARKNESS_NEWPOWER|�LDARKNESS_BLACKHOLE");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION), "�LDARKNESS_NEWPOWER|�LDARKNESS_DARKNESSVISION");
-					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD), "�LDARKNESS_NEWPOWER|�LDARKNESS_DARKNESSHIELD");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_CREEPINGDARK), "§LDARKNESS_NEWPOWER|§LDARKNESS_CREEPINGDARK");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DEMONARM), "§LDARKNESS_NEWPOWER|§LDARKNESS_DEMONARM");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_ANCIENTWEAPONS), "§LDARKNESS_NEWPOWER|§LDARKNESS_ANCIENTWEAPONS");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_BLACKHOLE), "§LDARKNESS_NEWPOWER|§LDARKNESS_BLACKHOLE");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSVISION), "§LDARKNESS_NEWPOWER|§LDARKNESS_DARKNESSVISION");
+					Char_AddDarknessPowerups_ShowInfoScreen((AddDarknessPowers & PLAYER_DARKNESSMODE_POWER_DARKNESSHIELD), "§LDARKNESS_NEWPOWER|§LDARKNESS_DARKNESSHIELD");
 					_pToCD->m_DarknessPowersAvailable = _pToCD->m_DarknessPowersAvailable | ResolveDarknessFlags(Data);
 					break;
 				}
@@ -3222,7 +3225,7 @@ bool CWObject_Character::Char_AddDarkling(const CStr& _Type, bool _bSendInfoMsg)
 		// Give some message that a new darkling has been found
 		// (so the user can recofigure to dispatch new darkling types)
 		//ConOut(CStrF("Added darkling: %s",Type.GetStr()));
-		Char_AddDarknessPowerups_ShowInfoScreen(_bSendInfoMsg ? 1 : 0, CStrF("�LDARKNESS_NEWDARKLING|�L%s",Type.Str()).GetStr());
+		Char_AddDarknessPowerups_ShowInfoScreen(_bSendInfoMsg ? 1 : 0, CStrF("§LDARKNESS_NEWDARKLING|§L%s",Type.Str()).GetStr());
 		
 		// Send message to all darklingspawnpoints that player has gotten a new type
 		TSelection<CSelection::LARGE_BUFFER> Selection;
@@ -4153,6 +4156,23 @@ bool CWObject_Character::CanUse(int _iUser)
 
 int CWObject_Character::OnUse(int _iUser, int _Param)
 {
+	// RIDDICK_DBG_USEDLG=1 -- почему нажатие "использовать" на персонаже ничего
+	// не даёт. Замер показал: OnUse доходит, но пять нажатий из шести
+	// возвращают 0. Кандидатов на ранний выход ровно два -- CanUse() и
+	// невалидный approach-item, и они означают совершенно разное:
+	//   * CanUse=0 при sinceUse<40 -- это штатный двухсекундный кулдаун
+	//     (m_LastUsedTick), то есть НЕ дефект;
+	//   * approach=0 -- персонажу никто не назначил approach-реплику
+	//     (OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH из события SETITEM_APPROACH),
+	//     то есть дефект в скриптах уровня, а не в коде диалога.
+	// Печатаем оба, плюс всё, из чего складывается CanUse.
+	static int s_DbgUseDlg = -1;
+	if (s_DbgUseDlg < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_USEDLG");
+		s_DbgUseDlg = (e && *e && *e != '0') ? 1 : 0;
+	}
+
 	CWO_Character_ClientData *pCD = CWObject_Character::GetClientData(this);
 	if (!pCD) return 0;
 
@@ -4162,6 +4182,31 @@ int CWObject_Character::OnUse(int _iUser, int _Param)
 	bool bIsConscious = (pAI && pAI->IsConscious());
 	bool bIsStunned = ((pCD->m_ExtraFlags & PLAYER_EXTRAFLAGS_STUNNED) != 0);
 	bool bDevourOk = (bHasHeartLeft && (bIsDead || !bIsConscious || bIsStunned));
+
+	if (s_DbgUseDlg)
+	{
+		static int s_n = 0;
+		if (s_n < 40)
+		{
+			++s_n;
+			const CDialogueLink Appr = m_DialogueItems.m_Approach;
+			const CDialogueLink ApprS = m_DialogueItems.m_ApproachScared;
+			fprintf(stderr, "[USEDLG] '%s' user=%d param=%d canUse=%d ctrlMode=%d isPlayer=%d "
+				"fighting=%d sinceUse=%d enemy=%d prio=0x%x approach=%d approachScared=%d "
+				"choices=%d devourOk=%d\n",
+				GetName() ? GetName() : "-", _iUser, _Param,
+				CanUse(_iUser) ? 1 : 0,
+				(int)Char_GetControlMode(this), (int)(pCD->m_iPlayer != -1),
+				(int)pCD->m_iFightingCharacter,
+				(int)(m_pWServer->GetGameTick() - m_LastUsedTick),
+				(m_spAI && m_spAI->IsEnemy(_iUser)) ? 1 : 0,
+				m_spAI ? (unsigned)m_spAI->GetCurrentPriorityClass() : 0u,
+				Appr.IsValid() ? 1 : 0, ApprS.IsValid() ? 1 : 0,
+				(int)pCD->m_liDialogueChoice.Len(), bDevourOk ? 1 : 0);
+			fflush(stderr);
+		}
+	}
+
 	if (!CanUse(_iUser) && !bDevourOk)
 		return 0;
 
@@ -5266,7 +5311,32 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		return false;
 	
 	CFStr UseText;// = "Pickup moj";
-	CFStr DescText;// = "Hall��� d���r det �r jag som �r Bengt!";
+	CFStr DescText;// = "Hallååå dääär det är jag som är Bengt!";
+
+	// RIDDICK_DBG_FOCUS=1 -- почему у персонажа нет подсказки, а у унитаза есть.
+	//
+	// Замер прогона pa1_prisonarea (RIDDICK_DBG_SEL): наведение на NPC даёт
+	// type=1 (SELECTION_CHAR), на унитаз -- type=3 (SELECTION_ACTIONCUTSCENE).
+	// Подсказка появляется только для унитаза. Значит отбор целей исправен, а
+	// расходится путь ниже. У SELECTION_CHAR из этого switch есть три выхода:
+	//   1) devour-ветка -> UseText="§LACS_DEVOUR";
+	//   2) AI-приоритет > PRIO_ALERT (0x60) -> break, UseText ПУСТ (нет подсказки);
+	//   3) провал вниз в блок PICKUP/ACTIONCUTSCENE -> UseText = m_UseName
+	//      персонажа ("§LCHAR_NAME_<шаблон>", WObj_CharCreate.cpp:1040).
+	// Печатаем, какой из выходов сработал и с каким текстом: пустой UseText в
+	// выходе 2 означает "виноват AI-приоритет", непустой в выходе 3 -- что
+	// game-side состояние корректно и дефект в HUD/локализации.
+	int DbgPath = 0;			// 1=devour 2=aiprio-break 3=fallthrough
+	int DbgAIPrio = -1;
+	int DbgCanAct = -1;
+	int DbgUseNameOk = -1;
+	static int s_DbgFocusOn = -1;
+	if (s_DbgFocusOn < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_FOCUS");
+		s_DbgFocusOn = (e && *e && *e != '0') ? 1 : 0;
+	}
+
 	switch (_SelType & ~SELECTION_FLAG_PROXY)
 	{
 	case SELECTION_DEADCHAR:
@@ -5282,11 +5352,17 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 			bool bIsDevouring = (pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_POWER_DEVOUR) != 0;
 			if (!bIsDevouring && bHasHeartLeft && (bIsDead || !bIsConscious || bIsStunned))
 			{
-				UseText = "�LACS_DEVOUR";
+				UseText = "§LACS_DEVOUR";
+				DbgPath = 1;
 				break;
 			}
-			else if (m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_CHAR_GETAIPRIORITYCLASS),_iObj) > CAI_Action::PRIO_ALERT)
+			DbgAIPrio = (int)m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_CHAR_GETAIPRIORITYCLASS),_iObj);
+			if (DbgAIPrio > CAI_Action::PRIO_ALERT)
+			{
+				DbgPath = 2;
 				break;
+			}
+			DbgPath = 3;
 		}
 	case SELECTION_PICKUP:
 	case SELECTION_PICKUP + SELECTION_FLAG_INVALID:
@@ -5295,7 +5371,8 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 	//case SELECTIONISDEADCHAR_BAD:
 	//case SELECTIONISCHAR_BAD:
 		{
-			if (!m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_ACTIONCUTSCENE_CANACTIVATE,2,0,m_iObject), _iObj))
+			DbgCanAct = (int)m_pWServer->Message_SendToObject(CWObject_Message(OBJMSG_ACTIONCUTSCENE_CANACTIVATE,2,0,m_iObject), _iObj);
+			if (!DbgCanAct)
 			{
 				// Check if there's any description text
 				CWObject_Message Msg = CWObject_Message(OBJMSG_CHAR_GETDESCNAME);
@@ -5311,7 +5388,8 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		{
 			CWObject_Message Msg(OBJMSG_CHAR_GETUSENAME);
 			Msg.m_pData = (void *)&UseText;
-			if(!m_pWServer->Message_SendToObject(Msg, _iObj))
+			DbgUseNameOk = (int)m_pWServer->Message_SendToObject(Msg, _iObj);
+			if(!DbgUseNameOk)
 			{
 				_SelType = 0;
 				_iObj = -1;
@@ -5326,18 +5404,36 @@ bool CWObject_Character::Char_ShowInFocusFrame(int8 _SelType, int _iObj)
 		break;
 	case SELECTION_LADDER:
 	//case SELECTIONISLADDER_BAD:
-		UseText = "�LACS_LADDER"; break;
+		UseText = "§LACS_LADDER"; break;
 	case SELECTION_LEDGE:
 	//case SELECTIONISLEDGE_BAD:
-		UseText = "�LACS_LEDGE"; break;
+		UseText = "§LACS_LEDGE"; break;
 	case SELECTION_HANGRAIL:
 	//case SELECTIONISHANGRAIL_BAD:
-		UseText = "�LACS_HANGRAIL"; break;
+		UseText = "§LACS_HANGRAIL"; break;
 	case SELECTION_NONE:
 	default:
 		_SelType = 0;
 		_iObj = -1;
 	};
+
+	if (s_DbgFocusOn)
+	{
+		// Печатаем только смену состояния (иначе строка на каждый тик).
+		static int s_LastObj = -2;
+		static int s_LastType = -2;
+		static int s_n = 0;
+		if ((_iObj != s_LastObj || (int)_SelType != s_LastType) && s_n < 60)
+		{
+			++s_n;
+			s_LastObj = _iObj;
+			s_LastType = (int)_SelType;
+			fprintf(stderr, "[FOCUS] iObj=%d type=%d path=%d aiPrio=0x%x canAct=%d useNameOk=%d use='%s' desc='%s'\n",
+				(int)_iObj, (int)_SelType, DbgPath, DbgAIPrio, DbgCanAct, DbgUseNameOk,
+				UseText.Str(), DescText.Str());
+			fflush(stderr);
+		}
+	}
 
 	pCD->m_FocusFrameType = _SelType;
 	pCD->m_iFocusFrameObject = (int32)_iObj;
@@ -5365,6 +5461,56 @@ bool CWObject_Character::Char_ActivateStuff(CWorld_PhysState* _pWPhys, CWObject_
 	{
 		switch (_SelType & SELECTION_MASK_TYPE)
 		{
+		// НАЙДЕНО (2026-08-03): у SELECTION_CHAR не было ветки, то есть
+		// нажатие «использовать» на персонаже не делало ничего.
+		//
+		// Что цепочка исправна, показал замер (pa1_prisonarea,
+		// RIDDICK_DBG_SEL + RIDDICK_DBG_USE):
+		//   [SEL]  iSel=74 type=1(base=1 invalid=0) name='BARBER'
+		//   [USE]  select iBest=74 focusType=0x1 tgtCD=yes
+		// А на экране движок сам предлагает действие -- «Поговорить с:
+		// Джимбо» слева внизу и имя персонажа справа. То есть UseText и
+		// DescText заполнены, подсказка показана, а обработчика нажатия
+		// нет.
+		//
+		// Правильный адресат нашёлся: CWObject_Character::OnUse
+		// (этот файл, :4157) -- он берёт Char_GetDialogueApproachItem() и
+		// вызывает Char_ActivateDialogueItem(), то есть именно запускает
+		// разговор. Дотянуться до него можно сообщением OBJMSG_CHAR_USE
+		// (WObj_CharMsg.cpp:1385 -> return OnUse(...)).
+		//
+		// Прошлая попытка слать OBJMSG_ACTIONCUTSCENE_ACTIVATE была мимо:
+		// персонаж это сообщение не обрабатывает вовсе.
+		//
+		// RIDDICK_CHAR_ACTIVATE=0 возвращает прежнее поведение для A/B.
+		// По умолчанию включено: регрессии быть не может -- сейчас на этом
+		// месте не происходит ничего.
+		case SELECTION_CHAR:
+		case SELECTION_DEADCHAR:
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_CHAR_ACTIVATE");
+					s_On = (e && *e && *e == '0') ? 0 : 1;
+				}
+				if (!s_On)
+					break;
+
+				CWObject_Message Msg(OBJMSG_CHAR_USE, 0);
+				Msg.m_iSender = _pObj->m_iObject;
+				const int Res = _pWPhys->Phys_Message_SendToObject(Msg, _iSel);
+
+				static int s_n = 0;
+				if (s_n < 20)
+				{
+					++s_n;
+					fprintf(stderr, "[USE] activate CHAR iSel=%d selType=0x%x -> OBJMSG_CHAR_USE res=%d\n",
+						(int)_iSel, (int)_SelType, Res);
+					fflush(stderr);
+				}
+				break;
+			}
 		case SELECTION_ACTIONCUTSCENELOCKED:
 		case SELECTION_ACTIONCUTSCENE:
 			{
@@ -7785,7 +7931,7 @@ void CWObject_Character::GiveOrder(int _Order)
 
 // Get visibility factor of character. 
 // _bLightsOut indicate if the level should be complete darkness (argh,om
-// _bLightsOut �r satt till true s� l�tsas vi att hela kartan �r helt m�rk)
+// _bLightsOut är satt till true så låtsas vi att hela kartan är helt mörk)
 fp32 CWObject_Character::GetVisibility(bool _bLightsOut,int32 _PerceptionFlags)
 {
 	CWO_Character_ClientData* pCD = GetClientData(this);
@@ -8985,7 +9131,7 @@ static M_INLINE fp32 Dot2(const CVec3Dfp32& a, const CVec3Dfp32& b)
 
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:		Updates the state of "Third Person Interactive".
 					It will check when the camera should start moving
 					towards 3rd person mode, and when the camera should
@@ -9310,6 +9456,48 @@ void CWObject_Character::Char_UpdateThirdPersonInteractive(CWO_Character_ClientD
 				FocusAmount = 1.0f;
 				bEnoughFocus = true;
 				_CD.m_3PI_FocusTicks = 100; //test
+			}
+		}
+
+		// RIDDICK_DBG_3PI=1 -- почему разговор не переходит в интерактивный
+		// режим. Замер прогона 21 показал, что приветственная реплика NPC
+		// теперь играется и даже отдаёт линк (`Link: Riddick:99`), но выборы
+		// до клиента не доходят: `Char_SetDialogueChoices` шлёт их netmsg'ом
+		// ТОЛЬКО когда игрок уже в 3PI-режиме диалога
+		// (`WObj_CharDialogue.cpp`, ветка `if(b3PI)`), а сюда игрок входит
+		// вот отсюда. Значит вопрос ровно один: доживает ли расчёт до
+		// `_CD.m_3PI_Mode = THIRDPERSONINTERACTIVE_MODE_DIALOGUE`.
+		//
+		// Два подозрительных гейта: `bEnoughFocus` (в него входит
+		// `DirCheck2 = -Dot2(CameraDir, ObjDir)` с порогом +0.2 -- тот же
+		// вид проверки, что в тесте слушателя дал перевёрнутый знак) и
+		// `bIsMoving`. Печатаем всё, из чего они складываются, и только при
+		// смене состояния.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_3PI");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On)
+			{
+				static int s_LastKey = -1;
+				static int s_n = 0;
+				const int Key = ((int)eFocus) | ((int)bEnoughFocus << 4) | ((int)b3PI << 5)
+					| ((int)bHaveChoices << 6) | ((int)bSpeaking << 7) | ((int)bIsMoving << 8)
+					| ((int)Mode << 9) | (iFocusObj << 16);
+				if (Key != s_LastKey && s_n < 80)
+				{
+					++s_n;
+					s_LastKey = Key;
+					fprintf(stderr, "[3PI] iFocus=%d eFocus=%d mode=%d b3PI=%d enough=%d dist=%.1f focusAmt=%.2f "
+						"dirCheck2=%.2f moving=%d rotating=%d choices=%d speaking=%d\n",
+						(int)iFocusObj, (int)eFocus, (int)Mode, (int)b3PI, (int)bEnoughFocus,
+						DistanceToObject, FocusAmount, DirCheck2,
+						(int)bIsMoving, (int)bIsRotating, (int)bHaveChoices, (int)bSpeaking);
+					fflush(stderr);
+				}
 			}
 		}
 	}

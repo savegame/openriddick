@@ -92,7 +92,7 @@ void CMWnd_XMDView::ScanTextureContainers(CStr _Path)
 					spTC->Create(_Path + pRec->m_Name);
 					m_lspTC.Add(spTC);
 				}
-				catch(...) { ConOutL("§cf80WARNING: Failure reading texture-container: " + _Path + pRec->m_Name); }
+				catch(...) { ConOutL("Â§cf80WARNING: Failure reading texture-container: " + _Path + pRec->m_Name); }
 			}
 		}
 	}

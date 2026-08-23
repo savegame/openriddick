@@ -490,7 +490,7 @@ public:
 #else
 # define GET_UNALIGNED_INT16(x)    (x)
 # define SET_UNALIGNED_INT16(x, v) { (x) = (v); }
-# pragma pack(push, 1) // MH: Det h‰r funkar nog inte pÂ GC/PS2. Har inte tid att fixa detta nu...
+# pragma pack(push, 1) // MH: Det h√§r funkar nog inte p√• GC/PS2. Har inte tid att fixa detta nu...
 //# pragma pack(1)
 #endif
 

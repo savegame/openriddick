@@ -52,7 +52,7 @@ void CWorld_ClientCore::Precache_Init()
 				else if (Flags & CTC_TXTIDFLAGS_PRECACHE)
 				{
 	//				CStr Name = pTC->GetName(i);
-	//				ConOutL(CStrF("§cf80WARNING: Illegally precached texture: %s", Name.Str()));
+	//				ConOutL(CStrF("Â§cf80WARNING: Illegally precached texture: %s", Name.Str()));
 					pTC->SetTextureParam(i, CTC_TEXTUREPARAM_CLEARFLAGS, CTC_TXTIDFLAGS_PRECACHE);
 				}
 			}
@@ -773,7 +773,7 @@ void CWorld_ClientCore::Precache_Perform(CRenderContext* _pRC, fp32 _dTime)
 							m_Precache_lPrecacheOrder.SetLen(m_Precache_nItems);
 							m_Precache_lPrecacheOrder.QSort<CPrecacheTextureCompare>(pTC, m_Precache_nItems);
 
-							ConOutL(CStrF("§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d textures to precache.", m_Precache_nItems));
+							ConOutL(CStrF("Â§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d textures to precache.", m_Precache_nItems));
 						}
 					}
 					
@@ -856,7 +856,7 @@ void CWorld_ClientCore::Precache_Perform(CRenderContext* _pRC, fp32 _dTime)
 						m_Precache_lPrecacheOrder.SetLen(m_Precache_nItems);
 						m_Precache_lPrecacheOrder.QSort<CPrecacheWaveCompare>(pWC, m_Precache_nItems);
 
-						ConOutL(CStrF("§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d sounds to precache.", m_Precache_nItems));
+						ConOutL(CStrF("Â§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d sounds to precache.", m_Precache_nItems));
 					}
 
 					if (m_Precache_iItem < m_Precache_nItems)
@@ -912,7 +912,7 @@ void CWorld_ClientCore::Precache_Perform(CRenderContext* _pRC, fp32 _dTime)
 								}
 							}
 
-							ConOutL(CStrF("§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d vertex buffers to precache.", m_Precache_nItems));
+							ConOutL(CStrF("Â§c0f0NOTE: (CWorld_ClientCore::Precache_Perform) %d vertex buffers to precache.", m_Precache_nItems));
 						}
 
 						if(_pRC)

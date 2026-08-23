@@ -4,7 +4,7 @@
 #include "../WRPG/WRPGChar.h"
 #include "../WObj_CharMsg.h"
 #include "WObj_Aux/WObj_Team.h"
-#include "../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 
 //String translator definitions
 const char * CAI_AgentInfo::ms_TranslateRelation[] =

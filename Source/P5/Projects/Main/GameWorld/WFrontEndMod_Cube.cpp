@@ -1289,7 +1289,7 @@ void CCube::OnPrecache(CXR_Engine* _pEngine, CWorld_Server *_pServer)
 		MRTC_SAFECREATEOBJECT_NOEX(spGUIProcess, "CTextureContainer_Screen", CTextureContainer_Screen);
 		m_spGUICubeMaps = spGUIProcess;
 		if(!m_spGUICubeMaps)
-			ConOut("§cf80WARNING: Unable to instance CTextureContainer_Screen for CCube GUI.");
+			ConOut("Â§cf80WARNING: Unable to instance CTextureContainer_Screen for CCube GUI.");
 		else
 		{
 			spGUIProcess->Create(1, _pEngine);
@@ -2667,15 +2667,15 @@ void CCube::InitSound(spCMapData _spMapData, spCSoundContext _Context, int _Chan
 //		return;
 
 	/*
-	GUI_Enter_01	När GUI kommer in
-	GUI_Exit_01		När man går ut ur GUI
-	GUI_Loop_01		Loopande ljud för tentaklerna. Skall spelas som loop så 
-	länge tentaklerna finns framme. Du börjar spela det samtidigt som Enter ljudet, 
-	och klipper det ca 100ms efter Exit ljudet börjar spela. Då slipper man en glipa och 
-	det känns som at loopen smälter in i exit ljudet
+	GUI_Enter_01	NÃ¤r GUI kommer in
+	GUI_Exit_01		NÃ¤r man gÃ¥r ut ur GUI
+	GUI_Loop_01		Loopande ljud fÃ¶r tentaklerna. Skall spelas som loop sÃ¥ 
+	lÃ¤nge tentaklerna finns framme. Du bÃ¶rjar spela det samtidigt som Enter ljudet, 
+	och klipper det ca 100ms efter Exit ljudet bÃ¶rjar spela. DÃ¥ slipper man en glipa och 
+	det kÃ¤nns som at loopen smÃ¤lter in i exit ljudet
 
-	GUI_Select_01	När man går runt i menyerna. Ett rätt subtilt ljud
-	GUI_Shift_01    Ett 6x slumpljud, varje gång tentaklerna shiftar när man går in och ut ur submenyer.
+	GUI_Select_01	NÃ¤r man gÃ¥r runt i menyerna. Ett rÃ¤tt subtilt ljud
+	GUI_Shift_01    Ett 6x slumpljud, varje gÃ¥ng tentaklerna shiftar nÃ¤r man gÃ¥r in och ut ur submenyer.
 	*/
 
 	m_spSoundContext = _Context;
@@ -2770,7 +2770,7 @@ void CCube::Init()
 		}
 		else
 		{
-			ConOutL(CStrF("§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
+			ConOutL(CStrF("Â§cf00ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!", RegisterFile.Str()));
 			M_TRACEALWAYS("ERROR (CWorld_ServerCore::ReadServerReg): file '%s' not found!\n", RegisterFile.Str());
 		}
 
@@ -5103,7 +5103,7 @@ void CCube::RenderLoadingScene(CXR_Engine *_pEngine, CXR_VBManager *_pVBM, CRend
 	if(m_GUIFlags & CCube::GUI_FLAGS_READYTOSKIP_LS)
 	{
 		CRC_Font* pFont = m_spMapData->GetResource_Font(m_spMapData->GetResourceIndex_Font("HEADINGS"));
-		CStr Text = "§Z16§LMENU_CUTSCENEQUIT";
+		CStr Text = "Â§Z16Â§LMENU_CUTSCENEQUIT";
 
 		if(pFont)
 		{

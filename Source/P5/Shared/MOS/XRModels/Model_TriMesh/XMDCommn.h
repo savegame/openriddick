@@ -111,8 +111,8 @@ public:
 class CTM_VertexFrame : public CReferenceCount
 {
 public:
-	CBox3Dfp32 m_BoundBox;		// Före m_Translate har adderats.
-	fp32 m_BoundRadius;			// Före m_Translate har adderats.
+	CBox3Dfp32 m_BoundBox;		// FÃ¶re m_Translate har adderats.
+	fp32 m_BoundRadius;			// FÃ¶re m_Translate har adderats.
 	CVec3Dfp32 m_Translate;
 //	fp32 m_Scale;
 

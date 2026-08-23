@@ -1209,7 +1209,7 @@ int32 CWObject_ControlPhysFree::DoPhysics(int _iSel, CWObject_CoreData* _pObj, C
 
 		bool bOnGround;
 		{
-			// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart för att se om man står på marken eller inte!!
+			// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart fÃ¶r att se om man stÃ¥r pÃ¥ marken eller inte!!
 #ifdef	USE_PCS
 			CPotColSet pcs;
 			{
@@ -1515,7 +1515,7 @@ int32 CWObject_ControlPhysFree::DoPhysics(int _iSel, CWObject_CoreData* _pObj, C
 		CVec3Dfp32::GetMatrixRow(p, 3) += CVec3Dfp32(0,0,-8);
 		bool bOnGround;
 		{
-			// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart för att se om man står på marken eller inte!!
+			// MUPPJOKKO - IMPLEMENT ME! en hel kollisions query enbart fÃ¶r att se om man stÃ¥r pÃ¥ marken eller inte!!
 			// NOTE: Assuming char origin is at the bottom of it's box  -mh
 			CWO_PhysicsState PhysState(_pObj->GetPhysState());
 			PhysState.m_Prim[0].m_Dimensions[2] = 1;

@@ -27,7 +27,7 @@
 */
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_ScenePoint
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -532,7 +532,7 @@ CVec3Dfp32& CWO_ScenePoint::GetPathPosition(CWorld_Server* _pWServer)
 				if (!(m_Type & DYNAMIC))
 				{	// Invalid Dynamics are so common we just skip on reporting them
 					// (they will be tem disabled when chosen anyway)
-					ConOutL(CStrF("§c3f0WARNING: ScenePoint with no PathPos, Fix! (Position: %f, %f, %f;  Name: %s)", m_PathPos[0], m_PathPos[1], m_PathPos[2], m_TargetName.Str()));
+					ConOutL(CStrF("Â§c3f0WARNING: ScenePoint with no PathPos, Fix! (Position: %f, %f, %f;  Name: %s)", m_PathPos[0], m_PathPos[1], m_PathPos[2], m_TargetName.Str()));
 				}
 			}
 		}
@@ -1028,7 +1028,7 @@ bool CWO_ScenePoint::Request(int _iUser, CWorld_Server* _pWServer, CWObject_Scen
 						{
 #ifndef M_RTM
 							CVec3Dfp32 Pos = GetPosition();
-							ConOutL(CStrF("§c3f0WARNING: Unreachable ScenePoint! (Position: %f, %f, %f;  Name: %s)", Pos[0], Pos[1], Pos[2], m_TargetName.Str()));
+							ConOutL(CStrF("Â§c3f0WARNING: Unreachable ScenePoint! (Position: %f, %f, %f;  Name: %s)", Pos[0], Pos[1], Pos[2], m_TargetName.Str()));
 #endif
 							m_Resource.Release(_iUser,gameTick);
 							m_ReenableTick = (uint32)(gameTick + _pWServer->GetGameTicksPerSecond() * 5.0f);
@@ -1139,7 +1139,7 @@ bool CWO_ScenePoint::IsValid(CWorld_Server* _pWServer, uint32 _ObjectName, uint3
 		if (m_ReenableTick < gameTick)
 		{
 			CVec3Dfp32 Pos = GetPosition();
-			ConOutL(CStrF("§c3f0WARNING: ScenePoint with neither users nor teams, Fix! (Position: %f, %f, %f;  Name: %s)", Pos[0], Pos[1], Pos[2], m_TargetName.Str()));
+			ConOutL(CStrF("Â§c3f0WARNING: ScenePoint with neither users nor teams, Fix! (Position: %f, %f, %f;  Name: %s)", Pos[0], Pos[1], Pos[2], m_TargetName.Str()));
 			int32 gameTick = _pWServer->GetGameTick();
 			const_cast<CWO_ScenePoint*>(this)->m_ReenableTick = gameTick+600;
 		}
@@ -1236,7 +1236,7 @@ void CWO_ScenePoint::SetLight(fp32 _Light,int _Tick)
 };
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_ScenePointManager
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -2119,7 +2119,7 @@ void CWObject_ScenePointManager::InitManager()
 					}
 				}
 				else
-					ConOutL(CStrF("§c3f0WARNING: ScenePoint '%s' %s has too many users! (1. Target = '%s')",
+					ConOutL(CStrF("Â§c3f0WARNING: ScenePoint '%s' %s has too many users! (1. Target = '%s')",
 						Point.GetName().Str(), Point.GetPosition().GetString().Str(), NameHash.DbgName().Str()));
 			}
 			if (iTarget < CWO_ScenePoint::MAXUSERS)
@@ -2141,7 +2141,7 @@ void CWObject_ScenePointManager::InitManager()
 					}
 					else
 					{
-						ConOutL(CStrF("§c3f0WARNING: ScenePoint '%s' %s has too many teams - Team '%s' ignored",
+						ConOutL(CStrF("Â§c3f0WARNING: ScenePoint '%s' %s has too many teams - Team '%s' ignored",
 							Point.GetName().Str(), Point.GetPosition().GetString().Str(), NameHash.DbgName().Str()));
 					}
 				}
@@ -2489,7 +2489,7 @@ void CWObject_ScenePointManager::OnObjectBreaking(const CWObject& _Obj, fp32 _Ol
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWO_ScenePointHash
 |__________________________________________________________________________________________________
 \*************************************************************************************************/

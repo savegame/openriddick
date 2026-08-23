@@ -1,11 +1,11 @@
 #include "PCH.h"
-#include "WObj_Telephone.h"
+#include "WObj_TelePhone.h"
 #include "../WObj_Char.h"
 #include "../../GameWorld/WFrontEndMod.h"
 #include "../../Exe/WGameContextMain.h"
 
-#define STR_TELEPHONE_DIALING "§LACS_TELEPHONE_DIALING"
-#define STR_TELEPHONE_NORMAL "§LACS_TELEPHONE"
+#define STR_TELEPHONE_DIALING "Â§LACS_TELEPHONE_DIALING"
+#define STR_TELEPHONE_NORMAL "Â§LACS_TELEPHONE"
 
 void CWObject_Telephone::OnCreate()
 {
@@ -1292,7 +1292,7 @@ void CWObject_Telephone::RenderPad(CWorld_Client* _pWClient, CRC_Util2D *_pUtil2
 		int PictureWidthBase =  20;
 		_pUtil2D->DrawTexture(Clip, Rect.p0, "GUI_Button_B", 0xFFFFFFFF,  CVec2Dfp32(1.0f/ButtonScale,1.0f/(ButtonScale*Aspect)));
 
-		CStr Text = "§Z16§LMENU_CUTSCENEQUIT";
+		CStr Text = "Â§Z16Â§LMENU_CUTSCENEQUIT";
 		int Style = WSTYLE_TEXT_WORDWRAP | WSTYLE_TEXT_SHADOW;
 		wchar wText[1024];
 		Localize_Str(Text, wText, 1023);

@@ -5,7 +5,7 @@
 #include "../GameWorld/WServerMod.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
-#include "../../../Shared/MOS/xr/xrcustommodel.h"
+#include "../../../Shared/MOS/XR/XRCustomModel.h"
 #include "WObj_AI/AICore.h"
 #include "WObj_Weapons/WObj_Spells.h"
 #include "WRPG/WRPGChar.h"
@@ -27,6 +27,85 @@
 #include "Models/WModel_EffectSystem.h"
 
 #include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
+
+// НАЙДЕНО (2026-08-04): имя диалогового айтема приходило в хэш вместе с
+// ведущим минусом, и реплика не находилась никогда.
+//
+// Замер (pa1_prisonarea, RIDDICK_DBG_DLG):
+//   ActivateItem: hash=7C767E5E isPlayer=0 ... bBegin=1
+//   BeginDialogue: speaker=74 startItem=7C767E5E
+//   PlayDialogue_Hash: 7C767E5E FAIL (no such item in dialogue resource)
+// Обратным перебором djb2 (StrHash = djb2 с приведением к нижнему регистру,
+// MRTC_StrBase.cpp:1614) 7C767E5E раскрывается ровно в строку **"-100"**.
+// А hash("100") = 0B8774B1 -- это один из хэшей, которые в том же логе
+// проигрываются успешно (ABE, VICTOR, VICTIM: "PlayDialogue_Hash: 0B8774B1
+// (result: 1)!"). То есть айтем существует, промахивался только ведущий
+// минус.
+//
+// Минус -- это разделитель, а не часть имени. Так его и трактуют оба
+// остальных пути движка:
+//   * старое сообщение 0x1020 (`_APPROACH_OLD`, случай ниже):
+//     `Set(CFStrF("%i", Abs(Param0)), (Param0 > 0))` -- знак кодирует
+//     "кто говорит", модуль это номер айтема;
+//   * `EvalDialogueLink` (WObj_CharDialogue.cpp:919-928): если строка
+//     начинается с '-', в pData кладётся `Str() + 1`, а Param0 = Flip^1.
+// Только путь через SimpleMessage (0x1021 "SetApproachItem" из скриптов
+// карты) отдавал строку как есть -- и минус доезжал до StringToHash.
+//
+// RIDDICK_DLGITEM_MINUS=0 возвращает прежнее поведение.
+static void Riddick_SetDialogueItem(CDialogueLink& _Link, const CWObject_Message& _Msg,
+									const char* _pCharName, const char* _pWhich)
+{
+	const char* pName = (const char*)_Msg.m_pData;
+	bool bIsPlayer = (_Msg.m_Param0 == 0);
+
+	static int s_Strip = -1;
+	if (s_Strip < 0)
+	{
+		const char* e = getenv("RIDDICK_DLGITEM_MINUS");
+		s_Strip = (e && *e && *e == '0') ? 0 : 1;
+	}
+
+	bool bStripped = false;
+	if (s_Strip && pName && pName[0] == '-' && pName[1] != 0)
+	{
+		// Ведущий '-' -- маркер, а не часть имени. Полярность флага взята из
+		// ретейла: в `CCharDialogueItems::Parse` для легаси-ключа
+		// APPROACHDIALOGUEITEM он ставит `bIsPlayer = (value < 0)`
+		// (GameClasses_Win32_x86_dll_decomp.c:450067), то есть минус даёт
+		// **true**. При true `Char_ActivateDialogueItem` проигрывает реплику
+		// на самом NPC из его файла диалогов -- ровно так в логах играют
+		// айтем "100" персонажи ABE/VICTOR/VICTIM.
+		//
+		// Второй путь, EvalDialogueLink, сюда с минусом не приходит вовсе:
+		// он снимает его сам (`Str() + 1`), так что эта ветка трогает только
+		// SimpleMessage/консоль, где данные легаси-формата.
+		pName++;
+		bIsPlayer = true;
+		bStripped = true;
+	}
+
+	_Link.Set(pName, bIsPlayer);
+
+	static int s_Dbg = -1;
+	if (s_Dbg < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLG");
+		s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+	}
+	if (s_Dbg)
+	{
+		static int s_n = 0;
+		if (s_n < 60)
+		{
+			++s_n;
+			fprintf(stderr, "[SETITEM] '%s' %s='%s' param0=%d isPlayer=%d stripped=%d hash=%08X\n",
+				_pCharName ? _pCharName : "-", _pWhich, pName ? pName : "(null)",
+				(int)_Msg.m_Param0, (int)bIsPlayer, (int)bStripped, _Link.m_ItemHash);
+			fflush(stderr);
+		}
+	}
+}
 
 //Part of Sammes message testing system
 /*
@@ -55,7 +134,7 @@ void AddMessage(const CWObject_Message& _Msg, bool _bServer)
 */
 
 
-/*��������������������������������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character message parsers
 					
 	Contents:		OnMessage
@@ -803,7 +882,7 @@ aint CWObject_Character::OnMessage(const CWObject_Message& _Msg)
 					pCD->m_HitEffect_iObject = 0;
 			}
 			else
-				ConOutL(CStrF("�cf80WARNING: %s is not a player, can't set blur effect on NPCs", GetName()));
+				ConOutL(CStrF("§cf80WARNING: %s is not a player, can't set blur effect on NPCs", GetName()));
 		}
 		return 1;
 
@@ -1520,37 +1599,37 @@ aint CWObject_Character::OnMessage(const CWObject_Message& _Msg)
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH:
 		{
-			m_DialogueItems.m_Approach.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Approach, _Msg, GetName(), "approach");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH2:
 		{
-			m_DialogueItems.m_ApproachScared.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_ApproachScared, _Msg, GetName(), "approach2");
 			return 1;
 		}
-		
+
 	case OBJMSG_CHAR_SETDIALOGUEITEM_THREATEN:
 		{
-			m_DialogueItems.m_Threaten.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Threaten, _Msg, GetName(), "threaten");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_IGNORE:
 		{
-			m_DialogueItems.m_Ignore.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Ignore, _Msg, GetName(), "ignore");
 			return 1;
 		}
-	
+
 	case OBJMSG_CHAR_SETDIALOGUEITEM_TIMEOUT:
 		{
-			m_DialogueItems.m_Timeout.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Timeout, _Msg, GetName(), "timeout");
 			return 1;
 		}
 
 	case OBJMSG_CHAR_SETDIALOGUEITEM_EXIT:
 		{
-			m_DialogueItems.m_Exit.Set((const char*)_Msg.m_pData, (_Msg.m_Param0 == 0));
+			Riddick_SetDialogueItem(m_DialogueItems.m_Exit, _Msg, GetName(), "exit");
 			return 1;
 		}
 
@@ -4888,7 +4967,7 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 									CheckString = CheckString.Del(3,1);
 									ThePhoneNumber = CheckString.Ansi();
 
-									CheckString = "�LPHONENUMBER_OWNER_" + CheckString;
+									CheckString = "§LPHONENUMBER_OWNER_" + CheckString;
 									CheckString = Localize_Str(CheckString);
 									CheckString = CheckString.UpperCase();
 
@@ -4925,6 +5004,43 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 
 			CStr *pSt = (CStr *)_Msg.m_pData;
 			int nChoices = pCD->m_liDialogueChoice.Len();
+
+			// RIDDICK_DBG_CHOICES=1 -- откуда берётся подсказка над персонажем.
+			//
+			// Найдено замером: подсказка у персонажа и у ACS-объекта (унитаза)
+			// приходят из РАЗНЫХ мест. У ACS это `m_ChoiceString`
+			// (WObj_ActionCutscene.cpp:1028) -- поэтому унитаз подсказку
+			// показывает. У персонажа -- вот этот список
+			// `m_liDialogueChoice`, и если он пуст, обработчик возвращает 0,
+			// клиент получает nChoices=0 и НЕ рисует ничего. Именно так
+			// выглядит наш симптом.
+			// Значит `use='§LCHAR_NAME_...'` из [FOCUS] к подсказке отношения
+			// не имеет: focus-frame рендерер в наших исходниках отключён
+			// (`#if 0`, WObj_CharRender.cpp:1004, «Focus frame is broken»).
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_CHOICES");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_On)
+				{
+					static int s_LastN = -1;
+					static int s_LastObj = -1;
+					static int s_n = 0;
+					if ((nChoices != s_LastN || _pObj->m_iObject != s_LastObj) && s_n < 40)
+					{
+						++s_n;
+						s_LastN = nChoices;
+						s_LastObj = _pObj->m_iObject;
+						fprintf(stderr, "[CHOICES] char obj=%d nChoices=%d dlgTick=%d\n",
+							(int)_pObj->m_iObject, nChoices, (int)pCD->m_DialogueChoiceTick);
+						fflush(stderr);
+					}
+				}
+			}
+
 			if(nChoices && pSt)
 			{
 				CWObject_Client *pPlayer = _pWClient->Object_Get(_Msg.m_iSender);
@@ -4985,7 +5101,7 @@ aint CWObject_Character::OnClientMessage(CWObject_Client* _pObj, CWorld_Client* 
 				if (pPlayer && (pPlayer->GetPhysState().m_ObjectFlags & OBJECT_FLAGS_CHARACTER) != 0)
 				{
 					CWO_Character_ClientData *pPlayerCD = GetClientData(pPlayer);
-					if (CFStr(pPlayerCD->m_FocusFrameUseText) == "�LACS_DEVOUR")
+					if (CFStr(pPlayerCD->m_FocusFrameUseText) == "§LACS_DEVOUR")
 					{
 						*pSt = pPlayerCD->m_FocusFrameUseText;
 						nChoices = 1;

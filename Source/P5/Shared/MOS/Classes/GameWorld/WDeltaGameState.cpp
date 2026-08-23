@@ -31,7 +31,7 @@ CWorld_DeltaGameState::~CWorld_DeltaGameState()
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Called when we need to change level
 \*____________________________________________________________________*/
 void CWorld_DeltaGameState::ChangeLevel(CWorld_ServerCore* _pCore, const char* _pNewLevel, int _Flags)
@@ -50,7 +50,7 @@ void CWorld_DeltaGameState::ChangeLevel(CWorld_ServerCore* _pCore, const char* _
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Captures the current Player and Global state
 \*____________________________________________________________________*/
 void CWorld_DeltaGameState::CaptureSaveInfo(CWorld_ServerCore* _pCore, TArray<uint8>& _lData)
@@ -107,7 +107,7 @@ void CWorld_DeltaGameState::CaptureSaveInfo(CWorld_ServerCore* _pCore, TArray<ui
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 Function:   	Checks with all players so we can save
 \*____________________________________________________________________*/
 bool CWorld_DeltaGameState::CanSave(CWorld_ServerCore *_pCore)
@@ -139,7 +139,7 @@ bool CWorld_DeltaGameState::CanSave(CWorld_ServerCore *_pCore)
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Captures the current Level state
 \*____________________________________________________________________*/
 void CWorld_DeltaGameState::CaptureLevel(CWorld_ServerCore *_pCore)
@@ -163,7 +163,7 @@ void CWorld_DeltaGameState::CaptureLevel(CWorld_ServerCore *_pCore)
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Called when a savegame is to be saved to medium
 \*____________________________________________________________________*/
 bool CWorld_DeltaGameState::SaveGame(CWorld_ServerCore *_pCore, CStr _SaveName, bool _bDotest)
@@ -174,7 +174,7 @@ bool CWorld_DeltaGameState::SaveGame(CWorld_ServerCore *_pCore, CStr _SaveName, 
 
 	if(_bDotest && !CanSave(_pCore))
 	{
-		pGame->m_SaveInfoString = "§LMENU_SAVEDISABLED";
+		pGame->m_SaveInfoString = "Â§LMENU_SAVEDISABLED";
 		pGame->m_LastWriteTime = CMTime::GetCPU() + CMTime::CreateFromSeconds(2.0f);
 		return false;
 	}
@@ -201,7 +201,7 @@ bool CWorld_DeltaGameState::SaveGame(CWorld_ServerCore *_pCore, CStr _SaveName, 
 		if(!pGame->BeginWriteSaveFile("", _SaveName))
 			return false;
 
-		pGame->m_SaveInfoString = "§LMENU_SAVINGCHECKPOINT";
+		pGame->m_SaveInfoString = "Â§LMENU_SAVINGCHECKPOINT";
 
 		m_SaveInfoSize = m_lLastSaveInfo.Len();
 		pGame->WriteSaveFileBlock((uint8 *)&m_SaveInfoSize, sizeof(int32));
@@ -312,7 +312,7 @@ bool CWorld_DeltaGameState::SaveGame(CWorld_ServerCore *_pCore, CStr _SaveName, 
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Called when a savegame is to be loaded from medium
 \*____________________________________________________________________*/
 void CWorld_DeltaGameState::LoadGame(CWorld_ServerCore *_pCore, CStr _SaveName)
@@ -841,7 +841,7 @@ void CWorld_DeltaGameState::CapturePendingPlayers(CWorld_ServerCore *_pCore)
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Called to apply delta-save to newly spawned player
 \*____________________________________________________________________*/
 bool CWorld_DeltaGameState::ApplyNextPendingPlayer(CWorld_ServerCore *_pCore, int _iObject, int _Flags)
@@ -862,7 +862,7 @@ bool CWorld_DeltaGameState::ApplyNextPendingPlayer(CWorld_ServerCore *_pCore, in
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Called to check if there exist save info for
 					another player
 \*____________________________________________________________________*/
@@ -879,7 +879,7 @@ bool CWorld_DeltaGameState::GetNextPendingPlayerPos(CMat4Dfp32 &_Mat)
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Return next playerclass to be spawned
 \*____________________________________________________________________*/
 CStr CWorld_DeltaGameState::GetNextPendingPlayerClass(int *_piObj, int *_pGUID, int16 *_pFlags)
@@ -898,7 +898,7 @@ CStr CWorld_DeltaGameState::GetNextPendingPlayerClass(int *_piObj, int *_pGUID, 
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   	Checks if the player has visited the current before
 			If no level input is provided, current level will be
 			checked
@@ -934,7 +934,7 @@ bool CWorld_DeltaGameState::IsFirstLevelVisit(CWorld_ServerCore *_pCore, CStr _L
 }
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:   This removes all delta save info for a specified level 
 				(but will not alter local spawnflags nor pending messages)
 \*______________________________________________________________________________*/
@@ -1357,7 +1357,7 @@ void CWorld_DeltaGameState::WriteSaveFile(spCWorldData _pWData, CStr _SaveName, 
 	{
 		// Corrupt Save
 		//  We need to inform the player abt it!!
-		ConOutL("§cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
+		ConOutL("Â§cf80WARNING: (CWorld_DeltaGameState::World_Save) Exception during save."); 	
 		throw;
 		//Error("CWorld_DeltaGameState::World_Save", _Ex.GetExceptionInfo().GetString());
 	}

@@ -12,7 +12,7 @@ static bool bDebug = false;
 #include "WAG2I_StateInst.h"
 #include "WAG2I_StateInstPacked.h"
 #include "WAG2_ClientData.h"
-#include "../server/wserver.h"
+#include "../Server/WServer.h"
 
 //--------------------------------------------------------------------------------
 
@@ -719,13 +719,13 @@ void CWAG2I_Token::EnterState(const CWAG2I_Context* _pContext, int16 _iMoveToken
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
 		{
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
-			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", 0);
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
+			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", Riddick_AG2DebugObjEnv());
 		}
 		if (!s_bDebugServer && (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0)
 			s_bDebugServer = true;
@@ -810,9 +810,19 @@ void CWAG2I_Token::EnterState(const CWAG2I_Context* _pContext, int16 _iMoveToken
 					Msg += ", iAnim -1";
 				}
 
-				//CStr Msg2 = Msg.GetStrSep("->");
-				//Msg = Msg.Del(0,Msg.Len()/2);
-				//ConOutL(Msg2);
+				// Прогон 31 (застывшая ходьба): к трассе входа -- свойства
+				// направления на момент входа. Номера -- значения enum
+				// PROPERTY_FLOAT_* (WAG2_ClientData_Game.h:329-341), здесь
+				// недоступного по зависимостям: 18=MOVEVELOCITY,
+				// 20=MOVEANGLE (градусы относительно взгляда),
+				// 22=MOVEANGLEUNIT. Флап FWD<->BWD через тик при ровном
+				// маршруте = эти числа прыгают через порог 90/180.
+				if (m_pAG2I->GetEvaluator() != NULL)
+					Msg += CStrF(" vel=%.1f ang=%.0f angU=%.3f",
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(18),
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(20),
+						m_pAG2I->GetEvaluator()->GetPropertyFloat(22));
+
 				ConOutL(Msg);
 				//if (AG2IDebugFlags & 16)
 				{
@@ -852,11 +862,11 @@ void CWAG2I_Token::DebugPrintMoveToken(const CWAG2I_Context* _pContext, int16 _i
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 
 		bool bDebugServer = s_bDebugServer || (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0;
@@ -965,13 +975,13 @@ void CWAG2I_Token::EnterGraphBlock(const CWAG2I_Context* _pContext, int16 _iMove
 		MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 		CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 		if (pReg != NULL)
-			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+			AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 		CWorld_Server* pWorld = TDynamicCast<CWorld_Server>(_pContext->m_pWPhysState);
 		if (pWorld)
 		{
-			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS");
-			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", 0);
+			AG2IDebugFlags = pWorld->Registry_GetServer()->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
+			iAGDbgObj = pWorld->Registry_GetServer()->GetValuei("agdbgobj", Riddick_AG2DebugObjEnv());
 		}
 		if (!s_bDebugServer && (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0)
 			s_bDebugServer = true;

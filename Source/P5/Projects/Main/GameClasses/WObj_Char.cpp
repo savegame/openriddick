@@ -1,4 +1,4 @@
-/*��������������������������������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character execution.
 					
 	Contents:		OnRefresh
@@ -7,6 +7,11 @@
 					etc..
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
+
+#ifdef PLATFORM_LINUX
+#include <stdio.h>   // RIDDICK_DBG_USE diagnostic
+#include <stdlib.h>
+#endif
 
 #include "WObj_Char.h"
 #include "../GameWorld/WClientMod_Defines.h"
@@ -36,7 +41,7 @@
 
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWObject_Character
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -584,6 +589,30 @@ void CWObject_Character::OnPress()
 	{
 		if(ControlPress & CONTROLBITS_BUTTON0 && !(pCD->m_Disable & PLAYER_DISABLE_ACTIVATE) && bPlayerView)
 		{
+			// RIDDICK_DBG_USE: the press itself, logged BEFORE the pile of
+			// gating conditions below (fighting, dialogue, in-air, control
+			// mode, queued relative animation) and before target selection.
+			// Without this line a missing "[USE] tick=... -> obj" is
+			// ambiguous: it can mean the button never got here, a gate
+			// rejected it, or nothing was under the crosshair.
+			{
+				static int sDbgUsePress = -1;
+				if (sDbgUsePress < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_USE");
+					sDbgUsePress = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (sDbgUsePress)
+				{
+					fprintf(stderr, "[USE] press tick=%d fight=%d dlg=%d air=%d mode=%d\n",
+						(int)m_pWServer->GetGameTick(),
+						(int)pCD->m_iFightingCharacter,
+						(int)((m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE) != 0),
+						(int)pCD->m_Phys_bInAir,
+						(int)Char_GetControlMode(this));
+					fflush(stderr);
+				}
+			}
 			if(pCD->m_iFightingCharacter == -1 && !(m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE) &&
 				!pCD->m_Phys_bInAir && (Char_GetControlMode(this) == PLAYER_CONTROLMODE_FREE) && 
 				!pCD->m_RelAnimPos.HasQueued(pCD->m_GameTick))
@@ -628,6 +657,36 @@ void CWObject_Character::OnPress()
 						CWObject_Character::Char_FindStuff(m_pWServer,this,pCD,iSel,
 							iCloseSel, SelType,bCurrentNoPrio);
 
+						// RIDDICK_DBG_USE: THIS is the branch that activates
+						// non-character objects -- valves, levers, doors --
+						// via Char_ActivateStuff below. The iBest path above
+						// it only ever handles characters (dialogue), which
+						// is why the earlier "[USE] select" line reported
+						// iBest=-1 focusType=0 on every press in the
+						// 2026-07-29 Pa1_Pit run: it was watching the wrong
+						// branch. Char_FindStuff is the real selector, so its
+						// result is the fork in the road -- iSel == -1 means
+						// nothing usable was found at all (a selection /
+						// physics-query problem, nothing to do with scripts),
+						// while iSel != -1 means the chain lives on into
+						// Char_ActivateStuff and the next probe goes there.
+						{
+							static int sDbgFind = -1;
+							if (sDbgFind < 0)
+							{
+								const char* e = getenv("RIDDICK_DBG_USE");
+								sDbgFind = (e && *e && *e != '0') ? 1 : 0;
+							}
+							if (sDbgFind)
+							{
+								CWObject* pS = (iSel != -1) ? m_pWServer->Object_Get(iSel) : NULL;
+								fprintf(stderr,
+									"[USE] find iSel=%d iClose=%d selType=0x%x name='%s'\n",
+									(int)iSel, (int)iCloseSel, (unsigned)(uint8)SelType,
+									pS ? CFStr(pS->GetName()).Str() : "<none>");
+								fflush(stderr);
+							}
+						}
 
 						if (iSel != -1)
 						{
@@ -660,6 +719,46 @@ void CWObject_Character::OnPress()
 					}
 				}
 
+				// RIDDICK_DBG_USE: what the selection actually produced, and
+				// -- if it produced something -- the value of every term in
+				// the gate below. The 2026-07-29 Pa1_Pit run had 16
+				// "[USE] press" lines with all outer gates open and NOT ONE
+				// "[USE] ... -> obj", so the chain dies either here (nothing
+				// selected) or in that gate. These two lines tell which.
+				//
+				// Watch the last term in particular:
+				//   (pCDTarget ? !...ISSLEEPING : false)
+				// When the target is NOT a character, pCDTarget is NULL and
+				// the whole condition evaluates to FALSE -- i.e. as written,
+				// using any non-character object (valve, lever, door) can
+				// never pass. Whether that is the real behaviour depends on
+				// what GetClientData() returns for a non-character, which is
+				// exactly what tgtCD below reports.
+				{
+					static int sDbgUseSel = -1;
+					if (sDbgUseSel < 0)
+					{
+						const char* e = getenv("RIDDICK_DBG_USE");
+						sDbgUseSel = (e && *e && *e != '0') ? 1 : 0;
+					}
+					if (sDbgUseSel)
+					{
+						CWObject* pT = (iBest != -1) ? m_pWServer->Object_Get(iBest) : NULL;
+						CWO_Character_ClientData* pTCD = pT ? GetClientData(pT) : NULL;
+						fprintf(stderr,
+							"[USE] select iBest=%d name='%s' focusType=0x%x darkMask=%d "
+							"lastPress=%d tick=%d cutscene=%d tgtCD=%s\n",
+							iBest, pT ? CFStr(pT->GetName()).Str() : "<none>",
+							(unsigned)pCD->m_FocusFrameType,
+							(int)((pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_NOUSEMASK) != 0),
+							(int)m_Player.m_LastInfoscreenPress,
+							(int)m_pWServer->GetGameTick(),
+							(int)m_PendingCutsceneTick,
+							pTCD ? "yes" : "NULL");
+						fflush(stderr);
+					}
+				}
+
 				if (iBest != -1)
 				{
 					// Never allow to enter many screens at once
@@ -672,7 +771,29 @@ void CWObject_Character::OnPress()
 					if(!(pCD->m_DarknessSelectionMode & PLAYER_DARKNESSMODE_NOUSEMASK) && m_Player.m_LastInfoscreenPress < int(m_pWServer->GetGameTick()) - 5 
 						&& m_PendingCutsceneTick == -1 && (pCDTarget ? !pCDTarget->m_AnimGraph2.GetPropertyBool(PROPERTY_BOOL_ISSLEEPING) : false)) 
 					{
-						//M_TRACEALWAYS(CStrF("%i. OnUse %s", m_pWServer->GetGameTick(), pTarget->GetName()));
+						// RIDDICK_DBG_USE=1: the original author's own trace,
+						// revived behind an env flag. It answers the first
+						// question of any "I pressed use and nothing
+						// happened" report: did the use even reach an
+						// object, and which one. Everything downstream
+						// (OBJMSG_CHAR_USE -> the object's OnMessage ->
+						// whatever SimpleMessage it fires) only matters if
+						// this line appears.
+						{
+							static int sDbgUse = -1;
+							if (sDbgUse < 0)
+							{
+								const char* e = getenv("RIDDICK_DBG_USE");
+								sDbgUse = (e && *e && *e != '0') ? 1 : 0;
+							}
+							if (sDbgUse)
+							{
+								fprintf(stderr, "[USE] tick=%d -> obj %d '%s'\n",
+									(int)m_pWServer->GetGameTick(), iBest,
+									pTarget ? CFStr(pTarget->GetName()).Str() : "<null>");
+								fflush(stderr);
+							}
+						}
 						m_Player.m_LastInfoscreenPress = m_pWServer->GetGameTick();
 						CWObject_Message Msg(OBJMSG_CHAR_USE);
 						Msg.m_iSender = m_iObject;
@@ -1617,7 +1738,7 @@ void CWObject_Character::OnRefresh()
 //		if(Diff > 0 || Diff < -64)
 		if(Diff > 10 || Diff < -4)
 		{
-			//ConOut("�cf80WARNING: Resetting Async player gametick to server gametick");
+			//ConOut("§cf80WARNING: Resetting Async player gametick to server gametick");
 			pCD->m_GameTick = m_pWServer->GetGameTick();
 		}
 		Char_SetGameTickDiff(pCD->m_GameTick - m_pWServer->GetGameTick());
@@ -2090,6 +2211,58 @@ void CWObject_Character::OnRefresh()
 		int32 iCloseSel = -1;
 		bool bCurrentNoPrio = false;
 		Char_FindStuff(m_pWServer,this,pCD,iSel,iCloseSel,SelType,bCurrentNoPrio,FINDSTUFF_SELECTIONMODE_FOCUSFRAME | FINDSTUFF_SELECTIONMODE_DEVOURING);
+
+		// RIDDICK_DBG_SEL=1 -- что игрок вообще "видит" как цель.
+		//
+		// Жалоба: нельзя начать диалог НИ С ОДНИМ NPC. До сих пор мы
+		// разбирали не тот путь -- "failed Dialogue" в логах это AI,
+		// решивший заговорить сам. Диалог по инициативе игрока идёт иначе:
+		// Char_FindStuff выбирает объект в фокусе и его тип, тип попадает в
+		// focus frame, и только по нему кнопка использования что-то делает.
+		//
+		// SELECTION_CHAR (=1) -- живой персонаж, то есть "с ним можно
+		// заговорить". Если при наведении на NPC тип остаётся
+		// SELECTION_NONE (=0) или приходит с флагом SELECTION_FLAG_INVALID
+		// (0x20), диалог невозможен в принципе, и чинить надо отбор целей,
+		// а не диалоговые ресурсы (они, по замерам, грузятся исправно).
+		//
+		// Печатаем только СМЕНУ выбора, иначе строка на каждый тик.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SEL");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On)
+			{
+				static int s_LastSel = -2;
+				static int s_LastType = -2;
+				static int s_n = 0;
+				if ((iSel != s_LastSel || (int)SelType != s_LastType) && s_n < 80)
+				{
+					++s_n;
+					s_LastSel = iSel;
+					s_LastType = (int)SelType;
+					const char* pName = "-";
+					if (iSel >= 0)
+					{
+						CWObject* pO = m_pWServer->Object_Get(iSel);
+						const char* pN = pO ? pO->GetName() : NULL;
+						if (pN && *pN)
+							pName = pN;
+					}
+					fprintf(stderr, "[SEL] iSel=%d type=%d(base=%d invalid=%d proxy=%d) close=%d name='%s'\n",
+						iSel, (int)SelType,
+						(int)SelType & SELECTION_MASK_TYPE,
+						((int)SelType & SELECTION_FLAG_INVALID) ? 1 : 0,
+						((int)SelType & SELECTION_FLAG_PROXY) ? 1 : 0,
+						iCloseSel, pName);
+					fflush(stderr);
+				}
+			}
+		}
+
 		//CFStr OldText = pCD->m_FocusFrameText;
 		Char_ShowInFocusFrame(SelType, iSel);
 	}
@@ -2236,7 +2409,7 @@ void CWObject_Character::OnRefresh()
 	if (pCD->m_iPlayer != -1)
 		Char_UpdateThirdPersonInteractive(*pCD);
 
-	// Check if were�re in third person view, if so, set visibility flag
+	// Check if were´re in third person view, if so, set visibility flag
 	/*uint8 Mode = (pCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK);
 	bool b3PI = (Mode != THIRDPERSONINTERACTIVE_MODE_NONE);
 	if(b3PI)
@@ -2824,12 +2997,45 @@ GetLook(GetPositionMatrix()).GetString().Str()
 	
 	if(_pCD->m_iPlayer != -1)
 	{
+		// Замок разговора (§34). Ставится в Char_BeginDialogue
+		// (WObj_CharDialogue.cpp), снимается здесь. Сверено с ретейлом,
+		// GameClasses_decomp:445009-445040 -- та же развилка под тем же
+		// внешним условием (`m_iPlayer == -1` -> выход, `m_ClientFlags &
+		// 0x8000000` = PLAYERSPEAK):
+		//   реплика доиграла  -> m_ClientFlags &= 0xb79fffff (= ~0x48600000)
+		//   реплика играет    -> m_ClientFlags |= 0x48600000
+		// то есть маска снимается ЦЕЛИКОМ (включая NOCROUCH, которого в
+		// снапшоте не было) и, пока реплика идёт, ставится заново каждый
+		// тик -- иначе замок сбивает любой другой код, трогающий
+		// m_ClientFlags. Откат: RIDDICK_DLG_LOCK=0 (тогда ведём себя как
+		// снапшот: только снятие, без переустановки).
 		if(m_ClientFlags & PLAYER_CLIENTFLAGS_PLAYERSPEAK)
 		{
+			static int s_Lock = -1;
+			if (s_Lock < 0)
+			{
+				const char* e = getenv("RIDDICK_DLG_LOCK");
+				s_Lock = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			// При RIDDICK_DLG_LOCK=0 маска ровно снапшотная (без NOCROUCH),
+			// чтобы откат был полным: и замок не ставится, и лишний бит не
+			// снимается (NOCROUCH выставляют и другие механики --
+			// WObj_CharMechanics.cpp:506, WObj_CharCreate.cpp:2806).
+			uint32 DialogueLockMask = PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+			                          PLAYER_CLIENTFLAGS_PLAYERSPEAK;
+			if (s_Lock)
+				DialogueLockMask |= PLAYER_CLIENTFLAGS_NOCROUCH;
+
 			if (!_pCD->m_DialogueInstance.IsValid())
 			{
 				// Player has stopped talking.
-				ClientFlags() &= ~(PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK | PLAYER_CLIENTFLAGS_PLAYERSPEAK);
+				ClientFlags() &= ~DialogueLockMask;
+			}
+			else if (s_Lock)
+			{
+				// Still talking -- retail re-arms the lock every tick.
+				ClientFlags() |= DialogueLockMask;
 			}
 		}
 
@@ -2913,12 +3119,82 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 		int32 AnimPhysMoveType = (int32)_pCD->m_AnimGraph2.GetAnimPhysMoveType();
 		//ConOutL(CStrF("PhysMoveType: %d",AnimPhysMoveType));
 		AdjustTurnCorrection(_pObj, _pCD, AnimPhysMoveType,_pWPhysState);
+		// Прогон 37: серверное значение tca -- сравнить с клиентским
+		// ([MOVE] tca=). Если серверное живое, а клиентское 0 -- сломана
+		// репликация autovar'а m_TurnCorrectionTargetAngle.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MOVE");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 200)
+			{
+				++s_n;
+				fprintf(stderr, "[TCA-S] obj=%d mt=%d mauc=%.3f tca=%.4f\n",
+					(int)_pObj->m_iObject, AnimPhysMoveType,
+					_pCD->m_AnimGraph2.GetPropertyFloat(16),
+					_pCD->m_TurnCorrectionTargetAngle);
+				fflush(stderr);
+			}
+		}
 		/*if (_pCD->m_iPlayer == -1)
 			ConOut(CStrF("Before: %f After: %f", Before, After));*/
 	}
 	else
 	{
 		AdjustTurnCorrection(_pObj, _pCD, ANIMPHYSMOVETYPE_RESET,_pWPhysState);
+	}
+
+	// Прогон 43: путь времени состояния ходячего NPC. Замирание слоёв
+	// показало ts=0.000 у COMBAT_RIFLE_WALK* при файловых scale=1.0+ --
+	// значит ноль приходит из инстанса состояния (sync/adaptive/natural).
+	// Печатаем FlagsHi-биты механизма (SYNCANIM=0x4,
+	// ADJUSTSTATETIMESCALE=0x20, ADAPTIVETIMESCALE=0x10000000),
+	// DestinationSpeed и масштабы инстанса token 0.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_n = 0;
+		static int16 s_lObj[12] = { 0 };
+		static uint16 s_lCnt[12] = { 0 };
+		CWAG2I* pAG2I = _pCD->m_AnimGraph2.GetAG2I();
+		if (s_On && pAG2I && pAG2I->GetNumTokens() > 0)
+		{
+			int iSlot = -1;
+			for (int i = 0; i < 12; i++)
+			{
+				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
+			}
+			if (iSlot >= 0 && s_lCnt[iSlot] < 80)
+			{
+				const CWAG2I_Token* pTok = pAG2I->GetToken(0);
+				const CWAG2I_StateInstance* pSI = pTok ? pTok->GetTokenStateInstance() : NULL;
+				if (pSI)
+				{
+					++s_n;
+					++s_lCnt[iSlot];
+					CWO_ClientData_AnimGraph2Interface* pEv =
+						pAG2I->GetEvaluator();
+					fp32 DestSpeed = pEv ? pEv->GetDestinationSpeed() : -1.0f;
+				fprintf(stderr,
+					"[TS] %s obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
+					_pWPhysState->IsServer() ? "S" : "C",
+					(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
+					(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
+					pSI->GetTimeScale_Cached(), DestSpeed,
+					pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
+					fflush(stderr);
+				}
+			}
+		}
 	}
 
 	// ===========================================================================================
@@ -3232,7 +3508,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 		_pCD->m_nChoices = _pWClient->ClientMessage_SendToObject(Msg, _pCD->m_iFocusFrameObject);
 
 		// Override if choice is telephone with available telephone numbers to be selected directly
-		if (_pCD->m_Choices.CompareNoCase("�LACS_TELEPHONE") == 0)
+		if (_pCD->m_Choices.CompareNoCase("§LACS_TELEPHONE") == 0)
 		{
 			if (!_pCD->m_DialogueInstance.IsValid())
 			{
@@ -3254,7 +3530,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 							TemStr = TemStr.Del(7,1);
 							TemStr = TemStr.Del(3,1);
 
-							TemStr = "�LPHONENUMBER_OWNER_" + TemStr;
+							TemStr = "§LPHONENUMBER_OWNER_" + TemStr;
 							TemStr = Localize_Str(TemStr);
 
 							_pCD->m_Choices += TemStr;
@@ -3265,7 +3541,7 @@ void CWObject_Character::OnClientRefresh_TrueClient(CWO_Character_ClientData *_p
 					}
 				}
 
-				_pCD->m_Choices += Localize_Str("�LGUI_DIAL_MANUALLY");
+				_pCD->m_Choices += Localize_Str("§LGUI_DIAL_MANUALLY");
 				_pCD->m_Choices += ";";
 				_pCD->m_nChoices++;
 			}
@@ -3931,7 +4207,7 @@ int CWObject_Character::Char_ProcessControl(const CControlFrame& _Msg, int& _Pos
 
 /*		if (!pWPhysState || !pWPhysState->Object_GetCD(iObjThis))
 		{
-			ConOutL("Nu �r skiten krickad.");
+			ConOutL("Nu är skiten krickad.");
 			return 0;
 		}*/
 

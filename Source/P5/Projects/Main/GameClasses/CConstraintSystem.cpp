@@ -948,7 +948,7 @@ void CConstraintSystem::SetMaterialSound(int _Material, CWObject_CoreData *_pObj
 
 	if (!pDialogue)
 	{
-		ConOut(CStrF("§cf80WARNING: Unable to set material sound. %i", _pObj->m_iObject));
+		ConOut(CStrF("Â§cf80WARNING: Unable to set material sound. %i", _pObj->m_iObject));
 		return;
 	}
 
@@ -2553,7 +2553,7 @@ bool CConstraintSystem::UpdateCollisionBox()
 	{
 		if (!m_pWPhysState->Object_SetPhysics_DoNotify(m_pClient->m_iObject, Phys, ObjPosMat))
 		{
-			ConOut(CStrF("§cf80WARNING: Unable to set contraint system collision box. %s", BBoxDim.GetString().Str()));
+			ConOut(CStrF("Â§cf80WARNING: Unable to set contraint system collision box. %s", BBoxDim.GetString().Str()));
 		}
 	}
 
@@ -4313,7 +4313,7 @@ int16 CConstraintGib::GetBoxMatrix(int _iBox,CMat4Dfp32& _Pos)
 	return(kSuccess);
 };
 
-// Calls CalcForces,Move,Collision,Constrain,Apply for the system§
+// Calls CalcForces,Move,Collision,Constrain,Apply for the systemÂ§
 int16 CConstraintGib::Animate(int32 _GameTick)
 {
 	if (_GameTick <= m_LastFrameTick)

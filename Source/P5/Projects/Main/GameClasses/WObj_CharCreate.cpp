@@ -1,4 +1,4 @@
-/*��������������������������������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character initialization code
 					
 	Contents:		OnCreate
@@ -12,14 +12,17 @@
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "WObj_Char.h"
 
 #include "../GameWorld/WServerMod.h"
 #include "../../Shared/MOS/Classes/GameContext/WGameContext.h"
 #include "../../Shared/MOS/XR/XRBlockNav.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
-#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/Wag2i.h"
-#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/Wag2_clientdata.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/WAG2I.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WAnimGraph2Instance/WAG2_ClientData.h"
 #include "../../../Shared/MOS/Classes/GameWorld/FrontEnd/WFrontEnd.h"
 
 #include "CConstraintSystem.h"
@@ -35,7 +38,7 @@
 
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CCharDialogueItems
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -44,7 +47,81 @@ bool CCharDialogueItems::Parse(uint32 _KeyHash, const CStr& _KeyValue)
 	switch (_KeyHash)
 	{
 	case MHASH5('APPR','OACH','DIAL','OGUE','ITEM'): // "APPROACHDIALOGUEITEM"   (legacy support)
-		m_Approach.Set(_KeyValue, false);
+		{
+			// РАСХОЖДЕНИЕ С РЕТЕЙЛОМ (сверено 2026-08-04).
+			//
+			// Наш снапшот хэширует значение ключа КАК СТРОКУ и всегда ставит
+			// bIsPlayer=false. Ретейл этот же ключ читает как ЧИСЛО:
+			// GameClasses_Win32_x86_dll_decomp.c:450057-450070,
+			//   iVar2 = GetValuei(...);            // целое значение ключа
+			//   str   = CStrF("%d", ...);          // обратно в строку
+			//   hash  = StrHash(str);
+			//   *(bool*)(this + 4) = iVar2 < 0;    // bIsPlayer = знак!
+			//   *(int*)this        = hash;
+			//
+			// Что это именно "APPROACHDIALOGUEITEM", доказано хэшем ключа:
+			// в декомпиле ветка выбирается по 0x409274C7, а
+			// StrHash("approachdialogueitem") = 0x409274C7. Тем же способом
+			// сошлись все шесть ключей (dialogueitem_approach = 5B0CA3E6,
+			// _threaten = 7FD54113, _ignore = 9673EA1C, _timeout = B8471D3F,
+			// _exit = 93C266B2) и слоты структуры (0/8/0x10/0x18/0x20/0x28)
+			// -- у остальных пяти наше поведение совпадает с ретейлом,
+			// расходится ровно этот, легаси-ключ.
+			//
+			// Следствие для данных: карта задаёт "-100". У нас получалось
+			// имя "-100" (StrHash = 7C767E5E, такого айтема нет ни в одном
+			// файле диалогов) и bIsPlayer=false, из-за чего реплику ещё и
+			// искали в файле ИГРОКА. По ретейлу это айтем "100"
+			// (StrHash = 0B8774B1 -- в логах успешно играется у ABE, VICTOR,
+			// VICTIM) и bIsPlayer=true, то есть говорит сам NPC из своего
+			// файла. Знак -- маркер, а не часть имени; так же его трактуют
+			// сообщение 0x1020 (`Abs(Param0)`, WObj_CharMsg.cpp) и
+			// EvalDialogueLink (`Str() + 1`, WObj_CharDialogue.cpp).
+			//
+			// Числовой путь берём только если значение действительно число --
+			// именованный айтем тогда обрабатывается как раньше.
+			static int s_Retail = -1;
+			if (s_Retail < 0)
+			{
+				const char* e = getenv("RIDDICK_DLGITEM_MINUS");
+				s_Retail = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			const char* pV = _KeyValue.Str();
+			bool bNumeric = (pV && *pV);
+			for (const char* p = (pV && *pV == '-') ? pV + 1 : pV; bNumeric && *p; p++)
+				if (*p < '0' || *p > '9')
+					bNumeric = false;
+			if (pV && *pV == '-' && pV[1] == 0)
+				bNumeric = false;
+
+			if (s_Retail && bNumeric)
+			{
+				const int V = _KeyValue.Val_int();
+				m_Approach.Set(CFStrF("%i", Abs(V)), V < 0);
+			}
+			else
+				m_Approach.Set(_KeyValue, false);
+
+			static int s_Dbg = -1;
+			if (s_Dbg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_DLG");
+				s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_Dbg)
+			{
+				static int s_n = 0;
+				if (s_n < 40)
+				{
+					++s_n;
+					fprintf(stderr, "[KEYITEM] approachdialogueitem='%s' numeric=%d retail=%d -> hash=%08X isPlayer=%d\n",
+						pV ? pV : "(null)", (int)bNumeric, s_Retail,
+						m_Approach.m_ItemHash, (int)m_Approach.m_bIsPlayer);
+					fflush(stderr);
+				}
+			}
+		}
 		return true;
 
 	case MHASH6('DIAL','OGUE','ITEM','_APP','ROAC','H'): // "DIALOGUEITEM_APPROACH"
@@ -125,7 +202,7 @@ void CCharDialogueItems::Write(CCFile* _pFile) const
 
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWObject_Character
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -885,8 +962,8 @@ void CWObject_Character::OnSpawnWorld()
 			for (int32 i = 0; i < Len; i++)
 			{
 				CRPG_Object_Item* pItem = pInventory->GetItemByIndex(i);
-				//Skicka animgraph h�r ist�llet....
-				//ladda hela containrar (antar att man f�r spara namn i animlistan :/)
+				//Skicka animgraph här istället....
+				//ladda hela containrar (antar att man får spara namn i animlistan :/)
 				if (pItem)
 				{
 					pItem->TagAnimationsForPrecache(&AGContext, pCD->m_AnimGraph2.GetAG2I());
@@ -1037,9 +1114,9 @@ void CWObject_Character::OnSpawnWorld()
 	m_spAI->OnSpawnWorld();
 
 	// Use and desc names
-	m_UseName = "�LCHAR_NAME_";
+	m_UseName = "§LCHAR_NAME_";
 	m_UseName += GetTemplateName();
-	m_DescName = "�LCHAR_DESC_";
+	m_DescName = "§LCHAR_DESC_";
 	m_DescName += GetTemplateName();
 
 	// Override player's backplane value with the one set in WorldSky..
@@ -1104,7 +1181,149 @@ void CWObject_Character::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 	case MHASH2('PLAY','ERNR'): // "PLAYERNR"
 		{
 			pCD->m_iPlayer = KeyValuei;
-			m_pWServer->Object_SetName(m_iObject, "$PLAYER");
+
+			// НАЙДЕНО (2026-08-04): этот `Object_SetName` **стирал** имя,
+			// которое персонажу дала карта, и вместе с ним ломал диалоги.
+			//
+			// Замер (pa1_prisonarea, RIDDICK_DBG_DLG):
+			//   LinkTarget: 'Victor'  -> iTarget=88   items='100'
+			//   LinkTarget: 'Victim'  -> iTarget=87   items='100'
+			//   LinkTarget: 'Abe'     -> iTarget=86   items='101'
+			//   LinkTarget: 'Riddick' -> iTarget=0    items='99'
+			// Линки диалогов адресуются ПО ИМЕНИ объекта. У NPC имена на
+			// месте, у игрока -- нет: `Selection_GetSingleTarget("Riddick")`
+			// не находит никого, `EvalDialogueLink` уходит в ветку «цель не
+			// найдена» и обрывает разговор
+			// (`WObj_CharDialogue.cpp`, `SETDIALOGUETOKENHOLDER, -1`).
+			//
+			// `Object_SetName` именно переименовывает: снимает старый узел из
+			// `m_NameSearchTree` и ставит новый (`WServer_Obj.cpp:262-287`).
+			//
+			// Служебное имя `$PLAYER` никому не нужно: в исходниках оно не
+			// встречается больше нигде, а любая цель, начинающаяся с `$`,
+			// разбирается раньше поиска по имени --
+			// `CWO_SimpleMessage::ResolveSpecialTargetName` отдаёт для
+			// `$player` отдельный SPECIAL_TARGET_PLAYER
+			// (`WObj_SimpleMessage.cpp:423-441`). В декомпиле ретейла строки
+			// `"$PLAYER"` нет ни в одном из пяти модулей -- ретейл вместо
+			// этого даёт игроку настоящее имя "Riddick" (см. §33 ниже).
+			//
+			// Оставляем имя от карты, если оно есть. `RIDDICK_PLAYERNAME=0`
+			// возвращает прежнее поведение.
+			static int s_Keep = -1;
+			if (s_Keep < 0)
+			{
+				const char* e = getenv("RIDDICK_PLAYERNAME");
+				s_Keep = (e && *e && *e == '0') ? 0 : 1;
+			}
+
+			// ИМЯ ИГРОКА (§33, уточнено §34 2026-08-21).
+			//
+			// Правка (даём безымянному персонажу игрока имя "Riddick")
+			// подтверждена прогонами 25-26: линк 'Riddick:99' резолвится,
+			// диалоговая петля замыкается. НО обоснование §33 было неверным
+			// и здесь исправлено, потому что от него зависит, чего ждать
+			// дальше.
+			//
+			// FUN_102095b0 (GameClasses_decomp:344237-344630), где ретейл
+			// зовёт Object_SetName(obj, "Riddick") -- это МУЛЬТИПЛЕЕР, а не
+			// путь спавна одиночной игры. В теле той же функции:
+			// "weapon_mp_cr_ulaks" (:344389), "Characters/Johns_rcap/..."
+			// (:344602); соседние функции того же класса оперируют
+			// "multiplayer_pb_Riddick" (:339565, :342523) и
+			// "weapon_mp_pb_riddick" (:340317), а массивы класса --
+			// CWObject_GameDM::CWObject_PickupInfo. Это режим Pitch Black,
+			// где один игрок ИГРАЕТ ЗА Риддика и потому носит это имя.
+			//
+			// В одиночной игре персонаж игрока создаётся иначе:
+			// GetDefualtSpawnClass() = "player_<мир>" (WObj_GameMod.cpp:16,
+			// 1575-1586) -> CWObject_GameCampaign::OnClientConnected
+			// (:1633, форсированный индекс 2559) -> Player_Respawn ->
+			// Object_Create(шаблон). Object_SetName на этом пути НЕТ.
+			//
+			// Сверх того (проверено по декомпилу):
+			//  * ни хэша 0x3d1d48ad ("PLAYERNR"), ни 0xe40b7151 ("$PLAYER")
+			//    в декомпилах нет вообще -- ретейловый Player_SetObject
+			//    (FUN_1019ed50, опознан по "PLAYEROBJ"/"GAMEOBJ") шлёт не
+			//    ключ, а сообщение 0x10df. То есть ретейл имя игрока не
+			//    перетирает просто потому, что этого переименования у него
+			//    нет; наш $PLAYER был чужеродным.
+			//  * ретейловый CWObject::OnEvalKey совпадает с исходником по
+			//    списку игнора (0x29ae68f1 BRUSHFLAGS, 0xbb22c193
+			//    LIGHT_MINLEVEL, 0x761be584 LIGHT_FLAGS, 0xc9ff4d0e
+			//    LIGHT_SHADOWMODEL, 0x7c9af741 NAME, 0xd3639553 COMMENT):
+			//    имя объекту даёт ТОЛЬКО ключ TARGETNAME.
+			// Значит в SP имя "Riddick" ретейл может получать лишь из
+			// данных -- TARGETNAME шаблона player_<мир>/player_base в
+			// SERVER\TEMPLATES (WDataRes_Core.cpp:271) либо переносом в
+			// дельта-стейте (имя пишется/читается: WObjCore.cpp:2447,
+			// WObj_CharIO.cpp:175). У нас шаблон имени не дал
+			// (`mapName=''`), поэтому строка ниже -- порт-сайд замена
+			// данных, а не копия кода ретейла. Открытый вопрос: теряем ли
+			// мы TARGETNAME шаблона (тогда это дефект загрузки шаблонов) --
+			// закрывается зондом по ключам шаблона, см. §34.
+			//
+			// Имя от карты приоритетнее (авторский контент);
+			// RIDDICK_PLAYERNAME=0 откатывает к "$PLAYER".
+			const char* pPlayerName = "Riddick";
+			if (!s_Keep)
+				pPlayerName = "$PLAYER";
+
+			const char* pCurName = GetName();
+			const bool bHasName = (pCurName && *pCurName);
+
+			// Ключ PLAYERNR приходит ДВАЖДЫ за смену тела игрока
+			// (CWObject_Game::Player_SetObject, WObj_Game.cpp:191-205):
+			// сначала "-1" СТАРОМУ объекту (отцепление), потом номер --
+			// новому. Имя даём только при подцеплении: иначе имя "Riddick"
+			// остаётся висеть на отцепленном, но живом теле (дубль игрока,
+			// катсценный двойник, m_iDummyPlayer), а
+			// Selection_GetSingleTarget при нескольких объектах с одним
+			// именем выбирает СЛУЧАЙНЫЙ (WServer_Core.cpp:739) -- половина
+			// линков ушла бы мимо. При отцеплении своё синтетическое имя
+			// снимаем (имя от карты не трогаем).
+			const bool bAttach = (KeyValuei >= 0);
+
+			{
+				static int s_Dbg = -1;
+				if (s_Dbg < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_DLG");
+					s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_Dbg)
+				{
+					const char* pTpl = GetTemplateName();
+
+					// dup= сколько объектов сейчас отзывается на это имя.
+					// Всё, что больше 1, -- это разъезжающиеся линки:
+					// Selection_GetSingleTarget выбирает из них случайный.
+					int nDup = 0;
+					{
+						TSelection<CSelection::SMALL_BUFFER> Sel;
+						m_pWServer->Selection_AddTarget(Sel, pPlayerName);
+						const int16* pSel = NULL;
+						nDup = (int)m_pWServer->Selection_Get(Sel, &pSel);
+					}
+
+					fprintf(stderr, "[PLAYERNAME] obj=%d playerNr=%d mapName='%s' template='%s' keep=%d dup=%d -> %s\n",
+						(int)m_iObject, KeyValuei, bHasName ? pCurName : "",
+						pTpl ? pTpl : "", s_Keep, nDup,
+						!bAttach ? "detach" : (bHasName ? "kept" : pPlayerName));
+					fflush(stderr);
+				}
+			}
+
+			if (bAttach)
+			{
+				if (!s_Keep || !bHasName)
+					m_pWServer->Object_SetName(m_iObject, pPlayerName);
+			}
+			else if (bHasName && CFStr(pCurName).CompareNoCase(pPlayerName) == 0)
+			{
+				// Отцепили тело игрока -- имя должно уйти вместе с ролью.
+				m_pWServer->Object_SetName(m_iObject, "");
+			}
 			break;
 		}
 
@@ -2615,7 +2834,7 @@ void CWObject_Character::SpawnCharacter(int _PhysMode, int _SpawnBehavior, bool 
 		// We failed to place the character
 		if(pCD->m_iPlayer != -1 || (_SpawnBehavior & PLAYER_SPAWNBEHAVIOR_FROMIO))
 		{
-			ConOutL("�cf80WARNING: Player could not be placed, using 'noclip'. (" + GetPosition().GetString() + ")");
+			ConOutL("§cf80WARNING: Player could not be placed, using 'noclip'. (" + GetPosition().GetString() + ")");
 			Char_SetPhysics(this, m_pWServer, m_pWServer, PLAYER_PHYS_NOCLIP, true);
 		}
 		else
@@ -2876,7 +3095,7 @@ void CWObject_Character::SetTemplateName(CStr _TemplateName)
 	if(!pCD)
 		return;
 
-	pCD->m_Character.m_Value = (CFStr("�LCHAR_") + GetTemplateName()).Str();
+	pCD->m_Character.m_Value = (CFStr("§LCHAR_") + GetTemplateName()).Str();
 	pCD->m_Character.MakeDirty();
 }
 

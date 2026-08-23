@@ -1,6 +1,6 @@
-#include "pch.h"
+#include "PCH.h"
 #include "WRPGAmmo.h"
-#include "WRPGSmartROcketLauncher.h"
+#include "WRPGSmartRocketLauncher.h"
 #include "../WObj_Weapons/WObj_SmartRocket.h"
 /*
 MRTC_IMPLEMENT_DYNAMIC(CRPG_Object_SmartRocketLauncher, CRPG_Object_Rifle);

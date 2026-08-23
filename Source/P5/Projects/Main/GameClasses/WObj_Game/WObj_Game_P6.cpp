@@ -722,7 +722,7 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 						if(Name != "$SPACE")
 						{
 							CRC_Font *pFont = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font(Name.GetStrSep(",")));
-							CStr St = CStrF("§Z%i%s", Name.GetStrSep(",").Val_int(), pReg->GetValue(iLine).Str());
+							CStr St = CStrF("Â§Z%i%s", Name.GetStrSep(",").Val_int(), pReg->GetValue(iLine).Str());
 							if(pFont)
 								_pUtil2D->Text_DrawFormatted(Clip, pFont, St, Name.GetStrSep(",").Val_int(), Pos, WSTYLE_TEXT_SHADOW, TextCol, ShadowCol, 0, 640, LineSize, false);
 						}
@@ -753,7 +753,7 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 					if(Text.Find("|") != -1)
 						Title = Text.GetStrSep("|");
 					else
-						Title = "§LGAMEMSG_INFO";
+						Title = "Â§LGAMEMSG_INFO";
 
 					int iSurfRes = 0;
 					int SurfW = 0;
@@ -764,7 +764,7 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 						SurfW = Text.GetStrSep(",").Val_int();
 						SurfH = Text.GetStrSep(",").Val_int();
 					}
-					Text = "§Z18" + Text;
+					Text = "Â§Z18" + Text;
 
 					wchar Buffer[1024];
 					Localize_Str(Text.Str(), Buffer, 1024);
@@ -810,7 +810,7 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 								CRC_Font *pFont2 = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font("PALATINO"));
 								if(pFont2)
 									pFont = pFont2;
-								CStr St2 = "§Z24" + St;
+								CStr St2 = "Â§Z24" + St;
 								int32 TextCol = 0x00808080 | (Alpha << 24);
 								int32 ShadowCol = 0x00000000 | (Alpha << 24);
 								_pUtil2D->GetAttrib()->Attrib_RasterMode(CRC_RASTERMODE_ALPHABLEND);
@@ -860,7 +860,7 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 		if(pFont)
 		{
 			wchar Buf[1024];
-			Localize_Str("§z09§LGAMEMSG_HELP", Buf, 1024);
+			Localize_Str("Â§z09Â§LGAMEMSG_HELP", Buf, 1024);
 			int Width = int(pFont->GetWidth(pFont->GetOriginalSize(), Buf));
 			int32 TextCol = CPixel32::From_fp32((226/1.7f),(224/1.7f),(220/1.7f),255);
 			_pUtil2D->Text_DrawFormatted(Clip, pFont, Buf, 555 - Width, 87, 0, TextCol, 0, 0, Width, 40, false);
@@ -1021,10 +1021,10 @@ void CWObject_GameP6::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 			if(pNewestItem->m_Subtitle != "")
 			{
 				CStr Subtitle = pNewestItem->m_Subtitle;
-				CStr Text = CStrF("§Z%i", pNewestItem->m_SubtitleSize) + Subtitle;
-				char moo = '§';	// GCC workaround
+				CStr Text = CStrF("Â§Z%i", pNewestItem->m_SubtitleSize) + Subtitle;
+				char moo = 'Â§';	// GCC workaround
 				if (pNewestItem->m_Subtitle.Ansi().Str()[0] == moo)
-					Text += CStrF("§p0%i§pq", NewestParam);
+					Text += CStrF("Â§p0%iÂ§pq", NewestParam);
 
 				_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart, WSTYLE_TEXT_WORDWRAP, ShadowCol, ShadowCol, ShadowCol, Clip.GetWidth(), Clip.GetHeight(), true, ExtraHeight);
 				_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, XStart, YStart, WSTYLE_TEXT_WORDWRAP, Col, Col, ShadowCol, Clip.GetWidth(), Clip.GetHeight(), false, ExtraHeight);

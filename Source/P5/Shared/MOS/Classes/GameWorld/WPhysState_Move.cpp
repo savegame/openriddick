@@ -593,7 +593,7 @@ void CWorld_PhysState::CalcDestPos( CMat4Dfp32 *_pDestPos, CWObject_CoreData *pO
 
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			v2.0 of MovePhysical.
 						
 	Parameters:			
@@ -674,7 +674,7 @@ bool CWorld_PhysState::Object_MovePhysical(const CSelection* _pSelection, int _i
 
 		const fp32 StepSize = pObj->m_PhysAttrib.m_StepSize;
 		#define PCS_SAFEBORDER 8.0f
-		fBoxMinMax[0] -= PCS_SAFEBORDER; fBoxMinMax[1] -= PCS_SAFEBORDER; fBoxMinMax[2] -= (PCS_SAFEBORDER+StepSize); // säkerhetsområde +-4 enheter
+		fBoxMinMax[0] -= PCS_SAFEBORDER; fBoxMinMax[1] -= PCS_SAFEBORDER; fBoxMinMax[2] -= (PCS_SAFEBORDER+StepSize); // sÃ¤kerhetsomrÃ¥de +-4 enheter
 		fBoxMinMax[3] += PCS_SAFEBORDER; fBoxMinMax[4] += PCS_SAFEBORDER; fBoxMinMax[5] += (PCS_SAFEBORDER+StepSize);
 
 		pcs.SetBox( fBoxMinMax );
@@ -697,7 +697,7 @@ bool CWorld_PhysState::Object_MovePhysical(const CSelection* _pSelection, int _i
 	else
 	{
 		DEBUG_GS_BGCOLOR( 0xffffff );
-		// MUPPJOKKO - IMPLEMENT ME! Det här anropet är toklångsamt!
+		// MUPPJOKKO - IMPLEMENT ME! Det hÃ¤r anropet Ã¤r toklÃ¥ngsamt!
 		pRTC->m_pfnOnPhysicsEvent(pObj, PCSHACK_ARG, this, CWO_PHYSEVENT_GETACCELERATION, 0, _dTime, &AccelMat, NULL);
 		DEBUG_GS_BGCOLOR( 0x000000 );
 		DEBUG_CHECK_VECTOR(Accel);

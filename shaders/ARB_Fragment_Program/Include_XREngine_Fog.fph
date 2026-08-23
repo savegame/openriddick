@@ -1,0 +1,88 @@
+
+/* These must be defined:
+	*FOGCONST0 0
+	*FOGCONST1 1
+	*FOGCONST2 2
+	*FOGCONST3 3
+	*FOGTEXTURE0 6
+	*FOGTEXTURE1 7
+	*FOGTEXCOORD0 6
+	*FOGTEXCOORD1 7
+*/
+
+
+
+	*do  //if_fog
+	{
+
+		*do1	// Calc distance
+		"
+			ATTRIB TCFogSky = fragment.texcoord[@FOGTEXCOORD0];
+			ATTRIB TCFogCube = fragment.texcoord[@FOGTEXCOORD1];
+			PARAM FogInterval = program.env[@FOGCONST0];	# { -FogStart/(end-start), 1.0f/(end-start), -SkyStart/(end-start), 1.0f/(end-start) }
+			PARAM FogColor = program.env[@FOGCONST1]; 	# { r,g,b,a }
+			PARAM FogCubeColor = program.env[@FOGCONST2]; 	# { r,g,b,a }
+			PARAM FogDitherUVScale = program.env[@FOGCONST3];# { dX, dY, 0, Density }
+			TEMP FogAlphaScale;
+			TEMP fogr0;
+			TEMP fogr1;
+
+			DP3 fogr0.a, TCFogCube, TCFogCube;
+			RSQ fogr0.x, fogr0.a;
+			MUL fogr1.a, fogr0.a, fogr0.x;
+
+			MAD_SAT fogr0.a, fogr1.a, FogInterval.y, FogInterval.x;
+			POW fogr0.a, fogr0.a, FogDitherUVScale.w;
+			MOV fogr0.rgb, FogColor;
+			
+			LRP FogAlphaScale.a, fogr0.a, FogColor.a, 1.0;
+			
+			TEMP TCFogSkyProj;
+			RCP fogr1.x, TCFogSky.w;
+			MUL TCFogSkyProj.xy, TCFogSky, fogr1.x;
+		"
+	//	MOV fogr1.x, 0.25;
+	//	POW fogr0.a, fogr0.a, fogr1.x;
+		*if_fogsky
+		{
+			*if_fogcube
+			"
+				TEMP TexelFogCube;
+				TEX TexelFogCube, TCFogCube, texture[@FOGTEXTURE1], CUBE;	# Cube texture
+				MUL fogr0.rgb, TexelFogCube, FogCubeColor;
+			"
+			*do
+			"
+				TEMP TexelSky;
+				TEX TexelSky, TCFogSkyProj, texture[@FOGTEXTURE0], 2D;	# Sky texture
+				MAD_SAT fogr1.a, fogr1.a, FogInterval.w, FogInterval.z;
+				MUL fogr1.a, fogr1.a, fogr1.a;
+				LRP fogr0.rgb, fogr1.a, TexelSky, fogr0;
+			"
+		}
+		*ifnot_fogsky
+		{
+			*if_fogcube
+			"
+				TEMP TexelFogCube;
+				TEX TexelFogCube, TCFogCube, texture[@FOGTEXTURE1], CUBE;	# Cube texture
+				MUL fogr0.rgb, TexelFogCube, FogCubeColor;
+			"
+		}
+		*do2
+		"
+			TEMP FogResult;
+			MOV FogResult, fogr0;
+			MUL fogr0.xy, TCFogSkyProj, FogDitherUVScale;
+			FRC fogr0.xy, fogr0;
+			
+		@if platform_xenon
+			MAD fogr0.xy, fogr0, 0.001953125, -0.0009765625;
+		@else
+			MAD fogr0.xy, fogr0, 0.0078125, -0.00390625;
+			#MAD fogr0.xy, fogr0, 0.00390625, -0.001953125;
+		@endif
+			ADD fogr0.x, fogr0.x, fogr0.y;
+			ADD_SAT FogResult.rgb, FogResult, fogr0.x;
+		"
+	}

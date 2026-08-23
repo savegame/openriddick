@@ -1370,7 +1370,7 @@ int CAI_Device_Sound::UseRandom(int _iType, int _Prio, int _iVariant)
 #ifndef M_RTM
 			if (!Duration)
 			{
-				CStr msg = "§cf00";
+				CStr msg = "Â§cf00";
 				msg += m_pAI->m_pGameObject->GetName();
 				msg += " failed Dialogue: ";
 				if ((_iType > CAI_Device_Sound::INVALID_SOUND)&&(_iType < CAI_Device_Sound::MAX_SOUNDS))

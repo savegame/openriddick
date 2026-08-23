@@ -1,4 +1,8 @@
 #include "PCH.h"
+
+#include <stdio.h>	// [RATE] tick-rate report
+#include <stdlib.h>	// getenv
+#include <time.h>	// clock_gettime
 #include "WServer_Core.h"
 #include "../../Render/MRenderCapture.h"
 #include "../../../XR/XRBlockNavInst.h"
@@ -52,6 +56,64 @@ void CWorld_ServerCore::SimulateOnTickUp(CPerfGraph* _pPerfGraph)
 
 	m_SimulationTick++;
 	m_SimulationTime += CMTime::CreateFromSeconds(GetGameTickTime());
+
+	// RIDDICK_DBG_RATE=1: how fast the simulation clock runs against the wall
+	// clock. This is the whole "everything moves too fast" question in one
+	// number.
+	//
+	// The engine's tick length is data-driven -- m_TickTime = 1/SERVER_REFRESHRATE
+	// with a default of 30 Hz (WPhysState.cpp:76-77) -- and [PATH] tick lines
+	// confirm the sim believes a tick is 0.0333 s. What that does NOT say is
+	// how many ticks actually get executed per real second. If the main loop
+	// steps the server once per rendered frame instead of by elapsed time,
+	// then at 60 fps the game clock runs at 2x real time: NPCs cover ground
+	// twice as fast, their walk cycles cannot keep up (so they look like they
+	// are sliding), and footstep sounds fire twice as often. All three are
+	// exactly what was reported.
+	//
+	// ratio = (ticks executed * tickTime) / real seconds:
+	//   1.0  -> simulation clock matches real time, look elsewhere;
+	//   2.0  -> one tick per frame at 60 fps against a 30 Hz sim;
+	//   varies with fps -> the loop is frame-driven rather than time-driven.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_RATE");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static struct timespec s_T0 = { 0, 0 };
+			static int s_Tick0 = 0;
+			static int s_nLogged = 0;
+			struct timespec Now;
+			clock_gettime(CLOCK_MONOTONIC, &Now);
+			if (s_T0.tv_sec == 0)
+			{
+				s_T0 = Now;
+				s_Tick0 = m_SimulationTick;
+			}
+			else
+			{
+				const fp64 Real = (fp64)(Now.tv_sec - s_T0.tv_sec)
+					+ (fp64)(Now.tv_nsec - s_T0.tv_nsec) * 1e-9;
+				if (Real >= 2.0 && s_nLogged < 40)
+				{
+					++s_nLogged;
+					const int nTicks = m_SimulationTick - s_Tick0;
+					const fp64 GameSecs = (fp64)nTicks * (fp64)GetGameTickTime();
+					fprintf(stderr, "[RATE] ticks=%d real=%.2fs game=%.2fs ratio=%.3f "
+						"tickTime=%.4f refresh=%.1fHz timeScale=%.3f\n",
+						nTicks, Real, GameSecs, (Real > 0.0) ? GameSecs / Real : 0.0,
+						GetGameTickTime(), GetGameTicksPerSecond(), GetTimeScale());
+					fflush(stderr);
+					s_T0 = Now;
+					s_Tick0 = m_SimulationTick;
+				}
+			}
+		}
+	}
 //	m_World_PendingName = "";
 //	m_World_PendingFlags = 0;
 }

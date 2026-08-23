@@ -2,6 +2,9 @@
 
 #include "PCH.h"
 
+#include <stdio.h>    // RIDDICK_DBG_AG2FX diagnostic
+#include <stdlib.h>   // getenv
+
 #include "WObj_Char.h"
 #include "WObj_CharMsg.h"
 #include "WAG2_ClientData_Game.h"
@@ -318,7 +321,8 @@ bool CWO_Clientdata_Character_AnimGraph2::StanceSupported(int32 _WeaponType, int
 	M_ASSERT(_Stance < AG2_NUMSTANCES, "Invalid stance!");
 	int32 Shift = _WeaponType + _Stance * AG2_IMPULSEVALUE_NUMWEAPONTYPES;
 	int32 iBox = Shift / 8;
-	M_ASSERT(iBox < 5,"WEAPONTYPE OR STANCE INVALID");
+	// Сетка 2026-08-22: NUMWEAPONTYPES=10, стансов 5 -> shift до 49 -> бокс 6.
+	M_ASSERT(iBox < 7,"WEAPONTYPE OR STANCE INVALID");
 	Shift = Shift % 8;
 	return (m_SupportedStances[iBox] & (1 << Shift)) != 0;
 }
@@ -331,7 +335,7 @@ void CWO_Clientdata_Character_AnimGraph2::SetSupportedStances(const CWAG2I_Conte
 	m_bSupportedStancesSet = true;
 
 	// Clear out old supported stances
-	for (int32 i = 0; i < 5; i++)
+	for (int32 i = 0; i < 7; i++)
 		m_SupportedStances[i] = 0;
 
 	// Go through and check which stances are supported?
@@ -1030,6 +1034,65 @@ CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeft(const CWAG2I
 	return CAG2Val::From((int)0);
 }
 
+// MELEE-варианты (слоты 19-22 каталога функций PC-данных:
+// ISWALKANGLEFWD/RIGHT/BWD/LEFTMELEE). Условия боевых melee-блоков
+// ссылаются на них; при пустых слотах fallback 0 давал тиковую петлю
+// реакций IDLE<->WALKLEFT/WALKBWD у патрульных (прогоны 37-38).
+// Реализация -- та же проверка стика, что у не-melee вариантов
+// (ретейл-декомпила этих функций в нашем распоряжении нет; расхождение
+// возможно только в константах "допуска").
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleFwdMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_FWD_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) ||
+		(Angle < WALKANGLE_RIGHT_START + EXPLORE_MOVEANGLE_EXTRAANGLE))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleRightMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_RIGHT_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_BWD_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleBwdMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_BWD_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_LEFT_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeftMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_LEFT_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_FWD_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
 CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_CanEndACS(const CWAG2I_Context* _pContext)
 {
 	if (_pContext->m_pWPhysState->IsClient())
@@ -1443,6 +1506,33 @@ void CWO_Clientdata_Character_AnimGraph2::Effect_ActionCutsceneSwitch(const CWAG
 
 	// Get type of action to perform from the animgraph
 	ACSActionType = _pParams->GetParam(0);
+
+	// RIDDICK_DBG_AG2FX=1: which action-cutscene action the animgraph asked
+	// for, and on which ACS object. The door-opening path is
+	// AG2_ACSACTIONTYPE_DOTRIGGER (and _ONCHANGEVALVESTATE for valves) --
+	// if the animation plays but this never reports that type, the trigger
+	// key is simply never reached.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2FX");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static int s_nLogged = 0;
+			if (s_nLogged < 400)
+			{
+				++s_nLogged;
+				fprintf(stderr, "[AG2FX] acs type=%d iACS=%d client=%d obj=%d\n",
+					ACSActionType, iACS,
+					(int)_pContext->m_pWPhysState->IsClient(),
+					(int)_pContext->m_pObj->m_iObject);
+				fflush(stderr);
+			}
+		}
+	}
 
 	if (_pContext->m_pWPhysState->IsClient())
 	{
@@ -2020,7 +2110,10 @@ PFN_ANIMGRAPH2_PROPERTY CWO_Clientdata_Character_AnimGraph2::ms_lpfnProperties_S
 	/* 16 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_CanActivateItem,
 	/* 17 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_RandFromParam,
 	/* 18 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_TurnInAngleDiff,
-	/* 19 */ NULL,
+	/* 19 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleFwdMelee,
+	/* 20 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleRightMelee,
+	/* 21 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleBwdMelee,
+	/* 22 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeftMelee,
 };
 
 

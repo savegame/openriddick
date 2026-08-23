@@ -1,6 +1,9 @@
 #ifndef WAG2_ClientData_h
 #define WAG2_ClientData_h
 
+#include <stdio.h>	// [AG2-FN] зонд недостающих FUNCTION-свойств
+#include <stdlib.h>
+
 //--------------------------------------------------------------------------------
 
 #include "../../../XR/XRAnimGraph2/AnimGraph2.h"
@@ -356,7 +359,9 @@ typedef void (CWO_ClientData_AnimGraph2Interface::*PFN_ANIMGRAPH2_EFFECT)(const 
 //--------------------------------------------------------------------------------
 
 #define MAX_ANIMGRAPH2_DEFCONDITIONS	10
-#define MAX_ANIMGRAPH2_DEFPROPERTIES	20
+// PC-данные используют 23 FUNCTION-свойства (ISWALKANGLE*MELEE = 19-22,
+// см. EXPORTED-каталог в .xah); PS3-снапшот обрезал таблицу до 20.
+#define MAX_ANIMGRAPH2_DEFPROPERTIES	23
 #define MAX_ANIMGRAPH2_DEFOPERATORS	9
 #define MAX_ANIMGRAPH2_DEFEFFECTS	25
 #define NUM_DIALOGUE_PROPERTIES 6
@@ -644,6 +649,28 @@ public:
 				}
 			case AG2_PROPERTYTYPE_FUNCTION:
 				{
+					// Прогон 41: какой FUNCTION-property не хватает графу.
+					// Петля реакций патрульного коррелирует 1:1 с этим
+					// ассертом -- фиксируем запрашиваемый индекс и размер
+					// таблицы, чтобы понять: индекс вне таблицы (маппинг
+					// загрузчика) или NULL-слот (не реализована у нас).
+					if (!(_iProperty < m_nProperties && m_lpfnProperties[_iProperty]))
+					{
+						static int s_On = -1;
+						if (s_On < 0)
+						{
+							const char* e = getenv("RIDDICK_DBG_AG2");
+							s_On = (e && *e && *e != '0') ? 1 : 0;
+						}
+						static int s_n = 0;
+						if (s_On && s_n < 200)
+						{
+							++s_n;
+							fprintf(stderr, "[AG2-FN] MISSING func-property: idx=%d nProps=%d\n",
+								_iProperty, m_nProperties);
+							fflush(stderr);
+						}
+					}
 					M_ASSERTHANDLER(_iProperty < m_nProperties && m_lpfnProperties[_iProperty],"PROPERTYINDEX OUT OF RANGE", return CAG2Val::From((int)0));
 					//M_ASSERT(_iProperty < m_nProperties && m_lpfnProperties[_iProperty], "PROPERTYINDEX OUT OF RANGE");
 					return (this->*(m_lpfnProperties[_iProperty]))(_pContext);

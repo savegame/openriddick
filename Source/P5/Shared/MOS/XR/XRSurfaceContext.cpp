@@ -12,7 +12,7 @@
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_VBOperator
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -48,7 +48,7 @@ CStr CXR_VBOperator::OnDebugDump(class CXR_Engine* _pEngine, const class CXW_Lay
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_SurfaceContext
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -199,7 +199,7 @@ spCKeyContainerNode CXR_SurfaceContext::LoadSurfaceScript(const char* _pFileName
 		M_CATCH(
 		catch(CCException) 
 		{
-			ConOutL("§cf80WARNING: Failure reading surfaces from: " + Name);
+			ConOutL("Â§cf80WARNING: Failure reading surfaces from: " + Name);
 			return NULL;
 		}
 		)
@@ -242,7 +242,7 @@ void CXR_SurfaceContext::AddSurfaces(TArray<spCXW_Surface> _lspSurfaces)
 			if (m_spHash->GetIndex(Hash) >= 0)
 			{
 
-				ConOutL(CStrF("§cf80        WARNING: Duplicate surface: %s", m_lspSurfaces[i]->m_Name.Str()));
+				ConOutL(CStrF("Â§cf80        WARNING: Duplicate surface: %s", m_lspSurfaces[i]->m_Name.Str()));
 			}
 	//LogFile(CStrF("(AddSurfaces) %.8x, %s", Hash, m_lspSurfaces[i]->m_Name.Str()));
 			m_spHash->Insert(i, Hash);
@@ -572,7 +572,7 @@ int CXR_SurfaceContext::VBOperator_GetOperatorID(const char* _pClassName)
 
 		lFailedOpers.Add(CStr(_pClassName));
 	
-ConOutL("§cf80        WARNING: Invalid VB layer operator " + ClassName);
+ConOutL("Â§cf80        WARNING: Invalid VB layer operator " + ClassName);
 		return 0;
 	}
 

@@ -48,7 +48,7 @@ void CHash2D::Create(int _nBoxes, int _BoxShiftSize, int _MaxIDs, bool _bUseLarg
 void CHash2D::Insert(int _ID, const CVec3Dfp32& _Min, const CVec3Dfp32& _Max)
 {
 	if (!m_pHash) Error("Insert", "Not initialized.");
-	// Object med radie större än lådstorleken hamnar i large-listan.
+	// Object med radie stÃ¶rre Ã¤n lÃ¥dstorleken hamnar i large-listan.
 	if ((_ID < 0) || (_ID > m_MaxIDs)) Error("Insert", CStrF("ID out of range. (%d/%d)", _ID, m_MaxIDs));
 	
 	CHashIDInfo* pID = &m_pIDInfo[_ID];

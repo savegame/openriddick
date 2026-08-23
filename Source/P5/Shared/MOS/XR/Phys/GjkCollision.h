@@ -166,9 +166,9 @@ public:
 	{
 
 		/*
-		I.   R‰kna ut det som delas
-		II.  R‰kna ut n‰rmsta punkt
-		III. Reducera m‰ngden map vilken typ av punkt det blev
+		I.   R√§kna ut det som delas
+		II.  R√§kna ut n√§rmsta punkt
+		III. Reducera m√§ngden map vilken typ av punkt det blev
 		*/
 
 		m_LastV = _V;
@@ -223,7 +223,7 @@ public:
 				fp32 ta, tb, tc, td;
 
 				bool degenerated = false;
-				// TODO: H‰r borde man kolla degenererade fall. Outside i ToTetra. ska kollas samt om ingen ligger utanfˆr...
+				// TODO: H√§r borde man kolla degenererade fall. Outside i ToTetra. ska kollas samt om ingen ligger utanf√∂r...
 				m_Mask = TClosestPoint<fp32>::ToTetrahedron(CVec3Dfp32(0,0,0), m_Points[0], m_Points[1], m_Points[2], m_Points[3], ta, tb, tc, td, Closest);
 
 #ifndef PLATFORM_CONSOLE
@@ -796,9 +796,9 @@ public:
 		*/
 
 		/*
-		TODO: index kan bli -1 om m_ClosestToOrigoDistanceSq ‰r ogilig
-		Det verkar komma sig ifrÂn att translationsdelen ibland fˆr ett fysikobjekt
-		kan vara "NaN" av nÂgon oklar anledning.
+		TODO: index kan bli -1 om m_ClosestToOrigoDistanceSq √§r ogilig
+		Det verkar komma sig ifr√•n att translationsdelen ibland f√∂r ett fysikobjekt
+		kan vara "NaN" av n√•gon oklar anledning.
 		if-satsen ska vara en assert sen.
 		*/
 		/*
@@ -906,9 +906,9 @@ public:
 		}
 
 		/*
-			TODO: index kan bli -1 om m_ClosestToOrigoDistanceSq ‰r ogilig
-			Det verkar komma sig ifrÂn att translationsdelen ibland fˆr ett fysikobjekt
-			kan vara "NaN" av nÂgon oklar anledning.
+			TODO: index kan bli -1 om m_ClosestToOrigoDistanceSq √§r ogilig
+			Det verkar komma sig ifr√•n att translationsdelen ibland f√∂r ett fysikobjekt
+			kan vara "NaN" av n√•gon oklar anledning.
 			if-satsen ska vara en assert sen.
 		*/
 		if (index == -1)
@@ -992,7 +992,7 @@ public:
 
 			CVec3Dfp32 ClosestPoint = Triangle->GetClosestPointToOrigo();
 
-			// Tecken har skiljer sig frÂn andra...
+			// Tecken har skiljer sig fr√•n andra...
 			CVec3Dfp32 p = _Polyhedron1.Support(ClosestPoint);
 			CVec3Dfp32 q = _Polyhedron2.Support(-ClosestPoint);
 			CVec3Dfp32 w = p - q; 
@@ -1010,16 +1010,16 @@ public:
 		}
 
 /*
-		// TODO: Vi nÂr inte ett acceptablt fel. 
-		// NÂgot ‰r snett! B‰st att returnera false ELLER INTE?
+		// TODO: Vi n√•r inte ett acceptablt fel. 
+		// N√•got √§r snett! B√§st att returnera false ELLER INTE?
 		if (nIter == _MaxIter)
 		{
 			return false;
 		}
 */
 
-		// TODO: Detta ska v‰l egentligen inte "kunna" ske?
-		// Kanske en assert ist‰llet.
+		// TODO: Detta ska v√§l egentligen inte "kunna" ske?
+		// Kanske en assert ist√§llet.
 		if (Triangle != NULL)
 		{
 			gTriangleHeap.ComputePoints(*Triangle, _P1, _P2);
@@ -1127,20 +1127,20 @@ public:
 			}
 
 
-			// TODO: TEST F÷R ATT m_PointA och m_PointB ‰r odef om det ‰r fˆrsta iterationen...
+			// TODO: TEST F√ñR ATT m_PointA och m_PointB √§r odef om det √§r f√∂rsta iterationen...
 
-            // TODO: DENNA L÷SNING ƒR EN TEMPORƒR FIX!
+            // TODO: DENNA L√ñSNING √ÑR EN TEMPOR√ÑR FIX!
 			if (nIterations > 1)
 			if (simplex.Contains(w) || DistanceSq - delta <= DistanceSq * _RelativeErrorSq) 
 			{
-				// TODO: Om DistanceSq == 0 gÂr det Ât pipan!
-				// Samma g‰ller l‰ngre ner!
+				// TODO: Om DistanceSq == 0 g√•r det √•t pipan!
+				// Samma g√§ller l√§ngre ner!
 				//if (nIterations == 0) return false;
 
 				simplex.Compute(_P1, _P2);
 				fp32 d = M_Sqrt(DistanceSq);
 
-				// TODO: Temp fix dÂ d ibland kan vara 0.
+				// TODO: Temp fix d√• d ibland kan vara 0.
 				if (M_Fabs(d) > 0.0001f)
 				{
 					_P1 = _P1 - v * (_Margin1 / d);
@@ -1158,7 +1158,7 @@ public:
 					simplex.Compute(_P1, _P2);
 					fp32 d = M_Sqrt(DistanceSq);
 
-					// TODO: Temp fix dÂ d ibland kan vara 0.
+					// TODO: Temp fix d√• d ibland kan vara 0.
 					if (M_Fabs(d) > 0.0001f)
 					{
 						_P1 = _P1 - v * (_Margin1 / d);
@@ -1181,7 +1181,7 @@ public:
 
 				//simplex.Compute(_P1, _P2);
 				fp32 d = M_Sqrt(DistanceSq);
-				// TODO: Temp fix dÂ d ibland kan vara 0.
+				// TODO: Temp fix d√• d ibland kan vara 0.
 				if (M_Fabs(d) > 0.0001f)
 				{
 					_P1 = _P1 - v * (_Margin1 / d);
@@ -1252,7 +1252,7 @@ public:
 
 			CVec3Dfp32 ClosestPoint = Triangle->GetClosestPointToOrigo();
 
-			// Tecken har skiljer sig frÂn andra...
+			// Tecken har skiljer sig fr√•n andra...
 			CVec3Dfp32 p = _Polyhedron1.Support(ClosestPoint);
 			CVec3Dfp32 q = _Polyhedron2.Support(-ClosestPoint);
 			CVec3Dfp32 w = p - q; 
@@ -1269,8 +1269,8 @@ public:
 			Triangle = TriHeap.GetClosestAndRemove();
 		}
 
-		// TODO: Detta ska v‰l egentligen inte "kunna" ske?
-		// Kanske en assert ist‰llet.
+		// TODO: Detta ska v√§l egentligen inte "kunna" ske?
+		// Kanske en assert ist√§llet.
 		if (Triangle != NULL)
 		{
 			TriHeap.ComputePoints(*Triangle, _P1, _P2);
@@ -1378,20 +1378,20 @@ public:
 			}
 
 
-			// TODO: TEST F÷R ATT m_PointA och m_PointB ‰r odef om det ‰r fˆrsta iterationen...
+			// TODO: TEST F√ñR ATT m_PointA och m_PointB √§r odef om det √§r f√∂rsta iterationen...
 
-                        // TODO: DENNA L÷SNING ƒR EN TEMPORƒR FIX!
+                        // TODO: DENNA L√ñSNING √ÑR EN TEMPOR√ÑR FIX!
 			if (nIterations > 1)
 			if (simplex.Contains(w) || DistanceSq - delta <= DistanceSq * _RelativeErrorSq) 
 			{
-				// TODO: Om DistanceSq == 0 gÂr det Ât pipan!
-				// Samma g‰ller l‰ngre ner!
+				// TODO: Om DistanceSq == 0 g√•r det √•t pipan!
+				// Samma g√§ller l√§ngre ner!
 				//if (nIterations == 0) return false;
 
 				simplex.Compute(_P1, _P2);
 				fp32 d = M_Sqrt(DistanceSq);
 
-				// TODO: Temp fix dÂ d ibland kan vara 0.
+				// TODO: Temp fix d√• d ibland kan vara 0.
 				if (M_Fabs(d) > 0.0001f)
 				{
 					_P1 = _P1 - v * (_Margin1 / d);
@@ -1409,7 +1409,7 @@ public:
 					simplex.Compute(_P1, _P2);
 					fp32 d = M_Sqrt(DistanceSq);
 
-					// TODO: Temp fix dÂ d ibland kan vara 0.
+					// TODO: Temp fix d√• d ibland kan vara 0.
 					if (M_Fabs(d) > 0.0001f)
 					{
 						_P1 = _P1 - v * (_Margin1 / d);
@@ -1432,7 +1432,7 @@ public:
 
 				//simplex.Compute(_P1, _P2);
 				fp32 d = M_Sqrt(DistanceSq);
-				// TODO: Temp fix dÂ d ibland kan vara 0.
+				// TODO: Temp fix d√• d ibland kan vara 0.
 				if (M_Fabs(d) > 0.0001f)
 				{
 					_P1 = _P1 - v * (_Margin1 / d);

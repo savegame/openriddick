@@ -1,7 +1,7 @@
 #ifndef WRPGInitParams_h
 #define WRPGInitParams_h
 
-#include "MRTC.h"
+#include "Mrtc.h"
 
 //-------------------------------------------------------------------
 //- CRPG_InitParams -------------------------------------------------

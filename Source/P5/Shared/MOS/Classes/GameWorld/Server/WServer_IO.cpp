@@ -61,7 +61,7 @@ void CWorld_ServerCore::World_SpawnObjectsFromFile(CCFile* _pF, int _nObjects, c
 		if (!pObj)
 		{
 			m_spObjectHeap->FreeID(iObj);
-			ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_Load) Could not create object of class %s", (char*) Class));
+			ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::World_Load) Could not create object of class %s", (char*) Class));
 			continue;
 		}
 		m_lspObjects[iObj] = pObj;
@@ -71,7 +71,7 @@ void CWorld_ServerCore::World_SpawnObjectsFromFile(CCFile* _pF, int _nObjects, c
 		pObj->OnLoad(_pF);
 		if (!Object_SetPosition(iObj, pObj->m_Pos))
 		{
-			ConOutL(CStrF("§cf80WARNING: Failed to set object-position (%d, %s, %s)", iObj, (char*)Class, (char*) pObj->GetPositionMatrix().GetString()));
+			ConOutL(CStrF("Â§cf80WARNING: Failed to set object-position (%d, %s, %s)", iObj, (char*)Class, (char*) pObj->GetPositionMatrix().GetString()));
 		}
 
 		// It is questionable if this call should be made.
@@ -173,7 +173,7 @@ void CWorld_ServerCore::World_SpawnTransitZone(CStr _Name, const CMat4Dfp32& _Tr
 		if (CDiskUtil::FileExists(m_spWData->ResolveFileName("WORLDS\\" + _Name + ".XTZ")))
 			World_SpawnObjectsFromWorld(_Name + ".XTZ", &_Transform);
 		else
-			ConOutL("§cf80WARNING: Could not find transitzone " + _Name);
+			ConOutL("Â§cf80WARNING: Could not find transitzone " + _Name);
 	}
 }
 */
@@ -276,7 +276,7 @@ void CWorld_ServerCore::World_Load(CStr _SaveName, CStr _WorldName, bool _bLoadP
 				Game_GetObject()->Player_SetObject(i, iObj);
 				if (iObj < 0)
 				{
-					ConOutL(CStrF("§cf80WARNING: Could not find object for player %d", i));
+					ConOutL(CStrF("Â§cf80WARNING: Could not find object for player %d", i));
 //					Player_Respawn(i);
 				}
 			}
@@ -390,7 +390,7 @@ TArray<uint8> CWorld_ServerCore::World_CreateFullSave()
 					CStr Name = Object_GetName(iTZObj);
 					if (Name == "")
 					{
-						ConOutL("§cf80WARNING: (CWorld_ServerCore::World_Save) Trigger_TransitZone with no targetname.");
+						ConOutL("Â§cf80WARNING: (CWorld_ServerCore::World_Save) Trigger_TransitZone with no targetname.");
 						continue;
 					}
 
@@ -504,7 +504,7 @@ void CWorld_ServerCore::World_Load(CStr _SaveName)
 			{
 				// Signature missmatch
 				FileSig.Close();
-				ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_Load) Signature %d missmatch. (%.8x != %.8x)", k, val, Signature.Signature[k]));
+				ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::World_Load) Signature %d missmatch. (%.8x != %.8x)", k, val, Signature.Signature[k]));
 				Error("World_Load", "Signature missmatch.");
 			}
 		}
@@ -544,7 +544,7 @@ void CWorld_ServerCore::World_Load(CStr _SaveName)
 		{
 			if(checksum_calc[i] != lLoadData.GetBasePtr()[checksum_start + i]) 
 			{
-				ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_Load) Signature %d missmatch. (%.8x != %.8x)", i, checksum_calc[i], lLoadData.GetBasePtr()[checksum_start + i]));
+				ConOutL(CStrF("Â§cf80WARNING: (CWorld_ServerCore::World_Load) Signature %d missmatch. (%.8x != %.8x)", i, checksum_calc[i], lLoadData.GetBasePtr()[checksum_start + i]));
 				Error("World_Load", "Corrupt signature for save game.");
 			}
 		}

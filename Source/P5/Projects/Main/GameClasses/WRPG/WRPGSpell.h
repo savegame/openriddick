@@ -7,7 +7,7 @@
 //#include "../Models/WModels_Misc.h"
 //#include "../WObj_AutoVar_AttachModel.h"
 
-// H‰r ligger numer bara gammalt skr‰pt som skall bort sÂ fort det inte anv‰nds l‰ngre =).
+// H√§r ligger numer bara gammalt skr√§pt som skall bort s√• fort det inte anv√§nds l√§ngre =).
 
 //-------------------------------------------------------------------
 // CSummonInit

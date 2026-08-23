@@ -298,6 +298,31 @@ CXR_Model_BSP2::CXR_Model_BSP2()
 		m_RenderZBuffer.Attrib_Enable(CRC_FLAGS_ZWRITE | CRC_FLAGS_STENCIL | CRC_FLAGS_ZCOMPARE | CRC_FLAGS_CULL);
 	#ifdef PLATFORM_CONSOLE
 		m_RenderZBuffer.Attrib_Disable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
+	#elif defined(PLATFORM_LINUX)
+		// GLES3 port: follow the PLATFORM_CONSOLE branch above -- the
+		// unified-Z pass must be a PURE depth+stencil prepass.
+		//
+		// Why this matters: on PC (no PLATFORM_CONSOLE) this attribute keeps
+		// COLORWRITE, so the UNIFIED_ZBUFFER pass paints the whole visible
+		// world once in flat m_UnifiedAmbience ("into z-buffer, black", see
+		// VB_RenderFaces:1580) -- untextured for the non-USEZEQUAL chains
+		// (:2466) and diffuse*Ambience for the USEZEQUAL queue (:2363).
+		// The FP20 shading queue then draws the SAME geometry at the SAME
+		// depth on top. Any difference between the two draws (a shading
+		// program we do not implement yet, a skipped texture format, an
+		// early-out in DrawIndexed) leaves the black base pass visible, and
+		// where both draws survive they fight at equal depth -- exactly the
+		// "black copy vs textured copy" artefact.
+		// The console pipeline does not have this problem because ambient
+		// comes from the shading programs themselves (XRShader_FP20_LF /
+		// _LFM), not from the Z pass -- and we run that same FP20 pipeline
+		// (RIDDICK_FP20=1), so we want the console behaviour.
+		// RIDDICK_ZPREPASS_COLOR=1 restores the PC behaviour for A/B tests.
+		// The bNoShaderPipeline fallback (:2371) re-enables COLORWRITE on
+		// its own copy of this attribute, so the "no FP20" path still shows
+		// a textured world.
+		if (!getenv("RIDDICK_ZPREPASS_COLOR"))
+			m_RenderZBuffer.Attrib_Disable(CRC_FLAGS_COLORWRITE | CRC_FLAGS_ALPHAWRITE);
 	#endif
 		m_RenderZBuffer.Attrib_StencilRef(128, 255);
 		m_RenderZBuffer.Attrib_StencilFrontOp(CRC_COMPARE_ALWAYS, CRC_STENCILOP_NONE, CRC_STENCILOP_NONE, CRC_STENCILOP_REPLACE);
@@ -887,17 +912,25 @@ void CXR_Model_BSP2::Tesselate(const uint32* _piFaces, int _nFaces, int _nV, CVe
 			if (bUseLM && pLMTV)
 			{
 				int iLM = pF->m_iLightInfo;
-				pLMI = &m_lLightMapInfo[iLM];
-				int iLMC = m_lLightMapInfo[iLM].m_iLMC * 4;
+				// Per-face clamp, same invariant as PrepareVertexBuffer:
+				// never index m_lLightMapInfo/m_lLMDimensions out of bounds.
+				// On rejection pLMI stays NULL and the fallback below maps
+				// pLMTV to the diffuse UVs.
+				if (iLM >= 0 && (aint)iLM < (aint)m_lLightMapInfo.Len() &&
+					(aint)(m_lLightMapInfo[iLM].m_iLMC * 4) < (aint)m_lLMDimensions.Len())
+				{
+					pLMI = &m_lLightMapInfo[iLM];
+					int iLMC = m_lLightMapInfo[iLM].m_iLMC * 4;
 
-				LMWidth = pLMI->m_LMCWidthHalf*2;
-				LMHeight= pLMI->m_LMCHeightHalf*2;
+					LMWidth = pLMI->m_LMCWidthHalf*2;
+					LMHeight= pLMI->m_LMCHeightHalf*2;
 
-				InvLMScale = 1.0f / (1 << pLMI->m_ScaleShift);
-				TxtWidthInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].x);
-				TxtHeightInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].y);
-//				MidPixelAdjustLM = MidPixelAdjust*LMScale;
-				MidPixelAdjustLM = 0.5f;
+					InvLMScale = 1.0f / (1 << pLMI->m_ScaleShift);
+					TxtWidthInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].x);
+					TxtHeightInvLM = 1.0f / fp32(m_lLMDimensions[iLMC].y);
+//					MidPixelAdjustLM = MidPixelAdjust*LMScale;
+					MidPixelAdjustLM = 0.5f;
+				}
 			}
 
 			fp32 lUProj[CRC_MAXPOLYGONVERTICES];
@@ -2419,7 +2452,11 @@ void CXR_Model_BSP2::VB_RenderQueues(CBSP2_RenderParams* _pRenderParams)
 					while((iInner + nLFMBatch < nShadingQueue) && (iLMTexture == pQueues[liShadingQueue[iInner + nLFMBatch]].m_iLMTexture))
 						nLFMBatch++;
 
-					if (iLMTexture != -1)
+					// Cheap insurance against a garbage queue lightmap
+					// index: keep it inside m_lLMTextureIDs (4 pages per
+					// cluster) before handing &m_lLMTextureIDs[iLMTexture*4]
+					// to CreateLFM.
+					if (iLMTexture != -1 && (aint)(iLMTexture + 1) * 4 <= (aint)m_lLMTextureIDs.Len())
 					{
 						CXR_ShaderParams_LightFieldMapping LFMParams;
 						LFMParams.CreateLFM(_pRenderParams->m_pVBMatrixM2W, _pRenderParams->m_pVBMatrixW2V, &m_lLMTextureIDs[iLMTexture*4], 3, 4);

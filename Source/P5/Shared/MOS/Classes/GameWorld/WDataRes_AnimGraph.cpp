@@ -51,7 +51,7 @@ bool CWRes_AnimGraph::Create(CWorldData* _pWData, const char* _pName, CMapData* 
 	CStr FileName = ResolveFilename(_pWData, _pName, "XAG");
 	if (!CDiskUtil::FileExists(FileName))
 	{
-		ConOutL(CStrF("§cf80WARNING: (CWRes_AnimGraph::Create) Could not find %s", FileName.Str()));
+		ConOutL(CStrF("Â§cf80WARNING: (CWRes_AnimGraph::Create) Could not find %s", FileName.Str()));
 		return false;
 	}
 
@@ -221,7 +221,7 @@ void CWRes_AGAnimList::ParseReg()
 			
 /*
 			if(iAnimContainerResource == 0)
-				ConOutL(CStrF("§cf80WARNING: (CWRes_AnimList::Create) AnimList %s had an invalid sequence at slot %i (%s = '%s').", (char*)Name, iAnim, pList->GetName(iAnim).Str(), pList->GetValue(iAnim).Str()));
+				ConOutL(CStrF("Â§cf80WARNING: (CWRes_AnimList::Create) AnimList %s had an invalid sequence at slot %i (%s = '%s').", (char*)Name, iAnim, pList->GetName(iAnim).Str(), pList->GetValue(iAnim).Str()));
 			else
 				spAnimContainerResource = m_pWData->GetResourceRef(iAnimContainerResource);
 */

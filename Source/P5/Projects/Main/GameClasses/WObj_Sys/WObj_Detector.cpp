@@ -21,9 +21,9 @@ CWObject_Detector_Camera::CWObject_Detector_Camera()
 void CWObject_Detector_Camera::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 {
 	// Keys att registrera
-	// - Ska reagera på spelaren?
-	// - Ska reagera på NPC's?
-	// - Inom vilket avstånd kameran ska se objekt
+	// - Ska reagera pÃ¥ spelaren?
+	// - Ska reagera pÃ¥ NPC's?
+	// - Inom vilket avstÃ¥nd kameran ska se objekt
 	// - Inom vilket FOV kameran ska se objekt
 	
 	const CStr KeyName = _pKey->GetThisName();

@@ -113,7 +113,11 @@ void CXWC_Tracer_Light::Parse(CRegistry *_pReg)
 	{
 		CVec3Dfp32 p; p.ParseString(_pReg->GetValue(iKey));
 		p.Normalize();
+		// Тот же дефект, что в WObj_Lights.cpp (LIGHT_DIRECTION): матрица
+		// собиралась из неинициализированной, четвёртый столбец оставался
+		// мусором со стека.
 		CMat4Dfp32 m;
+		m.Unit();
 		p.SetMatrixRow(m, 0);
 		if (p[0] != 0.0)
 			CVec3Dfp32(0,1,0).SetMatrixRow(m, 1);

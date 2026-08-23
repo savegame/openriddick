@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// RIDDICK_DBG_LETTERBOX
+#include <stdlib.h>
+
 #include "XREngine.h"
 #include "XREngineImp.h"
 #include "XRFog.h"
@@ -1041,38 +1044,22 @@ void CXR_ViewContextImpl::Clear(const CMat4Dfp32& _CameraWMat, const CMat4Dfp32&
 //		m_dCameraWMat.InverseOrthogonal(m_dW2VMat);
 	}
 
-	// IMPORTANT: compute m_bIsMirrored BEFORE the Linux camera fix.
-	// Our X-negate below flips det -> MACRO_ISMIRRORED would always say
-	// "true" and the engine would pick reversed-cull attribs for every
-	// draw (m_RenderZBufferCullCW etc), producing z-fighting between
-	// base-diffuse (CULLCW) and detail-decal (default cull) passes.
-	// The engine's real "is this a mirror-portal view?" answer must come
-	// from the UN-flipped matrix.
+	// Was: m_bIsMirrored had to be computed BEFORE a Linux-only X-negate of
+	// m_W2VMat, and that negate then had to be undone by a reversed winding
+	// convention in the GLES3 backend. Both are gone (2026-07-29) -- the
+	// world was mirrored because the projection's x scale was negative, and
+	// that came from CRC_Viewport::m_AspectRatio == -1: the shipped profile
+	// stores VIDEO_DISPLAY_PIXELASPECT = -1 (the retail "auto" sentinel) and
+	// nothing on this path rejected it, so CRC_Viewport::Update divided
+	// m_xScale by a negative number. Proof: [VPCALC] xScale=-879.678
+	// yScale=879.678 ... AspectRatio=-1 for the 3D viewport, against
+	// AspectRatio=1 for every other one; and after guarding the sentinel
+	// (CRC_Viewport::SetAspectRatio + XRApp.cpp) the same run reports
+	// xScale=+879.678 and renders correctly with the retail winding
+	// convention (glFrontFace(GL_CCW), RIDDICK_CULL_MODE=0).
+	//
+	// The camera is platform-neutral again: no flip, no compensation.
 	m_bIsMirrored = MACRO_ISMIRRORED(m_W2VMat);
-
-#ifdef PLATFORM_LINUX
-	// GLES3 port camera fix: negate view-space X column of W2V. Applied
-	// once here so downstream CPU consumers (BSP portal culling, frustum)
-	// AND the GPU render pipeline see the same corrected camera
-	// orientation. Without this the world renders X-mirrored AND
-	// front-of-camera geometry is culled as if behind (single handedness
-	// mismatch between engine-authored _CameraWMat and GL RH expectation).
-	// The winding compensation lives in the GLES3 backend
-	// (glFrontFace(GL_CW), see MDisplaySDL2.cpp) because negating X
-	// reverses det -> CCW becomes CW in view space.
-	{
-		fp32* K = (fp32*)&m_W2VMat;
-		K[0*4 + 0] = -K[0*4 + 0];
-		K[1*4 + 0] = -K[1*4 + 0];
-		K[2*4 + 0] = -K[2*4 + 0];
-		K[3*4 + 0] = -K[3*4 + 0];
-		fp32* Kd = (fp32*)&m_dW2VMat;
-		Kd[0*4 + 0] = -Kd[0*4 + 0];
-		Kd[1*4 + 0] = -Kd[1*4 + 0];
-		Kd[2*4 + 0] = -Kd[2*4 + 0];
-		Kd[3*4 + 0] = -Kd[3*4 + 0];
-	}
-#endif
 
 //	m_CameraWMat.Multiply(_W2VMat, m_dW2VMat);	// Camera should be last frame's w2vmat-inverse (hack)
 
@@ -1597,25 +1584,88 @@ void CXR_EngineImpl::RenderModel(CXR_VCModelInstance* _pObjInfo, CXR_ViewClipInt
 
 	// Linux port debug: granular geometry-class kill switches for hunting
 	// "garbage polygon" sources. Each env flag early-outs one model class.
+	//
+	// SKINNED vs PROPS -- the split that matters here.
+	// Until now RIDDICK_SKIP_PROPS killed CXR_MODEL_CLASS_TRIMESH wholesale,
+	// and that class covers BOTH static props AND animated characters:
+	// Riddick's characters are CXR_Model_TriangleMesh instances that carry a
+	// skeleton (CXR_Model_MultiTriMesh is a separate, rarer multi-part
+	// container that reports CXR_MODEL_CLASS_CUSTOM because it does not
+	// override GetModelClass). So "SKIP_PROPS=1" also hid every character,
+	// while "SKIP_CHARS=1" hid almost nothing -- which is exactly what the
+	// 2026-07-28 TheDream run showed.
+	//
+	// The reliable discriminator available on the base CXR_Model interface is
+	// GetSkeleton(): it returns NULL by default (XRClass.h:863) and
+	// CXR_Model_TriangleMesh returns m_spSkeleton (WTriMesh.cpp:538), which
+	// is only set for meshes authored with bones. So:
+	//     SKIP_PROPS  -> TRIMESH without skeleton  (true static props)
+	//     SKIP_CHARS  -> TRIMESH with skeleton + MultiTriMesh  (skinned)
+	//
+	// NB this is NOT the same axis as the GLES3 backend's RIDDICK_SKIP_SKINNED,
+	// and that is why the latter never hid these meshes: it tests for a
+	// matrix palette on the draw, and we do not advertise
+	// CRC_CAPS_FLAGS_MATRIXPALETTE, so bHWAnim is false (WTriMesh.cpp:5443),
+	// the engine CPU-skins into temp arrays (Cluster_TransformBones_V_N,
+	// :5805) and explicitly clears m_pMatrixPaletteArgs afterwards (:5809).
+	// No palette ever reaches the backend -> nothing for SKIP_SKINNED to
+	// match. See Docs/HacksAndHooks.md.
 	{
-		static int sSkipChars = -1, sSkipProps = -1, sSkipSprites = -1, sSkipSpotVol = -1;
+		static int sSkipChars = -1, sSkipProps = -1, sSkipSprites = -1, sSkipSpotVol = -1, sDbgModels = -1;
 		if (sSkipChars < 0)
 		{
 			const char* eC = getenv("RIDDICK_SKIP_CHARS");
 			const char* eP = getenv("RIDDICK_SKIP_PROPS");
 			const char* eS = getenv("RIDDICK_SKIP_SPRITES");
 			const char* eV = getenv("RIDDICK_SKIP_SPOTVOL");
+			const char* eD = getenv("RIDDICK_DBG_MODELS");
 			sSkipChars   = (eC && *eC && *eC != '0') ? 1 : 0;
 			sSkipProps   = (eP && *eP && *eP != '0') ? 1 : 0;
 			sSkipSprites = (eS && *eS && *eS != '0') ? 1 : 0;
 			sSkipSpotVol = (eV && *eV && *eV != '0') ? 1 : 0;
+			sDbgModels   = (eD && *eD && *eD != '0') ? 1 : 0;
 		}
 		CXR_Model* pM = _pObjInfo->m_pModel;
-		if (sSkipProps && pM->GetModelClass() == CXR_MODEL_CLASS_TRIMESH) return;
+		const int MClass = pM->GetModelClass();
+		// Only ask TRIMESH models -- that is the only class where the answer
+		// changes the routing below, and it keeps the virtual call off the
+		// BSP/sprite/custom paths entirely.
+		const bool bTriMesh = (MClass == CXR_MODEL_CLASS_TRIMESH);
+		const bool bSkinned = bTriMesh && (pM->GetSkeleton() != NULL);
+
+		// RIDDICK_DBG_MODELS=1: one line per distinct model instance that
+		// reaches rendering (capped), so "what exactly is that geometry"
+		// stops being guesswork. Runs on render worker threads; the dedup
+		// table is deliberately racy-but-bounded (same style as the flag
+		// cache above) -- worst case a duplicate line, never a crash.
+		if (sDbgModels)
+		{
+			enum { MAXDBGMODELS = 96 };
+			static const void* s_lSeen[MAXDBGMODELS] = { 0 };
+			static int s_nSeen = 0;
+			bool bSeen = false;
+			for (int k = 0; k < s_nSeen; ++k)
+				if (s_lSeen[k] == (const void*)pM) { bSeen = true; break; }
+			if (!bSeen && s_nSeen < MAXDBGMODELS)
+			{
+				s_lSeen[s_nSeen++] = (const void*)pM;
+				MRTC_CRuntimeClass* pRTC = pM->MRTC_GetRuntimeClass();
+				fprintf(stderr, "[MODEL] %p class=%d(%s) rtc=%s skeleton=%s\n",
+					(void*)pM, MClass,
+					bTriMesh ? "TRIMESH" :
+						(MClass == CXR_MODEL_CLASS_CUSTOM ? "CUSTOM" :
+						((MClass & CXR_MODEL_CLASS_ANYBSPMASK) ? "BSP" : "?")),
+					(pRTC && pRTC->m_ClassName) ? pRTC->m_ClassName : "?",
+					bSkinned ? "yes" : "no");
+				fflush(stderr);
+			}
+		}
+
+		if (sSkipProps && bTriMesh && !bSkinned) return;
 		// NB: TDynamicCast (NULL-probe), NOT safe_cast -- safe_cast throws
 		// "Invalid safe_cast" on mismatch, and on render worker threads
 		// that exception escapes -> SIGILL (run.log 2026-07-21, Pa1_Pit).
-		if (sSkipChars && TDynamicCast<CXR_Model_MultiTriMesh>(pM)) return;
+		if (sSkipChars && (bSkinned || TDynamicCast<CXR_Model_MultiTriMesh>(pM))) return;
 		if (sSkipSpotVol && TDynamicCast<CXR_Model_SpotLightVolume>(pM)) return;
 		if (sSkipSprites && TDynamicCast<CXR_Model_Sprite>(pM)) return;
 	}
@@ -4845,6 +4895,37 @@ void CXR_EngineImpl::Engine_PostProcess(CXR_VBManager* _pVBM, CRC_Viewport& _3DV
 			}
 
 			// Render borders
+
+			// RIDDICK_DBG_LETTERBOX=1 -- куда реально ложатся кинополосы.
+			//
+			// Прогон pa1_prisonarea с этим флагом не дал НИ ОДНОЙ строки, хотя
+			// на экране чёрная полоса внизу есть. Значит блок ниже (единственное
+			// место, где движок рисует кинополосы) вообще не выполняется, и
+			// чёрная область -- не полосы, а несовпадение вьюпорта и окна.
+			// Чтобы отличить "PostProcess сюда не доходит" от "бит WIDESCREEN
+			// не выставлен", зонд вынесен ЗА условие и печатает сами флаги.
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_LETTERBOX");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_n = 0;
+				if (s_On && s_n < 12)
+				{
+					++s_n;
+					fprintf(stderr, "[LETTERBOX] reached: screen=%dx%d viewflags=0x%x widescreen=%d vpScreen=[%d..%d]x[%d..%d] aspectChange=%.4f\n",
+						(int)ScreenSize.x, (int)ScreenSize.y,
+						(unsigned)_pParams->m_ViewFlags,
+						(_pParams->m_ViewFlags & XR_VIEWFLAGS_WIDESCREEN) ? 1 : 0,
+						(int)VPRectScreen16.m_Min[0], (int)VPRectScreen16.m_Max[0],
+						(int)VPRectScreen16.m_Min[1], (int)VPRectScreen16.m_Max[1],
+						_pParams->m_AspectChange);
+					fflush(stderr);
+				}
+			}
+
 			if (_pParams->m_ViewFlags & XR_VIEWFLAGS_WIDESCREEN)
 			{
 				CRect2Duint16 VPRectTop(VPRectScreen16);

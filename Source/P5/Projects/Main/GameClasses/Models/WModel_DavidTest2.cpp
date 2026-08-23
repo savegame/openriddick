@@ -280,7 +280,7 @@ private:
 		CMat43fp32 LocalToCamera;
 		_WMat.Multiply(_VMat, LocalToCamera);
 
-		// Man kan tydligen returnera resultatet fr≈n render rutinen direkt, troligen tom/icketom VB.
+		// Man kan tydligen returnera resultatet fr√Ön render rutinen direkt, troligen tom/icketom VB.
 		return CXR_Util::Render_Particles(m_pVBM, _pVB, LocalToCamera, particles, numParticles, NULL, CXR_PARTICLETYPE_ANGLE | CXR_PARTICLETYPE_QUAD);
 //		CXR_Util::Render_Particles(m_pVBM, _pVB, _WMat, _VMat, Beams, iBeam);
 

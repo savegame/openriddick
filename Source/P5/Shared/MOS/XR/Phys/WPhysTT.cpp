@@ -1087,7 +1087,7 @@ bool Phys_IntersectPolygons(const CVec3Dfp32* _pV0, int _nV0, const CVec3Dfp32* 
 
 	if(_pCollisionInfo)
 	{
-		//Bluff och båg!
+		//Bluff och bÃ¥g!
 		_pCollisionInfo->m_bIsValid = true;
 		_pCollisionInfo->m_bIsCollision = true;
 		_pCollisionInfo->m_Plane = P1;

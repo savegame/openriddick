@@ -1239,7 +1239,7 @@ StartOf_Phys_IntersectOBB_i_NoAdd:
 
 /*
 	TODO:
-	Temporär funktion tills dess att CPhysOBB är utfasad.
+	TemporÃ¤r funktion tills dess att CPhysOBB Ã¤r utfasad.
  */
 
 static TOBB<fp32> CPhysOBBToOBB(const CPhysOBB& _Obb)
@@ -1692,7 +1692,7 @@ int CXR_Model_BSP2::__Phys_CollideOBB_i(CXR_PhysicsContext* M_RESTRICT _pPhysCon
 			if( _pCollisionInfo )
 			{
 				// TODO: CCollisionFunctions::BoxPolygon ska
-				// ändras så att man slipper göra detta.
+				// Ã¤ndras sÃ¥ att man slipper gÃ¶ra detta.
 				TOBB<fp32> obb = CPhysOBBToOBB(_Box);
 				CMat4Dfp32 Mat;
 				CVec3Dfp32::GetRow(Mat,0) = _Box.m_A[0];
@@ -1821,7 +1821,7 @@ StartOf_Phys_IntersectOBB_i_NoAdd:
 
 
 				// TODO: CCollisionFunctions::BoxPolygon ska
-				// ändras så att man slipper göra detta.
+				// Ã¤ndras sÃ¥ att man slipper gÃ¶ra detta.
 				TOBB<fp32> obb = CPhysOBBToOBB(_Box);
 				CMat4Dfp32 Mat;
 				CVec3Dfp32::GetRow(Mat,0) = _Box.m_A[0];
@@ -2380,7 +2380,7 @@ int CXR_Model_BSP2::Phys_CollideBSP2(CXR_PhysicsContext* _pPhysContext,  class C
 	TAP<const CXR_IndexedSolid32> pSolids = _pSolidContainer->m_lSolids;
 	TAP<const CXR_MediumDesc> pMediums = _pSolidContainer->m_lMediums;
 
-	// Räknas även ut i nästa metod...
+	// RÃ¤knas Ã¤ven ut i nÃ¤sta metod...
 	CMat4Dfp32 Transform;
 	_BSP2Transform.Multiply(_pPhysContext->m_WMatInv, Transform);
 
@@ -2408,7 +2408,7 @@ int CXR_Model_BSP2::Phys_CollideBSP2(CXR_PhysicsContext* _pPhysContext,  class C
 
 		int nVertices = pSolids[i].m_nVertices;
 
-		// TODO: Räkna inte ut boxen....
+		// TODO: RÃ¤kna inte ut boxen....
 /*		CBox3Dfp32 BoundBox(CVec3Dfp32(_FP32_MAX), CVec3Dfp32(-_FP32_MAX));
 
 		for (int j = 0; j < pSolidContainer->m_lSolids[i].m_nVertices; j++)
@@ -2489,7 +2489,7 @@ int CXR_Model_BSP2::Phys_CollideBox(CXR_PhysicsContext* _pPhysContext, const CPh
 	_Box.Transform(_pPhysContext->m_WMatInv, TmpOBB);
 
 	// Get bounding box for both OBBs.
-	// TODO: Är denna för stor (en faktor 2). Egentligen är kanske _Box fel...
+	// TODO: Ã„r denna fÃ¶r stor (en faktor 2). Egentligen Ã¤r kanske _Box fel...
 	CBox3Dfp32 BoundBox;
 	TmpOBB.GetBoundBox(BoundBox);
 	BoundBox.m_Min -= CVec3Dfp32(1);

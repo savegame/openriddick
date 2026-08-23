@@ -17,10 +17,10 @@
 
 /* Include auto-config file to find out which system include files we need. */
 
-#include "../../SySInc.h"
+#include "../../SysInc.h"
 #include "MCC.h"
 
-#include "jconfig.h"		/* auto configuration options */
+#include "JConfig.h"		/* auto configuration options */
 #define JCONFIG_INCLUDED	/* so that jpeglib.h doesn't do it again */
 
 /*

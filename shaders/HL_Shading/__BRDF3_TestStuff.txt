@@ -1,0 +1,89 @@
+		float3 BRDF1(float3 _n, float3 _nsurf, float3 _e, float3 _l, float4 _kdiff, float4 _kspec, float4 _fresparams)
+		{
+			// kdiff = r,g,b,junk
+			// kspec = r,g,b,e
+			
+			float3 h = normalize(_e + _l);
+		
+			float incidenceoffset = 0.05;
+			float cosi = saturate((dot(_n, _l) - incidenceoffset) * (1.0 / (1.0 - incidenceoffset)));
+	//		float cosi = saturate(dot(_n, _l));
+			float3 fres = Fresnel(cosi, _fresparams);
+			
+			float specweight = max(max(fres.r, fres.g), fres.b) * dot(_kspec.rgb, float3(0.25, 0.5, 0.25));
+			
+			float specexp = _kspec.w;
+			
+			float ispecular = (specexp * 0.76923 + 2.655) * pow(saturate(dot(_n, h)), specexp) * (0.5 / sqr(3.1415));
+			float idiffuse = cosi * M_2PI_RCP;
+			float3 diffuse = splat3(idiffuse) * _kdiff.rgb;
+			float3 specular = splat3(ispecular) * _kspec.rgb;
+			float cosisurf = dot(_nsurf, _l);
+			return lerp(diffuse, specular, splat3(specweight)) * splat3(SelfShadow(cosisurf, -incidenceoffset, 8.0));
+		}
+		
+		float3 BRDF3(float3 _n, float3 _nsurf, float3 _e, float3 _l, float4 _kdiff, float4 _kspec, float4 _fresparams)
+		{
+			// kdiff = r,g,b,junk
+			// kspec = r,g,b,e
+			
+			_kspec.w = max(1.0, _kspec.w * dot(_kspec.rgb, float3(0.25, 0.5, 0.25)));
+	//		_kspec.rgb = splat3(1.0);
+		
+			float3 h = normalize(_e + _l);
+		
+			float incidenceoffset = 0.05;
+			float cosi = saturate((dot(_n, _l) - incidenceoffset) * (1.0 / (1.0 - incidenceoffset)));
+	//		float cosi = saturate(dot(_n, _l));
+			float3 fres = Fresnel(cosi, _fresparams) * saturate(_kspec.w * 0.125);
+			_kspec.rgb = lerp(_fresparams.rgb, splat3(1.0), fres);
+	//		return _kspec.rgb;
+			
+			float specweight = max(max(fres.r, fres.g), fres.b) * dot(_kspec.rgb, float3(0.25, 0.5, 0.25));
+//			float specweight = max(max(fres.r, fres.g), fres.b) * saturate(_kspec.w * 0.0625);
+//specweight = 1.0;
+			
+//			float specexp = _kspec.w * sqr(dot(_kspec.rgb, float3(0.25, 0.5, 0.25)));
+//			float specexp = max(2.0, _kspec.w * 2.0 * saturate(dot(_kspec.rgb, float3(0.25, 0.5, 0.25)) - 0.5));
+			float specexp = _kspec.w;
+			
+			float ispecular = (specexp * 0.76923 + 2.655) * pow(saturate(dot(_n, h)), specexp) * (0.5 / sqr(3.1415));
+			float idiffuse = M_2PI_RCP;
+			float3 diffuse = splat3(idiffuse) * _kdiff.rgb;
+			float3 specular = splat3(ispecular / max(0.000001, dot(_e, h))) * _kspec.rgb;
+			float cosisurf = dot(_nsurf, _l);
+			
+			float Gmask = 2.0 * dot(_n, h) * dot(_n, _e) / max(0.000001, dot(_e, h));
+			float Gshadow = 2.0 * dot(_n, h) * dot(_n, _l) / max(0.000001, dot(_l, h));
+	//		Gshadow = 1.0;
+			Gmask = 1.0;
+			float G = min(min(Gmask, Gshadow), 1.0);
+			
+			return lerp(diffuse, specular, splat3(specweight)) * splat3(cosi * SelfShadow(cosisurf, -incidenceoffset, 8.0));
+		}
+		float3 BRDF2(float3 _n, float3 _nsurf, float3 _e, float3 _l, float4 _kdiff, float4 _kspec, float4 _fresparams)
+		{
+			// kdiff = r,g,b,junk
+			// kspec = r,g,b,e
+		
+			float3 h = normalize(_e + _l);
+		
+			float cosi = saturate(dot(_n, _l));
+			float coso = (max(dot(_n, _e), 0.0001));
+			float3 fres = Fresnel(cosi, _fresparams);
+			
+			float Gmask = 2.0 * dot(_n, h) * dot(_n, _e) / max(0.000001, dot(_e, h));
+			float Gshadow = 2.0 * dot(_n, h) * dot(_n, _l) / max(0.000001, dot(_l, h));
+	//		Gshadow = 1.0;
+			Gmask = 1.0;
+			float G = min(min(Gmask, Gshadow), 1.0);
+			
+			float specweight = max(max(fres.r, fres.g), fres.b) * dot(_kspec.rgb, float3(0.25, 0.5, 0.25));
+			
+			float ispecular = (_kspec.w * 0.76923 + 2.655) * pow(saturate(dot(_n, h)), _kspec.w) * (0.5 / sqr(3.1415));
+			float idiffuse = cosi * M_2PI_RCP;
+			float3 diffuse = splat3(idiffuse) * _kdiff.rgb;
+			float3 specular = splat3(ispecular) * _kspec.rgb;
+			float cosisurf = dot(_nsurf, _l);
+			return lerp(diffuse, specular, splat3(specweight)) * splat3(SelfShadow(cosisurf, 0.0, 8.0) * G);
+		}

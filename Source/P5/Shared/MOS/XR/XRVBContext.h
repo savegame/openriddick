@@ -8,7 +8,7 @@
 // +-----------------------------------------------------------------+
 // | VB-Context classes (XR core components)                         |
 // +-----------------------------------------------------------------+
-// | Creator:          Magnus Högdahl                                |
+// | Creator:          Magnus HÃ¶gdahl                                |
 // | Created:          2000-11-06                                    |
 // | Last modified:    2000-11-06                                    |
 // |                                                                 |

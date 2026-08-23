@@ -379,7 +379,7 @@ static	int UnpackDiffSIPs(TArray<CWAG2I_SIP>& _lDiffSIPs, const uint8* _pData);
 				MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 				CRegistry* pReg = pSys ? pSys->GetEnvironment() : NULL;
 				if (pReg != NULL)
-					AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS");
+					AG2IDebugFlags = pReg->GetValuei("AG2I_DEBUG_FLAGS") | Riddick_AG2DebugFlagsEnv();
 
 				bool bDebugServer = (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_SERVER) != 0;
 				bool bDebugClient = (AG2IDebugFlags & AG2I_DEBUGFLAGS_ENTERSTATE_CLIENT) != 0;

@@ -1,5 +1,5 @@
 
-#include "PCH.H"
+#include "PCH.h"
 #include "WDynamics.h"
 
 #include "../../XRModels/Model_BSP2/WBSP2Model.h"
@@ -608,9 +608,9 @@ void CWD_DynamicsUtil::GetPhysicalProperties(CMapData* _pWorldData, const CWObje
 	{
 		const char* pName = _pObj->GetName();
 		if (pName && pName[0])
-			ConOutL(CStrF("§cf00ERROR: Invalid solid data for %s", pName));
+			ConOutL(CStrF("Â§cf00ERROR: Invalid solid data for %s", pName));
 		else
-			ConOutL(CStr("§cf00ERROR: Invalid solid data"));
+			ConOutL(CStr("Â§cf00ERROR: Invalid solid data"));
 	}
 #endif
 
@@ -1070,7 +1070,7 @@ bool CWO_DynamicsCollider::Collide(const CWorld *_pWorld,
 								   void *_pArgument2)
 {
 	/*
-		TODO: Inte helt optimalt men funkar så länge.
+		TODO: Inte helt optimalt men funkar sÃ¥ lÃ¤nge.
 	 */
 
 	TArray<CRigidBody *> List;
@@ -1342,7 +1342,7 @@ int CWO_DynamicsCollider::Collide2(const CWD_RigidBody *_pBody1,
 	Obb.SetPosition(P1);
 	Obb.SetDimensions(Extent);
 
-	// TODO: Hårdkodat och testas ej...
+	// TODO: HÃ¥rdkodat och testas ej...
 	CCollisionInfo CollisionInfo[100];
 	CXR_PhysicsContext Context(P2);
 //	int nCollisions = pPhysModel1->Phys_CollideBox(&Context, Obb, 0, CollisionInfo, 10);
@@ -1686,8 +1686,8 @@ static int CollideSolidBspNew(const CWObject_CoreData *_pObject1,
 	CPhysOBB OBB;
 	CVec3Dfp32 Extent = Box.m_Max - Box.m_Min;
 
-	// TODO: Detta är helt crazy. Den övre 3x3 är rätt här
-	// men Phys_CollideBox förväntar sig en transponerad...
+	// TODO: Detta Ã¤r helt crazy. Den Ã¶vre 3x3 Ã¤r rÃ¤tt hÃ¤r
+	// men Phys_CollideBox fÃ¶rvÃ¤ntar sig en transponerad...
 	Transform1.Transpose3x3();
 	OBB.SetPosition(Transform1);
 	OBB.SetDimensions(Extent);
@@ -2559,7 +2559,7 @@ int CWO_DynamicsCollider::Collide(const CWorld *_pWorld,
 
 			bool bIsCharacter = (PhysState2.m_ObjectFlags & OBJECT_FLAGS_CHARACTER) != 0;
 
-			// TODO: Temporärt avstängd...
+			// TODO: TemporÃ¤rt avstÃ¤ngd...
 #if 1
 			if (pBody2 == NULL && bIsCharacter && pBody->IsActive())
 			{				
@@ -2807,7 +2807,7 @@ int CWO_DynamicsCollider::Collide(const CWorld *_pWorld,
 						}
 						else
 						{
-							// TODO: Temporärt hack tills dess att man kan skapa "äkta" boxar (inte bsp).
+							// TODO: TemporÃ¤rt hack tills dess att man kan skapa "Ã¤kta" boxar (inte bsp).
 							if (Prim1.m_PrimType == OBJECT_PRIMTYPE_BOX && Prim2.m_PrimType == OBJECT_PRIMTYPE_BOX)
 							{
 								nColl = CollideAsBoxes((CWD_RigidBody *) pBody, 
@@ -2989,8 +2989,8 @@ void CWO_DynamicsDebugRenderer::Render(const CContactInfo& _ContactInfo)
 	//M_TRACEALWAYS("%s\n",ConvertVector(_ContactInfo.m_Normal*64.0).GetString().Str());
 
 	// TODO:
-	// m_PointOfCollision är skalad till SI-enheter.
-	// Kanske ska man inte göra det här...
+	// m_PointOfCollision Ã¤r skalad till SI-enheter.
+	// Kanske ska man inte gÃ¶ra det hÃ¤r...
 
 //	const fp32 Duration = 1.0/10.0;
 #if 1

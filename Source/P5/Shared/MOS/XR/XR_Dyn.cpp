@@ -1,7 +1,7 @@
 
-#include "mda.h"
+#include "Mda.h"
 
-#include "MRTC.h"
+#include "Mrtc.h"
 
 class CRegisterXR
 {

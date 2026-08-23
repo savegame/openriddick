@@ -22,7 +22,7 @@
 
 #include "../../../Shared/MOS/XR/XRCloth.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_FacialSetup.h"
-#include "../../../Shared/mos/MSystem/Sound/LipSync/LipSync.h"
+#include "../../../Shared/MOS/MSystem/Sound/LipSync/LipSync.h"
 
 #define NUM_OF_TENTACLES 6
 

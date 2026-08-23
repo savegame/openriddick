@@ -1,5 +1,5 @@
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			-
 					
 	Author:			Erik Olofsson
@@ -985,6 +985,10 @@ typedef TPtr<CWaveContainer_Plain> spCWaveContainer_Plain;
 // Loads PC text SFX descriptors (Content/SfxDesc/*.xsfxc) into the given wave
 // containers. Returns the number of descriptors created.
 int MSound_LoadSFXDescScript(const CStr& _Filename, TArray<spCWaveContainer_Plain>& _lspWC);
+
+// Ğ˜Ñ‚Ğ¾Ğ³ Ñ€Ğ°Ğ·Ğ±Ğ¾Ñ€Ğ° Ğ²ÑĞµÑ… .xsfxc: ÑĞºĞ¾Ğ»ÑŒĞºĞ¾ DESC-ÑƒĞ·Ğ»Ğ¾Ğ² Ğ½Ğµ Ğ´Ğ°Ğ»Ğ¸ Ğ´ĞµÑĞºÑ€Ğ¸Ğ¿Ñ‚Ğ¾Ñ€Ğ° Ğ¸
+// Ğ¿Ğ¾Ñ‡ĞµĞ¼Ñƒ. Ğ—Ğ¾Ğ²Ñ‘Ñ‚ÑÑ Ğ¾Ğ´Ğ¸Ğ½ Ñ€Ğ°Ğ· Ğ¿Ğ¾ÑĞ»Ğµ ÑĞºĞ°Ğ½Ğ° (CWorldDataCore::Create).
+void MSound_SFXDescScript_Report();
 
 // -------------------------------------------------------------------
 //

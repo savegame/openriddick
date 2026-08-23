@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM template dump
+#include <stdlib.h>	// getenv
+
 #include "WRPGCore.h"
 #include "WRPGChar.h"
 
@@ -216,6 +219,47 @@ spCRPG_Object CRPG_Object::CreateObject(const char *_pName, CWorld_Server *_pWSe
 		{
 			spItem->m_Name = _pName;
 			int nKeys = spReg->GetNumChildren();
+
+			// RIDDICK_DBG_ITEM=1: which keys the evaluated RPG template really
+			// has. Held weapons come back with m_iModel[0] == 0, and that zero
+			// is born here: either "MODEL" is absent from the template (so the
+			// case that assigns slot 0 never runs), or it is present and the
+			// resource index resolves to zero. Printing the key names settles
+			// which -- and note that ATTACHMODEL<n> writes slot n+1, never
+			// slot 0, so a template carrying only ATTACHMODEL0 leaves slot 0
+			// legitimately empty while the render gate looks at exactly that
+			// slot.
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_nLogged = 0;
+				if (s_On && s_nLogged < 12)
+				{
+					++s_nLogged;
+					fprintf(stderr, "[ITEM] template '%s' nKeys=%d:", _pName, nKeys);
+					for (int k = 0; k < nKeys; k++)
+						fprintf(stderr, " %s", spReg->GetChild(k)->GetThisName().Str());
+					fprintf(stderr, "\n");
+					// And the value of every key whose name mentions MODEL --
+					// weapon templates turned out to carry no plain "MODEL"
+					// key at all, so the mesh has to be named by some other
+					// key and this shows which one and with what value.
+					for (int k = 0; k < nKeys; k++)
+					{
+						const CRegistry* pChild = spReg->GetChild(k);
+						CStr Name = pChild->GetThisName();
+						if (Name.Find("MODEL") >= 0)
+							fprintf(stderr, "[ITEM]   %s = '%s'\n",
+								Name.Str(), pChild->GetThisValue().Str());
+					}
+					fflush(stderr);
+				}
+			}
+
 			for(int k = 0; k < nKeys; k++)
 			{
 				const CRegistry* pReg = spReg->GetChild(k);
@@ -227,7 +271,7 @@ spCRPG_Object CRPG_Object::CreateObject(const char *_pName, CWorld_Server *_pWSe
 		}
 	}
 
-	ConOutL(CStrF("§cf80WARNING: (CRPG_Object::CreateObject) Could not create item: %s", _pName));
+	ConOutL(CStrF("Â§cf80WARNING: (CRPG_Object::CreateObject) Could not create item: %s", _pName));
 	//If runtime-class can't be created a dummy object is created instead.
 	spItem = MNew(CRPG_Object);
 	if(!spItem)

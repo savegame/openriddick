@@ -17,7 +17,7 @@
 
 /*
 
-Ofta fˆrekommande notation:
+Ofta f√∂rekommande notation:
 
 u, v, w -> vektorer.
 W 		-> plan ekvation
@@ -25,40 +25,40 @@ T0, T1	-> Transformations matris vid tidpunkt t = 0, t = 1 (lokal tid)
 
 
 
-Det finns en #define USE_PCS i filen, kommenteras den bort sÂ kˆrs gamla fysik koden.
+Det finns en #define USE_PCS i filen, kommenteras den bort s√• k√∂rs gamla fysik koden.
 
-Den gamla fysik koden ‰r modifierad med CWorld_PhysState::Object_MovePhysical som entrypoint.
+Den gamla fysik koden √§r modifierad med CWorld_PhysState::Object_MovePhysical som entrypoint.
 
-Intressanta st‰llen i koden har en kommentar "//MUPPJOKKO - IMPLEMENT ME!" man kan sˆka pÂ fˆr att
+Intressanta st√§llen i koden har en kommentar "//MUPPJOKKO - IMPLEMENT ME!" man kan s√∂ka p√• f√∂r att
 snabbt hitta.
 
 
 
-Flˆde:
+Fl√∂de:
 
-En instans av klassen CPotColSet  (Potential Collision Set) deklareras d‰r och Selection_GetArray anropas.
+En instans av klassen CPotColSet  (Potential Collision Set) deklareras d√§r och Selection_GetArray anropas.
 
-	Selection_GetArray (aningen missvisande namn!) tar en Selection gÂr egenom alla objekt och gˆr
-	CollectPCS pÂ dem.
+	Selection_GetArray (aningen missvisande namn!) tar en Selection g√•r egenom alla objekt och g√∂r
+	CollectPCS p√• dem.
 
-		CollectPCS adderar alla fysik-primitiver i ett objekt som (delvis) omfattas av kollisions m‰ngdens
-		gr‰nser. (PCS bounds)
-
-
-Eftersom primitiverna i m‰ngden kan komma frÂn olika objekt och kan ha olika flaggar (intersect, notify1/2)
-lagras ‰ven dessa i CPotColSet instansen. Ytors planekvationer lagras ocksÂ, det ‰r t‰nkt att de skall
-anv‰ndas fˆr att snabba upp lÂgnivÂ kollisions testerna senare.
+		CollectPCS adderar alla fysik-primitiver i ett objekt som (delvis) omfattas av kollisions m√§ngdens
+		gr√§nser. (PCS bounds)
 
 
+Eftersom primitiverna i m√§ngden kan komma fr√•n olika objekt och kan ha olika flaggar (intersect, notify1/2)
+lagras √§ven dessa i CPotColSet instansen. Ytors planekvationer lagras ocks√•, det √§r t√§nkt att de skall
+anv√§ndas f√∂r att snabba upp l√•gniv√• kollisions testerna senare.
 
-Sedan fˆljer fysiken samma flˆde som den gamla, men skickar en pekare till kollisions m‰ngden ist‰llet
-fˆr selection index till alla funktioner. (ˆverlagrade sÂ de gamla finns kvar)
 
 
-N‰r ett nytt slideplan l‰ggs till anv‰nds det fˆr att sÂlla bort ytor ur kollisions m‰ngden.
-(antas omˆjligt att kollidera med primitiver bakom slideplan) Detta gˆrs av funktionen CPotColSet::PlaneSieve.
+Sedan f√∂ljer fysiken samma fl√∂de som den gamla, men skickar en pekare till kollisions m√§ngden ist√§llet
+f√∂r selection index till alla funktioner. (√∂verlagrade s√• de gamla finns kvar)
 
-Se kommentarer i koden fˆr mer specifika detaljer om vad individuella funktioner gˆr.
+
+N√§r ett nytt slideplan l√§ggs till anv√§nds det f√∂r att s√•lla bort ytor ur kollisions m√§ngden.
+(antas om√∂jligt att kollidera med primitiver bakom slideplan) Detta g√∂rs av funktionen CPotColSet::PlaneSieve.
+
+Se kommentarer i koden f√∂r mer specifika detaljer om vad individuella funktioner g√∂r.
 
 
 
@@ -69,34 +69,34 @@ Se kommentarer i koden fˆr mer specifika detaljer om vad individuella funktioner
 
 Buggar:
 
-	- uppdatering av PCS bounds, just nu tas bara bounds en gÂng + lite marginal.
+	- uppdatering av PCS bounds, just nu tas bara bounds en g√•ng + lite marginal.
 
 
 Fixa:
 
-	- stˆdja alla primitivtyper
+	- st√∂dja alla primitivtyper
 	
-		I filen WPhysPCS.cpp, funktionerna som anropas n‰r man vill kollidera en primitiv mot ett PCS:
+		I filen WPhysPCS.cpp, funktionerna som anropas n√§r man vill kollidera en primitiv mot ett PCS:
 
-		CollideClosestPoint		-	kolliderar inte mot nÂgra primitiver
-		CollideClosestSphere	-	kolliderar inte mot nÂgra primitiver
+		CollideClosestPoint		-	kolliderar inte mot n√•gra primitiver
+		CollideClosestSphere	-	kolliderar inte mot n√•gra primitiver
 		CollideClosestBox		-	kolliderar bara mot Faces och Boxes
 
 
-	- stˆdja roterade boxar mera?
+	- st√∂dja roterade boxar mera?
 
-		Boxar ‰r just nu axis aligned i v‰rldskordinater mer eller mindre genomgÂende,
-		det lagras ingen orientering pÂ dem i PCS intansen.
+		Boxar √§r just nu axis aligned i v√§rldskordinater mer eller mindre genomg√•ende,
+		det lagras ingen orientering p√• dem i PCS intansen.
 		
 
 
 
 Algoritm Opta***:
 
-	- transformera box till bsp'ns lokala rymd vid CollectPCS. (som gamla fysiken gˆr)
-		-> mÂste hantera roterade boxar ˆverallt, alternativ r‰kna om axisaligned bounds av transformerade boxar.
+	- transformera box till bsp'ns lokala rymd vid CollectPCS. (som gamla fysiken g√∂r)
+		-> m√•ste hantera roterade boxar √∂verallt, alternativ r√§kna om axisaligned bounds av transformerade boxar.
 
-	- hantera multipla slide-plan simultant -> kraftfull aningen besv‰rlig utˆkning av algoritm...
+	- hantera multipla slide-plan simultant -> kraftfull aningen besv√§rlig ut√∂kning av algoritm...
 
 
 
@@ -105,7 +105,7 @@ Kod Opta:
 
 	- bygga bort dynamic casts!!
 
-	- PS2: explodera PCS operationer sÂ att ber‰kningsv‰garna blir klasslokala.
+	- PS2: explodera PCS operationer s√• att ber√§kningsv√§garna blir klasslokala.
 
 	- PS2: optimera PCS operationer i (vu0) assembler.
 
@@ -114,14 +114,14 @@ Kod Opta:
 
 Data/Struktur Opta:
 
-	- low-quality primitiver / faces fˆr kollision kanske borde infˆras, en karakt‰r som rˆr sig behˆver
-		bara v‰ldigt approximativa kollisioner. Medans kanske ett armborst / gev‰rs skott etc
-		behˆver mer exakta. Karakt‰rer skulle alltsÂ kunna enbart ta h‰nsyn till de faces som
-		‰r speciellt flaggade fˆr det osv.
+	- low-quality primitiver / faces f√∂r kollision kanske borde inf√∂ras, en karakt√§r som r√∂r sig beh√∂ver
+		bara v√§ldigt approximativa kollisioner. Medans kanske ett armborst / gev√§rs skott etc
+		beh√∂ver mer exakta. Karakt√§rer skulle allts√• kunna enbart ta h√§nsyn till de faces som
+		√§r speciellt flaggade f√∂r det osv.
 
-	- fˆr mycket parametrar som tas h‰nsyn till som inte verkar ge mycket effekt.
-		exempelvis get user acceleration, impact hantering m.m. lÂngsamma.
-		Kanske fˆrenklas och ignorera massa parametrar?
+	- f√∂r mycket parametrar som tas h√§nsyn till som inte verkar ge mycket effekt.
+		exempelvis get user acceleration, impact hantering m.m. l√•ngsamma.
+		Kanske f√∂renklas och ignorera massa parametrar?
 
 
 */
@@ -553,7 +553,7 @@ int MCCDLLEXPORT CPotColSet::CollideBox(const CMat4Dfp32 *_T0, const CMat4Dfp32 
 
 	CVec3Dfp32 N = CVec3Dfp32::GetMatrixRow( *_T1, 3 ) - CVec3Dfp32::GetMatrixRow( *_T0, 3 ); // Normal Sieve
 
-	// MUPPJOKKO - IMPLEMENT ME!	- implementera resten av primitiverna ocksÂ!
+	// MUPPJOKKO - IMPLEMENT ME!	- implementera resten av primitiverna ocks√•!
 
 	DEBUG_RENDER_AABB((const CBox3Dfp32*)_BoxMinMax, CVec3Dfp32::GetMatrixRow(*_T0, 3), 0xffff0000);
 	DEBUG_RENDER_AABB((const CBox3Dfp32*)_BoxMinMax, CVec3Dfp32::GetMatrixRow(*_T1, 3), 0xff7f00ff);

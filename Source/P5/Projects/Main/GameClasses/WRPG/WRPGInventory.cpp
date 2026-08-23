@@ -1125,7 +1125,7 @@ void CRPG_Object_Inventory::ForceSetEquipped(int _iObject)
 	int iFinalWantedItemIndex = FindItemIndexByIdentifier(iFinalWantedIdentifier);
 	if (m_EquippedItemIdentifier != iFinalWantedIdentifier)
 	{
-		// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+		// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 		CRPG_Object_Item* pItem = GetItemByIndex(iFinalWantedItemIndex);
 		if (pItem)
 		{
@@ -1236,7 +1236,7 @@ void CRPG_Object_Inventory::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 				CRPG_Object_Item* pLastEquippedItem = FindItemByIdentifier(m_LastEquippedItemIdentifier);
 				if (pLastEquippedItem != NULL)
 				{
-					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 					pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 
 					// See if last equipped item has pending removal.
@@ -1295,7 +1295,7 @@ void CRPG_Object_Inventory::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 				CRPG_Object_Item* pLastEquippedItem = GetItemByIndex(m_LastEquippedItemIdentifier);
 				if (pLastEquippedItem != NULL)
 				{
-					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+					// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 					pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 
 					if (pLastEquippedItem->m_Flags & RPG_ITEM_FLAGS_REMOVED)
@@ -1319,7 +1319,7 @@ void CRPG_Object_Inventory::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 		CRPG_Object_Item* pLastEquippedItem = GetItemByIndex(m_iLastEquippedItemIndex);
 		if (pLastEquippedItem != NULL)
 		{
-			// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+			// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 			pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 		}
 */
@@ -1369,7 +1369,7 @@ void CRPG_Object_Inventory::PendingUpdate(CRPG_Object* _pRoot, int _iObject)
 			CRPG_Object_Item* pLastEquippedItem = GetItemByIndex(m_LastEquippedItemIdentifier);
 			if (pLastEquippedItem != NULL)
 			{
-				// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix för fan.
+				// FIXME: In case item was force selected, we have to deactivate it here. This is not nice either. Fix fÃ¶r fan.
 				pLastEquippedItem->m_Flags &= ~RPG_ITEM_FLAGS_ACTIVATED;
 			}
 

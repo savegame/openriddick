@@ -2,7 +2,7 @@
 #ifndef _INC_MPow2Alloc
 #define _INC_MPow2Alloc
 
-#include "../../Mos.h"
+#include "../../MOS.h"
 
 // -------------------------------------------------------------------
 //  CPow2Alloc

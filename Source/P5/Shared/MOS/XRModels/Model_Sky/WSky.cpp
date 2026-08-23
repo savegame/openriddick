@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 File:			CXR_Model_Sky implementation
 
 Author:			
@@ -413,7 +413,7 @@ void CXR_Model_Sky::Create(const char* _pName, TArray<uint8> _lSurfaceData, TArr
 	CStr SkyName(Param.GetStrSep(","));
 	if (SkyName == "")
 	{
-		ConOutL("§cf80WARNING: (CXR_Model_Sky::Create) No creation params.");
+		ConOutL("Â§cf80WARNING: (CXR_Model_Sky::Create) No creation params.");
 		return;
 	}
 
@@ -442,7 +442,7 @@ void CXR_Model_Sky::Create(const char* _pParam)
 	}
 	catch(CCException)
 	{
-		ConOutL("§cf80WARNING: Could not create procedural clouds.");
+		ConOutL("Â§cf80WARNING: Could not create procedural clouds.");
 		m_spProcTxt = NULL;
 	}*/
 
@@ -451,7 +451,7 @@ void CXR_Model_Sky::Create(const char* _pParam)
 	CStr SkyName(Param.GetStrSep(","));
 	if (SkyName == "")
 	{
-		ConOutL("§cf80WARNING: (CXR_Model_Sky::Create) No creation params.");
+		ConOutL("Â§cf80WARNING: (CXR_Model_Sky::Create) No creation params.");
 		return;
 	}
 
@@ -1356,10 +1356,10 @@ void CXR_Model_Sky::RenderSky(CSky_RenderInstanceParamters* _pRenderParams, cons
 								Particles[0].m_Dimensions.k[1] = 1200;
 								Particles[0].m_Color = 0xff7f7f7f;
 
-		// PROBLEM: Sky är ett renderpass= -1 objekt, vilket innebär att det rendras före portaler och 
-		//			att VBM'en flushas innan resten av scenen ritas. Mao så hamnar flaren först och inte sist. :(
-		//			Man kanske skulle slänga in sky-modellen i CXR_Engine två ggr, fast med olika renderpass.
-		//			Vilket renderpass som man ritar kan man lägga i animstate så att modellen vet vad som skall ritas.
+		// PROBLEM: Sky Ã¤r ett renderpass= -1 objekt, vilket innebÃ¤r att det rendras fÃ¶re portaler och 
+		//			att VBM'en flushas innan resten av scenen ritas. Mao sÃ¥ hamnar flaren fÃ¶rst och inte sist. :(
+		//			Man kanske skulle slÃ¤nga in sky-modellen i CXR_Engine tvÃ¥ ggr, fast med olika renderpass.
+		//			Vilket renderpass som man ritar kan man lÃ¤gga i animstate sÃ¥ att modellen vet vad som skall ritas.
 
 								if (CXR_Util::Render_Flares(_pRenderParams->m_pRC, _pRenderParams->m_pVBM, pVB, _pRenderParams->m_L2VMat, Particles, 1, 10000, 0, 5, false))
 								{

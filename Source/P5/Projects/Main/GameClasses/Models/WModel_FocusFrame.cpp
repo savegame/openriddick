@@ -554,7 +554,7 @@ private:
 	{
 		int CodeLen = 0;
 
-		if(_pStr[_iPos] == (uint8)'ง')
+		if(_pStr[_iPos] == (uint8)'ยง')
 		{
 			CodeLen = 1;
 			switch((char)_pStr[_iPos + 1])
@@ -770,7 +770,7 @@ private:
 		ScreenPos.k[1] *= invW;
 		ScreenPos.k[2] = Z;
 		
-		char moo = 'ง';
+		char moo = 'ยง';
 		int32 Col = CPixel32((226/2),(224/2),(220/2),255);
 		char* pFocusUseText = (char *)_pAnimState->m_Data[0];
 		// If the key doesn't exist, just return
@@ -778,7 +778,7 @@ private:
 			bool bHasLoc = (pFocusUseText && 
 				(pFocusUseText[0] == moo && pFocusUseText[1] == 'L'));
 			int i = (bHasLoc ? 2 : 0);
-			// Remove any extra 'ง'
+			// Remove any extra 'ยง'
 			while(pFocusUseText[i] != '\0')
 			{
 				if (pFocusUseText[i] == moo)

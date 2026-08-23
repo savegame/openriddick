@@ -209,7 +209,7 @@ void CWObject_SoundVolume::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			Phys.m_ObjectIntersectFlags = 0;
 			Phys.m_ObjectFlags = OBJECT_FLAGS_SOUND;
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 
 			// Set bound-box.
 			CXR_Model* pModel = m_pWServer->GetMapData()->GetResource_Model(m_iModel[0]);
@@ -221,7 +221,7 @@ void CWObject_SoundVolume::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			}
 			else
 			{
-				ConOutL(CStrF("§cf80ERROR: failed getting model! (iModel = %d)", iModel));
+				ConOutL(CStrF("Â§cf80ERROR: failed getting model! (iModel = %d)", iModel));
 			}
 			break;
 		}

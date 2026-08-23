@@ -7,7 +7,7 @@
 #include "../Exe/WGameContextMain.h"
 #include "WFrontEndMod.h"
 
-#include "../../../Shared/MOS/MSystem/Raster/MRender_nVidia.h"
+#include "../../../Shared/MOS/MSystem/Raster/MRender_NVidia.h"
 
 MRTC_IMPLEMENT_DYNAMIC(CMWnd_ModButton, CMWnd_Button);
 MRTC_IMPLEMENT_DYNAMIC(CMWnd_CubeButton, CMWnd_ModButton);
@@ -19,7 +19,7 @@ MRTC_IMPLEMENT_DYNAMIC(CMWnd_CubeOptionMeter, CMWnd_CubeRgn);
 MRTC_IMPLEMENT_DYNAMIC(CMWnd_CubeLayout, CMWnd_ModTexture);
 
 /*
-const char aTranslationString[] = "!""#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~×àáâãäåæçèéêëìíîïðñòóôõöøùúûüýÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝ";
+const char aTranslationString[] = "!""#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~Ã—Ã Ã¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§Ã¨Ã©ÃªÃ«Ã¬Ã­Ã®Ã¯Ã°Ã±Ã²Ã³Ã´ÃµÃ¶Ã¸Ã¹ÃºÃ»Ã¼Ã½Ã€ÃÃ‚ÃƒÃ„Ã…Ã†Ã‡ÃˆÃ‰ÃŠÃ‹ÃŒÃÃŽÃÃÃ‘Ã’Ã“Ã”Ã•Ã–Ã—Ã˜Ã™ÃšÃ›ÃœÃ";
 void Write(uint16 *_pMap, int32 x, int32 y, const char *_pString)
 {
 	_pMap += y*20+x;
@@ -884,11 +884,11 @@ int32 Translate(int32 _Char, int32 Font)
 ABCDEFGHIJKLMNOP\
 QRSTUVWXYZ[\\]^_`\
 abcdefghijklmnop\
-qrstuvwxyz{|}~×à\
-áâãäåæçèéêëìíîïð\
-ñòóôõöøùúûüýÀÁÂÃ\
-ÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓ\
-ÔÕÖ×ØÙÚÛÜÝ¿ßºvæ¦";
+qrstuvwxyz{|}~Ã—Ã \
+Ã¡Ã¢Ã£Ã¤Ã¥Ã¦Ã§Ã¨Ã©ÃªÃ«Ã¬Ã­Ã®Ã¯Ã°\
+Ã±Ã²Ã³Ã´ÃµÃ¶Ã¸Ã¹ÃºÃ»Ã¼Ã½Ã€ÃÃ‚Ãƒ\
+Ã„Ã…Ã†Ã‡ÃˆÃ‰ÃŠÃ‹ÃŒÃÃŽÃÃÃ‘Ã’Ã“\
+Ã”Ã•Ã–Ã—Ã˜Ã™ÃšÃ›ÃœÃÂ¿ÃŸÂºvÃ¦Â¦";
 	wchar aWideTrans[1024];
 	Localize_Str(aTranslationString, aWideTrans, 1023);
 
@@ -1790,8 +1790,8 @@ void CMWnd_ModInfoScreen::vActivate(const CStr& _sText, int _nType, CMWnd * _pFo
 	{
 		SetFocus();
 
-		//m_AButtonDescriptor = "§LMENU_YES";
-		//m_BButtonDescriptor = "§LMENU_NO";
+		//m_AButtonDescriptor = "Â§LMENU_YES";
+		//m_BButtonDescriptor = "Â§LMENU_NO";
 
 		MACRO_GetRegisterObject(CConsole, pCon, "SYSTEM.CONSOLE");
 		//pCon->ExecuteString("cg_playsound(\"menu_select\")");
@@ -1882,7 +1882,7 @@ void CMWnd_ModInfoScreen::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 
 		CMWnd_Text_DrawFormated(
 			_pRCUtil, _Clip, pF, 
-			"§Z22"+m_Information,
+			"Â§Z22"+m_Information,
 			x0, 
 			y0,
 			StyleCenter, 
@@ -1894,7 +1894,7 @@ void CMWnd_ModInfoScreen::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 
 		CMWnd_Text_DrawFormated(
 			_pRCUtil, _Clip, pF, 
-			"§Z22"+m_Information,
+			"Â§Z22"+m_Information,
 			0, 
 			-25,
 			StyleCenter, 
@@ -2624,7 +2624,7 @@ void CMWnd_ModText::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, const 
 }
 
  /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | Phobos: Added Texture implementation
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -2985,9 +2985,9 @@ void CMWnd_ModTexture::PaintVideo(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 			int32 SubtitleSize = DEFAULT_SIZE;
 			int32 SubtitleColor = 0x00808080;
 
-			CStr Text = CStrF("§Z%i", SubtitleSize) + Subtitle;
-			//if(Subtitle != "" && Subtitle.Ansi().Str()[0] == '§')
-			//	Subtitle += CStrF("§p0%i§pq", _Param);
+			CStr Text = CStrF("Â§Z%i", SubtitleSize) + Subtitle;
+			//if(Subtitle != "" && Subtitle.Ansi().Str()[0] == 'Â§')
+			//	Subtitle += CStrF("Â§p0%iÂ§pq", _Param);
 			
 			int y = 376;
 
@@ -3069,7 +3069,7 @@ aint CMWnd_ModTexture::OnMessage(const CMWnd_Message* _pMsg)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | 
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -3550,7 +3550,7 @@ void CMWnd_ModChainFrame::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 				_pRCUtil, 
 				Clip, 
 				pF, 
-				CStr("§Z20")+m_Title, 
+				CStr("Â§Z20")+m_Title, 
 				3, -10,
 				StyleCenter, 
 				m_TextColorM, m_TextColorH, m_TextColorD, 
@@ -3615,7 +3615,7 @@ void CMWnd_ModChainFrame::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect& _Clip, 
 				_pRCUtil, 
 				Clip, 
 				pF, 
-				CStr("§Z20")+m_BottomLine, 
+				CStr("Â§Z20")+m_BottomLine, 
 				3, -9+yy+40,
 				StyleCenter, 
 				m_TextColorM, m_TextColorH, m_TextColorD, 

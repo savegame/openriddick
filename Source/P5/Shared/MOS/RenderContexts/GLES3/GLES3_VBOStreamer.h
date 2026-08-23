@@ -42,10 +42,16 @@ public:
 	GLuint GetVBO() const { return m_VBO; }
 	GLuint GetIBO() const { return m_IBO; }
 
+	// Bumped every time the vertex ring is orphaned (wraps). A cached
+	// (Buffer, ByteOffset) from an earlier PushVertices stays valid only
+	// while this value is unchanged.
+	int GetVBGeneration() const { return m_VBGen; }
+
 private:
 	GLuint m_VBO, m_IBO;
 	int    m_VBOSize, m_IBOSize;
 	int    m_VBOHead, m_IBOHead;
+	int    m_VBGen;
 
 	CGLES3VBOStreamer(const CGLES3VBOStreamer&);
 	CGLES3VBOStreamer& operator=(const CGLES3VBOStreamer&);

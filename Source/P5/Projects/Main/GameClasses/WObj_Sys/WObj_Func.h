@@ -1,4 +1,4 @@
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_System.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_System.h"
 
 // -------------------------------------------------------------------
 //  Func_Float

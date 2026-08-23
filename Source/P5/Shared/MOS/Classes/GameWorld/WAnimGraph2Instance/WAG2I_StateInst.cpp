@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// AG2_ReportBadState() logs to stderr
+#include <stdlib.h>	// getenv() for RIDDICK_DBG_ANIMTIME
+
 //--------------------------------------------------------------------------------
 
 #ifdef	AG2_DEBUG
@@ -29,6 +32,43 @@ static bool bDebug = false;
 #include "WAG2I_Context.h"
 #include "WAG2I_StateInstPacked.h"
 #include "WAG2_ClientData.h"
+
+//--------------------------------------------------------------------------------
+// Linux-port hardening: invalid (animgraph, state) pairs must not be fatal.
+//
+// A dozen places below fetch the state description with nothing but an
+// M_ASSERT and then dereference the result unconditionally.  M_ASSERT only
+// prints and continues, and CXRAG2::GetState() legitimately returns NULL for
+// an out-of-range index, so such a pair is a plain SIGSEGV -- which is what
+// happens in Pa1_Pit, on a render worker thread inside
+// CWObject_Character::OnClientRender -> ... -> GetAnimLayers().
+//
+// Two ways the pair goes bad:
+//  * the animgraph resource failed to load, so it has zero states while the
+//    state index stayed at whatever the previous animgraph handed out;
+//  * UnpackSIP()/OnClientUpdate() overwrite m_iState from the move token but
+//    leave m_bHasAnimation set from the previous state when the new state
+//    does not resolve -- so the render path believes there is animation to
+//    fetch and walks straight into the NULL.
+// The second one is fixed at the source (both sites now clear the flag), the
+// first can only be diagnosed from a log: AG2_ReportBadState() prints the
+// animgraph name and its state count, so an empty resource is recognisable.
+// NOTE: must sit AFTER the WAG2I includes above -- CXRAG2 is only declared
+// there; before them the name is unknown and GCC degrades it to int.
+static void AG2_ReportBadState(const char* _pWhere, const CXRAG2* _pAnimGraph, int _iAnimGraph, int _iState)
+{
+	static int s_nReported = 0;
+	if (s_nReported >= 32)
+		return;
+	++s_nReported;
+
+	CXRAG2* pAG = (CXRAG2*)_pAnimGraph;	// GetName()/GetNumStates() are non-const
+	fprintf(stderr, "[AG2] %s: state not found -- iAnimGraph=%d iState=%d nStates=%d ag='%s'\n",
+		_pWhere, _iAnimGraph, _iState,
+		pAG ? (int)pAG->GetNumStates() : -1,
+		pAG ? pAG->GetName().Str() : "<null>");
+	fflush(stderr);
+}
 
 static fp32 Sinc(fp32 _x)
 {
@@ -283,6 +323,8 @@ fp32 CWAG2I_StateInstance::GetLoopTimeScale(const CWAG2I_Context* _pContext) con
 
 	const CXRAG2_AnimLayer* pAnimLayer = m_pAG2I->GetAnimLayer(pState->GetBaseAnimLayerIndex() + m_iLoopControlAnimLayer,m_iAnimGraph);
 	M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetLoopTimeScale: INVALID ANIMLAYER");
+	if (!pAnimLayer)
+		return 1.0f;
 
 	return pAnimLayer->GetTimeScale();
 }
@@ -379,8 +421,10 @@ void CWAG2I_StateInstance::FindBreakoutSequence(const CWAG2I_Context* _pContext,
 		return;
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return;
 	const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(pState->GetBaseAnimLayerIndex());
-	if (pAnimLayer && pAnimGraph && (pState->GetNumAnimLayers() > 0))
+	if (pAnimLayer && (pState->GetNumAnimLayers() > 0))
 	{
 		int16 iAnim = pAnimLayer->GetAnimIndex();
 
@@ -432,13 +476,21 @@ void CWAG2I_StateInstance::EnterState_InitSyncVelocity(const CWAG2I_Context* _pC
 	// For primary animation check what speed it has in the end and match state timescale to it
 	const CXRAG2* pAG = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAG,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID ANIMGRAPH");
+	if (!pAG)
+		return;
 	const CXRAG2_State* pState = pAG->GetState(m_iState);
-	M_ASSERT(pAG,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID STATE");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_InitSyncVelocity", pAG, m_iAnimGraph, m_iState);
+		return;
+	}
 	if (!pState->GetNumAnimLayers())
 		return;
 
 	const CXRAG2_AnimLayer* pAnimLayer = m_pAG2I->GetAnimLayer(pState->GetBaseAnimLayerIndex() + m_iLoopControlAnimLayer,m_iAnimGraph);
 	M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::EnterState_InitSyncVelocity: INVALID ANIMLAYER");
+	if (!pAnimLayer)
+		return;
 	const CXR_Anim_SequenceData* pAnimLayerSeq = pAG->GetAnimSequenceData(_pContext->m_pWorldData, pAnimLayer->GetAnimIndex());
 	if (!pAnimLayerSeq)
 		return;
@@ -466,6 +518,12 @@ void CWAG2I_StateInstance::EnterState_InitSyncVelocity(const CWAG2I_Context* _pC
 
 	//ConOut(CStrF("AnimSpeed: %f WantedSpeed: %f Scale: %f",AnimSpeed,DestSpeed,DestSpeed/AnimSpeed));
 
+	// Второе незащищённое деление того же рода: у клипа без корневого
+	// движения AnimSpeed == 0, и тарировать по нему нечего. DestSpeed уже
+	// проверен на > 0 выше, так что без этой проверки получался inf.
+	if (AnimSpeed <= 1e-6f)
+		return;
+
 	m_TimeScale = DestSpeed / AnimSpeed;
 }
 
@@ -474,8 +532,14 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	// Assumes state init correctly
 	m_bHasSyncAnim = true;
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState,"CWAG2I_StateInstance::EnterState_InitSyncAnims State invalid");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_InitSyncAnims", pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 	// Make sure we have 2 animations in this state
 	if (pState->m_nAnimLayers < 2)
 		return false;
@@ -484,6 +548,8 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	const CXRAG2_AnimLayer* pLayer1 = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer);
 	const CXRAG2_AnimLayer* pLayer2 = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer+1);
 	M_ASSERT(pLayer1 && pLayer2,"CWAG2I_StateInstance::EnterState_InitSyncAnims Animations invalid");
+	if (!pLayer1 || !pLayer2)
+		return false;
 	// Anim might not be cached
 	const CXR_Anim_SequenceData* pAnimLayerSeq1 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer1->m_iAnim);
 	const CXR_Anim_SequenceData* pAnimLayerSeq2 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer2->m_iAnim);
@@ -526,6 +592,55 @@ bool CWAG2I_StateInstance::EnterState_InitSyncAnims(const CWAG2I_Context* _pCont
 	return true;
 }
 
+// НАЙДЕННЫЙ ДЕФЕКТ (2026-08-03). Здесь рождался NaN, из-за которого
+// персонажи «скользят в позе первого кадра» и «телепортируются».
+//
+// Синхронизация двух анимаций (ходьба/бег — состояния с двумя слоями)
+// режет клип по syncpoint'ам и на каждый отрезок считает свой масштаб
+// времени: TimeDiv = 1 / (Time - PrevTime). Деление НЕ защищено. Если два
+// соседних syncpoint'а совпали по времени, знаменатель ноль:
+//   * числитель тоже ноль -> 0 * inf = NaN;
+//   * числитель не ноль   -> inf.
+// Дальше NaN расходится по обеим веткам сразу:
+//   1) GetSyncAnimTime возвращает NaN-время -> LoopedTime NaN -> клип
+//      считается в NaN и отдаёт первый кадр => ПОЗА ЗАМИРАЕТ;
+//   2) GetAnimVelocity строит TimeB = TimeA + TimeSpan*NaN = NaN, сравнение
+//      TimeB < TimeA даёт «зациклились», включается компенсация шва петли
+//      и к смещению ЗА ОДИН ТИК прибавляется путь за ВЕСЬ клип
+//      (GetTotalTrack0) => СКОРОСТЬ В ДЕСЯТКИ РАЗ ВЫШЕ.
+// Замер, на котором это поймано (RIDDICK_DBG_ANIMV, pa2_diner):
+//   scale=-nan dMove=116.965 got=3509.0   против здорового got=125.0.
+//
+// Возвращаем false на вырожденном отрезке — вызывающий ставит масштаб 1.0,
+// то есть отрезок играет в натуральном темпе вместо NaN. Заодно один раз
+// печатаем сами syncpoint'ы: если их времена нулевые, вырожденность идёт
+// от чтения .XSA (ключи ANIM_EVENT_TYPE_SYNC, XRAnim.cpp:1587), и чинить
+// надо загрузчик, а не только это место.
+static bool Riddick_SyncSliceOK(fp32 _Time, fp32 _PrevTime, int32 _i, int32 _Len,
+	int16 _iState, const CXR_Anim_SyncPoints& _P1, const CXR_Anim_SyncPoints& _P2,
+	fp32 _Dur1, fp32 _Dur2)
+{
+	if (_Time - _PrevTime > 1e-6f)
+		return true;
+
+	static int s_n = 0;
+	if (s_n < 8)
+	{
+		++s_n;
+		fprintf(stderr, "[SYNC] degenerate slice i=%d/%d iState=%d Time=%.5f PrevTime=%.5f dur1=%.3f dur2=%.3f\n",
+			(int)_i, (int)_Len, (int)_iState, _Time, _PrevTime, _Dur1, _Dur2);
+		fprintf(stderr, "[SYNC]   points1(%d):", (int)_P1.m_lPoints.Len());
+		for (int32 k = 0; k < _P1.m_lPoints.Len() && k < 12; k++)
+			fprintf(stderr, " %.4f/t%d", _P1.m_lPoints[k].m_Time, (int)_P1.m_lPoints[k].m_Type);
+		fprintf(stderr, "\n[SYNC]   points2(%d):", (int)_P2.m_lPoints.Len());
+		for (int32 k = 0; k < _P2.m_lPoints.Len() && k < 12; k++)
+			fprintf(stderr, " %.4f/t%d", _P2.m_lPoints[k].m_Time, (int)_P2.m_lPoints[k].m_Type);
+		fprintf(stderr, "\n");
+		fflush(stderr);
+	}
+	return false;
+}
+
 void CWAG2I_StateInstance::UpdateSyncAnimScale(const CWAG2I_Context* _pContext, fp32 _SyncAnimScale)
 {
 	// Get syncanimscale from evaluator
@@ -565,17 +680,35 @@ void CWAG2I_StateInstance::UpdateSyncAnimScale(const CWAG2I_Context* _pContext, 
 		{
 			fp32 Time = LERP(m_SyncPoints1.m_lPoints[i].m_Time,m_SyncPoints2.m_lPoints[i].m_Time,m_SyncAnimScale);
 			m_lTimes[i+1] = Time;
-			fp32 TimeDiv = 1.0f / (Time - PrevTime);
-			m_lTimeScales1[i] = (m_SyncPoints1.m_lPoints[i].m_Time - PrevTime1) * TimeDiv;
-			m_lTimeScales2[i] = (m_SyncPoints2.m_lPoints[i].m_Time - PrevTime2) * TimeDiv;
+			if (Riddick_SyncSliceOK(Time, PrevTime, i, Len, m_iState,
+					m_SyncPoints1, m_SyncPoints2, m_Duration1, m_Duration2))
+			{
+				fp32 TimeDiv = 1.0f / (Time - PrevTime);
+				m_lTimeScales1[i] = (m_SyncPoints1.m_lPoints[i].m_Time - PrevTime1) * TimeDiv;
+				m_lTimeScales2[i] = (m_SyncPoints2.m_lPoints[i].m_Time - PrevTime2) * TimeDiv;
+			}
+			else
+			{
+				m_lTimeScales1[i] = 1.0f;
+				m_lTimeScales2[i] = 1.0f;
+			}
 		}
 		else
 		{
 			fp32 Time = LERP(m_Duration1,m_Duration2,m_SyncAnimScale);
 			m_lTimes[i+1] = Time;
-			fp32 TimeDiv = 1.0f / (Time - PrevTime);
-			m_lTimeScales1[i] = (m_Duration1 - PrevTime1) * TimeDiv;
-			m_lTimeScales2[i] = (m_Duration2 - PrevTime2) * TimeDiv;
+			if (Riddick_SyncSliceOK(Time, PrevTime, i, Len, m_iState,
+					m_SyncPoints1, m_SyncPoints2, m_Duration1, m_Duration2))
+			{
+				fp32 TimeDiv = 1.0f / (Time - PrevTime);
+				m_lTimeScales1[i] = (m_Duration1 - PrevTime1) * TimeDiv;
+				m_lTimeScales2[i] = (m_Duration2 - PrevTime2) * TimeDiv;
+			}
+			else
+			{
+				m_lTimeScales1[i] = 1.0f;
+				m_lTimeScales2[i] = 1.0f;
+			}
 		}
 	}
 
@@ -641,15 +774,25 @@ void CWAG2I_StateInstance::GetSyncAnimTime(const CWAG2I_Context* _pContext, int3
 bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _pContext)
 {
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale State invalid");
+	if (!pState)
+	{
+		AG2_ReportBadState("EnterState_AdaptiveTimeScale", pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	// Get animation
 	const CXRAG2_AnimLayer* pLayer = pAnimGraph->GetAnimLayer(pState->m_iBaseAnimLayer);
 	M_ASSERT(pLayer,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale Animation invalid");
+	if (!pLayer)
+		return false;
 	// Anim might not be cached
 	const CXR_Anim_SequenceData* pAnimLayerSeq1 = pAnimGraph->GetAnimSequenceData(_pContext->m_pWorldData, pLayer->m_iAnim);
 	M_ASSERT(pAnimLayerSeq1,"CWAG2I_StateInstance::EnterState_AdaptiveTimeScale Animation invalid");
+	if (!pAnimLayerSeq1)
+		return false;
 
 	// Set "global" timescale for both layers (get from first layer)
 	m_bHasAdaptiveTimeScale = true;
@@ -663,7 +806,70 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 	CQuatfp32 Rot;
 	pAnimLayerSeq1->EvalTrack0(CMTime::CreateFromSeconds(m_Duration1),Move,Rot);
 	Move = M_VSetW0(Move);
-	m_pAG2I->GetEvaluator()->SetPropertyFloat(pLayer->GetMergeOperator(),CVec4Dfp32(Move).Length());
+	const fp32 AnimMoveLen = CVec4Dfp32(Move).Length();
+	int PropIdx = (int)pLayer->GetMergeOperator();
+
+	// ПОЧИНКА СКОРОСТИ ПЕРЕДВИЖЕНИЯ (2026-08-03).
+	//
+	// Длина корневого движения клипа пишется в свойство, номер которого
+	// берётся из авторского поля слоя m_iMergeOperator. В PC-контенте оно
+	// равно НУЛЮ у всех locomotion-слоёв (замер [ADAPT] enter: iState
+	// 45/49/697/699/703/794, prop=0 везде, animMoveLen считается верно --
+	// 44.6 / 64.0 / 115.4 / 116.9).
+	//
+	// А игровой код делит на свойство 8, PROPERTY_FLOAT_ANIMMOVELENGTH
+	// (WObj_CharClientData.cpp:1237), и больше НИКТО во всём дереве в это
+	// свойство не пишет -- проверено грепом. То есть знаменатель оставался
+	// нулевым навсегда: MoveVel>0 давало +inf, Min(4.0f, inf) = 4.0, и все
+	// персонажи двигались вчетверо быстрее; MoveVel==0 давало 0/0 = NaN и
+	// замирание позы.
+	//
+	// Чтение слоя при этом НЕ виновато: разбор v5/v6 сверен с ретейлом
+	// побайтово (Ghidra, GameWorld FUN_10390570 -- см. Docs/Decomp_Map.md),
+	// порядок и размеры полей совпадают. Значит ноль -- это то, что реально
+	// лежит в файле, а шипнутый PC-билд писал длину в свойство 8 каким-то
+	// другим путём, нежели этот PS3-снапшот исходников.
+	//
+	// ПОПЫТКА ПЕРЕАДРЕСАЦИИ ОТМЕНЕНА ЭКСПЕРИМЕНТОМ (прогон #8).
+	// Записывать длину в свойство 8 нельзя: adaptive-масштаб считается как
+	// MoveVel*20/ANIMMOVELENGTH, где MoveVel -- ФАКТИЧЕСКАЯ скорость
+	// персонажа, а она у NPC берётся из корневого движения, которое само
+	// масштабируется этим же значением. Петля замыкается на себя и
+	// схлопывается в ноль: замер дал scale=0.000/0.001/0.002, персонажи
+	// встали на месте и только доворачивались вокруг оси.
+	// По умолчанию поведение прежнее (пишем по авторскому индексу); гард на
+	// нулевой знаменатель в WObj_CharClientData.cpp даёт масштаб 1.0, и
+	// скорость передвижения пользователь подтвердил как правильную.
+	// RIDDICK_ADAPTPROP=<n> оставлен для экспериментов, по умолчанию выключен.
+	{
+		static int s_Override = -2;
+		if (s_Override == -2)
+		{
+			const char* e = getenv("RIDDICK_ADAPTPROP");
+			s_Override = (e && *e) ? (int)strtol(e, NULL, 0) : -1;
+		}
+		if (s_Override >= 0 && PropIdx == 0)
+			PropIdx = s_Override;
+	}
+
+	m_pAG2I->GetEvaluator()->SetPropertyFloat((CAG2PropertyID)PropIdx,AnimMoveLen);
+
+	// Куда именно записалась длина корневого движения. Индекс свойства --
+	// авторское поле m_iMergeOperator из AG2, а формат v6 мы читаем
+	// реверсом. Игровой код делит на СВОЙСТВО 8
+	// (PROPERTY_FLOAT_ANIMMOVELENGTH, WObj_CharClientData.cpp:1237), так
+	// что prop != 8 означает, что знаменатель остаётся нулевым навсегда.
+	{
+		static int s_n = 0;
+		if (s_n < 12)
+		{
+			++s_n;
+			fprintf(stderr, "[ADAPT] enter iState=%d iAnim=%d prop=%d(raw %d) animMoveLen=%.3f dur=%.3f\n",
+				(int)m_iState, (int)pLayer->m_iAnim, PropIdx,
+				(int)pLayer->GetMergeOperator(), AnimMoveLen, m_Duration1);
+			fflush(stderr);
+		}
+	}
 
 
 	// Scale of animation (0 = anim1)
@@ -679,6 +885,18 @@ bool CWAG2I_StateInstance::EnterState_AdaptiveTimeScale(const CWAG2I_Context* _p
 void CWAG2I_StateInstance::UpdateAdaptiveTimeScale(const CWAG2I_Context* _pContext, fp32 _SyncAnimScale)
 {
 	// Get syncanimscale from evaluator
+	// Max/Min не отсеивают NaN (любое сравнение с NaN ложно), а дальше он
+	// уходит прямо в масштаб времени слоя -- ловим явно.
+	if (!(_SyncAnimScale > -1.0e6f && _SyncAnimScale < 1.0e6f))
+		_SyncAnimScale = 1.0f;
+	// ФИКС застывшей ходьбы NPC (2026-08-23): масштаб <=0 -- это НЕ
+	// «замедлить до остановки», а неинициализированное значение
+	// клиентского эвалюатора (дефолт m_AdaptiveTimeScale=0 из Clear(),
+	// WAG2_ClientData.cpp:65; пер-тиковый SetAdaptiveTimeScale работает
+	// только для локального игрока). ts=m_SyncAnimScale=0 замораживал
+	// слои боевых блоков ходьбы -- «скользит в застывшей позе».
+	if (_SyncAnimScale <= 0.0f)
+		_SyncAnimScale = 1.0f;
 	_SyncAnimScale = Max(0.0f,Min(4.0f,_SyncAnimScale));
 	if (_SyncAnimScale == m_SyncAnimScale)
 		return;
@@ -1019,6 +1237,14 @@ void CWAG2I_StateInstance::UnpackSIP(const CWAG2I_Context* _pContext, const CWAG
 	m_iAnimGraph = _pSIP->GetAnimGraphIndex();
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+	{
+		// Nothing below can run without the graph, and m_bHasAnimation must
+		// not stay set from the previous state -- the render path would then
+		// walk into GetAnimLayers() with an unresolvable state.
+		m_bHasAnimation = false;
+		return;
+	}
 
 	//const CXRAG2_Action* pEnterAction = m_pAG2I->GetAction(m_iEnterAction);
 	const CXRAG2_MoveToken* pMoveToken = m_pAG2I->GetMoveToken(m_iEnterMoveToken, m_iAnimGraph);
@@ -1058,6 +1284,14 @@ void CWAG2I_StateInstance::UnpackSIP(const CWAG2I_Context* _pContext, const CWAG
 				EnterState_InitSyncAnims(_pContext);
 
 			m_Priority = pState->GetPriority();
+		}
+		else
+		{
+			// m_iState was just overwritten from the move token and does not
+			// resolve in this animgraph.  Leaving m_bHasAnimation set would
+			// let the render thread dereference the NULL state.
+			AG2_ReportBadState("UnpackSIP", pAnimGraph, m_iAnimGraph, m_iState);
+			m_bHasAnimation = false;
 		}
 
 		if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) != 0)
@@ -1188,7 +1422,7 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 		M_ASSERT(pAnimGraph,"Invalid animgraph");
 		// If entermovetoken is present, setup the rest
 		const CXRAG2_MoveToken* pMoveToken = m_pAG2I->GetMoveToken(m_iEnterMoveToken, m_iAnimGraph);
-		if (pMoveToken)
+		if (pMoveToken && pAnimGraph)
 		{
 			m_Enter_AnimBlendDuration = pMoveToken->GetAnimBlendDuration();
 			m_Enter_AnimBlendDelay = pMoveToken->GetAnimBlendDelay();
@@ -1223,7 +1457,30 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 				if (pState->GetFlags(1) & CHAR_STATEFLAGHI_SYNCANIM)
 					EnterState_InitSyncAnims(_pContext);
 
+				// ФИКС застывшей ходьбы (2026-08-23): клиент зеркалил
+				// инициализацию только SYNCANIM-состояний. Состояния с
+				// ADJUSTSTATETIMESCALE/ADAPTIVETIMESCALE (все боевые блоки
+				// ходьбы COMBAT_*_WALK*) на сервере получают m_TimeScale
+				// через InitSyncVelocity/AdaptiveTimeScale
+				// (EnterState_Setup :971-976), а клиентский инстанс оставался
+				// с Clear()-значениями -- слои таких состояний получали
+				// ts=0/t=0, персонаж «скользил в застывшей позе». Зеркалим
+				// обе ветки так же, как это делает серверный
+				// EnterState_Setup.
+				else if (pState->GetFlags(1) & CHAR_STATEFLAGHI_ADJUSTSTATETIMESCALE)
+					EnterState_InitSyncVelocity(_pContext);
+				else if (pState->GetFlags(1) & CHAR_STATEFLAGHI_ADAPTIVETIMESCALE)
+					EnterState_AdaptiveTimeScale(_pContext);
+
 				m_Priority = pState->GetPriority();
+			}
+			else
+			{
+				// Same as in UnpackSIP: an unresolvable state must clear the
+				// "has animation" flag, otherwise the client render path
+				// dereferences NULL.
+				AG2_ReportBadState("OnClientUpdate", pAnimGraph, m_iAnimGraph, m_iState);
+				m_bHasAnimation = false;
 			}
 
 			if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) != 0)
@@ -1258,7 +1515,7 @@ void CWAG2I_StateInstance::OnClientUpdate(CWAG2I_Context* _pContext, CWAG2I_SIID
 		const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 		M_ASSERT(pAnimGraph,"Invalid animgraph");
 		// If leavemovetoken is present, setup the rest
-		const CXRAG2_MoveToken* pLeaveMoveToken = pAnimGraph->GetMoveToken(m_iLeaveMoveToken);
+		const CXRAG2_MoveToken* pLeaveMoveToken = pAnimGraph ? pAnimGraph->GetMoveToken(m_iLeaveMoveToken) : NULL;
 		if (pLeaveMoveToken)
 		{
 			m_Leave_AnimBlendDuration = pLeaveMoveToken->GetAnimBlendDuration();
@@ -1461,10 +1718,16 @@ void CWAG2I_StateInstance::Read(CCFile* _pFile)
 		{
 			_pFile->ReadLE(m_lTimes[i]);
 		}
-		_pFile->WriteLE(m_SyncAnimScale);
-		_pFile->WriteLE(m_AnchorTime);
-		_pFile->WriteLE(m_Duration1);
-		_pFile->WriteLE(m_Duration2);
+		// ФИКС (2026-08-23): было WriteLE -- копипаст из Write() внутри
+		// Read(). Поток после этих четырёх полей читался со сдвигом
+		// (NumKeys/m_iState/... = мусор), а сами поля оставались
+		// несинхронизированными. Симптом: у ходячих NPC слои анимации
+		// получали ts=0.000 (масштаб времени состояния ноль) --
+		// «застывшая поза + скольжение».
+		_pFile->ReadLE(m_SyncAnimScale);
+		_pFile->ReadLE(m_AnchorTime);
+		_pFile->ReadLE(m_Duration1);
+		_pFile->ReadLE(m_Duration2);
 	}
 	
 	int16 NumKeys;
@@ -1570,9 +1833,15 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1630,6 +1899,8 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayers : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		// Check if it's a "grip" layer
 		CAG2AnimFlags Flags = pAnimLayer->GetAnimFlags();
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1683,6 +1954,55 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Прогон 49: ловля момента создания слоя с нулевым масштабом.
+		// Печатаем ТОЛЬКО аномалию (TimeScale<0.01) с полным контекстом:
+		// какая ветка времени (0=sync,1=adaptive,2=natural), входные
+		// значения и члены инстанса.
+		if (TimeScale < 0.01f)
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_AG2");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 150)
+			{
+				++s_n;
+				int Branch = m_bHasSyncAnim ? 0 : (m_bHasAdaptiveTimeScale ? 1 : 2);
+				fprintf(stderr,
+					"[TS0] iSt=%d iAnim=%d br=%d jL=%d LT=%.3f CT=%.3f fTS=%.3f syncS=%.3f mTS=%.3f adapt=%d enterT=%.3f gt=%.3f\n",
+					(int)m_iState, (int)iAnim, Branch, (int)jAnimLayer,
+					LoopedTime.GetTime(), ContinousTime.GetTime(),
+					pAnimLayer->GetTimeScale(), m_SyncAnimScale, m_TimeScale,
+					(int)m_bHasAdaptiveTimeScale, m_EnterTime.GetTime(),
+					_pContext->m_GameTime.GetTime());
+				fflush(stderr);
+			}
+		}
+
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 #ifdef	AG2_DEBUG
 		bool bLocalDebug = false;
 		if (bLocalDebug)
@@ -1702,6 +2022,63 @@ void CWAG2I_StateInstance::GetAnimLayers(const CWAG2I_Context* _pContext, bool _
 			m_iState, pAnimLayer->GetAnimIndex(), pAnimLayer->GetBaseJointIndex(), _iSI, _pContext->m_GameTime, m_EnterTime, LoopedTime, LayerBlend,
 			m_BlendInStartTime, m_BlendInEndTime, m_BlendOutStartTime, m_BlendOutEndTime);
 #endif
+		// RIDDICK_DBG_ANIMTIME=1 -- продвигается ли ВРЕМЯ СЛОЯ.
+		//
+		// Зачем именно здесь. Штатная трасса анимграфа
+		// (RIDDICK_AG2_DEBUGFLAGS) уже доказала: граф живой, состояния
+		// сменяются (EXPLORE_IDLE -> WALKFWD -> RUNFWD -> TURN...), у
+		// каждого состояния резолвится анимация (iAnim 74 и т.п.), игровое
+		// время идёт. То есть до этой точки всё цело.
+		//
+		// А наблюдается «персонаж скользит в позе первого кадра». Это ровно
+		// то, что даёт застрявший LoopedTime: поза берётся в LoopedTime
+		// (Create3 кладёт его в m_Time), а корневое движение -- как РАЗНОСТЬ
+		// EvalTrack0(m_Time) и EvalTrack0(m_Time + TimeSpan) (WAG2I.cpp,
+		// GetAnimVelocity). Если LoopedTime не растёт, разность каждый тик
+		// одна и та же и НЕнулевая: персонаж едет с постоянной скоростью, а
+		// поза стоит. Это же объясняет замер из
+		// Docs/Research_MoveSpeed_Report.md, где скорость от анимации вышла
+		// в 3-6 раз больше расчётной -- окно всегда берётся с крутого начала
+		// клипа.
+		//
+		// Печатается и на сервере, и на клиенте: рисуется клиентский
+		// инстанс, а трасса выше собиралась серверная, так что расхождение
+		// между ними -- отдельная проверяемая версия.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANIMTIME");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On && jAnimLayer == 0 && _pContext->m_pObj)
+			{
+				// Три первых объекта, каждый 15-й вызов, потолок 240 строк
+				static int s_lObj[3] = { -1, -1, -1 };
+				static int s_lCount[3] = { 0, 0, 0 };
+				static int s_nLines = 0;
+				const int iObject = _pContext->m_pObj->m_iObject;
+				int iSlot = -1;
+				for (int i = 0; i < 3; i++)
+				{
+					if (s_lObj[i] == iObject) { iSlot = i; break; }
+					if (s_lObj[i] == -1) { s_lObj[i] = iObject; iSlot = i; break; }
+				}
+				if (iSlot >= 0 && (s_lCount[iSlot]++ % 15) == 0 && s_nLines < 240)
+				{
+					++s_nLines;
+					const bool bServer = _pContext->m_pWPhysState ? _pContext->m_pWPhysState->IsServer() : false;
+					fprintf(stderr,
+						"[ANIMT] %s obj=%d iAnim=%d gt=%.3f enter=%.3f contin=%.3f looped=%.3f scale=%.3f dur=%.3f blend=%.2f\n",
+						bServer ? "srv" : "cli", iObject, (int)iAnim,
+						_pContext->m_GameTime.GetTime(), m_EnterTime.GetTime(),
+						ContinousTime.GetTime(), LoopedTime.GetTime(),
+						TimeScale, pAnimLayerSeq->GetDuration(), LayerBlend);
+					fflush(stderr);
+				}
+			}
+		}
+
 		M_ASSERT(0x7fc00000 != (uint32&)_pLayers[nLayers].m_Time, "!");
 		_pLayers[nLayers++].m_ContinousTime = ContinousTime;
 
@@ -1726,9 +2103,15 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1785,6 +2168,8 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1837,6 +2222,27 @@ void CWAG2I_StateInstance::GetValueCompareLayers(const CWAG2I_Context* _pContext
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 		uint32 StateFlags = pState->GetFlags(0);
 
 		_pLayers[nLayers].Create3(pAnimLayerSeq, LoopedTime, TimeScale, Sinc(Blend), pAnimLayer->GetBaseJointIndex(), Flags);
@@ -1865,9 +2271,15 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1882,6 +2294,8 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -1936,6 +2350,27 @@ void CWAG2I_StateInstance::GetAnimLayerSeqs(const CWAG2I_Context* _pContext, CXR
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 		uint32 StateFlags = pState->GetFlags(0);
 
 		_pLayers[nLayers].Create3(pAnimLayerSeq, LoopedTime, TimeScale, 1.0f, pAnimLayer->GetBaseJointIndex(), Flags);
@@ -1964,9 +2399,15 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph, "Invalid Animgraph");
+	if (!pAnimGraph)
+		return;
 
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return;
@@ -1988,6 +2429,8 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 
 		const CXRAG2_AnimLayer* pAnimLayer = pAnimGraph->GetAnimLayer(iAnimLayer);
 		M_ASSERT(pAnimLayer,"CWAG2I_StateInstance::GetAnimLayerSeqs : Invalid animlayer");
+		if (!pAnimLayer)
+			continue;
 		uint32 Flags = pAnimLayer->GetAnimFlags();
 		// Skip value compare layers for now
 		if (Flags & CXR_ANIMLAYER_VALUECOMPARE)
@@ -2050,6 +2493,27 @@ void CWAG2I_StateInstance::GetEventLayers(const CWAG2I_Context* _pContext, CEven
 		if (LoopedTime.Compare(Zero) < 0.0f)
 			LoopedTime = Zero;
 
+		// Страховка от NaN во времени слоя. Сравнение выше NaN не ловит
+		// (любое сравнение с NaN ложно), а клип, посчитанный в NaN, отдаёт
+		// первый кадр -- поза замирает молча. Источник NaN найден и закрыт
+		// (Riddick_SyncSliceOK), но цена проверки нулевая, а цена молчания
+		// -- несколько прогонов вслепую.
+		{
+			const fp32 LT = LoopedTime.GetTime();
+			if (!(LT > -1.0e9f && LT < 1.0e9f))
+			{
+				static int s_n = 0;
+				if (s_n < 8)
+				{
+					++s_n;
+					fprintf(stderr, "[ANIMNAN] layer time not finite: iState=%d iAnim=%d scale=%.3f -> clamped to 0\n",
+						(int)m_iState, (int)iAnim, TimeScale);
+					fflush(stderr);
+				}
+				LoopedTime = Zero;
+			}
+		}
+
 		uint32 StateFlags = pState->GetFlags(0);
 
 		_pLayers[nLayers].m_Layer.Create3(pAnimLayerSeq, LoopedTime, TimeScale, 1.0f, pAnimLayer->GetBaseJointIndex(), Flags);
@@ -2085,8 +2549,14 @@ bool CWAG2I_StateInstance::GetSpecificAnimLayer(const CWAG2I_Context* _pContext,
 
 	CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid state");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return false;
@@ -2194,8 +2664,14 @@ bool CWAG2I_StateInstance::HasSpecificAnimation(int32 _iAnim) const
 
 	const CXRAG2* pAnimGraph = m_pAG2I->GetAnimGraph(m_iAnimGraph);
 	M_ASSERT(pAnimGraph,"Invalid animgraph");
+	if (!pAnimGraph)
+		return false;
 	const CXRAG2_State* pState = pAnimGraph->GetState(m_iState);
-	M_ASSERT(pState, "Invalid State");
+	if (!pState)
+	{
+		AG2_ReportBadState(__FUNCTION__, pAnimGraph, m_iAnimGraph, m_iState);
+		return false;
+	}
 
 	if (m_EnterTime.Compare(AG2I_UNDEFINEDTIME) == 0)
 		return false;

@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 File:			Inverse kinamatics system.
 
 Author:			Fredrik Johansson
@@ -16,7 +16,7 @@ History:
 \*____________________________________________________________________________________________*/
 #include "PCH.h"
 #include "CIKSystem.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "WObj_Char/WObj_CharDarkling_ClientData.h"
 #include "../../Shared/MOS/Classes/GameWorld/Client/WClient.h"
 #include "WObj_Char.h"
@@ -271,7 +271,7 @@ bool CIKSystem::IKSolve(CXR_Skeleton* _pSkel, CXR_SkeletonInstance* _pSkelInstan
 		FromKnee.GetRow(2) = TempMat.GetRow(2);
 		FromKnee.GetRow(3) = KneeWorldVec;
 
-		// Transform the "knee-point" 30 units in the knee´s direction
+		// Transform the "knee-point" 30 units in the kneeÂ´s direction
 		FromKnee.GetRow(3) = OffsetFromKnee * FromKnee;
 
 		CVec3Dfp32 DbgKnee, DbgFromKnee;
@@ -1491,8 +1491,8 @@ void CIKSystem::DoDualHandIK(CXR_Skeleton* _pSkel, CXR_SkeletonInstance* _pSkelI
 			CVec3Dfp32 Point = ArmPointWrld;
 			NearestPointonLine = PointOnLine + (_pGrabRailIfNoReach->GetRow(0) * ((Point - PointOnLine) * _pGrabRailIfNoReach->GetRow(0)));
 			
-			//phytagoras a² + b² = c²
-			// b = Sqrt(c² - a²)
+			//phytagoras aÂ² + bÂ² = cÂ²
+			// b = Sqrt(cÂ² - aÂ²)
 			fp32 ADist = (Point - NearestPointonLine).Length();
 			fp32 CDist = (Bone1Length + Bone2Length);
 			fp32 BDist = M_Sqrt((CDist*CDist) - (ADist*ADist));

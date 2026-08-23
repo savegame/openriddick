@@ -57,7 +57,7 @@ bool CWRes_AnimGraph2::Create(CWorldData* _pWData, const char* _pName, CMapData*
 	CStr FileName = ResolveFilename(_pWData, _pName, "XAH");
 	if (!CDiskUtil::FileExists(FileName))
 	{
-		ConOutL(CStrF("§cf80WARNING: (CWRes_AnimGraph2::Create) Could not find %s", FileName.Str()));
+		ConOutL(CStrF("Â§cf80WARNING: (CWRes_AnimGraph2::Create) Could not find %s", FileName.Str()));
 		return false;
 	}
 

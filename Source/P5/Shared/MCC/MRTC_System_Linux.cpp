@@ -740,7 +740,52 @@ static bool Linux_CaseResolve(char* _pPath)
 				closedir(pD);
 			}
 			if (!bFound)
+			{
+				// RIDDICK_DBG_FILEPATH=1 -- на КАКОМ компоненте развалилось
+				// разрешение пути. Без этого «файла нет» неотличимо от
+				// «каталог выше разрешился не туда», а разница принципиальная:
+				// именно второе дал каталог-двойник `Content` рядом с
+				// `CONTENT`, и стоило это двух прогонов.
+				{
+					static int s_On = -1;
+					if (s_On < 0)
+					{
+						const char* e = getenv("RIDDICK_DBG_FILEPATH");
+						s_On = (e && *e && *e != '0') ? 1 : 0;
+					}
+					if (s_On)
+					{
+						fprintf(stderr, "[PATH] не найден компонент '%s' в каталоге '%s' (путь '%s')\n",
+							Comp, Buf[0] ? Buf : ".", _pPath);
+						fflush(stderr);
+					}
+				}
+
+				// НЕ ВЫБРАСЫВАЕМ УЖЕ РАЗРЕШЁННЫЙ ПРЕФИКС.
+				//
+				// Раньше здесь стоял голый `return false`, и путь оставался
+				// НЕТРОНУТЫМ -- вместе с исходным регистром. Для чтения это
+				// безобидно (файла всё равно нет), но для СОЗДАНИЯ файла
+				// оказалось разрушительно: `OS_FileOpen` достраивает
+				// недостающие каталоги, получал неразрешённый `Content/...`
+				// при реальном `CONTENT/...` и создавал ВТОРОЙ каталог
+				// `Content` рядом с настоящим. После этого `access("Content")`
+				// начинал проходить, разрешение уходило в пустой каталог, и
+				// игра переставала находить даже отладочный шрифт.
+				//
+				// Правильное поведение при создании -- разрешить существующий
+				// префикс и оставить как есть только несуществующий хвост.
+				// Возвращаемое значение остаётся false (ничего целиком не
+				// нашли), но путь теперь пригоден для создания.
+				size_t Rest = strlen(pIn);
+				if ((pOut - Buf) + Rest < sizeof(Buf))
+				{
+					memcpy(pOut, pIn, Rest);
+					pOut[Rest] = 0;
+					strcpy(_pPath, Buf);
+				}
 				return false;
+			}
 		}
 		size_t l = strlen(Comp);
 		memcpy(pOut, Comp, l); pOut += l;
@@ -831,6 +876,32 @@ void* MRTC_SystemInfo::OS_FileOpen(const char *_pFileName, bool _bRead, bool _bW
 
 	char Path[2048];
 	Linux_ResolvePath(_pFileName, Path, sizeof(Path));
+
+	// СОЗДАНИЕ ФАЙЛА ПОДРАЗУМЕВАЕТ СОЗДАНИЕ КАТАЛОГА.
+	//
+	// Движок пишет профиль/сейв по пути вида `Content\Save\Player\_profile`
+	// и не создаёт `Save\Player\` -- на исходных платформах каталог был на
+	// карте памяти заранее. У нас `open(O_CREAT)` в несуществующем каталоге
+	// возвращает ENOENT, и дальше это НЕ мягкая ошибка: исключения в сборке
+	// выключены, поэтому `FileError` разворачивается в `M_BREAKPOINT`, то
+	// есть SIGILL. Игра падала после меню и даже просто на движении курсора
+	// вверх-вниз -- любое действие, которое трогает профиль.
+	// Поэтому при создании файла достраиваем недостающие каталоги.
+	if (_bCreate)
+	{
+		for (char* p = Path + 1; *p; ++p)
+		{
+			if (*p != '/')
+				continue;
+			*p = 0;
+			// EEXIST -- норма; прочие ошибки игнорируем: если каталог
+			// действительно не создаётся, это увидит сам open() ниже,
+			// и уже он сообщит настоящую причину.
+			mkdir(Path, 0755);
+			*p = '/';
+		}
+	}
+
 	int fd = open(Path, Flags, 0644);
 	if (fd < 0)
 		return NULL;
@@ -1155,7 +1226,30 @@ aint PS3File_FindFirst( const char *_pPath, char *_pRet, int &_FileSize, bool &_
 		strcpy(pFind->m_Directory, ".");
 	}
 
-	pFind->m_pDir = opendir(pFind->m_Directory[0] ? pFind->m_Directory : "/");
+	// ПЕРЕЧИСЛЕНИЕ КАТАЛОГА ТОЖЕ ДОЛЖНО БЫТЬ РЕГИСТРОНЕЗАВИСИМЫМ.
+	//
+	// Открытие файлов у нас давно идёт через `Linux_ResolvePath` (движок
+	// просит `Content\...`, а на диске может лежать `CONTENT/...`), но здесь
+	// стоял голый `opendir` по имени как есть. На PC-наборе это не вылезало
+	// случайно: там каталог и правда называется `Content`, буква в букву.
+	// На PS3-наборе всё в верхнем регистре -- `CONTENT/XDF` -- и `opendir`
+	// молча возвращал NULL. Один этот пропуск давал ТРИ симптома разом:
+	// `0 texture containers loaded` (против 687 на PC), `0 wave containers`,
+	// `0 sfxdescs` и «бандла уровня нет в Content\XDF\» -- при том, что все
+	// эти файлы на диске есть.
+	{
+		char DirBuf[1024];
+		const char* pDir = pFind->m_Directory[0] ? pFind->m_Directory : "/";
+		Linux_ResolvePath(pDir, DirBuf, sizeof(DirBuf));
+		pFind->m_pDir = opendir(DirBuf);
+		if (pFind->m_pDir)
+		{
+			// Дальше читаем из РАЗРЕШЁННОГО каталога, иначе относительные
+			// имена, которые сложит вызывающий, снова упрутся в регистр.
+			strncpy(pFind->m_Directory, DirBuf, sizeof(pFind->m_Directory) - 1);
+			pFind->m_Directory[sizeof(pFind->m_Directory) - 1] = 0;
+		}
+	}
 	if (!pFind->m_pDir)
 	{
 		free(pFind);

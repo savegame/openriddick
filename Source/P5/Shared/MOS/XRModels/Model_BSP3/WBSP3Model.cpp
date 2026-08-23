@@ -1197,7 +1197,7 @@ bool CXR_Model_BSP3::RenderTesselate(const uint32* _piFaces, int _nFaces, int _T
 
 	if (_TessFlags & 3)
 	{
-		ConOut(CStrF("§cf80WARNING: (CXR_Model_BSP3::RenderTesselate) TessFlags %d", _TessFlags));
+		ConOut(CStrF("Â§cf80WARNING: (CXR_Model_BSP3::RenderTesselate) TessFlags %d", _TessFlags));
 	}
 
 	if (_TessFlags & 4)
@@ -2675,7 +2675,7 @@ void CXR_Model_BSP3::OnRender(CXR_Engine* _pEngine, CRenderContext* _pRender, CX
 				// check if something strage is going on (can crash if this check isn't here)
 				if(m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len())
 				{
-					ConOutL("§cf80WARNING: (CXR_Model_BSP3::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
+					ConOutL("Â§cf80WARNING: (CXR_Model_BSP3::OnRender) m_pView->m_lLightOcclusion.Len() != pSG->m_lLights.Len() failed.");
 					return;
 				}
 

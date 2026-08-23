@@ -8,7 +8,7 @@
 #include "WObj_Misc/WObj_Object.h"
 #include "WObj_Sys/WObj_Physical.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_SimpleMessage.h"
-#include "../../../Shared/mos/Classes/GameWorld/Client/WClient_Core.h"
+#include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
 
 enum
 {

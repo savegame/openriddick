@@ -9,7 +9,7 @@
 
 // #define LOCALIZER_DISABLE
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Extracts a localization key and converts it
 						to ANSI.
 						
@@ -24,7 +24,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_GetKey(const wchar*& _pS, CFStr& _Dst)
 	MAUTOSTRIP(Localize_GetKey, MAUTOSTRIP_VOID);
 
 	const wchar* pS = _pS;
-	while(*pS && *pS != wchar((uint8)'§') && *pS != wchar((uint8)' ') && *pS != wchar((uint8)'\n') && *pS != wchar((uint8)':') && *pS != wchar((uint8)'.') && *pS != wchar((uint8)',') && *pS != wchar((uint8)')'))
+	while(*pS && *pS != wchar((uint8)'Â§') && *pS != wchar((uint8)' ') && *pS != wchar((uint8)'\n') && *pS != wchar((uint8)':') && *pS != wchar((uint8)'.') && *pS != wchar((uint8)',') && *pS != wchar((uint8)')'))
 		pS++;
 
 	int Len = pS - _pS;
@@ -37,7 +37,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_GetKey(const wchar*& _pS, CFStr& _Dst)
 	_pS += Len;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Performs a look up of a localization key
 						in the application-global string tables.
 						
@@ -80,7 +80,7 @@ CStr SYSTEMDLLEXPORT M_CDECL Localize_FindKeyValue(const char* _pKey)
 */					
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Performs a look up of a localization key
 						in the application-global string tables.
 						
@@ -113,7 +113,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_KeyExists(const char* _pKey)
 	return false;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Extracts addresses and lengths of localization 
 						key parameters.
 						
@@ -131,7 +131,7 @@ int SYSTEMDLLEXPORT M_CDECL Localize_GetParams(const wchar*& _pS, const wchar** 
 	MAUTOSTRIP(Localize_GetParams, 0);
 
 	int nParams = 0;
-	while(_pS[0] == wchar((uint8)'§') &&
+	while(_pS[0] == wchar((uint8)'Â§') &&
 		_pS[1] == wchar((uint8)'p') &&
 		_pS[2] != 0)
 	{
@@ -139,7 +139,7 @@ int SYSTEMDLLEXPORT M_CDECL Localize_GetParams(const wchar*& _pS, const wchar** 
 		if (_pS[-1] == 'q')
 			break;
 
-		const wchar* pEnd = CStrBase::wcsstr(_pS, WTEXT("§p"));
+		const wchar* pEnd = CStrBase::wcsstr(_pS, WTEXT("Â§p"));
 		int Len = (pEnd) ? pEnd - _pS : CStrBase::StrLen(_pS);
 
 		_plpParams[nParams] = _pS;
@@ -152,7 +152,7 @@ int SYSTEMDLLEXPORT M_CDECL Localize_GetParams(const wchar*& _pS, const wchar** 
 	return nParams;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Substitute localization keys using the application-
 						global string tables.
 						
@@ -177,7 +177,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 		if (pD - _pDst >= _MaxLen-1)
 			break;
 
-		if (*pS == wchar((uint8)'§'))
+		if (*pS == wchar((uint8)'Â§'))
 		{
 			pS++;
 			wchar Cmd = *pS;
@@ -202,7 +202,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 						const wchar* pKeyVal = KeyVal.StrW();
 						while(*pKeyVal)
 						{
-							if (pKeyVal[0] == wchar((uint8)'§') &&
+							if (pKeyVal[0] == wchar((uint8)'Â§') &&
 								pKeyVal[1] == wchar((uint8)'p') &&
 								pKeyVal[2] >= wchar('0') && pKeyVal[2] <= wchar('9') &&
 								nParams > 0)
@@ -217,7 +217,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 							}
 							else
 							{
-								const wchar* pPos = CStrBase::wcsstr(pKeyVal+1, WTEXT("§"));
+								const wchar* pPos = CStrBase::wcsstr(pKeyVal+1, WTEXT("Â§"));
 								int nCopy = (pPos) ? (pPos - pKeyVal) : CStrBase::StrLen(pKeyVal);
 								CStrBase::mfsncpy(pD, CSTR_FMT_UNICODE, pKeyVal, CSTR_FMT_UNICODE, nCopy);
 								pD += nCopy;
@@ -231,7 +231,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 						const char* pKeyVal = KeyVal.Str();
 						while(*pKeyVal)
 						{
-							char moo = '§';
+							char moo = 'Â§';
 							if (pKeyVal[0] == moo &&
 								pKeyVal[1] == 'p' &&
 								pKeyVal[2] >= '0' && pKeyVal[2] <= '9' &&
@@ -311,7 +311,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 			default :
 				{
 					// This command is not recognized by the localizer, just write it back to the destination string.
-					*pD++ = (uint8)'§';
+					*pD++ = (uint8)'Â§';
 					*pD++ = Cmd;
 					pS++;
 				}
@@ -328,7 +328,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_SubstituteKeys(const wchar* _pSrc, wchar* 
 	*pD++ = 0;
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Returns true if a string needs localization.						
 \*____________________________________________________________________*/
 bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const char* _pStr)
@@ -339,7 +339,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const char* _pStr)
 	{
 		switch(*pFind)
 		{
-		case 0xa7:	//§ char
+		case 0xa7:	//Â§ char
 			{
 				char ch = *pFind;
 				if (ch == 'L' || ch == 'R')
@@ -353,7 +353,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const char* _pStr)
 	}
 	return false;
 	
-//	return strstr(_pStr, "§L") != NULL;
+//	return strstr(_pStr, "Â§L") != NULL;
 }
 
 bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const wchar* _pStr)
@@ -364,7 +364,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const wchar* _pStr)
 	{
 		switch(*pFind)
 		{
-		case 0x00a7:	//§ char
+		case 0x00a7:	//Â§ char
 			{
 				wchar ch = pFind[1];
 				if (ch == L'L' || ch == L'R')
@@ -378,7 +378,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(const wchar* _pStr)
 	}
 	return false;
 	
-//	return CStrBase::wcsstr(_pStr, WTEXT("§L")) != NULL;
+//	return CStrBase::wcsstr(_pStr, WTEXT("Â§L")) != NULL;
 }
 
 bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(CStr _Str)
@@ -391,7 +391,7 @@ bool SYSTEMDLLEXPORT M_CDECL Localize_HasKey(CStr _Str)
 		return Localize_HasKey(_Str.StrW());
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Localize unicode string by substituting
 						localization keys until there are none
 						present in the result string.
@@ -423,7 +423,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_Str(const wchar* _pSrc, wchar* _pDst, int 
 #endif
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Converts localization key to wchar and then 
 						calls the wchar counterpart of this function.												
 \*____________________________________________________________________*/
@@ -440,7 +440,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_Str(const char* _pSrc, wchar* _pDst, int _
 	Localize_Str(Buffer, _pDst, _MaxLen);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			Converts localization key to wchar and then 
 						calls the wchar counterpart of this function.												
 \*____________________________________________________________________*/
@@ -454,7 +454,7 @@ void SYSTEMDLLEXPORT M_CDECL Localize_Str(CStr _Str, wchar* _pDst, int _MaxLen)
 		Localize_Str(_Str.StrW(), _pDst, _MaxLen);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:			A CStr wrapper for Localize_Str	
 \*____________________________________________________________________*/
 CStr SYSTEMDLLEXPORT M_CDECL Localize_Str(CStr _Str)

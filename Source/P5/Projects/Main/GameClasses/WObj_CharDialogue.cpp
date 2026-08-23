@@ -6,7 +6,7 @@
 #include "WObj_AI/AICore.h"
 #include "WObj_AI/AI_ResourceHandler.h"
 #include "WRPG/WRPGChar.h"
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "WObj_Misc/WObj_ActionCutscene.h"
 
 /* // MultiLog writes to game console, log file and debugger output
@@ -22,8 +22,33 @@ static void M_ARGLISTCALL MultiLog(const char* _pStr, ...)
 	M_TRACEALWAYS("%s\n", lBuffer);
 }*/
 #define DO_IF(x) (!(x)) ? (void)0 :
-#define DBG_OUT_LOG DO_IF(0) M_TRACEALWAYS			//MultiLog
-#define DBG_OUT DO_IF(0) M_TRACEALWAYS
+
+// RIDDICK_DBG_DLG=1 -- включает ШТАТНУЮ трассу диалоговой системы, которую
+// авторы движка оставили в коде за `DO_IF(0)`. Тот же приём уже сработал с
+// анимграфом (AG2I_DEBUG_FLAGS): встроенная трасса точнее самодельных зондов,
+// потому что печатает ровно те решения, которые принимает движок.
+//
+// Что она показывает: EvalDialogueLink (какие события пришли из ресурса
+// диалога), SetItem (назначение APPROACH/THREATEN/IGNORE/TIMEOUT/EXIT
+// персонажам), выбор целей и запуск реплик. Именно SetItem отвечает на
+// вопрос «почему нельзя заговорить»: `Char_GetDialogueApproachItem` отдаёт
+// `m_DialogueItems.m_Approach`, а он ставится ТОЛЬКО сообщением
+// OBJMSG_CHAR_SETDIALOGUEITEM_APPROACH из события SETITEM_APPROACH. Если в
+// логе нет ни одной строки SetItem -- скрипты уровня не раздали персонажам
+// approach-реплики, и чинить надо их, а не диалоговый рантайм.
+static bool Riddick_DlgTrace()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLG");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+#define DBG_OUT_LOG DO_IF(Riddick_DlgTrace()) M_TRACEALWAYS			//MultiLog
+#define DBG_OUT DO_IF(Riddick_DlgTrace()) M_TRACEALWAYS
 
 
 #define PLAYER_CLIENTFLAGS_DIALOGUECOMBO (PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK | PLAYER_CLIENTFLAGS_DIALOGUE)
@@ -130,10 +155,72 @@ bool CWObject_Character::Char_BeginDialogue(int _iSpeaker, int _iStartItem)
 /*	CWObject_Message Msg(OBJMSG_GAME_SETCLIENTWINDOW, aint("dialogue"), m_pWServer->Game_GetObject()->Player_GetClient(pCD->m_iPlayer));
 	m_pWServer->Message_SendToObject(Msg, m_pWServer->Game_GetObjectIndex());*/
 
+	// Сюда приходит игрок по OBJMSG_CHAR_BEGINDIALOGUE от NPC. Если
+	// _iStartItem нулевой, реплику никто не запустит и разговор молча не
+	// начнётся -- именно так выглядел прогон 18.
+	DBG_OUT_LOG("[%.2f, Char %d, %s], BeginDialogue: speaker=%d startItem=%08X",
+		m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _iSpeaker, (unsigned)_iStartItem);
+
 	if (_iStartItem != 0)
 	{
 		OnMessage(CWObject_Message(OBJMSG_CHAR_SETDIALOGUETOKENHOLDER, m_iObject, 0, m_iObject));
 		PlayDialogue_Hash(_iStartItem, DIALOGUEFLAGS_FROMLINK, 0);
+
+		// НАЙДЕНО (§34, 2026-08-21): «разговор не держит игрока».
+		//
+		// В этом самом месте ретейл ставит на говорящего замок разговора,
+		// а в нашем снапшоте эта строка ЗАКОММЕНТИРОВАНА (см. выше,
+		// `//ClientFlags() |= NOMOVE | NOLOOK | DIALOGUE;`) -- снапшот PS3
+		// отстал от шипнутого билда.
+		//
+		// Ретейл, Char_BeginDialogue (GameClasses_decomp:475718-475740),
+		// та же последовательность: msg 0x10ae (SETDIALOGUETOKENHOLDER,
+		// m_iObject,0,m_iObject) через vtable+0x74 (OnMessage) ->
+		// PlayDialogue_Hash(item, 2 = DIALOGUEFLAGS_FROMLINK) -> и затем
+		//
+		//   if (pCD->0x2075 == 0 && pSpeakerCD->0x2075 == 0)
+		//       m_ClientFlags |= 0x48600000;
+		//
+		// 0x2075 -- это `m_3PI_NoCamera` (лежит сразу за `m_3PI_Mode` по
+		// 0x2074, порядок AutoVar'ов совпадает: WObj_CharClientData.h:818-819),
+		// а 0x48600000 при PLAYER_CLIENTFLAGS_USERSHIFT=17 раскладывается
+		// ровно в NOMOVE | NOLOOK | PLAYERSPEAK | NOCROUCH.
+		//
+		// Почему это важно именно для диалогов: PLAYERSPEAK -- это
+		// `bSpeaking` в Char_UpdateThirdPersonInteractive
+		// (WObj_CharMechanics.cpp:9162). Он и вводит игрока в 3PI (:9533),
+		// и не даёт из него вывалиться (:9217/:9236), а без 3PI
+		// `Char_SetDialogueChoices` молча выбрасывает netmsg с выборами
+		// (:1487-1495; гейт сверен с ретейлом, FUN_102eb160). Отсюда же
+		// отложенное наблюдение прогона 26: в ретейле из разговора нельзя
+		// уйти шагом -- это NOMOVE/NOLOOK, а не работа камеры.
+		//
+		// Снимается замок там же, где и раньше (WObj_Char.cpp:3000-3006),
+		// когда реплика доиграла; ретейл маску снимает целиком
+		// (0xb79fffff = ~0x48600000, GameClasses_decomp:445022) и, пока
+		// реплика играет, каждый тик ставит её заново (:445037).
+		//
+		// Отличие от ретейла осознанное: ставим замок только игроку
+		// (`m_iPlayer != -1`). Снятие маски и в ретейле, и у нас гейтится
+		// по игроку (декомпил :445009, `m_iPlayer == -1 -> выход`), так что
+		// NPC-у из NPC-NPC-болтовни флаги остались бы висеть навсегда.
+		//
+		// Откат: RIDDICK_DLG_LOCK=0.
+		static int s_Lock = -1;
+		if (s_Lock < 0)
+		{
+			const char* e = getenv("RIDDICK_DLG_LOCK");
+			s_Lock = (e && *e && *e == '0') ? 0 : 1;
+		}
+
+		if (s_Lock && pCD->m_iPlayer != -1 && pCD->m_3PI_NoCamera == 0 && pSpeakerCD->m_3PI_NoCamera == 0)
+		{
+			ClientFlags() |= PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+			                 PLAYER_CLIENTFLAGS_PLAYERSPEAK | PLAYER_CLIENTFLAGS_NOCROUCH;
+
+			DBG_OUT_LOG("[%.2f, Char %d, %s], DialogueLock: on (speaker=%d)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _iSpeaker);
+		}
 	}
 
 	// Pausing AI should not be relevant in the Darkness semi dialogue mode
@@ -320,7 +407,7 @@ fp32 GetHeadOffset(CWorld_Client* _pWClient, int _iObj,const CMat4Dfp32& _Positi
 }*/
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 Function:			Get desired camera for client
 
 Parameters:			
@@ -565,11 +652,24 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 	CWRes_Dialogue* pDialogue = GetDialogueResource(this, m_pWServer);
 
+	// Ранние выходы PlayDialogue_Hash молчаливы: штатная строка трассы стоит в
+	// самом конце функции, поэтому неудача выглядит в логе как отсутствие
+	// строки, и отличить "реплики нет в ресурсе" от "приоритет не пустил"
+	// нельзя. Проговариваем каждый выход отдельно.
 	if (!pDialogue || !pDialogue->GetHashDialogueItem(_DialogueHash))
+	{
+		DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (%s)",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+			pDialogue ? "no such item in dialogue resource" : "no dialogue resource");
 		return false;
+	}
 
 	if(Char_GetPhysType(this) == PLAYER_PHYS_DEAD)
+	{
+		DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (dead)",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash);
 		return false;
+	}
 
 	CWRes_Dialogue::CRefreshRes Res;
 	bool bResValid = false;
@@ -577,7 +677,11 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 	if (!pDialogue->IsQuickSound_Hash(_DialogueHash))
 	{
 		if(pCD->m_pCurrentDialogueToken && !(_Flags & DIALOGUEFLAGS_FROMLINK))
+		{
+			DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (busy: token held, not from link)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash);
 			return false;
+		}
 
 		//pDialogue->FindEvent_Hash(_iDialogue, CWRes_Dialogue::EVENTTYPE_LISTENER)
 
@@ -585,7 +689,12 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 		int Prio = pDialogue->GetPriority_Hash(_DialogueHash);
 		if (Prio < m_spAI->GetCurrentPriorityClass())
+		{
+			DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (prio %d < AI prio %d)",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+				Prio, (int)m_spAI->GetCurrentPriorityClass());
 			return false;
+		}
 
 		CFStr Listener;
 		int iListener = 0;
@@ -672,11 +781,35 @@ bool CWObject_Character::PlayDialogue_Hash(uint32 _DialogueHash, uint _Flags, in
 
 		OnRefresh_Dialogue_Hash(this, m_pWServer, _DialogueHash, _Flags, &Res);
 
+		// Что реплика вообще несёт. После правки ключа APPROACHDIALOGUEITEM
+		// приветственная реплика запускается (result: 1), но за ней ничего не
+		// следует: ни строки Link, ни выборов, ни звука. Разделяем случаи --
+		// «в айтеме нет LINK/CHOICE» (тогда чинить нечего, дело в контенте
+		// или в том, что играется не тот айтем) от «события есть, но их не
+		// разбирают». Печатаем маску событий и наличие ключевых событий
+		// прямо из ресурса, плюс индекс звука.
+		DBG_OUT_LOG("[%.2f, Char %d, %s], Events for %08X: mask=%08X sub=%d choice=%d link=%d('%s') listener=%d users=%d snd=%d",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash,
+			Res.m_Events,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_SUBTITLE) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_CHOICE) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_LINK) ? 1 : 0,
+			// m_pLink достаём только когда бит выставлен: конструктор
+			// CRefreshRes обнуляет лишь m_Events, остальные поля -- мусор.
+			((Res.m_Events & (1 << CWRes_Dialogue::EVENTTYPE_LINK)) && Res.m_pLink) ? Res.m_pLink : "",
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_LISTENER) ? 1 : 0,
+			pDialogue->FindEvent_Hash(_DialogueHash, CWRes_Dialogue::EVENTTYPE_USERS) ? 1 : 0,
+			(int)pDialogue->GetSoundIndex_Hash(_DialogueHash, m_pWServer->GetMapData()));
+
 		if (iListener > 0)
 		{
 			CWObject_Character *pChar = TDynamicCast<CWObject_Character>(m_pWServer->Object_Get(iListener));
 			if(pChar && CWObject_Character::Char_GetPhysType(pChar) == PLAYER_PHYS_DEAD)
+			{
+				DBG_OUT_LOG("[%.2f, Char %d, %s], PlayDialogue_Hash: %08X FAIL (listener %d is dead)",
+					m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), _DialogueHash, iListener);
 				return false;
+			}
 
 			Char_SetListener(iListener, Flags);
 			pCD->m_DialogueInstance.m_Priority = Prio;
@@ -1145,6 +1278,77 @@ void CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes &_Re
 				}
 				pCD->m_liDialogueChoice.MakeDirty();
 				pCD->m_DialogueChoiceTick = pCD->m_GameTick;
+
+				// РЕТЕЙЛ ДЕЛАЕТ ЗДЕСЬ БОЛЬШЕ (§34), эксперимент, по
+				// умолчанию ВЫКЛЮЧЕН: RIDDICK_DLG_AUTOSINGLE=1.
+				//
+				// EvalDialogueLink ретейла (FUN_102ebe50, ветка "player" --
+				// GameClasses_decomp:477493-477596) после наполнения списка
+				// выборов проверяет
+				//
+				//   if (bSingle && (pPlayerCD->m_3PI_Mode & 3) == 2)   // MODE_DIALOGUE
+				//
+				// и тогда: шлёт игроку 0x103d (EQUIPITEMTYPE, param 0 --
+				// убрать оружие), зовёт Char_ActivateDialogueItem
+				// (FUN_102eb4f0, опознан по цепочке DESTROYCAUSUALDIALOGUE
+				// 0xc0 -> SETDIALOGUETOKENHOLDER 0x10ae -> BEGINDIALOGUE
+				// 0x101b) для ПЕРВОГО выбора от имени игрока и ставит ему
+				// m_ClientFlags |= 0x48600000. То есть при единственном
+				// варианте ответа реплика игрока стартует сама, без нажатия
+				// use.
+				//
+				// `bSingle` в ретейле -- «у игрока ровно один вариант»:
+				// nRandoms==1 в RANDOMLINK (:477218), либо линк с целью
+				// player и без запятой (:477253), либо линк буквально
+				// "Player:99" (:477329). Для "Player:99" ретейл замок НЕ
+				// ставит (:477573) -- это «Риддик буркнул под нос», а не
+				// разговор.
+				//
+				// Почему выключено: наблюдаемого дефекта на этой ветке у нас
+				// нет (прогон 26 закрыл петлю), а авто-старт реплики меняет
+				// поток разговора и в худшем случае продублирует строку,
+				// которую уже играет путь диалогового инстанса. Флаг даёт
+				// проверить это за один прогон.
+				{
+					static int s_AutoSingle = -1;
+					if (s_AutoSingle < 0)
+					{
+						const char* e = getenv("RIDDICK_DLG_AUTOSINGLE");
+						s_AutoSingle = (e && *e && *e != '0') ? 1 : 0;
+					}
+
+					if (s_AutoSingle && pCD->m_liDialogueChoice.Len() == 1)
+					{
+						const CFStr FullLink = bUseNewBuf ? NewBuf : CFStr(_Res.m_pLink);
+						bool bSingle = true;
+						for (const char* pIt = Items[iSel].Str(); pIt && *pIt; pIt++)
+							if (*pIt == ',')
+							{
+								bSingle = false;
+								break;
+							}
+						const bool bNoLock = (FullLink.CompareNoCase("Player:99") == 0);
+
+						CWObject_Character* pPlayerChar = CWObject_Character::IsCharacter(iTarget, m_pWServer);
+						CWO_Character_ClientData* pPlayerCD = pPlayerChar ? GetClientData(pPlayerChar) : NULL;
+						const uint8 PlayerMode = pPlayerCD
+							? (uint8)(pPlayerCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK)
+							: (uint8)THIRDPERSONINTERACTIVE_MODE_NONE;
+
+						if (bSingle && pPlayerChar && PlayerMode == THIRDPERSONINTERACTIVE_MODE_DIALOGUE)
+						{
+							DBG_OUT_LOG("[%.2f, Char %d, %s], AutoSingle: activating '%s' on player %d (noLock=%d)",
+								m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+								Items[iSel].Str(), iTarget, (int)bNoLock);
+
+							Char_ActivateDialogueItem(pCD->m_liDialogueChoice[0], iTarget);
+
+							if (!bNoLock)
+								pPlayerChar->ClientFlags() |= PLAYER_CLIENTFLAGS_NOMOVE | PLAYER_CLIENTFLAGS_NOLOOK |
+								                             PLAYER_CLIENTFLAGS_PLAYERSPEAK | PLAYER_CLIENTFLAGS_NOCROUCH;
+						}
+					}
+				}
 				return;
 			}
 			else if(Targets[iSel].CompareNoCase("$this") == 0)
@@ -1153,6 +1357,50 @@ void CWObject_Character::EvalDialogueLink(const CWRes_Dialogue::CRefreshRes &_Re
 				iTarget = m_pWServer->Selection_GetSingleTarget("TELEPHONEREG");
 			else
 				iTarget = m_pWServer->Selection_GetSingleTarget(Targets[iSel]);
+
+			// Разрешение цели линка. В контенте линк идёт не на "player", а на
+			// ИМЯ объекта ("Link: Riddick:99"), то есть на обычный
+			// Selection_GetSingleTarget. Если такого имени в мире нет,
+			// iTarget <= 0, разговор молча обрывается (ветка else ниже), и
+			// именно так выглядит наш симптом. Печатаем, что получилось.
+			DBG_OUT_LOG("[%.2f, Char %d, %s], LinkTarget: '%s' -> iTarget=%d items='%s'",
+				m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+				Targets[iSel].Str(), iTarget, Items[iSel].Str());
+
+			// Цель не нашлась -- сравниваем с тем, как зовут игрока. Линки
+			// вида 'Riddick:99' обязаны попадать именно в него.
+			if (iTarget <= 0)
+			{
+				CWObject* pPl = m_pWServer->Object_Get(m_pWServer->Game_GetObject()->Player_GetObjectIndex(0));
+				DBG_OUT_LOG("    unresolved: player obj=%d name='%s' template='%s'",
+					pPl ? (int)pPl->m_iObject : -1,
+					(pPl && pPl->GetName()) ? pPl->GetName() : "",
+					(pPl && pPl->GetTemplateName()) ? pPl->GetTemplateName() : "");
+
+				// RIDDICK_DLGLINK_PLAYERFALLBACK=1 -- ВРЕМЕННЫЙ эксперимент,
+				// по умолчанию ВЫКЛЮЧЕН.
+				//
+				// Честно: в ретейле такого фолбэка нет -- он резолвит цель тем
+				// же `Selection_GetSingleTarget` и других веток не имеет
+				// (GameClasses_Win32_x86_dll_decomp.c:477592-477605). Значит
+				// настоящая причина в том, что у нас игрок не носит нужного
+				// имени, и правильная правка -- дать ему это имя. Но пока
+				// неизвестно, откуда ретейл его берёт, флаг позволяет за один
+				// прогон проверить, что дальше по цепочке всё цело: если с
+				// ним разговор доходит до конца, значит единственная поломка
+				// -- имя, и искать надо только его.
+				static int s_Fallback = -1;
+				if (s_Fallback < 0)
+				{
+					const char* e = getenv("RIDDICK_DLGLINK_PLAYERFALLBACK");
+					s_Fallback = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_Fallback && pPl)
+				{
+					iTarget = pPl->m_iObject;
+					DBG_OUT_LOG("    fallback: routing link to player obj=%d", iTarget);
+				}
+			}
 
 			Char_SetListener(0);
 			if(iTarget > 0)
@@ -1342,6 +1590,15 @@ bool CWObject_Character::Char_SetDialogueChoices(const char *_pSt, int _iSender,
 			}
 		}
 	}
+
+	// Куда уходят выборы. У игрока (m_iPlayer != -1) они улетают netmsg'ом
+	// только если он уже в 3PI-режиме; иначе функция молча возвращает true и
+	// список пропадает. Печатаем исходную строку, сколько линков разобралось
+	// и режим -- это последнее звено перед экраном.
+	DBG_OUT_LOG("[%.2f, Char %d, %s], SetDialogueChoices: '%s' parsed=%d iPlayer=%d 3PIMode=%d sender=%d owner=%d",
+		m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+		_pSt ? _pSt : "(null)", m_liDialogueChoices.Len(), (int)pCD->m_iPlayer,
+		(int)(pCD->m_3PI_Mode & THIRDPERSONINTERACTIVE_MODE_MASK), _iSender, _iOwner);
 
 	if(/*m_liDialogueChoices.Len() == 1 || */(pCD->m_iPlayer == -1 && m_liDialogueChoices.Len() > 0))
 	{
@@ -1741,7 +1998,7 @@ void CWObject_Character::Char_ActivateDialogueItem(CDialogueLink _DialogueItem, 
 			if(!pDialogue->HasLink(iSelfDialogueItem))
 			bBegin = false;
 			}*/
-			// Is this safe? We can�t compare iSelfDialogueItem�s hash value with pDialogue->GetNumItems()..
+			// Is this safe? We can´t compare iSelfDialogueItem´s hash value with pDialogue->GetNumItems()..
 			if (pDialogue)
 			{
 				if (!pDialogue->HasLink_Hash(SelfDialogueItem.m_ItemHash))
@@ -1772,6 +2029,22 @@ void CWObject_Character::Char_ActivateDialogueItem(CDialogueLink _DialogueItem, 
 			if (!PlayDialogue_Hash(SelfDialogueItem.m_ItemHash, DIALOGUEFLAGS_FROMLINK, 0))
 				bBegin = false;
 		}
+
+		// RIDDICK_DBG_DLG: почему нажатие "поговорить" ничего не даёт, хотя
+		// approach-айтем валиден и OnUse доходит до конца.
+		//
+		// Замер прогона 18 (pa1_prisonarea): после [USE] res=1 в трассе есть
+		// "Clear listener", а дальше -- ТИШИНА. Ни PlayDialogue_Hash у NPC,
+		// ни у игрока. Значит либо реплику не нашли по хэшу
+		// (PlayDialogue_Hash выходит по !GetHashDialogueItem ДО своей строки
+		// трассы), либо bBegin сбросился. Печатаем весь расклад: хэш,
+		// чей это айтем, есть ли у него линк, и что осталось от bBegin.
+		DBG_OUT_LOG("[%.2f, Char %d, %s], ActivateItem: hash=%08X isPlayer=%d selfHash=%08X selfValid=%d bBegin=%d iUser=%d",
+			m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(),
+			_DialogueItem.m_ItemHash, (int)_DialogueItem.m_bIsPlayer,
+			SelfDialogueItem.m_ItemHash, (int)SelfDialogueItem.IsValid(),
+			(int)bBegin, _iUser);
+
 		if (bBegin)
 		{
 			CWObject_Message Msg(OBJMSG_CHAR_BEGINDIALOGUE, _DialogueItem.m_ItemHash);
@@ -1839,6 +2112,23 @@ void CWObject_Character::RefreshInteractiveDialogue()
 			{
 				DBG_OUT_LOG("[%.2f, Char %d, %s], Resetting listener because of failed tests (Distance: %.1f [%.1f], DirCheck1: %.1f [%.1f], DirCheck2: %.1f [%.1f]",
 					m_pWServer->GetGameTime().GetTime(), m_iObject, GetName(), M_Sqrt(DistanceSqr), 64.0f, DirCheck1, 0.1f, DirCheck2, -0.2f);
+
+				// Замер прогона 18 дал DirCheck1=-0.9 при пороге +0.1 и
+				// DirCheck2=-0.7 при пороге -0.2 -- оба сильно отрицательные
+				// там, где ожидаются положительные. Один-единственный
+				// перевёрнутый знак у MeToPlayer объясняет обе цифры сразу,
+				// и это соседствует с жалобой на повёрнутые прожекторы и
+				// камеры. Но объяснение может быть и тривиальным: игрок
+				// действительно отошёл и отвернулся. Различить можно только
+				// по сырым векторам, поэтому печатаем их: если игрок стоял
+				// лицом к NPC, а PlayerLook смотрит в противоположную от
+				// MeToPlayer сторону -- дефект в матрицах, а не в игроке.
+				DBG_OUT_LOG("    raw: MeToPlayer=(%.2f %.2f %.2f) PlayerLook=(%.2f %.2f %.2f) MyLook=(%.2f %.2f %.2f) MyPos=(%.0f %.0f %.0f) PlayerPos=(%.0f %.0f %.0f)",
+					MeToPlayer.k[0], MeToPlayer.k[1], MeToPlayer.k[2],
+					PlayerLook.k[0], PlayerLook.k[1], PlayerLook.k[2],
+					MyLook.k[0], MyLook.k[1], MyLook.k[2],
+					MyPos.k[0], MyPos.k[1], MyPos.k[2],
+					PlayerPos.k[0], PlayerPos.k[1], PlayerPos.k[2]);
 				Char_SetListener(0);
 			}
 		}

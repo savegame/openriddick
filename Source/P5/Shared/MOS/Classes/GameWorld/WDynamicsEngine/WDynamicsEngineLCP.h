@@ -545,7 +545,7 @@ public:
 
 	/*
 
-	TODO: Дr inte testade...
+	TODO: Г„r inte testade...
 	int GetJacobianIndex(uint16 _iRow, uint16 _iColumn) const
 	{
 	int i = m_pIndexMap[_iRow * m_nRealRows + _iColumn];
@@ -1073,7 +1073,7 @@ public:
 			pR2->b = M_VAdd(T4, R2b);
 
 			/*
-			Ger dеееееееееlig kod pе pz!
+			Ger dГҐГҐГҐГҐГҐГҐГҐГҐГҐlig kod pГҐ pz!
 
 			const CVector4Pair& R1 = *(_R + iJ1);
 			const CVector4Pair& R2 = *(_R + iJ2);

@@ -19,6 +19,10 @@ enum
 
 enum
 {
+	// Каталог сверен с шипнутыми PC-данными (EXPORTEDIMPULSETNAMES из
+	// .xah-графов, 2026-08-22): 9 = ADDITIVEHURT (не SIDESTEP),
+	// 19 = HURTITEMACTION (не GLANCE); PC добавил типы 25-31, которых в
+	// PS3-снапшоте нет. Не переименовывать обратно по снапшоту!
 	AG2_IMPULSETYPE_BEHAVIOR = 0,
 	AG2_IMPULSETYPE_RESPONSE = 1,
 	AG2_IMPULSETYPE_CONTROLMODE = 2,
@@ -28,7 +32,7 @@ enum
 	AG2_IMPULSETYPE_DIALOG = 6,
 	AG2_IMPULSETYPE_LADDERMOVE = 7,
 	AG2_IMPULSETYPE_HURT = 8,
-	AG2_IMPULSETYPE_SIDESTEP = 9,
+	AG2_IMPULSETYPE_ADDITIVEHURT = 9,
 	AG2_IMPULSETYPE_BUMP = 10,
 	AG2_IMPULSETYPE_JUMP = 11,
 	AG2_IMPULSETYPE_DIALOGMOOD = 12,
@@ -38,12 +42,19 @@ enum
 	AG2_IMPULSETYPE_MOVEVAR = 16,
 	AG2_IMPULSETYPE_GUNPLAY = 17,
 	AG2_IMPULSETYPE_FACIAL = 18,
-	AG2_IMPULSETYPE_GLANCE = 19,
+	AG2_IMPULSETYPE_HURTITEMACTION = 19,
 	AG2_IMPULSETYPE_SHORTGESTURE = 20,
 	AG2_IMPULSETYPE_SHOOTGESTURE = 21,
 	AG2_IMPULSETYPE_DIALOGTYPE = 22,
 	AG2_IMPULSETYPE_LEDGE = 23,
 	AG2_IMPULSETYPE_WALKSTAIR = 24,
+	AG2_IMPULSETYPE_CONTINUOUSFIRE = 25,
+	AG2_IMPULSETYPE_TELEPHONERECEIVER = 26,
+	AG2_IMPULSETYPE_KILLEXTRATOKENS = 27,
+	AG2_IMPULSETYPE_FIGHTDAMAGE = 28,
+	AG2_IMPULSETYPE_MELEE = 29,
+	AG2_IMPULSETYPE_MELEEATTACK = 30,
+	AG2_IMPULSETYPE_LEAN = 31,
 };
 
 enum
@@ -183,12 +194,21 @@ enum
 	AG2_IMPULSEVALUE_GROUPTYPE_SHOTGUN = 3,
 	AG2_IMPULSEVALUE_GROUPTYPE_ANCIENT = 4,
 
-	AG2_IMPULSEVALUE_WEAPONTYPE_UNARMEDCROUCH = 7,
-	AG2_IMPULSEVALUE_WEAPONTYPE_GUNCROUCH = 10,
-	AG2_IMPULSEVALUE_WEAPONTYPE_RIFLECROUCH = 13,
+	// ПОЧИНКА СТАНСОВ/БОЕВЫХ ПЕРЕХОДОВ (2026-08-22, суб-агент, парсинг
+	// AG2AnimPhys.xah/IronLord/Revas): шипнутые PC-данные используют
+	// сетку WEAPONTYPE-импульса = оружие + присед*10 + станс*СТАНССТРИД,
+	// где СТАНССТРИД=20 и NUMWEAPONTYPES=10 (блоки-условия: 26 =
+	// HOSTILE_RIFLE, 43 = COMBAT_GUN, 46 = COMBAT_RIFLE, 53/56 = их
+	// crouch-варианты; EXPLORE_CROUCH = 10 = UNARMED+crouch). Старые
+	// значения 7/14 давали значения импульса, не совпадающие ни с одним
+	// блоком -- NPC не переключались в боевые блоки и не могли атаковать
+	// (ITEMACTION_PRIMARYATTACK/MELEEPRIMARY падали в FAIL(noreact)).
+	AG2_IMPULSEVALUE_WEAPONTYPE_UNARMEDCROUCH = 10,
+	AG2_IMPULSEVALUE_WEAPONTYPE_GUNCROUCH = 13,
+	AG2_IMPULSEVALUE_WEAPONTYPE_RIFLECROUCH = 16,
 
 	// For idle/hostile/combat/wary/panic, just find appropriate type
-	AG2_IMPULSEVALUE_NUMWEAPONTYPES = 7,
+	AG2_IMPULSEVALUE_NUMWEAPONTYPES = 10,
 
 	// Offset between stance levels
 	AG2_IMPULSEVALUE_STANCETYPEOFFSET = 2 * AG2_IMPULSEVALUE_NUMWEAPONTYPES,
@@ -775,7 +795,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		int32 m_LastToggleCrouch;
 		CAG2StateIndex m_iExactPositionState;
 		// Bitfield to mark which stances are supported (shift = weapontype + stance*weapontypeoffset)
-		int8 m_SupportedStances[5];
+		int8 m_SupportedStances[7];
 		int8 m_ForcedAimingType;
 		uint8 m_AnimphysMoveType;
 		uint8 m_MaxBodyOffset;
@@ -810,7 +830,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		virtual void Clear()
 		{
 			CWO_ClientData_AnimGraph2Interface::Clear();
-			for (int32 i = 0; i < 5; i++)
+			for (int32 i = 0; i < 7; i++)
 				m_SupportedStances[i] = 0;
 			m_JumpDirection = 0.0f; 
 			m_ForcedAimingType = -1;
@@ -844,7 +864,7 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		{
 			MSCOPESHORT(CWO_Clientdata_Character_AnimGraph2::Copy);
 			CWO_ClientData_AnimGraph2Interface::Copy(_CD);
-			for (int32 i = 0; i < 5; i++)
+			for (int32 i = 0; i < 7; i++)
 				m_SupportedStances[i] = _CD.m_SupportedStances[i];
 			m_JumpDirection = _CD.m_JumpDirection;
 			m_PhysImpulse = _CD.m_PhysImpulse;
@@ -930,6 +950,10 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		CAG2Val Property_WalkAngleRight(const CWAG2I_Context* _pContext);
 		CAG2Val Property_WalkAngleBwd(const CWAG2I_Context* _pContext);
 		CAG2Val Property_WalkAngleLeft(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleFwdMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleRightMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleBwdMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleLeftMelee(const CWAG2I_Context* _pContext);
 
 		CAG2Val Property_CanEndACS(const CWAG2I_Context* _pContext);
 

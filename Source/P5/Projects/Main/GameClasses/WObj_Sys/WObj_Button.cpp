@@ -165,7 +165,7 @@ void CWObject_Func_Button::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 		Phys.m_PhysFlags = 0;
 		Phys.m_ObjectFlags = OBJECT_FLAGS_TRIGGER;
 		if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-			ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+			ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 		
 		// Set bound-box.
 		{

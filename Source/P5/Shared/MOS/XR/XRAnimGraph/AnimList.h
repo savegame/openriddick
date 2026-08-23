@@ -202,10 +202,10 @@ class CXRAG_AnimList : public CReferenceCount
 
 				
 	#ifdef WAGI_RESOURCEMANAGEMENT_LOG				
-				//ConOutL(CStrF("§cf80WARNING Animation: %s:%d Not loaded (iAnim: %d)",GetContainerName(_iAnim).GetStr(),m_lAnims[_iAnim].m_iAnimSeq,_iAnim));
+				//ConOutL(CStrF("Â§cf80WARNING Animation: %s:%d Not loaded (iAnim: %d)",GetContainerName(_iAnim).GetStr(),m_lAnims[_iAnim].m_iAnimSeq,_iAnim));
 				if (/*m_bStartLogging &&*/ !(m_lAnims[_iAnim].m_Flags & CXRAG_Animation::XRAG_TAGUSEDWHENNOTLOADED))
 				{
-					ConOutL(CStrF("§cf80WARNING Animation: %s:%d Not loaded (iAnim: %d)",GetContainerName(_iAnim).GetStr(),m_lAnims[_iAnim].m_iAnimSeq,_iAnim));
+					ConOutL(CStrF("Â§cf80WARNING Animation: %s:%d Not loaded (iAnim: %d)",GetContainerName(_iAnim).GetStr(),m_lAnims[_iAnim].m_iAnimSeq,_iAnim));
 					//CStr Log = CStrF("WARNING Animation used without being loaded: %s:%d\t(iAnim: %d)",GetContainerName(_iAnim).GetStr(),m_lAnims[_iAnim].m_iAnimSeq,_iAnim);
 					//m_LogFile.Log(Log);
 					m_lAnims[_iAnim].m_Flags |= CXRAG_Animation::XRAG_TAGUSEDWHENNOTLOADED;

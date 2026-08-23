@@ -1,12 +1,14 @@
 
 #include "PCH.h"
 
+#include <stdio.h>	// [DLG] container report
+
 #include "WDataCore.h"
 #include "WDataRes_Core.h"
 #include "MFloat.h"
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWorldDataLoader
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -249,7 +251,7 @@ void CWorldDataLoader::RemoveFromQueue(CWResource* _pRc)
 }
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWorldDataCore
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -422,7 +424,7 @@ void CWorldDataCore::ScanWaveContainers(CStr _Path)
 		catch(CCExceptionFile)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-			ConOutL("�cf80WARNING: Failure reading wavecontainer: " + FileName);
+			ConOutL("§cf80WARNING: Failure reading wavecontainer: " + FileName);
 		}
 		)
 #ifdef M_SUPPORTSTATUSCORRUPT
@@ -430,7 +432,7 @@ void CWorldDataCore::ScanWaveContainers(CStr _Path)
 		catch(CCException)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-			ConOutL("�cf80WARNING: Failure reading wavecontainer: " + FileName);
+			ConOutL("§cf80WARNING: Failure reading wavecontainer: " + FileName);
 		}
 		)
 #endif
@@ -492,7 +494,7 @@ void CWorldDataCore::ReadTextureContainers(TAP<const CStr> _lFileNames)
 		catch(CCExceptionFile)
 		{
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-			ConOutL("�cf80WARNING: Failure reading texture-container: " + FileName);
+			ConOutL("§cf80WARNING: Failure reading texture-container: " + FileName);
 		}
 		)
 #ifdef M_SUPPORTSTATUSCORRUPT
@@ -500,7 +502,7 @@ void CWorldDataCore::ReadTextureContainers(TAP<const CStr> _lFileNames)
 		catch(CCException)
 		{ 
 			CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-			ConOutL("�cf80WARNING: Failure reading texture-container: " + FileName);
+			ConOutL("§cf80WARNING: Failure reading texture-container: " + FileName);
 		}
 		)
 #endif
@@ -590,7 +592,7 @@ void CWorldDataCore::ScanVideos(CStr _Path, CTextureContainer_Video* _pTCVideo, 
 					catch(CCExceptionFile)
 					{
 						CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-						ConOutL("�cf80WARNING: Failure reading video " + FileName);
+						ConOutL("§cf80WARNING: Failure reading video " + FileName);
 					}
 					)
 	#ifdef M_SUPPORTSTATUSCORRUPT
@@ -598,7 +600,7 @@ void CWorldDataCore::ScanVideos(CStr _Path, CTextureContainer_Video* _pTCVideo, 
 					catch(CCException)
 					{
 						CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-						ConOutL("�cf80WARNING: Failure reading video " + FileName);
+						ConOutL("§cf80WARNING: Failure reading video " + FileName);
 					}
 					)
 	#endif
@@ -818,9 +820,9 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 		AddWorldPath(m_CachePath);
 	}*/
 
-	ConOutL("�C484Content data path priority:");
+	ConOutL("§C484Content data path priority:");
 	for(int i = 0; i < m_lWorldPathes.Len(); i++)
-		ConOutL("�C484" + m_lWorldPathes[i]);
+		ConOutL("§C484" + m_lWorldPathes[i]);
 
 	// Scan stuff recursively.
 	if(_Flags & FLAGS_SCANTEXTURES)
@@ -911,6 +913,31 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 		ConOutL(CStrF("        %d wave containers loaded.", m_lspWC.Len()));
 		M_TRACE("        %d wave containers loaded.\n", m_lspWC.Len());
 
+		// Как в контейнерах НАЗВАНЫ волны. Нужно, чтобы понять, чем
+		// отличается имя, которое просит игра ("SND:D_PA2_Riddick_145"),
+		// от того, что лежит в .xwc: по этим именам наш парсер .xsfxc
+		// сопоставляет шаблоны *Source, и если конвенция другая
+		// (пути, префиксы, хэши) -- дескрипторы молча не собираются.
+		// Восемь контейнеров с диалогами, по три имени.
+		{
+			int nShown = 0;
+			for(int i = 0; i < m_lspWC.Len() && nShown < 8; i++)
+			{
+				CWaveContainer_Plain* pC = m_lspWC[i];
+				if (!pC || pC->GetWaveCount() <= 0)
+					continue;
+				CStr Path = pC->GetFileName();
+				if (Path.GetFilename().Left(2).CompareNoCase("D_") != 0)
+					continue;	// только диалоговые контейнеры
+				++nShown;
+				M_TRACEALWAYS("[SFX] wc '%s' waves=%d first='%s','%s','%s'\n",
+					Path.Str(), pC->GetWaveCount(),
+					pC->GetName(0),
+					pC->GetWaveCount() > 1 ? pC->GetName(1) : "-",
+					pC->GetWaveCount() > 2 ? pC->GetName(2) : "-");
+			}
+		}
+
 		// The PC wave containers have no binary SFXDESC sections, the sound
 		// descriptors live in text scripts (Content/SfxDesc/*.xsfxc). Load
 		// them like the Win32 CWaveContext::ReadSfxDesc did.
@@ -933,7 +960,7 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 				M_CATCH(
 				catch(CCExceptionFile)
 				{
-					ConOutL("�cf80WARNING: Failure reading sfxdesc script: " + FileName);
+					ConOutL("§cf80WARNING: Failure reading sfxdesc script: " + FileName);
 				}
 				)
 			}
@@ -944,6 +971,7 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 
 			ConOutL(CStrF("        %d sfxdescs loaded (%d files).", nSfxDescs, lSfxDescFiles.Len()));
 			M_TRACE("        %d sfxdescs loaded (%d files).\n", nSfxDescs, lSfxDescFiles.Len());
+			MSound_SFXDescScript_Report();
 		}
 
 		// Figure out how many waves we scanned in a pretty ugly way.
@@ -973,27 +1001,27 @@ void CWorldDataCore::Create(spCRegistry _spGameReg, int _Flags)
 #if defined(PLATFORM_PS2)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Mpeg");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Mpeg");
+		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Mpeg");
 #elif defined(PLATFORM_XBOX1)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_XMV");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_XMV");
+		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_XMV");
 #elif defined(PLATFORM_PS3)
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_PS3");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_PS3");
+		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_PS3");
 #else
 		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Theora");
 		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if (!m_spTCVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Theora");
+		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Theora");
 //		spCReferenceCount spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_Bink");
 //		m_spTCVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-//		if (!m_spTCVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Bink");
+//		if (!m_spTCVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_Bink");
 
 #if defined(PLATFORM_XENON)
 		spObj = MRTC_GOM()->GetClassRegistry()->CreateObject("CTextureContainer_Video_WMV");
 		m_spTCSecVideo = safe_cast<CTextureContainer_Video>((CReferenceCount*)spObj);
-		if(!m_spTCSecVideo) ConOutL("�cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_WMV");
+		if(!m_spTCSecVideo) ConOutL("§cf80WARNING: (CRC_ConsoleRender::-) Could not create CTextureContainer_Video_WMV");
 #endif
 
 #endif
@@ -1260,7 +1288,7 @@ private:
 			{
 				m_bDone = true;
 				CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPTFILE);
-				ConOutL("�cf80WARNING: Failure reading wavecontainer");
+				ConOutL("§cf80WARNING: Failure reading wavecontainer");
 				return 0;
 			}
 			)
@@ -1270,7 +1298,7 @@ private:
 			{
 				m_bDone = true;
 				CDiskUtil::AddCorrupt(DISKUTIL_STATUS_CORRUPT);
-				ConOutL("�cf80WARNING: Failure reading wavecontainer");
+				ConOutL("§cf80WARNING: Failure reading wavecontainer");
 				return 0;
 			}
 			)
@@ -2552,7 +2580,21 @@ void CWorldDataCore::Resource_WorldOpen(CStr _WorldName)
 
 	M_TRY
 	{
-		m_DialogContainer.Create(ResolveFileName("Dialogues\\All.xcd"), true);
+		const CStr DlgAll = ResolveFileName("Dialogues\\All.xcd");
+		m_DialogContainer.Create(DlgAll, true);
+		// All dialogues live in this one container; every per-dialogue lookup
+		// goes through CMFileContainer::GetEntry on it, and the on-disk
+		// .XCD/.XRG fallback does not exist in the PC content. So an unopened
+		// or empty container means NO dialogue at all -- which is exactly the
+		// reported "cannot start a conversation, there is not even a prompt",
+		// and the only trace it otherwise leaves is a lone
+		// "WARNING: Dialogue ...\\Dlg_Player_Base.XRG does not exist".
+		// Printed unconditionally: it is one line per world load and it
+		// answers the question before any flag has to be guessed.
+		fprintf(stderr, "[DLG] container '%s' exists=%d entries=%d\n",
+			DlgAll.Str(), (int)CDiskUtil::FileExists(DlgAll),
+			(int)m_DialogContainer.m_Entries.Len());
+		fflush(stderr);
 #ifndef PLATFORM_CONSOLE
 		m_DialogContainer.CloseFile();
 #endif

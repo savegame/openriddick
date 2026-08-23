@@ -3,7 +3,7 @@
 #include "WObj_ScenePoint.h"
 #include "../WObj_CharMsg.h"
 #include "../WObj_Sys/WObj_Trigger.h"
-#include "../../../../Shared/Mos/Classes/Gameworld/WBlockNavGrid.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WBlockNavGrid.h"
 
 //#define DOOR_DEBUG
 
@@ -450,7 +450,7 @@ void CWObject_SwingDoor::CreateScenepoints()
 		}
 	}
 	else
-		ConOutL(CStrF("§cf00ERROR: Door %s has scenepoints but no handles, can't place scene points correctly, skipping", GetName()));
+		ConOutL(CStrF("Â§cf00ERROR: Door %s has scenepoints but no handles, can't place scene points correctly, skipping", GetName()));
 }
 
 

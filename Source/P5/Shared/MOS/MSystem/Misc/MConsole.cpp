@@ -44,7 +44,7 @@ bool CStrEdit::ProcessKey(const CScanKey& _Key)
 	if (_Key.IsASCII())
 	{
 		char c = _Key.GetASCII();
-		char moo = '§';
+		char moo = 'Â§';
 		if(c != moo)
 		{
 			str = str.Insert(cursorpos, CStr(c));
@@ -529,7 +529,7 @@ void CConsole::WriteExceptions()
 	if (pLog)
 	{
 		while(pLog->ExceptionAvail())
-			Write(CFStr("§cf00ERROR: ") + pLog->GetExceptionInfo().GetString());
+			Write(CFStr("Â§cf00ERROR: ") + pLog->GetExceptionInfo().GetString());
 	}
 
 //	while (CCException::ErrorAvail()) Write(CCException::ErrorMsg());
@@ -766,7 +766,7 @@ void CConsole::ExecuteBinding(CKeyBind* pBind, CKeyBindScript* pBindScript, int 
 	M_CATCH(
 	catch(CCException)
 	{
-		ConOut(CStrF("§cf80WARNING: Binding (%d) for scan %d raised an exception.", _Flags, pBind->m_ScanCode));
+		ConOut(CStrF("Â§cf80WARNING: Binding (%d) for scan %d raised an exception.", _Flags, pBind->m_ScanCode));
 		pBindScript->m_spScript = NULL;
 		pBind->m_Flags &= ~_Flags;
 	}
@@ -887,7 +887,7 @@ bool CConsole::ProcessKey(const CScanKey& key, int _Mode)
 
 	if (_Mode == CONST_CONSOLE_EXECUTEKEY)
 	{
-		// Check for §.
+		// Check for Â§.
 /*		if (m_bEnableConsole)
 		{
 			if (m_ConMode == CONST_CONSOLE_INPUTKEY && key.GetKey16() == (SKEY_PARAGRAPH))
@@ -1480,7 +1480,7 @@ void CConsole::Parser_BindList()
 			if (pName) Name += CStrF("+%s", pName);
 		}
 
-		ConOut(CStrF("'%s' =§ceb8§x150'%s', '%s', '%s'", (char*)Name, (char*)pBind->m_BindDown.m_Program, (char*)pBind->m_BindUp.m_Program, (char*)pBind->m_BindRepeat.m_Program));
+		ConOut(CStrF("'%s' =Â§ceb8Â§x150'%s', '%s', '%s'", (char*)Name, (char*)pBind->m_BindDown.m_Program, (char*)pBind->m_BindUp.m_Program, (char*)pBind->m_BindRepeat.m_Program));
 	}
 }
 
@@ -1499,7 +1499,7 @@ void CConsole::Parser_BindListScan()
 	for(int i = 0; i < m_lKeyBind.Len(); i++)
 	{
 		CKeyBind* pBind = &m_lKeyBind[i];
-		ConOut(CStrF("%.4x =§ceb8§x150'%s', '%s', '%s'", pBind->m_ScanCode, (char*)pBind->m_BindDown.m_Program, (char*)pBind->m_BindUp.m_Program, (char*)pBind->m_BindRepeat.m_Program));
+		ConOut(CStrF("%.4x =Â§ceb8Â§x150'%s', '%s', '%s'", pBind->m_ScanCode, (char*)pBind->m_BindDown.m_Program, (char*)pBind->m_BindUp.m_Program, (char*)pBind->m_BindRepeat.m_Program));
 	}
 }
 

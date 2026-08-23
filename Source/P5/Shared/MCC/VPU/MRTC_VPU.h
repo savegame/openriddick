@@ -14,7 +14,7 @@
 
 #define _FP32_MAX			3.402823466e+38F
 #define _FP32_MIN			1.175494351e-38F
-#define _FP32_EPSILON		1.192092896e-07F	// Minsta positiva tal sådant att 1.0+x != 1.0
+#define _FP32_EPSILON		1.192092896e-07F	// Minsta positiva tal sÃ¥dant att 1.0+x != 1.0
 #define _FP64_MAX			1.7976931348623158e+307
 #define _FP64_MIN			2.2250738585072014e-308
 #define _FP64_EPSILON		2.2204460492503131e-016
@@ -302,7 +302,7 @@ char m_data[64];
 #ifdef PLATFORM_SPU
 	#include "MRTC_VPU_PS3.h"
 #else 
-	#include "MRTC_VPU_WIN32.h"
+	#include "MRTC_VPU_Win32.h"
 #endif
 
 #endif

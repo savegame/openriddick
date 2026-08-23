@@ -201,7 +201,7 @@ void CXR_Model_BSP::RenderSplineBrushFace(CSplineBrush* _pBrush, int _iFace, boo
 #ifndef M_RTM
 			if (pSurf->m_Flags & XW_SURFFLAGS_TRANSPARENT)
 			{
-				ConOut(CStrF("§cf80WARNING: Bad surface (Transparent and allowing dynamic lighting) %s", pSurf->m_Name.Str() ));
+				ConOut(CStrF("Â§cf80WARNING: Bad surface (Transparent and allowing dynamic lighting) %s", pSurf->m_Name.Str() ));
 				pF->m_DynLightMask = 0;
 			}
 #endif

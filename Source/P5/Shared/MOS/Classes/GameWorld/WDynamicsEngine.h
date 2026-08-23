@@ -426,7 +426,7 @@ public:
 
 		M_INLINE void GetTransform(CMat4Dfp64& transform) const 
 		{
-			// TODO: Onödigt?!?!?!?
+			// TODO: OnÃ¶digt?!?!?!?
 //			m_orientation.Normalize();
 			m_orientation.CreateMatrix(transform);
 
@@ -627,7 +627,7 @@ public:
 
 		M_INLINE void GetTransform(CMat4Dfp64& transform) const 
 		{
-			// TODO: Onödigt?!?!?!?
+			// TODO: OnÃ¶digt?!?!?!?
 			MRIGIDBODY_BODYSTATE.m_orientation.Normalize();
 			MRIGIDBODY_BODYSTATE.m_orientation.CreateMatrix(transform);
 
@@ -844,7 +844,7 @@ public:
 
 		fp64 m_collision_impulse_denominator;
 
-		// För kollisionsevents. Ska kanske inte ligga här?
+		// FÃ¶r kollisionsevents. Ska kanske inte ligga hÃ¤r?
 		fp64 m_MaxAppliedImpulse;
 
 		int m_UserData; // Remove?
@@ -1590,7 +1590,7 @@ public:
 		void CheckStationary(fp64 _dt);
 
 		void DetectCollisions2(int *startindex, TArray<CContactInfo>& collisioninfo, void *_pArgument1, void *_pArgument2);
-		// TODO: Lägg till dt?
+		// TODO: LÃ¤gg till dt?
 		void HandleCollision(CContactInfo& collisioninfo, fp64 epsilon);
 		int ProcessCollisions(TArray<CContactInfo>& collisioninfolist, 
 							  int ncollisions,

@@ -3,7 +3,7 @@
 Name:		MOS_Imge.cpp/h
 Purpose:	Bitmap management
 Creation:	960901
-Author:		Magnus Högdahl
+Author:		Magnus HÃ¶gdahl
 
 Contents:
 class				CPnt						960901  OK					2D Point for CImage functions
@@ -559,7 +559,7 @@ struct CPixel24			// Junk, don't bother with it
 {
 	uint8 c8[3];
 
-	CPixel24(int32 c)	// Röv kod!
+	CPixel24(int32 c)	// RÃ¶v kod!
 	{   
 		MAUTOSTRIP(CPixel24_ctor, MAUTOSTRIP_VOID);
 		c8[0] = (uint8) c;
@@ -744,7 +744,7 @@ public:
 		return CPixel32(GetR()*s >> 8, GetG()*s >> 8, GetB()*s >> 8, GetA()*s >> 8);
 	}
 
-	CPixel32 operator* (const CPixel32& s) const			// Resultat alltid mindre, mul med 1 omöjlig.
+	CPixel32 operator* (const CPixel32& s) const			// Resultat alltid mindre, mul med 1 omÃ¶jlig.
 	{
 		MAUTOSTRIP(CPixel32_operator_mul_CPixel32, 0);
 		return CPixel32(GetR()*s.GetR()>>8, GetG()*s.GetG()>>8, GetB()*s.GetB()>>8, GetA()*s.GetA()>>8);
@@ -763,7 +763,7 @@ public:
 		b[3] = uint8(fp32(b[3]) * s);*/
 	}
 
-	void operator*= (const CPixel32& s)			// Resultat alltid mindre, mul med 1 omöjlig.
+	void operator*= (const CPixel32& s)			// Resultat alltid mindre, mul med 1 omÃ¶jlig.
 	{
 		MAUTOSTRIP(CPixel32_operator_mulme_CPixel32, MAUTOSTRIP_VOID);
 		b[0] = b[0] * s.b[0] >> 8;

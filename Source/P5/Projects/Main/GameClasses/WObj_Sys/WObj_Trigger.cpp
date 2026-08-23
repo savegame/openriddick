@@ -300,7 +300,7 @@ void CWObject_Trigger_Ext::Spawn(bool _bSpawn)
 			else
 				Phys.m_ObjectIntersectFlags = (m_IntersectNotifyFlags & OBJECT_FLAGS_PROJECTILE);
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 		}
 		else if(GetPhysState().m_nPrim > 0)
 		{
@@ -312,7 +312,7 @@ void CWObject_Trigger_Ext::Spawn(bool _bSpawn)
 			else
 				Phys.m_ObjectIntersectFlags = (m_IntersectNotifyFlags & OBJECT_FLAGS_PROJECTILE);
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 		}
 
 		{
@@ -808,7 +808,7 @@ aint CWObject_Trigger_Ext::OnMessage(const CWObject_Message& _Msg)
 			Phys.m_Prim[0].Create(OBJECT_PRIMTYPE_BOX, -1, 
 				CVec3Dfp32(M_Fabs(Size.k[0]*0.5f), M_Fabs(Size.k[1]*0.5f), M_Fabs(Size.k[2]*0.5f)),0.0f);
 			if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-				ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+				ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 
 			return 1;
 		}
@@ -1600,7 +1600,7 @@ public:
 				Phys.m_PhysFlags = 0;
 				Phys.m_ObjectFlags = OBJECT_FLAGS_TRIGGER;
 				if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-					ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+					ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 			
 				// Set bound-box.
 				{
@@ -2010,7 +2010,7 @@ public:
 				else
 					Phys.m_ObjectIntersectFlags = 0;
 				if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-					ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+					ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 			}
 			else if(GetPhysState().m_nPrim > 0)
 			{
@@ -2022,7 +2022,7 @@ public:
 				else
 					Phys.m_ObjectIntersectFlags = 0;
 				if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-					ConOutL("§cf80WARNING: Unable to set trigger physics state.");
+					ConOutL("Â§cf80WARNING: Unable to set trigger physics state.");
 			}
 			else
 			{
@@ -2050,7 +2050,7 @@ public:
 					Phys.m_Prim[0].Create(OBJECT_PRIMTYPE_BOX, -1, 
 						CVec3Dfp32(M_Fabs(Size.k[0]*0.5f), M_Fabs(Size.k[1]*0.5f), M_Fabs(Size.k[2]*0.5f)),Offset);
 					if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-						ConOutL("§cf80WARNING: Unable to set object physics state.");
+						ConOutL("Â§cf80WARNING: Unable to set object physics state.");
 				}
 			}
 
@@ -2099,7 +2099,7 @@ public:
 		{
 			CWObject *pObj = m_pWServer->Object_Get(pSel[i]);
 			if(pObj->m_iClass == m_iClass)
-				ConOutL(CStrF("§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
+				ConOutL(CStrF("Â§cf80WARNING: (GP) Detected a Lamp with same name as Light! (%s)", pObj->GetName()));
 			else
 				m_pWServer->Message_SendToObject(_Msg, pSel[i]);
 		}
@@ -2520,7 +2520,7 @@ void CWObject_Trigger_Pickup::OnFinishEvalKeys()
 		m_spDummyObject = (CRPG_Object_Item *)(CRPG_Object *)spObj;
 		if(!m_spDummyObject)
 		{
-			ConOutL(CStrF("§cf00ERROR Failed to create dummyobject(%s) in TriggerPickup(%s)\n", m_WeaponTemplate.Str(), GetName()));
+			ConOutL(CStrF("Â§cf00ERROR Failed to create dummyobject(%s) in TriggerPickup(%s)\n", m_WeaponTemplate.Str(), GetName()));
 			m_pWServer->Object_Destroy(m_iObject);
 			return;
 		}
@@ -2759,13 +2759,13 @@ public:
 				Phys.m_PhysFlags = _PhysFlags;
 				Phys.m_ObjectFlags = OBJECT_FLAGS_ANIMPHYS | OBJECT_FLAGS_NAVIGATION; //Currently phys_anim is always rendered in navgrid
 				if (!m_pWServer->Object_SetPhysics(m_iObject, Phys))
-					LogFile("§cf80WARNING: Unable to set model physics state.");
+					LogFile("Â§cf80WARNING: Unable to set model physics state.");
 			}
 			else if(_bNoPhysReport)
-				ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
+				ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Model was not a physics-model.");
 		}
 		else
-			ConOutL("§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
+			ConOutL("Â§cf80WARNING (CWObject_Model::Model_SetPhys): Invalid model-index.");
 	}
 };
 

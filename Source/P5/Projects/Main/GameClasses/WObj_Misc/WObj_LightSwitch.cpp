@@ -1,6 +1,6 @@
 #include "PCH.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_System.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Lights.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_System.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Lights.h"
 #include "../WNameHash.h"
 
 

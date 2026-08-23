@@ -1,4 +1,6 @@
 #include "PCH.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 //--------------------------------------------------------------------------------
 
@@ -986,7 +988,26 @@ int32 CWAG2I::GetAnimVelocity(const CWAG2I_Context* _pContext, CVec3Dfp32& _Move
 
 		vec128 MoveB;
 		CQuatfp32 RotB;	
-		CMTime TimeB = Layer.m_spSequence->GetLoopedTime(TimeA + CMTime::CreateFromSeconds(TimeSpan * Layer.m_TimeScale));
+		// Санитайз масштаба времени. Нефинитный масштаб делает TimeB
+		// нефинитным, сравнение TimeB < TimeA ниже даёт «зациклились», и
+		// компенсация шва петли добавляет к смещению ЗА ТИК путь за ВЕСЬ
+		// клип -- персонаж улетает (замерено: got=3509 units/s против
+		// здоровых 125). Источник закрыт в WAG2I_StateInst.cpp, здесь --
+		// чтобы такое больше не проходило молча.
+		fp32 LayerTimeScale = Layer.m_TimeScale;
+		if (!(LayerTimeScale > -1.0e6f && LayerTimeScale < 1.0e6f))
+		{
+			static int s_n = 0;
+			if (s_n < 8)
+			{
+				++s_n;
+				fprintf(stderr, "[ANIMNAN] layer timescale not finite (obj=%d layer=%d) -> using 1.0\n",
+					_pContext->m_pObj ? _pContext->m_pObj->m_iObject : -1, iLayer);
+				fflush(stderr);
+			}
+			LayerTimeScale = 1.0f;
+		}
+		CMTime TimeB = Layer.m_spSequence->GetLoopedTime(TimeA + CMTime::CreateFromSeconds(TimeSpan * LayerTimeScale));
 		Layer.m_spSequence->EvalTrack0(TimeB, MoveB, RotB);
 
 		// Calculate relative deltas.
@@ -1058,6 +1079,46 @@ int32 CWAG2I::GetAnimVelocity(const CWAG2I_Context* _pContext, CVec3Dfp32& _Move
 		CQuatfp32 TempRot;
 		_RotVelocity.Lerp(dRot, BlendFactor, TempRot);
 		_RotVelocity = TempRot;
+
+		// RIDDICK_DBG_ANIMV=1 -- «все бегают и скользят слишком быстро».
+		//
+		// Перемещение персонажа здесь и рождается: это РАЗНОСТЬ корневого
+		// трека на окне [t, t + TimeSpan*TimeScale], и она применяется как
+		// смещение ЗА ТИК (замер 2026-07-30: real/anim = 1.000, интеграция
+		// без dt). Значит скорость линейна по TimeScale:
+		//     units/сек = скорость_клипа * TimeScale
+		// При штатной тарировке это самосокращается -- m_TimeScale ставится
+		// как DestSpeed/AnimSpeed (WAG2I_StateInst.cpp:520), и на выходе
+		// должно получиться ровно DestSpeed. Если не получается -- петля не
+		// замыкается, и вот три числа, которые это показывают:
+		//   want   -- DestSpeed, сколько хотел AI (units/сек);
+		//   got    -- |dMove| / TimeSpan, сколько реально просит анимация;
+		//   ratio  -- got/want. Единица -- всё честно, дефект не здесь.
+		// Заодно печатается, откуда взялся TimeScale: авторский из
+		// анимграфа или посчитанный тарировкой.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANIMV");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && s_n < 120 && TimeSpan > 0.0f)
+			{
+				++s_n;
+				const fp32 Want = m_pEvaluator ? m_pEvaluator->GetDestinationSpeed() : -1.0f;
+				const fp32 Got = dMove.v3.Length() / TimeSpan;
+				fprintf(stderr,
+					"[ANIMV] obj=%d layer=%d t=%.3f scale=%.3f span=%.4f dMove=%.3f got=%.1f want=%.1f ratio=%.2f blend=%.2f loop=%d\n",
+					_pContext->m_pObj ? _pContext->m_pObj->m_iObject : -1,
+					iLayer, Layer.m_Time, LayerTimeScale, TimeSpan,
+					dMove.v3.Length(), Got, Want,
+					(Want > 0.0f) ? (Got / Want) : -1.0f,
+					BlendFactor, bLooping ? 1 : 0);
+				fflush(stderr);
+			}
+		}
 	}
 
 //	UnacquireAllResources();
@@ -2292,6 +2353,32 @@ void CWAG2I::MoveGraphBlock(const CWAG2I_Context* _pContext, CAG2AnimGraphID _iA
 {
 	MSCOPE(CWAG2I::MoveGraphBlock, WAG2I);
 
+	// RIDDICK_DBG_AG2=1 -- каждый ЗАПРОШЕННЫЙ переход графа состояний.
+	// Ради чего: статические анимации играют, активные замирают, NPC не
+	// стреляют (port_status.md, A). Выстрел идёт через состояние анимграфа
+	// (анимация атаки -> событие -> выстрел), поэтому «не переходит» и «не
+	// стреляет» -- один и тот же отказ. Отказы НИЖЕ по функции уже
+	// логируются (AnimGraph BROKEN / INVALID MOVETOKEN), но по ним не видно
+	// главного: сколько переходов вообще запрашивается. Если строк [AG2] req
+	// нет вовсе или их единицы -- до анимграфа не доходит игровая логика, и
+	// искать надо в AI/скриптах, а не здесь.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_AG2");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_n = 0;
+		if (s_On && s_n < 400)
+		{
+			++s_n;
+			fprintf(stderr, "[AG2] req token=%d iMT=%d iAG=%d\n",
+				(int)_ActionTokenID, (int)_iMoveToken, (int)_iAnimGraph);
+			fflush(stderr);
+		}
+	}
+
 	// FIXME: Think about error checking OnLeaveState/OnEnterState, etc...
 
 	CWAG2I_Token* pActionToken = GetTokenFromID(_ActionTokenID, false);
@@ -2392,6 +2479,51 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	return bFoundMatch;
 }
 
+// ЗОНД [AG2-IMP] (RIDDICK_DBG_AG2=1) -- ПОЧЕМУ импульс не превратился в
+// действие.
+//
+// Атака в этом движке -- не отдельная система, а АНИМАЦИЯ: ИИ шлёт импульс
+// (`CAI_Core::SetWantedGesture`/`SetWantedMove`, AICore.cpp:13223/13239),
+// граф находит на него реакцию, реакция запускает состояние, а урон вешает
+// событие внутри анимации. Поэтому «NPC бегает за мной и не бьёт» и
+// «анимация не играется» -- с высокой вероятностью ОДИН отказ, и увидеть
+// его надо здесь, до всякого рендера.
+//
+// У функции ПЯТЬ разных ранних выходов, и это пять разных диагнозов --
+// поэтому зонд печатает не «не сработало», а какой именно:
+//   res      -- не удалось захватить ресурсы графа;
+//   notoken  -- нет токена с таким ID;
+//   nostate  -- force-путь без экземпляра состояния;
+//   nograph  -- у токена нет анимграфа (авторский TEMP HACK);
+//   noreact  -- САМОЕ ИНТЕРЕСНОЕ: граф загружен, но реакции на этот импульс
+//               в текущем graphblock нет. Значит либо мы не дочитали граф,
+//               либо персонаж стоит не в том блоке.
+// Отказы печатаются всегда (до капа), успехи -- каждый 20-й, чтобы в логе
+// была видна и норма, а не только сбои.
+#define RIDDICK_AG2IMP_LOG(reason)                                            \
+	do {                                                                      \
+		if (s_AG2ImpOn() && s_AG2ImpN < 300) {                                \
+			++s_AG2ImpN;                                                      \
+			fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d -> FAIL(%s)\n", \
+				(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue,     \
+				(int)_iToken, reason);                                        \
+			fflush(stderr);                                                   \
+		}                                                                     \
+	} while (0)
+
+static bool s_AG2ImpOn()
+{
+	static int s = -1;
+	if (s < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_AG2");
+		s = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s != 0;
+}
+static int s_AG2ImpN = 0;
+static int s_AG2ImpOk = 0;
+
 bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& _Impulse, int8 _iToken, bool _bForce)
 {
 	// First try to find a matching reaction to current block, if a reaction is found
@@ -2399,7 +2531,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	// another graphblock might or might not be defined
 
 	if (!AcquireAllResources(_pContext))
+	{
+		RIDDICK_AG2IMP_LOG("res");
 		return false;
+	}
 #ifdef AG2_RECORDPROPERTYCHANGES
 	m_pEvaluator->m_PropertyRecorder.AddImpulse(_pContext, _Impulse, _iToken);
 #endif
@@ -2418,7 +2553,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 
 	// No token found...
 	if (iToken == -1)
+	{
+		RIDDICK_AG2IMP_LOG("notoken");
 		return false;
+	}
 
 	// Get a matching reaction from animgraph
 	CAG2AnimGraphID iAnimGraph;
@@ -2426,7 +2564,10 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 	{
 		CWAG2I_StateInstance *pStateInstance = m_lTokens[iToken].GetTokenStateInstanceUpdate();
 		if(!pStateInstance)
+		{
+			RIDDICK_AG2IMP_LOG("nostate");
 			return false;
+		}
 
 		iAnimGraph = pStateInstance->GetAnimGraphIndex();
 	}
@@ -2435,13 +2576,56 @@ bool CWAG2I::SendImpulse(const CWAG2I_Context* _pContext, const CXRAG2_Impulse& 
 
 	{ // TEMP HACK!
 		if (iAnimGraph == -1)
+		{
+			RIDDICK_AG2IMP_LOG("nograph");
 			return false;
+		}
 	}
 
 	const CXRAG2* pAnimGraph = GetAnimGraph(iAnimGraph);
 	CAG2ReactionIndex iReaction = pAnimGraph->GetMatchingReaction(m_lTokens[iToken].GetGraphBlock(),_Impulse);
 	if (iReaction == -1)
+	{
+		// Здесь дополнительно печатается graphblock: реакции ищутся В НЁМ, и
+		// «нет реакции» почти всегда значит «персонаж не в том блоке», а не
+		// «в графе нет такого импульса вообще».
+		if (s_AG2ImpOn() && s_AG2ImpN < 300)
+		{
+			++s_AG2ImpN;
+			fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d block=%d -> FAIL(noreact)\n",
+				(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue,
+				(int)_iToken, (int)m_lTokens[iToken].GetGraphBlock());
+			// Прогон 38: дамп среза реакций блока. GetMatchingReaction ищет
+			// БИНАРНЫМ ПОИСКОМ по [base, base+num) в m_lFullReactions; если
+			// наш загрузчик v6 читает Base/Num неверно или список не
+			// отсортирован -- поиск промахивается мимо живых реакций.
+			const CXRAG2_GraphBlock* pDbgBlock = pAnimGraph->GetGraphBlock(m_lTokens[iToken].GetGraphBlock());
+			if (pDbgBlock)
+			{
+				const int iBase = pDbgBlock->GetBaseReactionIndex();
+				const int nR = pDbgBlock->GetNumReactions();
+				fprintf(stderr, "[AG2-IMP]   block reactions: base=%d num=%d\n", iBase, nR);
+				for (int i = 0; i < nR && i < 16; ++i)
+				{
+					const CXRAG2_Reaction* pR = pAnimGraph->GetReaction(iBase + i);
+					if (pR)
+						fprintf(stderr, "[AG2-IMP]   r[%d]: type=%d val=%d\n", i,
+							(int)pR->m_Impulse.m_ImpulseType, (int)pR->m_Impulse.m_ImpulseValue);
+				}
+				fflush(stderr);
+			}
+		}
 		return false;
+	}
+
+	if (s_AG2ImpOn() && (s_AG2ImpOk++ % 20) == 0 && s_AG2ImpN < 300)
+	{
+		++s_AG2ImpN;
+		fprintf(stderr, "[AG2-IMP] type=%d val=%d token=%d block=%d -> ok reaction=%d (успех #%d)\n",
+			(int)_Impulse.m_ImpulseType, (int)_Impulse.m_ImpulseValue, (int)_iToken,
+			(int)m_lTokens[iToken].GetGraphBlock(), (int)iReaction, s_AG2ImpOk);
+		fflush(stderr);
+	}
 
 	// Ok, found a reaction, check for target graphblock and / or state
 	const CXRAG2_Reaction* pReaction = pAnimGraph->GetReaction(iReaction);

@@ -1,7 +1,7 @@
 #ifndef _INC_WOBJ_MODEL_MOTH
 #define _INC_WOBJ_MODEL_MOTH
 
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_System.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_System.h"
 #include "../WObj_Weapons/WObj_Spells.h"
 #include "../WObj_Messages.h"
 

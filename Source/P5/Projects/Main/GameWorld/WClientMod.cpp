@@ -864,7 +864,7 @@ void CWClient_Mod::Render_Borders(CXR_VBManager* _pVBM, CRenderContext* _pRC, CR
 		if(pF)
 		{
 			int Dots = int(CMTime::GetCPU().GetTimeModulus(3));
-			CFStr Text = "�Z16�LMENU_SKIPPING�pq";
+			CFStr Text = "§Z16§LMENU_SKIPPING§pq";
 			for(int i = 0; i < Dots; i++)
 				Text += ".";
 			wchar Buf[1024];
@@ -1307,7 +1307,7 @@ void CWClient_Mod::PostRenderInterface(CMWnd* pWndTree, CRC_Util2D* _pRCUtil, CC
 }
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CTextureContainer_RenderCallback
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1433,14 +1433,49 @@ uint32 CWClient_Mod::GetViewFlags()
 
 	if(pObj)
 	{
-		return XR_VIEWFLAGS_WIDESCREEN;
-/*
-		int bCutscene = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_CUTSCENE;
-		int bDialogue = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE;
+		// ИСПРАВЛЕНО (2026-08-04): чёрные полосы на весь сеанс игры.
+		//
+		// В снапшоте здесь стоял безусловный `return
+		// XR_VIEWFLAGS_WIDESCREEN`, а настоящее условие («полосы только в
+		// катсцене или диалоге») лежало рядом закомментированным — то есть
+		// это временная отладочная заглушка самих авторов, попавшая в срез.
+		// Из-за неё игрок постоянно видел урезанный кадр.
+		//
+		// Замер подтвердил и причину, и следствие: с отключённым
+		// широкоэкранным режимом `[GL-VIEW]` даёт
+		// `fbo=1280x720 win=1280x720 vp=(0,0..1280,720)`, полоса исчезает.
+		// (Сами полосы при этом рисует не `Engine_PostProcess` — тот блок,
+		// как показал `RIDDICK_DBG_LETTERBOX`, не выполняется; флаг
+		// широкоэкранного режима урезает вьюпорт раньше, через
+		// `CGameContext::DetermineWidescreen` -> `SetViewFlags`.)
+		//
+		// Восстановлено авторское условие. `RIDDICK_WIDESCREEN_ALWAYS=1`
+		// возвращает прежнее поведение среза (для A/B),
+		// `RIDDICK_NO_WIDESCREEN=1` выключает полосы совсем, включая
+		// катсцены.
+		static int s_Mode = -1;	// 0 = как в снапшоте, 1 = по условию, 2 = никогда
+		if (s_Mode < 0)
+		{
+			const char* eOff = getenv("RIDDICK_NO_WIDESCREEN");
+			const char* eAlways = getenv("RIDDICK_WIDESCREEN_ALWAYS");
+			if (eOff && *eOff && *eOff != '0')
+				s_Mode = 2;
+			else if (eAlways && *eAlways && *eAlways != '0')
+				s_Mode = 0;
+			else
+				s_Mode = 1;
+		}
 
-		if((bDialogue || bCutscene) && Phys_Message_SendToObject(CWObject_Message(OBJMSG_CHAR_CSHASBORDER), pObj->m_iObject))
-			return EViewFlags_VirtualWideScreen;
-*/
+		if (s_Mode == 2)
+			return 0;
+		if (s_Mode == 0)
+			return XR_VIEWFLAGS_WIDESCREEN;
+
+		const int bCutscene = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_CUTSCENE;
+		const int bDialogue = pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE;
+		if ((bDialogue || bCutscene) &&
+			Phys_Message_SendToObject(CWObject_Message(OBJMSG_CHAR_CSHASBORDER), pObj->m_iObject))
+			return XR_VIEWFLAGS_WIDESCREEN;
 	}
 	return 0;
 }
@@ -2746,7 +2781,7 @@ void CWClient_Mod::Con_JoinGame(CStr _PlayerCls)
 	CStr ProfileName = pSys->GetOptions()->GetValue("GAME_PROFILE");
 
 	m_LocalPlayer.m_Name = ProfileName;
-//	CStr cmd = CStrF("%s�%s", _PlayerCls, ProfileName);
+//	CStr cmd = CStrF("%s§%s", _PlayerCls, ProfileName);
 #if defined(PLATFORM_XENON)
 	MACRO_GetRegisterObject(CGameContext, pGame, "GAMECONTEXT");
 	CGameContextMod *pGameMod = safe_cast<CGameContextMod>(pGame);

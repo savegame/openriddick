@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "PCH.h"
 #include "WDynamicsEngine2.h"
 #include "WDynamicsEngineLCP.h"
 
@@ -30,7 +30,7 @@ void CWD_LCPSolver::Solve(const CWD_Island& _Island)
 	{
 		const CWD_RigidBodyState &State = pBodyStates[i];
 
-		// TODO: Tänk över om m_MassInverted ska lagras som vec128 eller inte?
+		// TODO: TÃ¤nk Ã¶ver om m_MassInverted ska lagras som vec128 eller inte?
 		CVec4Dfp32 Tmp = State.m_MassInverted;
 		m_lMassInv[i] = Tmp[0];
 		m_lInertiaTensorInv[i] = CLCPMath::PackInertiaTensor(State.m_TensorInverted);

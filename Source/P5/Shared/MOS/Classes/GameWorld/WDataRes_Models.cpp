@@ -81,12 +81,12 @@ void CWRes_Model_XMD::ReadModel()
 			CFStr FileName = m_pWData->ResolveFileName("MODELS\\" + FileN + ".XMD");
 			if (!CDiskUtil::FileExists(FileName))
 			{
-				ConOutL(CStrF("§cf80WARNING: %s doesn't exist.", (const char*) FileName));
+				ConOutL(CStrF("Â§cf80WARNING: %s doesn't exist.", (const char*) FileName));
 
 				FileName = m_pWData->ResolveFileName("MODELS\\COORDSYS.XMD");
 				if (!CDiskUtil::FileExists(FileName))
 				{
-					ConOutL(CStrF("§cf80WARNING: %s doesn't exist.", (const char*) FileName));
+					ConOutL(CStrF("Â§cf80WARNING: %s doesn't exist.", (const char*) FileName));
 					return;
 				}
 			}

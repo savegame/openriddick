@@ -482,7 +482,7 @@ void CBSP3_SceneGraph::SceneGraph_LinkInfiniteElement(uint16 _Elem, int _Flags)
 #ifndef M_RTM
 	if (_Flags & CXR_SCENEGRAPH_SHADOWCASTER)
 	{
-		ConOut("§cf80WARNING: (CBSP3_SceneGraph::SceneGraph_LinkInfiniteElement) Link-inifinte objects cannot be shadow casters.");
+		ConOut("Â§cf80WARNING: (CBSP3_SceneGraph::SceneGraph_LinkInfiniteElement) Link-inifinte objects cannot be shadow casters.");
 	}
 #endif
 
@@ -676,7 +676,7 @@ void CBSP3_SceneGraph::SceneGraph_Light_SetRotation(int _iLight, const CMat4Dfp3
 
 	if (_iLight < m_iFirstDynamic && Light.m_Type != CXR_LIGHTTYPE_POINT)
 	{
-		ConOut(CStrF("§cf80WARNING: Attempting to rotate non-point static light %d. (Operation ignored)", _iLight));
+		ConOut(CStrF("Â§cf80WARNING: Attempting to rotate non-point static light %d. (Operation ignored)", _iLight));
 		return;
 	}
 
@@ -698,7 +698,7 @@ void CBSP3_SceneGraph::SceneGraph_Light_SetPosition(int _iLight, const CMat4Dfp3
 
 	if (_iLight < m_iFirstDynamic)
 	{
-		ConOut(CStrF("§cf80WARNING: Attempting to move static light %d. (Operation ignored)", _iLight));
+		ConOut(CStrF("Â§cf80WARNING: Attempting to move static light %d. (Operation ignored)", _iLight));
 		return;
 	}
 

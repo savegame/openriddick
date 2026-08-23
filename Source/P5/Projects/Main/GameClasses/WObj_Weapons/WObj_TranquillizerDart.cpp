@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "PCH.h"
 #include "../../GameWorld/WServerMod.h"
 
 #if !defined(M_DISABLE_TODELETE) || 1

@@ -8,8 +8,14 @@
 #include "../../XR/XRShader.h"
 #include "../../XR/XRVBContext.h"
 #include "../../XR/XRVBUtil.h"
-#include "../../../mcc/MRTC_VPUManager.h"
+#include "../../../MCC/MRTC_VPUManager.h"
 #include "MMath_Vec128.h"
+
+#ifdef PLATFORM_LINUX
+#include <stdio.h>
+#include <string.h>	// memcmp ([BONES] probe)
+#include <stdlib.h>
+#endif
 #ifdef	PLATFORM_PS2
 #include "../../RndrPS2/MRndrPS2.h"
 #endif
@@ -939,7 +945,7 @@ void CXR_Model_TriangleMesh::Write(CStr _FileName)
 
 	CDataFile DFile;
 
-	// Funkar om man g�r s� h�r.... men m�rkligt var det ju
+	// Funkar om man gör så här.... men märkligt var det ju
 	try
 	{
 		DFile.Create(_FileName);
@@ -1024,6 +1030,24 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 	VPMid[0] = (ViewRect.p0.x + ViewRect.p1.x) >> 1;
 	VPMid[1] = (ViewRect.p0.y + ViewRect.p1.y) >> 1;
 
+#ifdef PLATFORM_LINUX
+	// RIDDICK_DBG_SCISSOR=N: dump first N box-scissor projections
+	// (camera-mirror research, Docs/Research_CameraMirror_Report.md).
+	static int sScLogTM = -1;
+	if (sScLogTM < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_SCISSOR");
+		sScLogTM = e ? atoi(e) : 0;
+	}
+	const bool bScDump = (sScLogTM > 0);
+	if (bScDump)
+	{
+		--sScLogTM;
+		fprintf(stderr, "[SCISSOR-TM] ViewRect=(%d,%d..%d,%d) VPScale=(%.2f,%.2f) VPMid=(%.2f,%.2f)\n",
+			ScrX, ScrY, ScrX + ScrW, ScrY + ScrH, VPScale[0], VPScale[1], VPMid[0], VPMid[1]);
+	}
+#endif
+
 	CVec3Dfp32 BoxV[8];
 	_Box.GetVertices(BoxV);
 
@@ -1038,6 +1062,11 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		fp32 z = _pVMat->k[0][2]*vx + _pVMat->k[1][2]*vy + _pVMat->k[2][2]*vz + _pVMat->k[3][2];
 		if (z < 0.1f) 
 		{ 
+#ifdef PLATFORM_LINUX
+			if (bScDump)
+				fprintf(stderr, "[SCISSOR-TM]   c%d w=(%.2f,%.2f,%.2f) z=%.3f < 0.1 -> FULL VIEWPORT\n",
+					v, vx, vy, vz, z);
+#endif
 			_Scissor.SetRect(ScrX, ScrY, ScrX + ScrW, ScrY + ScrH);
 			return;
 		}
@@ -1048,6 +1077,11 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		fp32 y = (_pVMat->k[0][1]*vx + _pVMat->k[1][1]*vy + _pVMat->k[2][1]*vz + _pVMat->k[3][1]) * zinv;
 		VMin.k[1] = Min(VMin.k[1], y);
 		VMax.k[1] = Max(VMax.k[1], y);
+#ifdef PLATFORM_LINUX
+		if (bScDump)
+			fprintf(stderr, "[SCISSOR-TM]   c%d w=(%.2f,%.2f,%.2f) z=%.3f scr=(%.1f,%.1f)\n",
+				v, vx, vy, vz, z, x * VPScale[0] + VPMid[0], y * VPScale[1] + VPMid[1]);
+#endif
 	}
 
 	{
@@ -1062,9 +1096,29 @@ void CXR_Model_TriangleMesh::CalcBoxScissor(const CRC_Viewport* _pVP, const CMat
 		int max1 = Max(ScrY, Min(ScrY + ScrH, ymax));
 
 		_Scissor.SetRect(min0, min1, Max(min0, max0), Max(min1, max1));
+#ifdef PLATFORM_LINUX
+		if (bScDump)
+			fflush(stderr);
+#endif
 	}
 };
 
+
+// Identity-quaternion test that does not care whether this build stores the
+// scalar part first or last: identity is "three components are zero and the
+// remaining one is +-1", and that shape is the same either way. Written as a
+// helper because the [BONES] probe checks it in two places.
+static inline bool Riddick_QuatIsIdentity(const CQuatfp32& _Q)
+{
+	int nZero = 0, nOne = 0;
+	for (int i = 0; i < 4; i++)
+	{
+		const fp32 v = _Q.k[i];
+		if (v == 0.0f) ++nZero;
+		else if (v == 1.0f || v == -1.0f) ++nOne;
+	}
+	return (nZero == 3 && nOne == 1);
+}
 
 bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstanceParamters* _pRenderParams, CTM_Cluster* _pC, CTM_VertexBuffer* _pTVB, CMat4Dfp32* _pMatrixPalette, int _nMatrixPalette, CXR_VertexBuffer* _pVB, uint16 _VpuTaskId, CRC_MatrixPalette* _pMP)
 {
@@ -1073,11 +1127,75 @@ bool CXR_Model_TriangleMesh::Cluster_SetMatrixPalette(CTriMesh_RenderInstancePar
 	CRC_MatrixPalette* M_RESTRICT pMP = _pMP;
 	if(!pMP)
 	{
-		pMP = new(pVBM->Alloc(sizeof(CRC_MatrixPalette))) CRC_MatrixPalette;
-		if (!pMP)
+		// The VB heap is a bump allocator that hands out NULL once the frame's
+		// budget is spent (CXR_VBManager::Alloc, XRVBManager.cpp:618 "Out of VB
+		// memory!"). The old one-liner ran placement-new straight on that NULL
+		// and the constructor stored into address 0 -- SIGSEGV inside
+		// CRC_MatrixPalette::CRC_MatrixPalette from a render worker thread, the
+		// crash at the end of the i1_pigsville run of 2026-07-30. The `if(!pMP)`
+		// that followed could never catch it: placement-new returns the very
+		// pointer it was given, so the constructor has already run by then.
+		void* pMPMem = pVBM->Alloc(sizeof(CRC_MatrixPalette));
+		if (!pMPMem)
 			return false;
+		pMP = new(pMPMem) CRC_MatrixPalette;
 	}
 	int nMP = _pC->GetNumBDMatrixMap(this);
+
+	// RIDDICK_DBG_PALETTE=1 -- how big the GPU bone palettes would be.
+	// Needed because the backend cannot measure this itself: with our caps
+	// (no CRC_CAPS_FLAGS_MATRIXPALETTE) animated meshes take the engine's
+	// CPU skinning path and no palette ever reaches the renderer, so its
+	// own maxbones/skinovercap counters stay 0. This probe reads the same
+	// numbers one level up, where they exist regardless of the path taken,
+	// and answers the question that decides the GLES3 palette design (and
+	// whether 64 uniform-slots' worth is enough on ARM):
+	//   indirect = clusters WITH a BONEMATRIXMAP -> palette is cluster-local
+	//              and small (max printed);
+	//   full     = clusters without one -> palette is the WHOLE skeleton
+	//              (70..120 bones in Riddick), i.e. the ones that would
+	//              overflow a 64-bone palette.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_PALETTE");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			static int s_nCalls = 0, s_nIndirect = 0, s_nFull = 0;
+			static int s_MaxIndirect = 0, s_MaxFull = 0, s_nPrinted = 0;
+			// Highest SKELETON bone index any cluster map actually points at.
+			// The palette is small (<=48) because it is cluster-local, but the
+			// indices inside it address the skeleton, and that is the number
+			// that has to fit inside the skeleton's node count. maxSkelIdx >=
+			// nodes (see the [BONES] line) means geometry is weighted to bones
+			// the skeleton never computes -- QNaN, i.e. vertices at infinity.
+			static int s_MaxSkelIdx = -1;
+			++s_nCalls;
+			if (nMP && _pMatrixPalette)
+			{
+				++s_nIndirect;
+				if (nMP > s_MaxIndirect) s_MaxIndirect = nMP;
+				if (const uint16* piM = _pC->GetBDMatrixMap(this))
+					for (int i = 0; i < nMP; i++)
+						if ((int)piM[i] > s_MaxSkelIdx) s_MaxSkelIdx = (int)piM[i];
+			}
+			else
+			{
+				++s_nFull;
+				if (_nMatrixPalette > s_MaxFull) s_MaxFull = _nMatrixPalette;
+			}
+			if (!(s_nCalls % 2000) && s_nPrinted++ < 40)
+			{
+				fprintf(stderr, "[MP] calls=%d indirect=%d(max %d bones) full=%d(max %d bones) maxSkelIdx=%d\n",
+					s_nCalls, s_nIndirect, s_MaxIndirect, s_nFull, s_MaxFull, s_MaxSkelIdx);
+				fflush(stderr);
+			}
+		}
+	}
+
 	if (nMP && _pMatrixPalette)
 	{
 		pMP->m_Flags = 0;
@@ -1156,7 +1274,18 @@ void CXR_Model_TriangleMesh::Cluster_Render(CTriMesh_RenderInstanceParamters* _p
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// m_nIBPrim counts INDICES, Render_IndexedTriangles wants TRIANGLES.
+			// The VBID branch a few lines up already divides (see the
+			// Render_VertexBuffer_IndexBufferTriangles call), and the engine
+			// itself divides everywhere else it derives a triangle count from
+			// this field (:318, :7490). Without the /3 the draw reads three
+			// times the indices that belong to this cluster: first the
+			// neighbouring clusters of the same mesh, then past the end of
+			// the index array. Latent in the shipped build -- that one always
+			// took the VBID/hardware path; this CPU branch is the only one we
+			// have, because the GLES3 backend does not advertise
+			// CRC_CAPS_FLAGS_MATRIXPALETTE and so bHWAnim stays false.
 		}
 		else
 			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -1411,7 +1540,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderProjLight(CTriMesh_RenderInstancePara
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 		}
 		else
 			_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -1819,7 +1949,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderUnified(CTriMesh_RenderInstanceParamt
 			else if(_pC->m_nIBPrim)
 			{
 				CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 			}
 			else
 				_pRenderParams->m_RenderVB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -2398,25 +2529,81 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 
 			if (pV && pN && pTgU && pTgV)
 			{
-				CXR_VertexBuffer* pVB = pVBM->Alloc_VB(CXR_VB_ATTRIB);
-				if(pVB)
+				fp32 Len = 1.0f;
+				int nV = pTVB->GetNumVertices(this);
+				// m_piPrim is uint16: six indices per vertex means the basis
+				// of at most 10922 vertices can be drawn per chain. Clamp
+				// instead of wrapping the index list around.
+				if (nV > 65535 / 6)
+					nV = 65535 / 6;
+
+				// Alloc_VB(CXR_VB_ATTRIB) allocates ONLY the attribute -- no
+				// chain, and CXR_VBFLAGS_VBCHAIN stays clear. The old code
+				// then called GetVBChain() on it and wrote through the
+				// result: SIGILL on the M_BREAKPOINT inside GetVBChain in an
+				// M_Profile build (run 2026-08-04, XRVertexBuffer.h:249), and
+				// a write through a garbage pointer in a build without it.
+				// Asking for VERTICES|COLORS with the count also hands back
+				// m_pV/m_pCol/m_nV correctly sized (XRVBManager.cpp:704-722),
+				// which is what the two earlier under-allocations here got
+				// wrong: m_pCol was sized for SIX colours while the loop
+				// writes nV*6, and the index array was sized in bytes instead
+				// of uint16 -- and never filled at all.
+				CXR_VertexBuffer* pVB = pVBM->Alloc_VB(
+					CXR_VB_ATTRIB | CXR_VB_VERTICES | CXR_VB_COLORS, nV * 6);
+				if(pVB && pVB->m_pAttrib)
 				{
-					*pVB->m_pAttrib	= *_pRenderParams->m_RenderVB.m_pAttrib;
+					// SIGSEGV here on the first cluster of the frame (run
+					// 2026-08-04, pa1_prisonarea): this block copies
+					// m_RenderVB.m_pAttrib, but on the UNIFIED path nothing
+					// ever assigns it -- the only assignment in this function
+					// sits inside `#ifdef NEVER` (:2607), and the unified
+					// renderer works off the shared static attributes
+					// (ms_RenderZBuffer) instead. The block predates the
+					// unified path and was never updated for it.
+					// So: copy the source attribute when there is one, and
+					// otherwise build a default, exactly like the depth-fog
+					// block above (:2481-2494).
+					if (_pRenderParams->m_RenderVB.m_pAttrib)
+						*pVB->m_pAttrib	= *_pRenderParams->m_RenderVB.m_pAttrib;
+					else
+					{
+						pVB->m_pAttrib->SetDefault();
+						if (_pRenderParams->m_pCurrentEngine)
+							_pRenderParams->m_pCurrentEngine->SetDefaultAttrib(pVB->m_pAttrib);
+					}
+					// Plain untextured lines whichever way the attribute was
+					// obtained: an inherited surface attribute would sample a
+					// diffuse texture with the wire "UVs" it has no business
+					// reading.
+					pVB->m_pAttrib->Attrib_TextureID(0, 0);
+					pVB->m_pAttrib->Attrib_Disable(CRC_FLAGS_ZWRITE);
+
 					CMat4Dfp32* pMat = pVBM->Alloc_M4();
 					if (!pMat) return;
-					*pMat	= *_pRenderParams->m_RenderVB.m_pTransform;
+					// m_pTransform is nullable on this path too -- :2465 and
+					// :4270 already test it before dereferencing.
+					if (_pRenderParams->m_RenderVB.m_pTransform)
+						*pMat	= *_pRenderParams->m_RenderVB.m_pTransform;
+					else
+						pMat->Unit();
 					CXR_VBChain* pChain = pVB->GetVBChain();
-					fp32 Len = 1.0f;
-					int nV = pTVB->GetNumVertices(this);
-					pChain->m_nV		= nV * 6;
-					pChain->m_pV		= pVBM->Alloc_V3(nV * 6);
-					pChain->m_pCol		= (CPixel32*)pVBM->Alloc(sizeof(CPixel32) * 6);
-					pChain->m_piPrim	= (uint16*)pVBM->Alloc(nV * 6);
-					if (!pChain->m_pCol || !pChain->m_piPrim)
+					if (!pChain)
+						return;
+					// Index array is the one thing Alloc_VB does not cover.
+					// m_nPrim counts INDICES for CRC_RIP_WIRES -- canonical
+					// pattern is CXR_VBManager::RenderBox
+					// (XRVBManager.cpp:4062-4068).
+					pChain->m_piPrim	= (uint16*)pVBM->Alloc(sizeof(uint16) * nV * 6);
+					if (!pChain->m_pV || !pChain->m_pCol || !pChain->m_piPrim)
 						return;
 					pChain->m_PrimType	= CRC_RIP_WIRES;
 					pChain->m_nPrim		= nV * 6;
 					pVB->m_pTransform	= pMat;
+					// One line per (vertex, axis): vertices come out in draw
+					// order, so the index list is the identity.
+					for(int i = 0; i < nV * 6; i++)
+						pChain->m_piPrim[i] = (uint16)i;
 					for(int v = 0; v < nV; v++)
 					{
 						int iv = v;
@@ -2437,6 +2624,15 @@ void CXR_Model_TriangleMesh::VB_RenderUnified(CTriMesh_RenderInstanceParamters* 
 						pChain->m_pCol[v*6+4]	= 0xff0000ff;
 						pChain->m_pCol[v*6+5]	= 0xff0000ff;
 					}
+
+					// ...and the buffer was never submitted: the block built
+					// the whole chain and then dropped it on the floor, so
+					// even a run that survived the three defects above drew
+					// nothing. Priority puts the wires with the opaque models,
+					// i.e. after the geometry they annotate.
+					pVB->m_Priority = _pRenderParams->m_RenderInfo.m_BasePriority_Opaque
+					                + CXR_VBPRIORITY_MODEL_OPAQUE;
+					pVBM->AddVB(pVB);
 				}
 			}
 		}
@@ -2700,7 +2896,7 @@ void CXR_Model_TriangleMesh::Cluster_RenderSingleColor(CTriMesh_RenderInstancePa
 	if (_pRenderParams->m_bRenderTempTLEnable)
 	{
 		if (_Color != 0xffffffff)
-			ConOut(CStr("�cf80WARNING: (CXR_Model_TriangleMesh::Cluster_RenderSingleColor) HW Color != 0xffffffff"));
+			ConOut(CStr("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_RenderSingleColor) HW Color != 0xffffffff"));
 
 		if (!VB.AllocVBChain(pVBM, true))
 			return;
@@ -2726,7 +2922,8 @@ void CXR_Model_TriangleMesh::Cluster_RenderSingleColor(CTriMesh_RenderInstancePa
 		else if(_pC->m_nIBPrim != 0)
 		{
 			CTM_VertexBuffer* pTIB = GetVertexBuffer(_pC->m_iIB);
-			VB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim);
+			VB.Render_IndexedTriangles(pTIB->GetTriangles(this) + _pC->m_iIBOffset, _pC->m_nIBPrim / 3);
+			// Index count -> triangle count; see Cluster_Render for why.
 		}
 		else
 			VB.Render_IndexedTriangles(pTVB->GetTriangles(this), pTVB->GetNumTriangles(this));
@@ -2986,7 +3183,7 @@ void CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV(CTriMesh_RenderInstan
 	const CVec2Dfp32* pT1 = _pTVB->GetTVertexPtr(this, iTFrm0); // Added by Mondelore.
 	if (!pV1 || !pN1 || !pTU1 || !pTV1 || !pT1)
 	{
-		ConOut("�cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 
@@ -2997,7 +3194,7 @@ void CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV(CTriMesh_RenderInstan
 	const CVec2Dfp32* pT2 = _pTVB->GetTVertexPtr(this, iTFrm1); // Added by Mondelore.
 	if (!pV1 || !pN1 || !pTU1 || !pTV1 || !pT2)
 	{
-		ConOut("�cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_Transform_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 
@@ -3626,7 +3823,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 			//---------------------------------------
 			// 1 Bone, 18 Muls.
 
-			const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 x = pV->k[0];
 			fp32 y = pV->k[1];
 			fp32 z = pV->k[2];
@@ -3646,9 +3843,9 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 			//---------------------------------------
 			// 2 Bones, 18 + 24 Muls.
 
-			const CMat43fp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 s1 = pBI[iBI].m_Influence;
-			const CMat43fp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
+			const CMat4Dfp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
 			fp32 s2 = pBI[iBI+1].m_Influence;
 
 			{
@@ -3686,7 +3883,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][0]*s; my += pM->k[1][0]*s; mz += pM->k[2][0]*s; mt += pM->k[3][0]*s;
 				}
@@ -3698,7 +3895,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][1]*s; my += pM->k[1][1]*s; mz += pM->k[2][1]*s; mt += pM->k[3][1]*s;
 				}
@@ -3710,7 +3907,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N(CTriMesh_RenderInstanceP
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][2]*s; my += pM->k[1][2]*s; mz += pM->k[2][2]*s; mt += pM->k[3][2]*s;
 				}
@@ -3751,12 +3948,12 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 	const CVec3Dfp32* pTV = _pTVB->GetTangentVPtr(this, iFrm0);
 	if (!pV || !pN || !pTU || !pTV)
 	{
-		ConOut("�cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing vertex component.");
+		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing vertex component.");
 		return;
 	}
 	if (!pVV || !pVN || !pVTU || !pVTV)
 	{
-		ConOut("�cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing target array.");
+		ConOut("§cf80WARNING: (CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV) Missing target array.");
 		return;
 	}
 
@@ -3777,7 +3974,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 			//---------------------------------------
 			// 1 Bone, 18 Muls.
 
-			const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 x = pV->k[0];
 			fp32 y = pV->k[1];
 			fp32 z = pV->k[2];
@@ -3811,9 +4008,9 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 			//---------------------------------------
 			// 2 Bones, 18 + 24 Muls.
 
-			const CMat43fp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
+			const CMat4Dfp32* pM1 = &_pMatrixPaletteArgs->Index(pBI[iBI].m_iBone);
 			fp32 s1 = pBI[iBI].m_Influence;
-			const CMat43fp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
+			const CMat4Dfp32* pM2 = &_pMatrixPaletteArgs->Index(pBI[iBI+1].m_iBone);
 			fp32 s2 = pBI[iBI+1].m_Influence;
 
 			{
@@ -3857,7 +4054,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][0]*s; my += pM->k[1][0]*s; mz += pM->k[2][0]*s; mt += pM->k[3][0]*s;
 				}
@@ -3871,7 +4068,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][1]*s; my += pM->k[1][1]*s; mz += pM->k[2][1]*s; mt += pM->k[3][1]*s;
 				}
@@ -3885,7 +4082,7 @@ void CXR_Model_TriangleMesh::Cluster_TransformBones_V_N_TgU_TgV(CTriMesh_RenderI
 				fp32 mx, my, mz, mt; mx = my = mz = mt = 0;
 				for(int iiBone = 0; iiBone < nBones; iiBone++)
 				{
-					const CMat43fp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
+					const CMat4Dfp32* pM = &_pMatrixPaletteArgs->Index(pBI[iBI + iiBone].m_iBone);
 					fp32 s = pBI[iBI + iiBone].m_Influence;
 					mx += pM->k[0][2]*s; my += pM->k[1][2]*s; mz += pM->k[2][2]*s; mt += pM->k[3][2]*s;
 				}
@@ -5551,6 +5748,79 @@ bAnim = false;
 
 	CalcBoxScissor(RenderParams.m_pVBM->Viewport_Get(), &_VMat, BoundBoxW, RenderParams.m_RenderBoundScissor);
 
+	// ЗОНД [ANIMGATE] (RIDDICK_DBG_ANIMGATE=1) -- ПОЧЕМУ у этого меша
+	// выключилась анимация.
+	//
+	// Это последний гейт перед отрисовкой: при bAnim=false кластеры с
+	// костями рисуются БЕЗ палитры, то есть в bind-позе, а положение
+	// приходит обычной MODEL-матрицей. На экране это ровно «персонаж
+	// скользит в застывшей позе» -- та самая жалоба. Счётчик
+	// [GLES3-SKIN] "no palette for a skinned draw" в бэкенде считает
+	// следствие; здесь видна причина, и вместе с именем меша -- у какого
+	// именно ассета.
+	//
+	// Отдельно печатается m_lspLOD.Len(): LOD-меши -- это САМОСТОЯТЕЛЬНЫЕ
+	// CXR_Model_TriangleMesh со своим m_bMatrixPalette, и «дальний NPC
+	// застыл, ближний анимируется» выглядело бы именно так. Форсировать
+	// нулевой LOD можно родным ключом движка, без пересборки:
+	//   RIDDICK_ENV="XR_LODOFFSET=-1000000"
+	{
+		static int s_Dbg = -1;
+		if (s_Dbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_ANIMGATE");
+			s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_Dbg)
+		{
+			// Печать при СМЕНЕ вердикта для данного меша, кап на процесс:
+			// иначе это строка на каждый меш на каждый кадр.
+			static const void* s_lMesh[32] = { 0 };
+			static uint8 s_lKey[32] = { 0 };
+			static int s_nMesh = 0;
+			static int s_nLogged = 0;
+			// Биты 16/32 (прогон 27): pal -- есть ли у скелет-инстанса
+			// массив матриц (GetBoneTransforms()); при skelInst!=0 pal==0
+			// кластер с костями проходит мимо Cluster_SetMatrixPalette
+			// (ветка `if (pMatrixPalette)` ниже) и уходит в бэкенд без
+			// палитры -- ровно источник спама "[GLES3-SKIN] no palette".
+			// lod -- рисуется ли САМ LOD-меш (у него свой m_bMatrixPalette
+			// и своё чтение костей). nBoneVB печатается при выводе: сколько
+			// VB этого меша несли BONEDEFORM; ноль при живых данных =
+			// кости потерялись в нашем загрузчике.
+			const bool bPal = (pSkelInstance && pSkelInstance->GetBoneTransforms());
+			const uint8 Key = (uint8)((pSkelInstance ? 1 : 0) | (bAnim ? 2 : 0) |
+			                          (bHWAnim ? 4 : 0) | (m_bMatrixPalette ? 8 : 0) |
+			                          (bPal ? 16 : 0) | ((m_iLOD != 0) ? 32 : 0));
+			int iSlot = -1;
+			for (int i = 0; i < s_nMesh; i++)
+				if (s_lMesh[i] == (const void*)this) { iSlot = i; break; }
+			if (iSlot < 0 && s_nMesh < 32)
+			{
+				iSlot = s_nMesh++;
+				s_lMesh[iSlot] = (const void*)this;
+				s_lKey[iSlot] = (uint8)~Key;	// заведомо не равен -- первая печать
+			}
+			if (iSlot >= 0 && s_lKey[iSlot] != Key && s_nLogged < 120)
+			{
+				s_lKey[iSlot] = Key;
+				++s_nLogged;
+				int nBoneVB = 0;
+				const int nVB = GetNumVertexBuffers();
+				for (int i = 0; i < nVB; ++i)
+					if (GetVertexBuffer(i)->m_bHaveBones) ++nBoneVB;
+				fprintf(stderr,
+					"[ANIMGATE] mesh=%s lod=%d skelInst=%p hwAnim=%d matPalette=%d pal=%d "
+					"nLOD=%d nVB=%d nBoneVB=%d -> bAnim=%d\n",
+					m_MeshName.GetFilenameNoExt().GetStr(), (int)m_iLOD,
+					(void*)pSkelInstance, (int)bHWAnim, (int)m_bMatrixPalette, (int)bPal,
+					(int)m_lspLOD.Len(), nVB, nBoneVB,
+					(int)(bAnim && m_bMatrixPalette));
+				fflush(stderr);
+			}
+		}
+	}
+
 	if (pSkelInstance && bAnim && !m_bMatrixPalette)
 	{
 		bAnim = false;
@@ -5566,6 +5836,308 @@ bAnim = false;
 		nMatrixPalette = pSkelInstance->GetNumBones();
 		SkeletonVpuTaskId = pSkelInstance->m_VpuTaskId;
 		pSkelInstance->m_VpuTaskId=InvalidVpuTask;
+
+		// RIDDICK_DBG_BONES=1 -- which bones of this skeleton actually MOVE.
+		// The reported symptom is per-bone, not per-object: Riddick's forearms
+		// animate while the shoulders stand still, an NPC holds a weapon with
+		// one arm while the other stays in its modelling pose, walking NPCs
+		// freeze on the first frame of the step and slide. Cutscenes look
+		// right. That splits into exactly two possibilities and this probe
+		// tells them apart, because it reads the palette the ENGINE produced,
+		// before any renderer touches it:
+		//   moving == a handful  -> the skeleton itself is only partly
+		//        animated (AG2 layers / track masks / EvalAnim), the renderer
+		//        is faithfully drawing a half-static pose;
+		//   moving == most bones -> the engine animates fine and the loss
+		//        happens on our side (palette upload, bone indices, weights).
+		// Printed per skeleton instance every 60 render calls, 8 slots.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_BONES");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_On && pMatrixPalette && nMatrixPalette > 0)
+			{
+				enum { EMaxSlots = 8, EMaxBones = 160 };
+				// Fixed storage, never freed and never reallocated: this runs
+				// on render worker threads, so a racing snapshot may only make
+				// a count slightly wrong -- it can never corrupt memory.
+				static const void* s_lKey[EMaxSlots] = { 0 };
+				static CMat4Dfp32 s_lPrev[EMaxSlots][EMaxBones];
+				// Second snapshot, of the LOCAL matrices. The world ones above
+				// cannot answer "does this bone animate": a walking character
+				// moves every bone's world matrix, so a limb frozen relative to
+				// the body still counts as moving. m_pBoneLocalPos is the bone
+				// relative to its parent -- exactly the animation itself, with
+				// the object's motion divided out.
+				static CMat4Dfp32 s_lPrevLocal[EMaxSlots][EMaxBones];
+				static int s_lCalls[EMaxSlots] = { 0 };
+				int iSlot = -1;
+				for (int i = 0; i < EMaxSlots; i++)
+				{
+					if (s_lKey[i] == (const void*)pSkelInstance) { iSlot = i; break; }
+					if (!s_lKey[i]) { s_lKey[i] = (const void*)pSkelInstance; iSlot = i; break; }
+				}
+				const int nB = Min((int)nMatrixPalette, (int)EMaxBones);
+				if (iSlot >= 0)
+				{
+					int nMoving = 0;
+					int nNaN = 0;
+					int iFirstNaN = -1;
+					char StaticList[96];
+					int StaticLen = 0;
+					StaticList[0] = 0;
+					for (int i = 0; i < nB; i++)
+					{
+						if (memcmp(&s_lPrev[iSlot][i], &pMatrixPalette[i], sizeof(CMat4Dfp32)) != 0)
+							nMoving++;
+						else if (StaticLen < (int)sizeof(StaticList) - 8)
+							StaticLen += snprintf(StaticList + StaticLen, sizeof(StaticList) - StaticLen, "%d ", i);
+						// QNaN detection. CXR_Skeleton::EvalAnim fills the WHOLE
+						// bone array with 0x7Fc00000 dwords before computing
+						// (XRSkeleton.cpp:2374, under !M_RTM) and then writes
+						// only nodes 1..Min(m_lNodes.Len(), m_nBoneTransform)-1
+						// (:2460). Every bone past that stays QNaN -- and QNaN
+						// compares EQUAL to itself under memcmp, so it shows up
+						// as "static" above. Telling the two apart matters: a
+						// bind-pose bone draws a frozen limb, a QNaN bone sends
+						// its vertices to infinity (the polygon stretched across
+						// the screen).
+						if (*(const uint32*)&pMatrixPalette[i] == 0x7Fc00000)
+						{
+							++nNaN;
+							if (iFirstNaN < 0) iFirstNaN = i;
+						}
+						s_lPrev[iSlot][i] = pMatrixPalette[i];
+					}
+					// Local-space pass: nLocalMoving is the honest "how many
+					// bones are actually being animated this frame".
+					int nLocalMoving = 0;
+					char FrozenList[96];
+					int FrozenLen = 0;
+					FrozenList[0] = 0;
+					const CMat4Dfp32* pLocal = pSkelInstance->m_pBoneLocalPos;
+					const int nLoc = pLocal ? Min((int)pSkelInstance->m_nBoneLocalPos, nB) : 0;
+					// Frozen indices are recorded HERE, while the snapshot
+					// still holds the values from the previous print. The detail
+					// block further down must not re-test them: by the time it
+					// runs the snapshot has already been refreshed to the current
+					// pose, so a re-test says "equal" for every bone. That bug
+					// is what produced the impossible 2026-07-31 reading -- bones
+					// 1..4 reported frozen while their own tracks moved, and the
+					// raw loc[] numbers printed alongside plainly changed between
+					// prints (0.9856 -0.1489 0.0801 -> 0.9856 -0.1478 0.0826).
+					// The list built here was right all along; only the detail
+					// picker was wrong.
+					int lFrozen[8];
+					int nFrozenIdx = 0;
+					for (int i = 0; i < nLoc; i++)
+					{
+						if (memcmp(&s_lPrevLocal[iSlot][i], &pLocal[i], sizeof(CMat4Dfp32)) != 0)
+						{
+							nLocalMoving++;
+							continue;
+						}
+						if (*(const uint32*)&pLocal[i] == 0x7Fc00000)
+							continue;                      // QNaN tail, covered elsewhere
+						if (i > 0 && nFrozenIdx < 8)
+							lFrozen[nFrozenIdx++] = i;
+						if (FrozenLen < (int)sizeof(FrozenList) - 8)
+							FrozenLen += snprintf(FrozenList + FrozenLen, sizeof(FrozenList) - FrozenLen, "%d ", i);
+					}
+					// The local snapshot is refreshed ONLY when this block
+					// prints, i.e. once per 60 render calls. Comparing against
+					// the immediately preceding call was the flaw behind the
+					// last two inconclusive runs: a model is rendered several
+					// times per frame (shadow pass, extra viewports), and two
+					// calls inside one frame necessarily see the same pose, so
+					// everything looked "frozen" at random. Over a 60-call
+					// window a bone that never moves really never moves.
+					const bool bPrintNow = !(s_lCalls[iSlot] % 60);
+					if (bPrintNow)
+						for (int i = 0; i < nLoc; i++)
+							s_lPrevLocal[iSlot][i] = pLocal[i];
+					if (!(s_lCalls[iSlot]++ % 60))
+					{
+						// nodes = the skeleton RESOURCE's node count, the real
+						// bound of the transform loop; bones = what the instance
+						// was sized to. nodes < bones is the whole story if it
+						// happens: the tail belongs to no node, is never written
+						// and stays QNaN.
+						const CXR_Skeleton* pDbgSkel = pSkelInstance->m_pDebugSkel;
+						fprintf(stderr, "[BONES] skel=%p bones=%d nodes=%d moving=%d static=%d nan=%d firstNaN=%d "
+							"localMoving=%d/%d frozenLocal=[%s] staticIdx=[%s]\n",
+							(void*)pSkelInstance, nB, pDbgSkel ? pDbgSkel->m_lNodes.Len() : -1,
+							nMoving, nB - nMoving, nNaN, iFirstNaN,
+							nLocalMoving, nLoc, FrozenList, StaticList);
+
+						// The 2026-07-30 run killed the simple explanation: the
+						// 120-bone rigs report nodes=120 as well, so the QNaN
+						// tail is NOT "past the end of the node list" -- the
+						// transform loop DOES cover those nodes and still leaves
+						// them invalid. That leaves two mechanisms, and this
+						// block prints exactly what tells them apart for the
+						// first bad node:
+						//   * its track slots (m_iRotationSlot/m_iMovementSlot)
+						//     against how many track slots the skeleton says are
+						//     in use -- a slot >= nUsed means the animation
+						//     resource has no track for this node at all;
+						//   * its parent -- if the parent is QNaN too, this node
+						//     is only inheriting the damage and the real first
+						//     victim is further up (walk 'parent=' upwards).
+						// (For the OTHER shape seen in the same log, bones=110
+						// with nodes=70, the tail genuinely is past the node
+						// list -- two different defects wearing one symptom.)
+						if (pDbgSkel && iFirstNaN >= 0 && iFirstNaN < pDbgSkel->m_lNodes.Len())
+						{
+							const CXR_SkeletonNode& N = pDbgSkel->m_lNodes[iFirstNaN];
+							const int iPar = (int)N.m_iNodeParent;
+							const bool bParentNaN = (iPar >= 0 && iPar < nB) &&
+								(*(const uint32*)&pMatrixPalette[iPar] == 0x7Fc00000);
+							fprintf(stderr, "[BONES]   node %d: parent=%d parentNaN=%d rotSlot=%d moveSlot=%d "
+								"flags=0x%x nUsedRot=%d nUsedMove=%d\n",
+								iFirstNaN, iPar, bParentNaN ? 1 : 0,
+								(int)N.m_iRotationSlot, (int)N.m_iMovementSlot, (unsigned)N.m_Flags,
+								(int)pDbgSkel->m_nUsedRotations, (int)pDbgSkel->m_nUsedMovements);
+
+							// Reachability from the root. The evaluator does not
+							// walk nodes 0..N-1; it walks the CHILD LISTS
+							// (m_liNodes sliced by m_iiNodeChildren/m_nChildren,
+							// XRSkeleton.cpp:1483-1560), starting at node 0. A
+							// node whose parent is valid, whose local matrix
+							// needs no track (rotSlot=-1 -> MatLocal.Unit(),
+							// :1510) and which STILL comes out QNaN can only
+							// mean one thing: the walk never reached it, i.e. it
+							// is not listed in its parent's children. That is a
+							// property of the NODEINDICES chunk we load
+							// (XRSkeleton.cpp:2532-2541), so it points straight
+							// at skeleton loading rather than at animation.
+							const int nNodes = pDbgSkel->m_lNodes.Len();
+							const uint16* piCh = pDbgSkel->m_liNodes.GetBasePtr();
+							const int nCh = pDbgSkel->m_liNodes.Len();
+							int nReach = 0;
+							bool bFirstNaNReached = false;
+							if (piCh && nNodes > 0 && nNodes <= 512)
+							{
+								uint8 lSeen[512];
+								memset(lSeen, 0, sizeof(lSeen));
+								uint16 lStack[512];
+								int nStack = 0;
+								lStack[nStack++] = 0;
+								lSeen[0] = 1;
+								nReach = 1;
+								while (nStack)
+								{
+									const uint16 iN = lStack[--nStack];
+									const CXR_SkeletonNode& Nd = pDbgSkel->m_lNodes[iN];
+									for (int c = 0; c < (int)Nd.m_nChildren; c++)
+									{
+										const int ii = (int)Nd.m_iiNodeChildren + c;
+										if (ii < 0 || ii >= nCh) break;
+										const uint16 iChild = piCh[ii];
+										if (iChild >= nNodes || lSeen[iChild]) continue;
+										lSeen[iChild] = 1;
+										++nReach;
+										if (nStack < 512) lStack[nStack++] = iChild;
+									}
+								}
+								bFirstNaNReached = (iFirstNaN < nNodes) && (lSeen[iFirstNaN] != 0);
+							}
+							fprintf(stderr, "[BONES]   tree: nodes=%d reachableFromRoot=%d childIdx=%d firstNaNReached=%d\n",
+								nNodes, nReach, nCh, bFirstNaNReached ? 1 : 0);
+
+							// The bones that matter for the reported symptom are
+							// NOT the unreachable tail: retail reads NODEINDICES
+							// byte-identically to us (MXR_dll_decomp.c:216708-
+							// 216740), so it reaches the same 76 nodes; the only
+							// difference is our debug QNaN fill, which retail's
+							// M_RTM build skips.
+							// The interesting ones are INSIDE the reachable set
+							// and still never change locally: bones 15, 20, 22,
+							// 23, 27... in every skeleton of the 2026-07-30 log.
+							// A node whose local matrix is constant either has no
+							// rotation track at all (m_iRotationSlot < 0 ->
+							// InitEvalNode_i writes Unit(), XRSkeleton.cpp:1510,
+							// and the limb hangs in its modelling orientation --
+							// exactly "one arm stuck in T-pose"), or has a track
+							// that the layers never drive. These lines separate
+							// the two.
+							// Track-level truth. A bone can be legitimately frozen
+							// simply because the character is standing still, and
+							// the 2026-07-30 run showed exactly that trap: bones
+							// 1..4 reported frozen with valid, mask-enabled track
+							// slots (rotSlot=1..4, maskRot=1) -- an idle pose,
+							// not a defect. So: (a) only report when the skeleton
+							// IS animating (more than four bones moved locally
+							// this frame), and (b) look at the TRACKS rather than
+							// at the result. EvalTracks leaves a slot at identity
+							// when no layer covers it (XRSkeleton.cpp:1927), and
+							// an identity rotation track is what makes
+							// InitEvalNode_i produce the modelling pose. So
+							// "identity tracks" counts the slots the animation
+							// never touches -- and if it stays high while the
+							// character walks, the layers simply do not cover
+							// those bones.
+							if (nLocalMoving > 4)
+							{
+								const CQuatfp32* pTR = pSkelInstance->m_pTracksRot;
+								int nIdentityRot = 0;
+								const int nRotSlots = (int)pDbgSkel->m_nUsedRotations;
+								if (pTR)
+									for (int r = 0; r < nRotSlots; r++)
+										if (Riddick_QuatIsIdentity(pTR[r]))
+											++nIdentityRot;
+								fprintf(stderr, "[BONES]   tracks: rotSlots=%d identityRot=%d moveSlots=%d\n",
+									nRotSlots, nIdentityRot, (int)pDbgSkel->m_nUsedMovements);
+
+								int nShown = 0;
+								for (int f = 0; f < nFrozenIdx && nShown < 4; f++)
+								{
+									const int i = lFrozen[f];
+									if (i >= pDbgSkel->m_lNodes.Len()) break;
+									const CXR_SkeletonNode& FN = pDbgSkel->m_lNodes[i];
+									const int iRot = (int)FN.m_iRotationSlot;
+									const int iMov = (int)FN.m_iMovementSlot;
+									fprintf(stderr, "[BONES]   frozen %d: parent=%d rotSlot=%d moveSlot=%d "
+										"maskRot=%d maskMove=%d flags=0x%x\n",
+										i, (int)FN.m_iNodeParent, iRot, iMov,
+										(iRot >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledRot(iRot) ? 1 : 0) : -1,
+										(iMov >= 0) ? (pDbgSkel->m_TrackMask.IsEnabledMove(iMov) ? 1 : 0) : -1,
+										(unsigned)FN.m_Flags);
+									// The 2026-07-30 log produced a contradiction that
+									// must be resolved before anything else is
+									// believed: bones 1..4 came out bit-identical
+									// over a 60-call window while THEIR OWN track
+									// quaternions changed between the same two
+									// prints. The track drives the local matrix
+									// (InitEvalNode_i writes MatLocal from the
+									// quaternion, XRSkeleton.cpp:1510-1520), so
+									// both cannot be true at once. Print the raw
+									// numbers of the local matrix itself: if they
+									// stand still across two prints while rot[]
+									// moves, the link between track and local
+									// matrix is broken (a real finding); if they
+									// move, the comparison in this probe is what
+									// lies, and the probe is what needs fixing.
+									fprintf(stderr, "[BONES]     loc[%d] rot0=(%.4f %.4f %.4f) pos=(%.2f %.2f %.2f)\n",
+										i, pLocal[i].k[0][0], pLocal[i].k[0][1], pLocal[i].k[0][2],
+										pLocal[i].k[3][0], pLocal[i].k[3][1], pLocal[i].k[3][2]);
+									const int iR = (int)FN.m_iRotationSlot;
+									if (pTR && iR >= 0 && iR < nRotSlots)
+										fprintf(stderr, "[BONES]     rot[%d] = (%.4f %.4f %.4f %.4f)%s\n",
+											iR, pTR[iR].k[0], pTR[iR].k[1], pTR[iR].k[2], pTR[iR].k[3],
+											Riddick_QuatIsIdentity(pTR[iR]) ? "  IDENTITY (no layer drives it)" : "");
+									++nShown;
+								}
+							}
+						}
+						fflush(stderr);
+					}
+				}
+			}
+		}
 	}
 
 
@@ -5615,7 +6187,28 @@ bAnim = false;
 #endif
 	}
 
+	// RIDDICK_SKIP_SHADOWVOL=1 -- drop character stencil shadow volumes.
+	// Without the shadow prim-data CullCluster rejects the SW shadow-volume
+	// clusters outright (:4893-4894), so nothing is drawn AND the silhouette
+	// CPU work is skipped. BSP2 world shadows are a separate path
+	// (WBSP2Light.cpp) and are unaffected.
+	// Why this exists: the volume index lists deliberately address a DOUBLED
+	// vertex buffer -- caps use `... + nRealVBV` (:4312-4314) and edge quads
+	// mix iv0/iv1 with iv0+nRealVBV/iv1+nRealVBV (:4336-4351) -- but the
+	// doubling is only done on the VBID/hardware path (:8247-8306), which
+	// skinned meshes never take here (bHWAnim=false, :5443), while on the CPU
+	// path both the doubling and the extrusion are commented out
+	// (:5789, :5807-5808). So the draw indexes past the end of the vertex
+	// array. Diagnostic switch until that is fixed properly.
+	static int s_SkipShadowVol = -1;
+	if (s_SkipShadowVol < 0)
+	{
+		const char* pEnvSSV = getenv("RIDDICK_SKIP_SHADOWVOL");
+		s_SkipShadowVol = (pEnvSSV && *pEnvSSV && *pEnvSSV != '0') ? 1 : 0;
+	}
+
 	if (m_spShadowData && 
+		!s_SkipShadowVol &&
 		RenderParams.m_bRender_Unified && 
 		!(RenderParams.m_RenderInfo.m_Flags & CXR_RENDERINFO_NOSHADOWVOLUMES) &&
 		!(RenderParams.m_OnRenderFlags & CXR_MODEL_ONRENDERFLAGS_NOSHADOWS) &&
@@ -7996,7 +8589,7 @@ void CXR_Model_TriangleMesh::Wallmark_CreateWithContainer(void* _pContainer, con
 				{
 					if (nDecalTri >= MaxDecalTri)
 					{
-						ConOut("�cf80WARNING: (TriMeshDecal) Too many triangles in decal.");
+						ConOut("§cf80WARNING: (TriMeshDecal) Too many triangles in decal.");
 						iTri = Target;
 						break;
 					}
@@ -8033,7 +8626,7 @@ void CXR_Model_TriangleMesh::Wallmark_CreateWithContainer(void* _pContainer, con
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 Function:	Acquires flags for VertexProgram params
 
 Parameters:		
@@ -8229,7 +8822,7 @@ void CXR_Model_TriangleMesh::Get(int _iLocal, CRC_BuildVertexBuffer& _VB, int _F
 	CCFile *pModelFile;
 	if( m_spPreloader == NULL )
 	{
-	//	ConOut(CStrF("�cf80WARNING: (CXR_Model_TriangleMesh::Get) Missing preloader for model %s cluster %i",m_FileName.Str(),_iLocal));
+	//	ConOut(CStrF("§cf80WARNING: (CXR_Model_TriangleMesh::Get) Missing preloader for model %s cluster %i",m_FileName.Str(),_iLocal));
 		pModelFile = NULL;
 	}
 	else

@@ -2,6 +2,10 @@
 #include "PCH.h"
 #include "MSystem.h"
 #include "MTextureContainerXTC2.h"
+#ifdef PLATFORM_LINUX
+#include <stdlib.h>	// getenv (RIDDICK_XTC2_XT_UNDER_XDF)
+#include "../../../SDK/ZLib/zlib.h"	// распаковка xt-данных, см. ReadTexture
+#endif
 
 // WORLDDATA_TEXTURECONTAINERS, Memused:    1 404 684 in 6674 allocations, Activity: 84974 Allocations, 78300 Deletions
 MRTC_IMPLEMENT_DYNAMIC(CTextureContainer_VirtualXTC2, CTextureContainer);
@@ -15,6 +19,8 @@ CTextureContainer_VirtualXTC2::CTextureContainer_VirtualXTC2()
 	MAUTOSTRIP(CTextureContainer_VirtualXTC2_ctor, MAUTOSTRIP_VOID);
 	m_bIsCached = false;
 	m_bHasXT0 = false;
+	m_XT0Length = 0;
+	m_bXTCompressed = false;
 }
 
 CTextureContainer_VirtualXTC2::~CTextureContainer_VirtualXTC2()
@@ -196,15 +202,49 @@ void CTextureContainer_VirtualXTC2::ReadImageDirectory(CDataFile* _pDFile)
 
 void CTextureContainer_VirtualXTC2::PostCreate()
 {
+	// Формат таблицы .xt0/.xt1 -- сверено с ретейлом
+	// (`MSystem_dll_decomp.c:167979-168065`, `PostCreate`). Наш срез читал
+	// его НЕВЕРНО, и на PS3-наборе это давало падение
+	// `Index out of range. 3031301/1878`. Отличий от ретейла было три:
+	//
+	//  1. В первом слове счётчика СТАРШИЙ БИТ -- флаг, а не часть числа.
+	//     Ретейл берёт `count & 0x7fffffff`, а бит 31 кладёт в флаг
+	//     контейнера (`flags ^= ((raw >> 29) ^ flags) & 4`). Без маски цикл
+	//     уходил далеко за таблицу и читал полезные данные как индексы.
+	//  2. Ретейл запоминает ДЛИНУ `.xt0` -- она нужна пункту 3.
+	//  3. Есть ещё файл `.xt1`, и это НЕ второй независимый набор:
+	//     смещения в нём отсчитываются от конца `.xt0`
+	//     (`m_TextureXT0FilePos = XT0Length + offset`), то есть два файла
+	//     логически склеены в один поток. Мы `.xt1` не читали вовсе, а на
+	//     PS3-диске он есть у всех крупных банков (`ALLTEXTURES.00N`).
+	//
+	// Смысл бита 31 ПОЗЖЕ восстановлен по `ReadTexture` ретейла
+	// (`MSystem_dll_decomp.c:168150-168200`): это признак ZLIB-СЖАТИЯ
+	// полезных данных -- при нём ретейл заводит `CStream_LinearCompressedZLib`
+	// и после `Seek` читает пару служебных LE-слов, работая через substream.
+	// Сжатие ПОДТВЕРЖДЕНО hex-дампом (2026-08-08): на позиции текстуры лежит
+	// `<сжатый размер> <исходный размер> 78 DA ...`, где `78 DA` -- заголовок
+	// zlib. Распаковка реализована в `ReadTexture`.
+	m_XT0Length = 0;
+
+	int s_nXT0Entries = 0, s_nXT0Applied = 0, s_nXT0OutOfRange = 0;
+	int s_nXT1Entries = 0, s_nXT1Applied = 0;
+	bool s_bHasXT1 = false;
+
 	if (CDiskUtil::FileExists(m_FileName + ".xt0"))
 	{
 		m_bHasXT0 = true;
 
 		CCFile File;
 		File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+		m_XT0Length = (uint32)File.Length();
 
 		uint32 nTextures;
 		File.ReadLE(nTextures);
+		// Бит 31 -- признак ZLIB-сжатия полезных данных (см. шапку функции).
+		m_bXTCompressed = (nTextures & 0x80000000u) != 0;
+		nTextures &= 0x7fffffff;
+		s_nXT0Entries = (int)nTextures;
 
 		while (nTextures)
 		{
@@ -212,16 +252,74 @@ void CTextureContainer_VirtualXTC2::PostCreate()
 			uint32 FileOffset;
 			File.ReadLE(iLocal);
 			File.ReadLE(FileOffset);
-			m_lTextureDesc[iLocal].m_TextureXT0FilePos = FileOffset;
+			if (iLocal < (uint32)m_lTextureDesc.Len())
+			{
+				m_lTextureDesc[iLocal].m_TextureXT0FilePos = FileOffset;
+				++s_nXT0Applied;
+			}
+			else
+				++s_nXT0OutOfRange;
 			--nTextures;
 		}
 	}
+
+	s_bHasXT1 = CDiskUtil::FileExists(m_FileName + ".xt1");
+	if (s_bHasXT1)
+	{
+		m_bHasXT0 = true;
+
+		CCFile File;
+		File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
+
+		uint32 nTextures;
+		File.ReadLE(nTextures);
+		if (nTextures & 0x80000000u)
+			m_bXTCompressed = true;
+		nTextures &= 0x7fffffff;
+		s_nXT1Entries = (int)nTextures;
+
+		while (nTextures)
+		{
+			uint32 iLocal;
+			uint32 FileOffset;
+			File.ReadLE(iLocal);
+			File.ReadLE(FileOffset);
+			// Смещение -- от конца .xt0, см. пункт 3 выше.
+			if (iLocal < (uint32)m_lTextureDesc.Len())
+			{
+				m_lTextureDesc[iLocal].m_TextureXT0FilePos = m_XT0Length + FileOffset;
+				++s_nXT1Applied;
+			}
+			--nTextures;
+		}
+	}
+
+#ifdef PLATFORM_LINUX
+	// ЗОНД [XTC2-TBL] (без флага, по строке на контейнер). Печатается ПОСЛЕ
+	// обоих файлов: первая версия стояла между ними и потому не показывала
+	// главного -- добирает ли `.xt1` те текстуры, которых нет в `.xt0`.
+	// Замер 2026-08-08 (только xt0): 1429/1878, 3396/6916, 1093/1821, 71/536 --
+	// то есть таблицы читаются верно (всё применено, ничего вне диапазона),
+	// но покрывают лишь часть текстур.
+	{
+		int nNoPos = 0;
+		for (int i = 0; i < m_lTextureDesc.Len(); i++)
+			if (!m_lTextureDesc[i].m_TextureXT0FilePos)
+				++nNoPos;
+		M_TRACEALWAYS("[XTC2-TBL] '%s': xt0=%d/%d (вне диапазона %d) xt1=%s %d/%d | "
+			"дескрипторов=%d, БЕЗ позиции=%d, длина xt0=%u\n",
+			m_FileName.Str(), s_nXT0Applied, s_nXT0Entries, s_nXT0OutOfRange,
+			s_bHasXT1 ? "есть" : "нет", s_nXT1Applied, s_nXT1Entries,
+			(int)m_lTextureDesc.Len(), nNoPos, (unsigned)m_XT0Length);
+	}
+#endif
 }
 
 void CTextureContainer_VirtualXTC2::ClearCache()
 {
 	// Close XT0 file
-    m_XT0File.Close();    
+    m_XT0File.Close();
+    m_XT1File.Close();
 }
 void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pTexture, int _iMipMapStart, int _iMipMapEnd, int _nVirtual)
 {
@@ -235,15 +333,185 @@ void CTextureContainer_VirtualXTC2::ReadTexture(int _iLocal, CTextureImages* _pT
 		
 		_pTexture->m_iLocal = _iLocal;
 
-		if (m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && Desc.m_TextureXT0FilePos && !_nVirtual && !CByteStream::XDF_GetRecord() && !CByteStream::XDF_GetUse())
+		// ОСОЗНАННОЕ ОТСТУПЛЕНИЕ ОТ РЕТЕЙЛА, только под Linux и отключаемое.
+		//
+		// Авторское условие (и такое же в декомпиле,
+		// `MSystem_dll_decomp.c:168150`) запрещает путь `.xt0/.xt1`, пока
+		// смонтирован XDF: предполагается, что нужные байты отдаст сам архив.
+		// На PS3-наборе это не так. Измерено: при `XDFUse(GUIPrecache.XDF)`
+		// чтение уходит в `Fallback_Read` на позицию 546 591 216 -- это
+		// смещение в объединённом xt-потоке, а вовсе не внутри небольшого
+		// файла-индекса `.xtc`. Самого `.xtc` россыпью на диске нет (только
+		// `.XT0/.XT1`), поэтому запасной путь упирался в пустоту, и текстура
+		// приезжала нулевой (`[GLES3-TEX-FAIL] id=6325 0x0 format=0x0`), а
+		// следом движок ловил «Access mask not cleared» на следующей.
+		//
+		// Поэтому: если у контейнера ЕСТЬ xt-данные для этой текстуры, читаем
+		// их и при смонтированном XDF. Условие `!XDF_GetRecord()` сохранено --
+		// при ЗАПИСИ архива обход штатного пути действительно недопустим.
+		// `RIDDICK_XTC2_XT_UNDER_XDF=0` возвращает авторское поведение.
+		bool bAllowXTUnderXDF = true;
+#ifdef PLATFORM_LINUX
+		{
+			static int s = -1;
+			if (s < 0)
+			{
+				const char* e = getenv("RIDDICK_XTC2_XT_UNDER_XDF");
+				s = (e && *e && *e == '0') ? 0 : 1;
+			}
+			bAllowXTUnderXDF = (s != 0);
+		}
+#else
+		bAllowXTUnderXDF = false;
+#endif
+		// СУЖЕНИЕ РАДИ PC-НАБОРА.
+		//
+		// Отступление применяется только там, где авторский путь ФИЗИЧЕСКИ не
+		// может сработать -- когда самого `.xtc` нет на диске россыпью (случай
+		// PS3: отгружены только `.xt0/.xt1`). На PC-наборе `.xtc` лежит на
+		// месте, проверка ниже даёт false, и поведение остаётся авторским
+		// байт в байт. Проверка чисто дисковая: `CDiskUtil::FileExists` спросил
+		// бы ещё и XDF и всегда отвечал бы «есть».
+		bool bXTCOnDisk = true;
+#ifdef PLATFORM_LINUX
+		bXTCOnDisk = MRTC_SystemInfo::OS_FileExists(m_FileName.Str());
+#endif
+		const bool bXDFBlocksXT = (CByteStream::XDF_GetUse() != NULL)
+			&& (!bAllowXTUnderXDF || bXTCOnDisk);
+
+		// ЭКСПЕРИМЕНТ RIDDICK_XTC2_DATAPOS_AS_XT=1 (по умолчанию ВЫКЛЮЧЕН).
+		//
+		// Замер: у части текстур записи в таблице `.xt0/.xt1` нет вовсе
+		// (`alltextures.001`: 432 из 6916), и для них движок идёт читать сам
+		// `.xtc` -- которого на PS3-диске россыпью не существует. При этом
+		// позиция, которую он там ищет, СОВПАДАЕТ с `m_TextureDataFilePos`
+		// (546 591 176 у текстуры 4445), а длина `.xt0` того же контейнера --
+		// 391 865 253. Разница 154 725 923 укладывалась бы в `.xt1`.
+		//
+		// Версия была: `m_TextureDataFilePos` адресует ЕДИНЫЙ xt-поток.
+		//
+		// ОПРОВЕРГНУТА размерами файлов (2026-08-08):
+		//   ALLTEXTURES.001.XTC.XT0 = 391 865 253  (совпало с нашим замером)
+		//   ALLTEXTURES.001.XTC.XT1 =  34 275 705
+		//   вместе                  = 426 140 958
+		//   а dataPos               = 546 591 176  -- на 120 МБ ДАЛЬШЕ конца.
+		// Прогон с флагом это подтвердил: чтение уехало за конец `.xt1` и
+		// сломалось уже на разборе картинки (`MImage.cpp(2285)`).
+		//
+		// Значит `dataPos` -- позиция в ПОЛНОМ файле `.xtc` (свыше 546 МБ),
+		// которого на PS3-диске нет вовсе: отгружены только `.xt0/.xt1`.
+		// Отсюда вывод: у 432 текстур банка `alltextures.001` полезных данных
+		// в этом наборе НЕТ, и на PS3 они просто не запрашиваются. Правильная
+		// реакция -- заглушка вместо картинки, а не попытка вычислить позицию
+		// (сделано в `TextureID_EnsureUploaded`).
+		//
+		// Флаг оставлен только как след опровергнутой версии; включать его
+		// незачем.
+		bool bDataPosAsXT = false;
+#ifdef PLATFORM_LINUX
+		{
+			static int s = -1;
+			if (s < 0)
+			{
+				const char* e = getenv("RIDDICK_XTC2_DATAPOS_AS_XT");
+				s = (e && *e && *e != '0') ? 1 : 0;
+			}
+			bDataPosAsXT = (s != 0);
+		}
+#endif
+		uint32 XTPos = Desc.m_TextureXT0FilePos;
+		if (!XTPos && bDataPosAsXT && m_bHasXT0)
+			XTPos = Desc.m_TextureDataFilePos;
+
+		const bool bUseXT = m_bHasXT0 && _iMipMapStart == Desc.m_iPicMip && XTPos
+			&& !_nVirtual && !CByteStream::XDF_GetRecord() && !bXDFBlocksXT;
+
+#ifdef PLATFORM_LINUX
+		// ЗОНД (без флага, кап 10): ПОЧЕМУ не выбран xt-путь.
+		// Условие составное из шести частей, и «текстура приехала пустой»
+		// одинаково выглядит при отказе любой из них. Печатаем все.
+		if (!bUseXT)
+		{
+			static int s_nLog = 0;
+			if (s_nLog < 10)
+			{
+				++s_nLog;
+				M_TRACEALWAYS("[XTC2] iLocal=%d xt-путь НЕ выбран: hasXT0=%d mipStart=%d picMip=%d "
+					"xtPos=%u dataPos=%u nVirtual=%d record=%d xdfBlocks=%d\n",
+					_iLocal, (int)m_bHasXT0, _iMipMapStart, (int)Desc.m_iPicMip,
+					(unsigned)Desc.m_TextureXT0FilePos, (unsigned)Desc.m_TextureDataFilePos, _nVirtual,
+					(int)(CByteStream::XDF_GetRecord() != NULL), (int)bXDFBlocksXT);
+			}
+		}
+#endif
+
+		if (bUseXT)
 		{
 			M_ASSERT(Desc.m_PaletteFilePos == 0 && Desc.m_iPalette < 0, "Palette not supported for xt0");
-			if (!m_XT0File.IsOpen())
+
+			// `.xt0` и `.xt1` -- один логический поток: смещения из `.xt1`
+			// при чтении таблицы сдвинуты на длину `.xt0` (см. PostCreate).
+			// Значит выбор файла и есть сравнение с этой длиной, а внутри
+			// `.xt1` позиция отсчитывается заново.
+			const bool bInXT1 = (m_XT0Length != 0) && (XTPos >= m_XT0Length);
+			CCFile* pXT = NULL;
+			if (bInXT1)
 			{
-				m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+				if (!m_XT1File.IsOpen())
+					m_XT1File.Open(m_FileName + ".xt1", CFILE_BINARY|CFILE_READ);
+				m_XT1File.Seek(XTPos - m_XT0Length);
+				pXT = &m_XT1File;
 			}
-			m_XT0File.Seek(Desc.m_TextureXT0FilePos);
-			_pTexture->m_lMipMaps[_iMipMapStart].Read(&m_XT0File, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+			else
+			{
+				if (!m_XT0File.IsOpen())
+				{
+					m_XT0File.Open(m_FileName + ".xt0", CFILE_BINARY|CFILE_READ);
+				}
+				m_XT0File.Seek(XTPos);
+				pXT = &m_XT0File;
+			}
+
+#ifdef PLATFORM_LINUX
+			if (m_bXTCompressed)
+			{
+				// ZLIB-СЖАТЫЕ ДАННЫЕ.
+				//
+				// Формат опознан по hex-дампу сорвавшихся чтений: на позиции
+				// текстуры лежит `<сжатый размер> <исходный размер> 78 DA ...`,
+				// где `78 DA` -- заголовок zlib. Это ровно то, что делает
+				// ретейл (`MSystem_dll_decomp.c:168196`): при взведённом бите
+				// сжатия он читает после `Seek` ДВА LE-слова и работает через
+				// `CStream_LinearCompressedZLib` поверх substream.
+				//
+				// Мы распаковываем в память и подсовываем картинке memory-поток:
+				// та же семантика, но без отдельного класса потока.
+				uint32 CompSize = 0, RawSize = 0;
+				pXT->ReadLE(CompSize);
+				pXT->ReadLE(RawSize);
+				if (!CompSize || !RawSize || CompSize > (1u << 28) || RawSize > (1u << 28))
+					Error("ReadTexture", CStrF("Плохой заголовок сжатия: comp=%u raw=%u", CompSize, RawSize));
+
+				TArray<uint8> lComp, lRaw;
+				lComp.SetLen(CompSize);
+				lRaw.SetLen(RawSize);
+				pXT->Read(lComp.GetBasePtr(), CompSize);
+
+				uLongf Out = RawSize;
+				const int Z = uncompress((Bytef*)lRaw.GetBasePtr(), &Out,
+					(const Bytef*)lComp.GetBasePtr(), (uLong)CompSize);
+				if (Z != Z_OK || Out != RawSize)
+					Error("ReadTexture", CStrF("zlib: код %d, распаковано %u из %u", Z, (unsigned)Out, RawSize));
+
+				CCFile Mem;
+				// Публичная перегрузка `Open(void*, len, maxlen, mode)`;
+				// `ConnectMemoryStream` -- приватная кухня той же операции.
+				Mem.Open(lRaw.GetBasePtr(), (int)RawSize, (int)RawSize, CFILE_BINARY|CFILE_READ);
+				_pTexture->m_lMipMaps[_iMipMapStart].Read(&Mem, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
+			}
+			else
+#endif
+			_pTexture->m_lMipMaps[_iMipMapStart].Read(pXT, IMAGE_MEM_TEXTURE | IMAGE_MEM_SYSTEM, _pTexture->m_spPalette);
 
 			if (_iMipMapEnd == _iMipMapStart) // Nothing more to do
 				return;
@@ -371,7 +639,7 @@ CImage* CTextureContainer_VirtualXTC2::GetTextureMipMap(int _iLocal, int _iMipMa
 		else
 		{
 			// We should not end up here, but in case we do it must work anyway.
-			ConOutLD("�cf80WARNING: (CTextureContainer_VirtualXTC2::GetMipMap) Unexpected texture access pattern.");
+			ConOutLD("§cf80WARNING: (CTextureContainer_VirtualXTC2::GetMipMap) Unexpected texture access pattern.");
 			ReadTexture(_iLocal, m_spTempTexture, _iMipMap, iEnd, _nVirtual);
 
 			return &m_spTempTexture->m_lMipMaps[_iMipMap];

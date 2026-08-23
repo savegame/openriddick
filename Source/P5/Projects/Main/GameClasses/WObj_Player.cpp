@@ -5,7 +5,7 @@
 MRTC_IMPLEMENT_SERIAL_WOBJECT(CWObject_Player, CWObject_RPG, 0x0100);
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWO_Player_ClientData
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -40,7 +40,7 @@ CWO_Player_ClientData::CWO_Player_ClientData()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_Player
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -280,7 +280,7 @@ M_TRACEALWAYS(CStrF("(Player::OnClientPredict) RETIRE: Copying master (%.8x) to 
 					_pObj->m_iActiveClientCopy = CWObject_Player::Player_GetCopyNumber(pPredict);
 					if (!_pWClient->Object_GetCD(_pObj->m_iObject))
 					{
-						M_TRACEALWAYS(CStrF("§cf80WARNING: Could not obtain client copy %d\r\n", _pObj->m_iActiveClientCopy));
+						M_TRACEALWAYS(CStrF("Â§cf80WARNING: Could not obtain client copy %d\r\n", _pObj->m_iActiveClientCopy));
 						break;
 					}
 
@@ -487,7 +487,7 @@ M_TRACEALWAYS(CStrF("(UpdatePrediction) Didn't find ID %d in cmd-queue\r\n", Las
 				_pObj->m_iActiveClientCopy = ActiveCopy;
 				if (!_pWClient->Object_GetCD(_pObj->m_iObject))
 				{
-					M_TRACEALWAYS(CStrF("§cf80WARNING: Could not obtain client copy %d\r\n", _pObj->m_iActiveClientCopy));
+					M_TRACEALWAYS(CStrF("Â§cf80WARNING: Could not obtain client copy %d\r\n", _pObj->m_iActiveClientCopy));
 					break;
 				}
 

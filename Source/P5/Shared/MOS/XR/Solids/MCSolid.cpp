@@ -1280,7 +1280,7 @@ void CSplineBrush::UpdateBoundBox()
 		m_BoundBox.m_Max = vmax + ProjMax;
 	}
 
-	// Lägg på 10%, hirr!#?!@@@... *chuckle*
+	// LÃ¤gg pÃ¥ 10%, hirr!#?!@@@... *chuckle*
 /*	CVec3Dfp32 boxsize;
 	vmax.Sub(vmin, boxsize);
 	m_BoundBox.m_Min = vmin - CVec3Dfp32(1);	// Add epsilon to box. (1.0f)

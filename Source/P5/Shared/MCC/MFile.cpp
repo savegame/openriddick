@@ -1,5 +1,5 @@
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			-
 					
 	Author:			Erik Olofsson
@@ -17,13 +17,13 @@
 #include "PCH.h"
 #include "MFile.h"
 //#include "MArchive.h"
-#include "MComp.h"
+#include "Mcomp.h"
 
 #include "MFile_RAM.h"
 #include "MFile_Misc.h"
 #include "MFile_Stream_Disk.h"
 #include "MFile_Stream_Memory.h"
-#include "MFile_Stream_Megafile.h"
+#include "MFile_Stream_MegaFile.h"
 #include "MFile_Stream_Compressed.h"
 #include "MFile_Stream_RAM.h"
 #include "MFile_Stream_XDF.h"

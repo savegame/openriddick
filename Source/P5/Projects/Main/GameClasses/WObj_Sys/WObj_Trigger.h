@@ -1,7 +1,7 @@
 #ifndef __WOBJ_TRIGGER_H
 #define __WOBJ_TRIGGER_H
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Misc triggers
 
 	Author:			Jens Andersson
@@ -18,9 +18,9 @@
 \*____________________________________________________________________________________________*/
 
 
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_System.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_System.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_SimpleMessage.h"
-#include "../../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Hook.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Hook.h"
 #include "../WObj_Messages.h"
 
 class CWO_DamageMsg;

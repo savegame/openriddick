@@ -691,7 +691,7 @@ void CWorld_ServerCore::World_SetGame(CStr _Game)
 					m_spServerReg->CopyDir(&Reg);
 				}
 				else
-					ConOutL(CStrF("�cf80WARNING: (CWorld_ServerCore::World_SetGame) No server registry for game '%s'", (char*) _Game));
+					ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_SetGame) No server registry for game '%s'", (char*) _Game));
 			}
 			m_spServerReg->SimulateRegistryCompiled(true);
 		}
@@ -950,6 +950,29 @@ ConOutL("(CWorld_ServerCore::World_Init) WorldName: " + m_WorldName);
 			{
 				int32 nResources;
 				Input.ReadLE(nResources);
+
+#ifdef PLATFORM_LINUX
+				// ЗОНД + ЗАЩИТА (без флага).
+				//
+				// На PS3-наборе чтение этого списка расходится: движок
+				// выделяет полтора гигабайта (`[HEAP-TRIPWIRE] bad size
+				// -1409282048`) и потом просит прочитать столько же байт.
+				// Счётчик и длина файла печатаются, чтобы отличить «формат
+				// другой с самого начала» от «рассинхрон на середине»,
+				// а неправдоподобный счётчик отсекается ДО `SetLen` --
+				// иначе менеджер памяти рушится раньше, чем мы успеваем
+				// что-либо понять.
+				const fint RulLen = Input.Length();
+				M_TRACEALWAYS("[RUL] '%s': длина=%d, счётчик ресурсов=%d\n",
+					Filename.Str(), (int)RulLen, (int)nResources);
+				// Каждая запись -- как минимум длина строки, то есть 4 байта.
+				if (nResources < 0 || (RulLen > 0 && (fint)nResources * 4 > RulLen))
+				{
+					M_TRACEALWAYS("[RUL] счётчик неправдоподобен для такой длины -- список пропущен\n");
+					nResources = 0;
+				}
+#endif
+
 				lCommon.SetLen(nResources);
 
 				for(int i = 0; i < nResources; ++i)
@@ -1044,6 +1067,31 @@ ConOutL("(CWorld_ServerCore::World_Init) WorldName: " + m_WorldName);
 
 	//Create navgraph
 	CXR_NavGraph* pNavGraph = m_spMapData->GetResource_XWNavGraph(m_spMapData->GetResourceIndex_XWNavGraph("$WORLD"));
+
+	// [NAV] -- два числа, которые решают спор «AI сломан» против «данных нет».
+	// Симптомы: NPC скользят в позе первого кадра, не доходят до сценпоинтов
+	// (Script MOVE_TO_SCENEPOINT request failed, AlignScenepoint() broken,
+	// Search_Create cannot reach destination, m_SearchStatus == INVALID).
+	// Навигация грузится из мира (.XW), а PC-формат мы разбирали реверсом
+	// (Docs/BSP_PC_Format.md), поэтому пустой навграф/навгрид -- реальная
+	// версия. Две строки, без флага: без них каждый разбор лога начинается
+	// с догадок.
+	{
+		const int nNodes = pNavGraph ? pNavGraph->m_lNodes.Len() : 0;
+		const int nEdges = pNavGraph ? pNavGraph->m_lEdges.Len() : 0;
+		if (m_pBlockNavGrid)
+			M_TRACEALWAYS("[NAV] navgrid: cells %dx%dx%d\n",
+				(int)m_pBlockNavGrid->m_CellGridDim[0],
+				(int)m_pBlockNavGrid->m_CellGridDim[1],
+				(int)m_pBlockNavGrid->m_CellGridDim[2]);
+		else
+			M_TRACEALWAYS("[NAV] navgrid: MISSING (no $WORLD navgrid resource)\n");
+		M_TRACEALWAYS("[NAV] navgraph: %s nodes=%d edges=%d minDist=%d sizes=0x%x\n",
+			pNavGraph ? "ok" : "MISSING", nNodes, nEdges,
+			pNavGraph ? pNavGraph->GetMinDistance() : 0,
+			pNavGraph ? pNavGraph->GetSupportedSizes() : 0);
+	}
+
 	if (pNavGraph)
 	{
 		pNavGraph->BuildHash(CVec3Dint16(pNavGraph->GetMinDistance(), pNavGraph->GetMinDistance(), pNavGraph->GetMinDistance() * 5), 
@@ -1421,7 +1469,7 @@ bool CWorld_ServerCore::World_Migrate(CStr _World, CSelection& _Selection)
 				if (Object_Get(m_lspPlayers[i]->m_iObject))
 					Object_SetName(m_lspPlayers[i]->m_iObject, CStrF("PLAYER%d", i));
 				if (!Selection_ContainsObject(_iSel, m_lspPlayers[i]->m_iObject))
-					ConOutL(CStrF("�cf80WARNING: (CWorld_ServerCore::World_Migrate) Object %d for player %d is not in selection.", m_lspPlayers[i]->m_iObject, i));
+					ConOutL(CStrF("§cf80WARNING: (CWorld_ServerCore::World_Migrate) Object %d for player %d is not in selection.", m_lspPlayers[i]->m_iObject, i));
 			}
 		}
 	}

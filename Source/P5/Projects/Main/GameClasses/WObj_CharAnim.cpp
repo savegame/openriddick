@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ANIM] RIDDICK_DBG_SKEL report
+#include <stdlib.h>	// getenv
+
 #include "WObj_Char.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Anim.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
@@ -20,15 +23,15 @@
 /*
 	Diverse implementationer av run-time mapping av ben nummer
 
-	Tanken �r att man har ett CWO_Char_AnimBoneMap i clientdata (m_AnimBoneMap)
-	och k�r m_AnimBoneMap.SetSkeleton(pSkel) f�rst i OnGetAnimState, eller
-	andra st�llen d�r man ev beh�ver den. Jag tror iofs man beh�ver ha 2st CWO_Char_AnimBoneMap 
-	s� att man cachar phys skeleton och render skeleton separat, annars kommer SetSkeleton leta
-	ben nummer hela tiden. (den ska bara k�ras vid LOD byten)
+	Tanken är att man har ett CWO_Char_AnimBoneMap i clientdata (m_AnimBoneMap)
+	och kör m_AnimBoneMap.SetSkeleton(pSkel) först i OnGetAnimState, eller
+	andra ställen där man ev behöver den. Jag tror iofs man behöver ha 2st CWO_Char_AnimBoneMap 
+	så att man cachar phys skeleton och render skeleton separat, annars kommer SetSkeleton leta
+	ben nummer hela tiden. (den ska bara köras vid LOD byten)
 
-	F�rrutom pSkelInstance->ApplyScale prylen s� verkar det inte beh�vas speciellt m�nga mappings.
-	G�r det att l�sa scalingen p� n�got annat vis? Om hela skelettet beh�ver mappas s� b�rjar
-	cachingen ta en massa plats och hela ideen blir d�lig.
+	Förrutom pSkelInstance->ApplyScale prylen så verkar det inte behövas speciellt många mappings.
+	Går det att lösa scalingen på något annat vis? Om hela skelettet behöver mappas så börjar
+	cachingen ta en massa plats och hela ideen blir dålig.
 
 	Torso->Head = 4 mappings
 	Eyelid stuff = 4 mapppings
@@ -36,11 +39,11 @@
 	Camera = 1 mappings
 	mer?
 
-	Ist�llet f�r
+	Istället för
     if(pSkelInstance->m_nBoneTransform > PLAYER_ROTTRACK_LEYELID)
 		MULTMATMP(pSkelInstance->m_pBoneLocalPos[PLAYER_ROTTRACK_LEYELID], Mat);
 
-	s� skulle man skriva:
+	så skulle man skriva:
 	int iBoneLEyeLid = m_AnimBoneMap.m_liBones[PLAYER_BONEMAP_LEYELID];
 	if (iBoneLEyeLid)
 		MULTMATMP(pSkelInstance->m_pBoneLocalPos[iBoneLEyeLid], Mat);
@@ -94,7 +97,7 @@ enum
 	PLAYER_BONEMAP_TORSO,
 };
 
-class CWO_Char_AnimBoneMap			// 16 bytes f�r 12 bone mappings
+class CWO_Char_AnimBoneMap			// 16 bytes för 12 bone mappings
 {
 public:
 	void* m_pLastSkel;
@@ -147,10 +150,10 @@ public:
 // -------------------------------------------------------------------
 // v3.0
 
-// Spara pekare till bonehash array i CWO_Char_AnimBoneMap s� att man kan olika mappings
-// �r det bra till n�got?
+// Spara pekare till bonehash array i CWO_Char_AnimBoneMap så att man kan olika mappings
+// Är det bra till något?
 
-class CWO_Char_AnimBoneMap				// 20 bytes f�r 12 bone mappings
+class CWO_Char_AnimBoneMap				// 20 bytes för 12 bone mappings
 {
 public:
 	void* m_pLastSkel;
@@ -228,7 +231,7 @@ int CXR_Skeleton::FindBone(uint32 _Hash)
 
 
 //#define SAMUEL_TESTAR
-/*��������������������������������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character animation
 					
 	Contents:		OnRefreshAnim
@@ -349,6 +352,117 @@ int CWObject_Character::Char_GetAnimLayers(CWObject_CoreData* _pObj, const CMat4
 					_pLayers[i].m_Time += Diff.GetTime() * _pLayers[i].m_Blend;
 					M_ASSERT(0x7fc00000 != (uint32&)_pLayers[i].m_Time, "!");
 					//ConOutL(CStrF("NP: Diff: %f BlendIn: %f BlendOut: %f Lerp: %f", Diff, _pLayers[i].m_BlendIn, _pLayers[i].m_BlendOut, _pLayers[i].m_Blend));
+				}
+			}
+		}
+	}
+
+	// RIDDICK_DBG_SKEL=1: how many animation layers a character actually gets.
+	//
+	// This separates the two readings of "NPCs slide along the floor": with
+	// nLayers == 0 the character is drawn in its bind pose while the AI keeps
+	// translating it, which looks exactly like sliding; with nLayers > 0 and
+	// sane times the animations do run, and the complaint is about movement
+	// speed instead -- character movement in this engine is driven by the
+	// animation's move track, so a wrong scale there shows up as gliding.
+	{
+		static int s_Dbg = -1;
+		if (s_Dbg < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_SKEL");
+			s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_Dbg)
+		{
+			// Per-object budget so one character cannot flood the log.
+			//
+			// Печатаем ПЕРИОДИЧЕСКИ и ТОЛЬКО на ходу (прогон 28: вопрос
+			// сузился -- idle-экшены играют, застывает именно ходьба; в
+			// i1_showers-замере obj=109 с dt>0 мог оказаться «работающим»
+			// персонажем, атрибуции не было). В строке:
+			//   v      -- пройденное расстояние с прошлой печати;
+			//   dt     -- прирост m_Time слоя за тот же интервал;
+			//   dur    -- длительность клипа слоя;
+			//   mv/rot -- СЭМПЛ КОРНЕВОГО ТРЕКА клипа на текущем t слоя
+			//             (|move| и скаляр поворота). Если t растёт, а
+			//             mv/rot не меняются -- сэмплер/данные клипа
+			//             отдают константу; если и t стоит -- время слоя.
+			//   v>0 при dt==0 -- время слоя не подаётся: искать в AG2.
+			static int16 s_lObj[16] = { 0 };
+			static uint16 s_lCalls[16] = { 0 };
+			static uint16 s_lPrints[16] = { 0 };
+			static fp32 s_lPrevTime[16][4] = { { 0 } };
+			static CVec3Dfp32 s_lPrevPos[16];
+			int iSlot = -1;
+			for (int i = 0; i < 16; i++)
+			{
+				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
+			}
+				if (iSlot >= 0 && ((s_lCalls[iSlot]++ % 10) == 0))
+				{
+					const CVec3Dfp32 Pos = _pObj->GetPosition();
+					const fp32 Dist = (Pos - s_lPrevPos[iSlot]).Length();
+					// Стоит на месте -- не печатаем вовсе (prev-позицию тоже не
+					// трогаем: первый ходячий снимок покажет путь за простой).
+					if (Dist >= 0.5f && s_lPrints[iSlot] < 60)
+					{
+						s_lPrints[iSlot]++;
+						s_lPrevPos[iSlot] = Pos;
+						// Прогон 47: состояние КЛИЕНТСКОГО инстанса token 0 --
+						// именно из него создаются слои на рендере.
+						int16 StIdx = -1; fp32 InstTS = -1, Sync = -1;
+						bool bAdaptive = false, bSync = false, bHasAnim = false;
+						CWAG2I* pAG2Idbg = pCD->m_AnimGraph2.GetAG2I();
+						if (pAG2Idbg && pAG2Idbg->GetNumTokens() > 0)
+						{
+							const CWAG2I_Token* pTokDbg = pAG2Idbg->GetToken(0);
+							if (pTokDbg && pTokDbg->GetNumStateInstances() > 0)
+							{
+								const CWAG2I_StateInstance* pSI =
+									pTokDbg->GetStateInstance(pTokDbg->GetNumStateInstances()-1);
+								if (pSI)
+								{
+									StIdx = pSI->GetStateIndex();
+									InstTS = pSI->GetTimeScale_Cached();
+									Sync = pSI->GetSyncAnimScale_Cached();
+									bAdaptive = pSI->HasAdaptiveTimeScale_Cached();
+								}
+							}
+						}
+						fprintf(stderr, "[ANIM] obj=%d player=%d nLayers=%d v=%.2f st=%d its=%.3f sync=%.3f adapt=%d",
+							(int)_pObj->m_iObject, (int)pCD->m_iPlayer, nLayers, Dist,
+							(int)StIdx, InstTS, Sync, (int)bAdaptive);
+					for (int i = 0; i < nLayers && i < 4; i++)
+					{
+						// base = m_iBlendBaseNode. CXR_Skeleton::EvalAnim only counts a
+						// layer as "full body" when base == 0 AND blend > 0.999; if no
+						// such layer exists it aborts and poisons every bone with QNaN.
+						const fp32 dT = _pLayers[i].m_Time - s_lPrevTime[iSlot][i];
+						s_lPrevTime[iSlot][i] = _pLayers[i].m_Time;
+						fp32 MvLen = -1.0f, RotK = -1.0f, Dur = -1.0f;
+						if (_pLayers[i].m_spSequence != NULL)
+						{
+							Dur = _pLayers[i].m_spSequence->GetDuration();
+							// Публичный CMTime-оверлоад (XRAnim.h:697); fp32-
+							// версия того же метода -- protected.
+							vec128 MV;
+							CQuatfp32 RT;
+							_pLayers[i].m_spSequence->EvalTrack0(
+								CMTime::CreateFromSeconds(_pLayers[i].m_Time), MV, RT);
+							MV = M_VSetW0(MV);
+							MvLen = CVec4Dfp32(MV).Length();
+							RotK = RT.k[3];
+						}
+						fprintf(stderr,
+							"  L%d{seq=%d base=%d t=%.3f dt=%.3f ts=%.3f blend=%.3f dur=%.2f mv=%.3f rotw=%.3f fl=0x%x}",
+							i, (int)(_pLayers[i].m_spSequence != NULL),
+							(int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Time, dT,
+							_pLayers[i].m_TimeScale, _pLayers[i].m_Blend, Dur, MvLen, RotK,
+							(unsigned)_pLayers[i].m_Flags);
+					}
+					fprintf(stderr, "  pos=(%.1f %.1f %.1f)\n", Pos.k[0], Pos.k[1], Pos.k[2]);
+					fflush(stderr);
 				}
 			}
 		}
@@ -1527,6 +1641,83 @@ bool CWObject_Character::OnGetAnimState(CWObject_CoreData* _pObj, CWorld_PhysSta
 						AimMat = MatLook;
 					}
 				
+					// ЗОНД [SKELMAP] (RIDDICK_DBG_BONES=1): связка «объект ->
+					// экземпляр скелета». Строки [BONES] подписаны указателем
+					// экземпляра, и без этой таблицы их нельзя отнести к
+					// конкретному персонажу -- а именно это и нужно, когда
+					// жалоба звучит как «у ЭТОГО NPC не играет ходьба».
+					// Печатается один раз на пару (объект, экземпляр).
+					{
+						static int s_DbgMap = -1;
+						if (s_DbgMap < 0)
+						{
+							const char* e = getenv("RIDDICK_DBG_BONES");
+							s_DbgMap = (e && *e && *e != '0') ? 1 : 0;
+						}
+						if (s_DbgMap && pSkelInstance)
+						{
+							static const void* s_lInst[32] = { 0 };
+							static int s_nInst = 0;
+							bool bSeen = false;
+							for (int i = 0; i < s_nInst; i++)
+								if (s_lInst[i] == (const void*)pSkelInstance) { bSeen = true; break; }
+							if (!bSeen && s_nInst < 32)
+							{
+								s_lInst[s_nInst++] = (const void*)pSkelInstance;
+								M_TRACEALWAYS("[SKELMAP] obj=%d isPlayer=%d inst=%p nodes=%d\n",
+									(int)_pObj->m_iObject, (int)(pCD->m_iPlayer != -1),
+									(void*)pSkelInstance, (int)pSkel->m_lNodes.Len());
+							}
+						}
+					}
+
+					// ЗОНД [OK-GATE] (RIDDICK_DBG_OK=1). Вся пост-анимация --
+					// обратная кинематика, лицевая система, коррекция камеры --
+					// сидит за ЭТИМ ОДНИМ условием (см. Docs/Research_OK_Report.md
+					// §1): не прошёл гейт, и отваливается всё разом, а не только
+					// IK. Поэтому первый вопрос при «замерших костях» -- проходит
+					// ли конкретный персонаж сюда вообще.
+					// Печатается только при СМЕНЕ результата гейта или его
+					// входов, кап 40 строк: иначе это строка на кадр на каждого
+					// персонажа в кадре.
+					{
+						static int s_Dbg = -1;
+						if (s_Dbg < 0)
+						{
+							const char* e = getenv("RIDDICK_DBG_OK");
+							s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+						}
+						if (s_Dbg)
+						{
+							const bool bGate =
+								!bRagdoll &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_LADDER) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_ACTIONCUTSCENE) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_LEDGE2) &&
+								(Char_ControlMode != PLAYER_CONTROLMODE_HANGRAIL) &&
+								(pSkel->m_lNodes.Len() > PLAYER_ROTTRACK_CAMERA) &&
+								(pCD->m_Aim_SkeletonType != 0 || pCD->m_ForcedAimingMode != 0);
+							static int s_nLogged = 0;
+							static int s_LastKey = -1;
+							const int Key = (bGate ? 1 : 0)
+								| ((int)Char_ControlMode << 1)
+								| ((pCD->m_Aim_SkeletonType != 0) ? 0x10000 : 0)
+								| ((pCD->m_ForcedAimingMode != 0) ? 0x20000 : 0)
+								| (bRagdoll ? 0x40000 : 0);
+							if (Key != s_LastKey && s_nLogged < 40)
+							{
+								s_LastKey = Key;
+								++s_nLogged;
+								M_TRACEALWAYS("[OK-GATE] obj=%d isPlayer=%d gate=%d | ragdoll=%d ctrlMode=%d "
+									"nodes=%d(>%d) aimSkelType=%d forcedAim=%d\n",
+									(int)_pObj->m_iObject, (int)(pCD->m_iPlayer != -1), (int)bGate,
+									(int)bRagdoll, (int)Char_ControlMode,
+									(int)pSkel->m_lNodes.Len(), (int)PLAYER_ROTTRACK_CAMERA,
+									(int)pCD->m_Aim_SkeletonType, (int)pCD->m_ForcedAimingMode);
+							}
+						}
+					}
+
 					if (!bRagdoll && 
 						(Char_ControlMode != PLAYER_CONTROLMODE_LADDER)&&
 						(Char_ControlMode != PLAYER_CONTROLMODE_ACTIONCUTSCENE)&&

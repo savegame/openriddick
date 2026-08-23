@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [SKEL] EvalAnim abort report
+#include <stdlib.h>	// getenv
+
 #include "XRSkeleton.h"
 #include "XRClass.h"
 #include "XRAnim.h"
@@ -14,7 +17,7 @@ MRTC_IMPLEMENT_DYNAMIC(CXR_Skeleton, CReferenceCount);
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_SkeletonNode
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -86,7 +89,7 @@ void CXR_SkeletonNode::Write(CDataFile* _pDFile) const
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_SkeletonAttachPoint
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -159,7 +162,7 @@ bool CXR_SkeletonAttachPoint::Parse(CStr _Str)
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_ClothBoneWeights
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -223,7 +226,7 @@ void CXR_ClothBoneWeights::Write(CDataFile* _pDFile) const
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_Cloth
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -431,7 +434,7 @@ void CXR_Cloth::Read(CDataFile* _pDFile, const CXR_Skeleton* _pSkel)
 		int iJoint = piJoints[i];
 		if (iJoint >= nSkelNodes)
 		{
-			ConOutL(CStrF("�cf00ERROR: Invalid cloth!  (Name: %s - joint %d out of range. skeleton has %d)", m_Name.Str(), iJoint, nSkelNodes));
+			ConOutL(CStrF("§cf00ERROR: Invalid cloth!  (Name: %s - joint %d out of range. skeleton has %d)", m_Name.Str(), iJoint, nSkelNodes));
 			m_MaxID = -1;
 			return;
 		}
@@ -557,7 +560,7 @@ bool CXR_Cloth::ParseParamaters(const CRegistry &_Reg)
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_ClothConstraint
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -618,7 +621,7 @@ void CXR_ClothConstraint::Write(CDataFile* _pDFile) const
 
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_SkeletonInstance
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -753,7 +756,7 @@ void CXR_SkeletonInstance::Duplicate(CXR_SkeletonInstance* _pDest) const
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:		Sets given scale to all bones
 						
 	Parameters:		
@@ -775,7 +778,7 @@ void CXR_SkeletonInstance::ApplyScale(fp32 _Scale)
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:		Sets the given scale to the given set of bones
 						
 	Parameters:
@@ -801,7 +804,7 @@ void CXR_SkeletonInstance::ApplyScale(fp32 _Scale, const TArray<int>& _liBoneSet
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:		Sets the given scale to the given set of bones
 						
 	Parameters:		
@@ -827,7 +830,7 @@ void CXR_SkeletonInstance::ApplyScale(fp32 _Scale, const int* _pliBoneSet, int _
 	}
 }
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:		Blends one skelinstance with another
 						
 	Parameters:		
@@ -898,7 +901,7 @@ bool CXR_SkeletonInstance::BlendInstance(const CXR_SkeletonInstance* _pInstance,
 
 
 /************************************************************************************\
-|�������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CXR_Skeleton
 |_____________________________________________________________________________________
 \************************************************************************************/
@@ -1023,6 +1026,63 @@ void CXR_Skeleton::InitTrackMask()
 
 	if (m_lNodes.Len())
 		CreateTrackNodeMask_r(0, m_TrackMask, m_NodeMask);
+
+	// RIDDICK_FULLTRACKMASK=1 -- A/B по замороженным костям.
+	//
+	// CreateTrackNodeMask_r обходит скелет ОТ УЗЛА 0 ЧЕРЕЗ СПИСКИ ДЕТЕЙ, и
+	// слот поворота включается в маску только у достижимых узлов. А замер
+	// [SKELTREE] показал, что обход накрывает не весь скелет:
+	//   nodes=120 -> reached=76,  nodes=66 -> reached=33.
+	// Недостижимые узлы объявляют par=0, nCh=0 и просто не числятся ничьими
+	// детьми.
+	//
+	// Дальше это бьёт по картинке через маски: слот, которого нет в
+	// m_TrackMask, не пишет НИ ОДИН слой (EvalTracks копирует lTrackMask из
+	// m_TrackMask для слоёв с базовым узлом 0), и кость сохраняет значение
+	// с прошлого кадра -- то есть замирает. Замер это подтверждает прямо:
+	//   [MASK] nRot=24 rotBits=22 uncoveredRot=2 [15 20]
+	//   [BONES] frozenLocal=[15 20 22 23 ...]
+	// слоты 15 и 20 не покрыты никем -- и кости 15 и 20 стоят первыми
+	// в списке замороженных.
+	//
+	// Ниже -- ровно тот линейный проход по ВСЕМ узлам, который лежит в этом
+	// же файле закомментированным (см. блок сразу за вызовом): он включает
+	// слоты каждого узла независимо от достижимости. Под флагом, чтобы
+	// сравнить два поведения одним прогоном без пересборки.
+	{
+		static int s_On = -1;
+		if (s_On < 0)
+		{
+			const char* e = getenv("RIDDICK_FULLTRACKMASK");
+			s_On = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (s_On)
+		{
+			const int nNodes = m_lNodes.Len();
+			const CXR_SkeletonNode* pNodes = m_lNodes.GetBasePtr();
+			int nAdded = 0;
+			for (int i = 0; i < nNodes; i++)
+			{
+				const int iRot = pNodes[i].m_iRotationSlot;
+				if (iRot >= 0 && !m_TrackMask.m_TrackMaskRot.IsEnabled(iRot))
+				{
+					m_TrackMask.m_TrackMaskRot.Enable(iRot);
+					++nAdded;
+				}
+				const int iMove = pNodes[i].m_iMovementSlot;
+				if (iMove >= 0)
+					m_TrackMask.m_TrackMaskMove.Enable(iMove);
+				m_NodeMask.m_TrackMaskRot.Enable(i);
+			}
+			static int s_n = 0;
+			if (s_n < 8)
+			{
+				++s_n;
+				fprintf(stderr, "[TRACKMASK] full mask: nodes=%d addedRotSlots=%d\n", nNodes, nAdded);
+				fflush(stderr);
+			}
+		}
+	}
 
 //	for(int iAttach = 0; iAttach < m_lAttachPoints.Len(); iAttach++)
 //		m_TrackMask.m_TrackMaskRot.Enable(m_lAttachPoints[iAttach].m_iNode);
@@ -1189,7 +1249,7 @@ void CXR_Skeleton::EvalPosition_r(uint16 _iNode, const CMat4Dfp32* _pTransform, 
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:	Evaluates skeleton hierachy	
 						
 	Parameters:		
@@ -1453,7 +1513,7 @@ StartOf_EvalNode_i:
 	}
 }
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:	Evaluates skeleton hierachy	
 						
 	Parameters:		
@@ -1576,7 +1636,7 @@ void CXR_Skeleton::InitEvalNode_i(uint16 _iNode, const CMat4Dfp32& _Transform, C
 }
 
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	Function:	Evaluates skeleton hierachy	
 						
 	Parameters:		
@@ -2144,6 +2204,157 @@ void CXR_Skeleton::EvalTracks(CXR_AnimLayer* _pLayer, uint _nLayers, CXR_Skeleto
 		}
 #endif
 
+		// RIDDICK_DBG_SEQ=1 -- содержат ли САМИ АНИМАЦИОННЫЕ ДАННЫЕ движение.
+		//
+		// Всё выше по цепочке уже измерено и цело:
+		//   * анимграф жив, состояния сменяются, iAnim резолвится
+		//     (штатная трасса, RIDDICK_AG2_DEBUGFLAGS);
+		//   * время слоя идёт и корректно зацикливается, и на сервере, и
+		//     на клиенте (RIDDICK_DBG_ANIMTIME: looped растёт 0->dur->0).
+		// Остаётся то, что ниже: выборка треков из .XSA. Наш загрузчик
+		// PC-формата -- реверс, и «трек декодируется в единичный кватернион»
+		// уже наблюдалось на замороженных костях (Docs/Research_BoneAnimation.md).
+		//
+		// Меряем прямо: берём верхний слой, считаем его последовательность
+		// в t=0 и t=dur/2 ПОЛНОЙ маской и сравниваем.
+		//   animated=0            -- клип плоский, дефект в декодере .XSA;
+		//   animated << nRot      -- часть треков не декодируется;
+		//   animated ~ nRot       -- данные живые, дефект ещё ниже
+		//                           (блендинг/InitEvalNode/палитра).
+		// identity0 -- сколько кватернионов в t=0 единичные: отличает
+		// «трека нет» от «трек есть, но не меняется».
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SEQ");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			// Каждый 200-й вызов, а не подряд: в прогоне 2026-08-03 кап в
+			// 24 строки выгорел за первые кадры и показал только стартовые
+			// клипы. Разрежение даёт срез по всей сессии.
+			static int s_nCalls = 0;
+			static int s_n = 0;
+			if (s_On && (s_nCalls++ % 200) == 0 && s_n < 24 && _nLayers)
+			{
+				const CXR_Anim_SequenceData* pS = _pLayer[_nLayers-1].m_spSequence;
+				if (pS)
+				{
+					++s_n;
+					// Статические буферы: зонд может звать рендер-воркер,
+					// гонка исказит счётчик, но не память.
+					static CQuatfp32 s_QA[CXR_SKELETON_MAXROTATIONS];
+					static CQuatfp32 s_QB[CXR_SKELETON_MAXROTATIONS];
+					static CVec4Dfp32 s_MA[CXR_SKELETON_MAXMOVEMENTS];
+					static CVec4Dfp32 s_MB[CXR_SKELETON_MAXMOVEMENTS];
+					for (uint i = 0; i < nRotations; i++) { s_QA[i].Unit(); s_QB[i].Unit(); }
+					for (uint i = 0; i < nMovements; i++) { s_MA[i] = M_VConst(0,0,0,1.0f); s_MB[i] = M_VConst(0,0,0,1.0f); }
+
+					CXR_Anim_TrackMask FullMask;
+					FullMask.Copy(m_TrackMask);
+					const fp32 Dur = pS->GetDuration();
+					pS->Eval(0.0f, s_QA, nRotations, &s_MA->v, nMovements, FullMask);
+					pS->Eval(Dur * 0.5f, s_QB, nRotations, &s_MB->v, nMovements, FullMask);
+
+					// Корневой трек отдельно: его длина за длительность
+					// клипа -- НАТУРАЛЬНАЯ скорость анимации, та самая, от
+					// которой считается тарировка (m_TimeScale =
+					// DestSpeed/AnimSpeed) и, в конечном счёте, скорость
+					// перемещения персонажа. Если декодер move-трека врёт
+					// в масштабе, все бегают слишком быстро.
+					vec128 Mv0, Mv1;
+					CQuatfp32 Rq0, Rq1;
+					// CMTime-перегрузка, а не fp32: fp32-вариант
+					// (XRAnim.h:636) protected, публичен только
+					// virtual EvalTrack0(const CMTime&) на :697.
+					pS->EvalTrack0(CMTime::CreateFromSeconds(0.0f), Mv0, Rq0);
+					pS->EvalTrack0(CMTime::CreateFromSeconds(Dur), Mv1, Rq1);
+					const fp32 MoveLen = (CVec4Dfp32(Mv1) - CVec4Dfp32(Mv0)).Length();
+
+					int nAnimated = 0, nIdentity0 = 0, iFirstAnim = -1;
+					for (uint i = 0; i < nRotations; i++)
+					{
+						fp32 d = 0.0f;
+						for (int k = 0; k < 4; k++)
+							d += M_Fabs(s_QA[i].k[k] - s_QB[i].k[k]);
+						if (d > 1e-4f)
+						{
+							if (iFirstAnim < 0) iFirstAnim = (int)i;
+							++nAnimated;
+						}
+						if (M_Fabs(s_QA[i].k[0]) + M_Fabs(s_QA[i].k[1]) + M_Fabs(s_QA[i].k[2]) < 1e-5f)
+							++nIdentity0;
+					}
+					fprintf(stderr,
+						"[SEQ] dur=%.3f nRot=%d nMove=%d animatedRot=%d identityAt0=%d firstAnim=%d rootLen=%.2f clipSpeed=%.1f layers=%d t=%.3f\n",
+						Dur, (int)nRotations, (int)nMovements, nAnimated, nIdentity0,
+						iFirstAnim, MoveLen, (Dur > 0.0f) ? (MoveLen / Dur) : 0.0f,
+						(int)_nLayers, _pLayer[_nLayers-1].m_Time);
+					fflush(stderr);
+				}
+			}
+		}
+
+		// RIDDICK_DBG_MASK=1 -- какие слоты поворота НЕ покрыты ни одним слоем.
+		//
+		// Ключевое наблюдение пользователя: idle-анимации играют целиком, а
+		// активные (бег, атака) замирают частями -- предплечья и плечи стоят
+		// в T-позе, остальное двигается. Статический дефект (топология
+		// скелета, декодер клипа) так себя вести не может: он ломал бы одни
+		// и те же кости всегда. Значит различие вносит то, что зависит от
+		// СОСТАВА СЛОЁВ, а это ровно маски треков.
+		//
+		// idle -- обычно один слой с базовым узлом 0, то есть полная маска.
+		// Активные состояния -- 4-5 слоёв с разными m_iBlendBaseNode
+		// ([SEQ] показывал layers=4 и layers=5), и каждый слой пишет только
+		// свою часть скелета. Если маски построены неверно, часть слотов не
+		// пишет НИКТО, и они сохраняют значение с прошлого кадра -- то есть
+		// замирают ровно так, как видно на экране.
+		//
+		// Печатаем состав слоёв и слоты, которых нет ни в одной lTrackMask.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MASK");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_n = 0;
+			if (s_On && _nLayers > 1 && s_n < 20)
+			{
+				++s_n;
+				fprintf(stderr, "[MASK] nLayers=%d nRot=%d\n", (int)_nLayers, (int)nRotations);
+				for (uint l = 0; l < _nLayers; l++)
+				{
+					int nBits = 0;
+					for (uint i = 0; i < nRotations; i++)
+						if (lTrackMask[l].m_TrackMaskRot.IsEnabled(i))
+							++nBits;
+					fprintf(stderr, "[MASK]   L%d base=%d blend=%.2f flags=0x%x rotBits=%d seq=%s\n",
+						(int)l, (int)_pLayer[l].m_iBlendBaseNode, _pLayer[l].m_Blend,
+						(unsigned)_pLayer[l].m_Flags, nBits,
+						_pLayer[l].m_spSequence ? "yes" : "NULL");
+				}
+				int nUncovered = 0;
+				CFStr Sl;
+				for (uint i = 0; i < nRotations; i++)
+				{
+					bool bCovered = false;
+					for (uint l = 0; l < _nLayers && !bCovered; l++)
+						if (lTrackMask[l].m_TrackMaskRot.IsEnabled(i))
+							bCovered = true;
+					if (!bCovered)
+					{
+						++nUncovered;
+						if (nUncovered <= 24)
+							Sl += CFStrF("%d ", (int)i);
+					}
+				}
+				fprintf(stderr, "[MASK]   uncoveredRot=%d [%s]\n", nUncovered, Sl.Str());
+				fflush(stderr);
+			}
+		}
+
 		bool bFirstLayer = true;
 		for(uint l = 0; l < _nLayers; l++)
 		{
@@ -2326,6 +2537,35 @@ void CXR_Skeleton::EvalAnim(CXR_AnimLayer* _pLayers, uint _nLayers, CXR_Skeleton
 	if (!bFullLayerFound)
 	{
 		M_TRACEALWAYS("Aborting EvalAnim: Full layer not found, nLayers %d, RotNmoves %d,%d\n", _nLayers, m_nUsedRotations, m_nUsedMovements);
+
+		// RIDDICK_DBG_SKEL=1: WHY no layer qualified. A layer counts as
+		// full-body only when m_iBlendBaseNode == 0 AND m_Blend > 0.999, and
+		// this abort poisons all bones with QNaN -- which is what drops the
+		// player camera to the floor. Printing the actual terms here removes
+		// all guessing: the [ANIM] probe in Char_GetAnimLayers reports
+		// base=0 blend=1.000, so the layers that reach THIS call must differ,
+		// and the difference is visible only from here.
+		{
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SKEL");
+				s_On = (e && *e && *e != '0') ? 1 : 0;
+			}
+			static int s_nLogged = 0;
+			if (s_On && s_nLogged < 16)
+			{
+				++s_nLogged;
+				fprintf(stderr, "[SKEL] EvalAnim abort: nLayers=%d", (int)_nLayers);
+				for (uint i = 0; i < _nLayers && i < 4; i++)
+					fprintf(stderr, "  L%u{base=%d blend=%.6f seq=%d ts=%.3f t=%.3f fl=0x%x}",
+						i, (int)_pLayers[i].m_iBlendBaseNode, _pLayers[i].m_Blend,
+						(int)(_pLayers[i].m_spSequence != NULL), _pLayers[i].m_TimeScale,
+						_pLayers[i].m_Time, (unsigned)_pLayers[i].m_Flags);
+				fprintf(stderr, "\n");
+				fflush(stderr);
+			}
+		}
 		MemSetD(_pSkelInst->m_pBoneLocalPos, 0x7Fc00000, _pSkelInst->m_nBoneLocalPos * sizeof(CMat4Dfp32) >> 2);
 		MemSetD(_pSkelInst->m_pBoneTransform, 0x7Fc00000, _pSkelInst->m_nBoneTransform * sizeof(CMat4Dfp32) >> 2);
 		return;
@@ -2508,6 +2748,106 @@ void CXR_Skeleton::Read(CDataFile* _pDFile)
 		_pDFile->GetFile()->ReadLE(m_liNodes.GetBasePtr(), nNodes);
 	}
 	_pDFile->PopPosition();
+
+	// [SKELTREE] -- покрывают ли детские списки весь скелет.
+	//
+	// Замер RIDDICK_DBG_BONES на 120-костном риге Риддика:
+	//   bones=120 nodes=120 nan=44 firstNaN=74
+	//   tree: reachableFromRoot=76 childIdx=75
+	//   node 74: parent=0 rotSlot=-1 moveSlot=-1
+	// То есть обход от корня по m_liNodes/m_nChildren доходит только до 76
+	// узлов из 120, остальные 44 никогда не получают трансформ и остаются
+	// залитыми QNaN (заливка в EvalAnim, под #ifndef M_RTM). На экране это
+	// ровно то, что видно на скриншотах: предплечья Риддика застыли в
+	// T-позе, а в катсцене персонаж висит в небе вместо позиции у камеры.
+	// 70-костные скелеты при этом здоровы (nan=0), так что дело не в
+	// самом обходе, а в данных конкретного рига.
+	//
+	// Печатаем один раз на скелет (первые 8): длину плоского массива
+	// детей, сумму объявленных nChildren, число достижимых от корня и
+	// первые недостижимые узлы вместе с их родителями. Три варианта:
+	//   * сумма nChildren < nNodes-1 -- списки детей неполны в файле;
+	//   * ссылки уходят за пределы m_liNodes -- читаем не тот чанк/размер;
+	//   * узлы указывают родителя, но не числятся ничьими детьми --
+	//     дерево надо строить по m_iNodeParent, а не по спискам.
+	//
+	// ГЕЙТ И ГАРД (2026-08-04). Зонд свою задачу выполнил (топология
+	// скелета признана здоровой, см. port_status), поэтому он теперь под
+	// RIDDICK_DBG_SKELTREE=1 и не шумит в каждом прогоне. И, что важнее,
+	// он ПАДАЛ на скелете без узлов: `lSeen[0] = 1` ниже индексирует
+	// массив нулевой длины, а TArray::operator[] разыменовывает
+	// m_pData->m_pList без проверки (Mda.h:744). Ловится на любом оружии:
+	// SIGSEGV в CXR_Skeleton::Read при загрузке 'XMD:weapons/ASR_Riot' на
+	// Pa2_M_Entrance (лог владельца). Пустой скелет -- штатные данные, а
+	// не порча: у модели просто нет костей.
+	{
+		static int s_Gate = -1;
+		if (s_Gate < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_SKELTREE");
+			s_Gate = (e && *e && *e != '0') ? 1 : 0;
+		}
+		static int s_n = 0;
+		if (s_Gate && s_n < 8 && m_lNodes.Len() > 0)
+		{
+			++s_n;
+			const int nN = m_lNodes.Len();
+			const int nIdx = m_liNodes.Len();
+			int SumChildren = 0, nOutOfRange = 0;
+			for (int i = 0; i < nN; i++)
+			{
+				SumChildren += (int)m_lNodes[i].m_nChildren;
+				if ((int)m_lNodes[i].m_iiNodeChildren + (int)m_lNodes[i].m_nChildren > nIdx)
+					++nOutOfRange;
+			}
+
+			// Обход от корня ровно тем же способом, что и InitEvalNode_i
+			TArray<uint8> lSeen;
+			lSeen.SetLen(nN);
+			for (int i = 0; i < nN; i++) lSeen[i] = 0;
+			TArray<int> lStack;
+			lStack.Add(0);
+			lSeen[0] = 1;
+			int nReached = 1;
+			while (lStack.Len())
+			{
+				const int iN = lStack[lStack.Len()-1];
+				lStack.SetLen(lStack.Len()-1);
+				const CXR_SkeletonNode& N = m_lNodes[iN];
+				for (int c = 0; c < (int)N.m_nChildren; c++)
+				{
+					const int ii = (int)N.m_iiNodeChildren + c;
+					if (ii < 0 || ii >= nIdx)
+						continue;
+					const int iCh = (int)m_liNodes[ii];
+					if (iCh < 0 || iCh >= nN || lSeen[iCh])
+						continue;
+					lSeen[iCh] = 1;
+					++nReached;
+					lStack.Add(iCh);
+				}
+			}
+
+			fprintf(stderr, "[SKELTREE] nodes=%d idxArray=%d sumChildren=%d reached=%d outOfRange=%d\n",
+				nN, nIdx, SumChildren, nReached, nOutOfRange);
+			if (nReached < nN)
+			{
+				fprintf(stderr, "[SKELTREE]   unreached:");
+				int nShown = 0;
+				for (int i = 0; i < nN && nShown < 10; i++)
+					if (!lSeen[i])
+					{
+						++nShown;
+						fprintf(stderr, " %d(par=%d,ii=%d,nCh=%d)", i,
+							(int)m_lNodes[i].m_iNodeParent,
+							(int)m_lNodes[i].m_iiNodeChildren,
+							(int)m_lNodes[i].m_nChildren);
+					}
+				fprintf(stderr, "\n");
+			}
+			fflush(stderr);
+		}
+	}
 
 	// ATTACHPOINTS
 	_pDFile->PushPosition();

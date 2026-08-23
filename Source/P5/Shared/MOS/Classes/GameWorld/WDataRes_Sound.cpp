@@ -1,5 +1,8 @@
 
 #include "PCH.h"
+
+#include <stdio.h>
+#include <stdlib.h>
 #include "WDataRes_Sound.h"
 #include "WMapData.h"
 #include "WPhysState.h"
@@ -103,7 +106,7 @@ void SafeWrite(void* _pBuff, uint32 _Offset, T _StoreMe)
 
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWRes_Sound
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -165,7 +168,42 @@ void CWRes_Sound::OnLoad()
 	}
 
 	if (iSFX == -1)
-		ConOutL("�cf80WARNING: Undefined sound: " + m_Name);
+	{
+		ConOutL("§cf80WARNING: Undefined sound: " + m_Name);
+
+		// РЕШАЮЩИЙ вопрос по звуку: волна-то на диске есть?
+		// «Undefined sound» само по себе не различает две совершенно
+		// разные ситуации:
+		//   wave=YES -- волна лежит в контейнере, а дескриптор к ней не
+		//               собрался. Это НАШ дефект, парсер
+		//               Content/SfxDesc/*.xsfxc (MSound_SFXDesc.cpp);
+		//   wave=NO  -- волны нет ни в одном из контейнеров. Тогда либо
+		//               дыра в наборе, либо имя волны в контейнере не
+		//               совпадает с тем, что просит игра.
+		// Из-за этого нуля молчат диалоги: GetSampleLengthBuf возвращает 0,
+		// AI печатает «<NPC> failed Dialogue» и реплика не идёт.
+		static int s_n = 0;
+		if (s_n < 40)
+		{
+			++s_n;
+			CStr Name = m_Name.CopyFrom(4);
+			const char* pFoundIn = NULL;
+			for(int iWC = 0; iWC < lspWC.Len(); iWC++)
+			{
+				if (lspWC[iWC]->GetLocalWaveID(Name.Str()) >= 0)
+				{
+					pFoundIn = lspWC[iWC]->GetContainerSortName();
+					break;
+				}
+			}
+			fprintf(stderr, "[SFX] miss '%s' wave=%s%s%s\n",
+				Name.Str(),
+				pFoundIn ? "YES in " : "NO",
+				pFoundIn ? pFoundIn : "",
+				pFoundIn ? "  -> desc not built (our .xsfxc parser)" : "  -> wave absent from all containers");
+			fflush(stderr);
+		}
+	}
 
 	MACRO_GetRegisterObject(CSystem, pSys, "SYSTEM");
 	if(pSys->GetEnvironment()->GetValue("rs_preload_sound", "1").Val_int() == 0)
@@ -192,7 +230,7 @@ void CWRes_Sound::OnLoad()
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("�cf80WARNING: (CWRes_Sound::OnLoad) Exception while initializing sound " + m_Name);
+		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while initializing sound " + m_Name);
 	}
 	)
 
@@ -221,13 +259,13 @@ void CWRes_Sound::OnPrecache(class CXR_Engine* _pEngine)
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("�cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
+		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
 	}
 	)
 }
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWRes_Wave
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -267,7 +305,7 @@ CSC_SFXDesc* CWRes_Wave::GetSound()
 
 	if(m_SoundDesc.m_Datas.m_Pitch <= 0)
 	{
-		ConOutL(CStrF("�cf80WARNING: Wave resource has pitch of 0, '%s'", m_Name.Str()));
+		ConOutL(CStrF("§cf80WARNING: Wave resource has pitch of 0, '%s'", m_Name.Str()));
 		return NULL;
 	}
 
@@ -452,13 +490,13 @@ void CWRes_Wave::OnPrecache(class CXR_Engine* _pEngine)
 	M_CATCH(
 		catch(CCException)
 	{
-		ConOutL("�cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
+		ConOutL("§cf80WARNING: (CWRes_Sound::OnLoad) Exception while precaching sound " + m_Name);
 	}
 	)
 }
 
 /*************************************************************************************************\
-|��������������������������������������������������������������������������������������������������
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
 | CWRes_Dialogue
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -693,6 +731,22 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 	}
 	else
 	{
+		// [DLG] name -- что именно приходит в Name. Ключевой вопрос после
+		// разбора списков файлов (Docs/Research_Scripts_Dialogue.md §7):
+		// PC-контент раскладывает диалоги ПО ПОДПАПКАМ
+		// (Dialogues/PA2/Pa2_Diner/Dlg_Barrasa.xrg), а путь тут строится
+		// плоским. Если в Name голое имя -- нужен рекурсивный поиск по
+		// Content/Dialogues/**; если Name уже несёт подпуть -- дело в
+		// разделителях или регистре. Без флага, строк мало.
+		{
+			static int s_n = 0;
+			if (s_n < 40)
+			{
+				++s_n;
+				fprintf(stderr, "[DLG] name='%s'\n", Name.Str());
+				fflush(stderr);
+			}
+		}
 		CStr FileName = _pWData->ResolveFileName("DIALOGUES\\" + Name + ".XCD");
 		if(CDiskUtil::FileExists(FileName))
 			// Check if there is a content compiled version first
@@ -704,7 +758,31 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 				FileName = _pWData->ResolveFileName("DIALOGUES\\" + Name + ".XRG");
 				if(!CDiskUtil::FileExists(FileName))
 				{
-					ConOutL(CStrF("�cf80WARNING: Dialogue %s does not exist", FileName.Str()));
+					ConOutL(CStrF("§cf80WARNING: Dialogue %s does not exist", FileName.Str()));
+					// This is the end of the road for a dialogue: not in the
+					// Dialogues\\All.xcd container, no .XCD and no .XRG on
+					// disk. Since PC content ships every dialogue inside the
+					// container, reaching here means the container lookup
+					// failed -- so report the name we asked for next to what
+					// the container actually holds. A case or prefix mismatch
+					// is immediately visible that way (the lookup itself is
+					// case-insensitive, but it is a BINARY SEARCH and needs
+					// the entry list to be sorted).
+					{
+						static int s_nReported = 0;
+						if(s_nReported < 4)
+						{
+							++s_nReported;
+							const int nEnt = _pWData->m_DialogContainer.m_Entries.Len();
+							fprintf(stderr, "[DLG] lookup failed for '%s' -- container has %d entries",
+								Name.Str(), nEnt);
+							for(int i = 0; i < nEnt && i < 6; i++)
+								fprintf(stderr, " | %s",
+									_pWData->m_DialogContainer.m_Entries[i].m_Description.Str());
+							fprintf(stderr, "\n");
+							fflush(stderr);
+						}
+					}
 					return false;
 				}
 
@@ -721,7 +799,7 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 				spReg->XRG_Read(FileName, lDefines);
 				if(spReg->GetNumChildren() < 1 || spReg->GetName(0) != "DIALOGUE")
 				{
-					ConOutL(CStrF("�cf80WARNING: File %s is an invalid Dialogue", FileName.Str()));
+					ConOutL(CStrF("§cf80WARNING: File %s is an invalid Dialogue", FileName.Str()));
 					return false;
 				}
 
@@ -756,7 +834,7 @@ bool CWRes_Dialogue::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 	return true;
 }
 
-/*��������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 Class:			CTempDialogue
 
 Comments:		Small class to handle sortable Dialogue ID:s		
@@ -941,9 +1019,61 @@ void CWRes_Dialogue::CreateFromRegistry(CRegistry *_pReg, const char* _pName, CM
 		}
 		else
 		{
+			// НАЙДЕНО (2026-08-03): пустой айтем обнулял ХЭШ, чем ломал
+			// сортировку всего массива.
+			//
+			// Выше lDialogueItems.Sort() сортирует айтемы ПО ХЭШУ, и
+			// GetHashPosition ищет по m_lDialogueIndexes ДВОИЧНЫМ ПОИСКОМ
+			// -- то есть требует строго возрастающих хэшей. Обнулённый хэш
+			// в середине рвёт монотонность, и поиск начинает промахиваться
+			// по СУЩЕСТВУЮЩИМ репликам, которые лежат за таким айтемом.
+			//
+			// Ровно это и наблюдается: [DLGLEN] печатает
+			// "no dialogue item (hash miss)", а AI пишет
+			// "JIMBO failed Dialogue: IDLE_CALL Dialogueindex 712".
+			//
+			// Это тот же класс дефекта, что уже чинили в звуке:
+			// CWaveContainer_Plain::GetSFXDescIndex -- тоже двоичный поиск
+			// по списку, который никто не сортировал (SortSFXDescs).
+			//
+			// Сохраняем настоящий хэш: сортировка остаётся целой, а нулевой
+			// размер разбирается ниже по течению. RIDDICK_DLGHASH=0
+			// возвращает прежнее поведение для A/B.
+			static int s_On = -1;
+			if (s_On < 0)
+			{
+				const char* e = getenv("RIDDICK_DLGHASH");
+				s_On = (e && *e && *e == '0') ? 0 : 1;
+			}
 			m_lDialogueIndexes[j].m_StartPos = 0;
 			m_lDialogueIndexes[j].m_Size = 0;
-			m_lDialogueIndexes[j].m_Hash = 0;
+			m_lDialogueIndexes[j].m_Hash = s_On ? lDialogueItems[j].m_Hash : 0;
+		}
+	}
+
+	// Отчёт по предусловию двоичного поиска: сколько айтемов пустых и
+	// сколько нарушений возрастания хэша осталось в готовом массиве.
+	// unsorted>0 означает, что GetHashPosition будет промахиваться по
+	// существующим репликам.
+	{
+		static int s_n = 0;
+		if (s_n < 12)
+		{
+			int nEmpty = 0, nUnsorted = 0;
+			for (int k = 0; k < nDialogueItems; k++)
+			{
+				if (!m_lDialogueIndexes[k].m_Size)
+					++nEmpty;
+				if (k > 0 && m_lDialogueIndexes[k].m_Hash < m_lDialogueIndexes[k-1].m_Hash)
+					++nUnsorted;
+			}
+			if (nEmpty || nUnsorted)
+			{
+				++s_n;
+				fprintf(stderr, "[DLGSORT] '%s' items=%d empty=%d unsorted=%d\n",
+					_pName ? _pName : "?", nDialogueItems, nEmpty, nUnsorted);
+				fflush(stderr);
+			}
 		}
 	}
 }
@@ -1939,21 +2069,59 @@ int CWRes_Dialogue::GetSoundIndex_Hash(uint32 _ItemHash, CMapData* _pMapData, ui
 }
 
 
+// RIDDICK_DBG_DLGLEN=1 -- почему длина реплики вышла нулевой.
+// Ноль здесь = AI считает реплику несуществующей и печатает
+// "<NPC> failed Dialogue: <TYPE> Dialogueindex N" (AI_DeviceHandler.cpp:1375),
+// то есть NPC молчит и сцена не идёт дальше. Отказать могут пять разных
+// мест, и по внешнему сообщению они неразличимы -- отсюда явная причина.
+// Печатается ТОЛЬКО когда итоговая длина всё-таки нулевая: путь со
+// сроками субтитров ниже спасает часть реплик, и предупреждать по первому
+// же промаху означало бы врать.
+static void Riddick_DlgLenFail(const char* _pWhy, int _iIndex, const char* _pName)
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_DLGLEN");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	static int s_n = 0;
+	if (s_On && s_n < 60)
+	{
+		++s_n;
+		fprintf(stderr, "[DLGLEN] len=0: %s (iRes=%d sound='%s')\n",
+			_pWhy, _iIndex, _pName ? _pName : "-");
+		fflush(stderr);
+	}
+}
+
 fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 {
 	if(!_pBuf)
+	{
+		// Реплики нет в самом ресурсе диалога: либо .XRG не тот, либо хэш
+		// айтема не совпал (IntToHash), либо родительская цепочка не
+		// склеилась при CopyDir.
+		Riddick_DlgLenFail("no dialogue item (hash miss)", 0, NULL);
 		return 0;
+	}
+
+	const char* pWhy = "";
+	const char* pWhyName = NULL;
+	int WhyIndex = 0;
 
 	int16 iIndex;
 	SafeRead(_pBuf, 0, iIndex);
 	if(iIndex != 0)
 	{
+		WhyIndex = iIndex;
 		CWResource *pRes = m_pWData->GetResource(iIndex);
 		if(pRes && pRes->GetClass() == WRESOURCE_CLASS_SOUND)
 		{
 			CWRes_Sound *pSoundRes = (CWRes_Sound *)pRes;
 			if(pSoundRes)
 			{
+				pWhyName = pSoundRes->m_Name.Str();
 				CSC_SFXDesc *pSound = pSoundRes->GetSound();
 				if(pSound)
 				{
@@ -1963,10 +2131,21 @@ fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 						fp32 Duration = pWC->SFX_GetLength(pSound, 0) + 0.4f;
 						return Duration;
 					}
+					pWhy = "no SYSTEM.WAVECONTEXT";
 				}
+				else
+					// Самый вероятный из отказов: SFX-дескриптор не собрался
+					// нашим парсером Content/SfxDesc/*.xsfxc
+					// (MSound_SFXDesc.cpp, NSFXDescScript). Рядом в логе
+					// стоит "WARNING: Undefined sound: SND:<имя>".
+					pWhy = "sound resource has no SFXDesc";
 			}
 		}
+		else
+			pWhy = pRes ? "resource is not a sound" : "resource index dangling";
 	}
+	else
+		pWhy = "item has no sound bound (iIndex==0)";
 
 	// Didn't find sample. Find the last timed subtitle entry and a few additional seconds
 	_pBuf += 2;
@@ -2001,6 +2180,9 @@ fp32 CWRes_Dialogue::GetSampleLengthBuf(const char* _pBuf) const
 		}
 		_pBuf = pOrg + (Size << 1);
 	}
+
+	if(Time <= 0.0f)
+		Riddick_DlgLenFail(pWhy, WhyIndex, pWhyName);
 
 	return Max(0.0f, Time);
 }

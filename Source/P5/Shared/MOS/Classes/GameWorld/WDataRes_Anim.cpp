@@ -84,7 +84,7 @@ bool CWRes_Anim::Create(CWorldData* _pWData, const char* _pName, CMapData* _pMap
 	CStr FileName = _pWData->ResolveFileName("ANIM\\" + ClassName + ".XSA");
 	if (!CDiskUtil::FileExists(FileName))
 	{
-		//ConOutL(CStrF("§cf80WARNING: (CWRes_Anim::Create) Could not find %s", FileName.Str()));
+		//ConOutL(CStrF("Â§cf80WARNING: (CWRes_Anim::Create) Could not find %s", FileName.Str()));
 		return false;
 	}
 
@@ -220,7 +220,7 @@ bool CWRes_AnimList::Create(CWorldData* _pWData, const char* _pName, CMapData* _
 			}
 
 			if(iAnim == 0)
-				ConOutL(CStrF("§cf80WARNING: (CWRes_AnimList::Create) Animlist %s had an invalid sequence (%s=%s) at ID %i", &_pName[4], pList->GetName(i).Str(), pList->GetValue(i).Str(), i));
+				ConOutL(CStrF("Â§cf80WARNING: (CWRes_AnimList::Create) Animlist %s had an invalid sequence (%s=%s) at ID %i", &_pName[4], pList->GetName(i).Str(), pList->GetValue(i).Str(), i));
 			else
 				m_lspAnims[i] = _pWData->GetResourceRef(iAnim);
 		}

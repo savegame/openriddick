@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			WObj_DarklingSpawn.cpp
 
 	Author:			Olle Rosenquist
@@ -30,7 +30,7 @@ enum
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObj_ObjLightMeter
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -379,7 +379,7 @@ void CWObj_ObjLightMeter::MakeMeasure(const int& _MeasureTick)
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_DarklingSpawn
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -999,7 +999,7 @@ fp32 CWObject_DarklingSpawn::MeasureLightIntensity(bool _bForce)
 		
 		if (!m_spLightMeter)
 		{
-			ConOutL("§cf00CWObject_DarklingSpawn: Failed to create DarklingSpawn point light meter!!");
+			ConOutL("Â§cf00CWObject_DarklingSpawn: Failed to create DarklingSpawn point light meter!!");
 			return 0.0f;
 		}
 
@@ -1243,19 +1243,19 @@ void CWObject_DarklingSpawn::OnFinishEvalKeys()
 		{
 			m_SpawnEffect = "DarknessEffect_DarklingSpawn";
 			int iTemplate = m_pWServer->GetMapData()->GetResourceIndex_Template("DarknessEffect_DarklingSpawn");
-			//ConOutL("§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No spawneffect specified. (Handled outside RTM only!)");
+			//ConOutL("Â§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No spawneffect specified. (Handled outside RTM only!)");
 		}
 
 		/*if (!iModel(0))
 		{
 			iModel(0) = m_pWServer->GetMapData()->GetResourceIndex_Model("EffectSystem:FXEffect,fx_spawnpoint_light");
-			ConOutL("§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No model set for light areas. (Handled outside RTM only!)");
+			ConOutL("Â§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No model set for light areas. (Handled outside RTM only!)");
 		}
 
 		if (!iModel(1))
 		{
 			iModel(1) = m_pWServer->GetMapData()->GetResourceIndex_Model("EffectSystem:FXEffect,fx_spawnpoint_shadow");
-			ConOutL("§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No model set for dark areas. (Handled outside RTM only!)");
+			ConOutL("Â§cf00CWObject_DarklingSpawn: Invalid spawnpoint! No model set for dark areas. (Handled outside RTM only!)");
 		}*/
 	}
 	

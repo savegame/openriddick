@@ -3,11 +3,11 @@
 
 #include "MImageIO.h"
 #ifndef IMAGE_IO_NOJPG
-#include "JPGLib/JPegLib.h"
+#include "JPGLib/jpeglib.h"
 #endif
 
 #ifdef IMAGE_IO_PNG
-#include "../../SDK/Png/Png.h"
+#include "../../SDK/Png/png.h"
 #endif
 
 // -------------------------------------------------------------------
@@ -1062,8 +1062,8 @@ class CImageIO_TGA : public CImageIO
 			(img->GetFormat()==IMAGE_FORMAT_I8 && PixelSize!=1))
 				Error("Write", "Unsupported color depth.");*/
 
-/*	Pixelsize == 1,  medför inte att det är index eller gråskala.
-	Det ser ut som att du antagit det neröver, jag har ändrat en del men
+/*	Pixelsize == 1,  medfÃ¶r inte att det Ã¤r index eller grÃ¥skala.
+	Det ser ut som att du antagit det nerÃ¶ver, jag har Ã¤ndrat en del men
 	jag har nog missat desto mer.
 */
 

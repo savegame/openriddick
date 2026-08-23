@@ -2,7 +2,7 @@
 #define WRPGItem_h
 
 //-------------------------------------------------------------------
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "WRPGCore.h"
 //#include "WRPGChar.h"
 #include "../WObj_AutoVar_AttachModel.h"

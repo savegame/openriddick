@@ -9,6 +9,11 @@
 #include "../../../MSystem/Misc/MPerfGraph.h"
 #include "../WDynamics.h"
 
+#ifdef PLATFORM_LINUX
+#include <stdio.h>   // RIDDICK_DBG_MSG diagnostic in Message_SendToTarget
+#include <stdlib.h>
+#endif
+
 #ifdef MRTC_MEMORYDEBUG
 	#define CHECKMEMORY(s) { if (!_CrtCheckMemory()) Error(s, "Memory check failure."); }
 #else
@@ -21,7 +26,7 @@
 //#define SERVER_DISABLE_SCENEGRAPH
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWS_GUIDHash
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -59,7 +64,7 @@ int CWS_GUIDHash::GetIndex(int _GUID)
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWC_ObjectPerfGraph
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -85,7 +90,7 @@ void CWS_ObjectPerfGraph::Create()
 #endif
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWServer_ClientInfo
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -108,7 +113,7 @@ CWServer_ClientInfo::CWServer_ClientInfo()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWorld_Server
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -141,6 +146,31 @@ CWorld_ServerCore::CWorld_ServerCore()
 #ifndef M_RTM
 	m_bLogMessages = false;
 	m_bConsoleLogMessages = false;
+
+	// RIDDICK_LOG_MSG=1: turn on the engine's OWN script-message tracing.
+	// It is far better than anything we could bolt on: CWO_SimpleMessage::
+	// SendMessage builds a readable "to" string per message and prints
+	// "No such target! (<name>)" when the selection comes back empty
+	// (WObj_SimpleMessage.cpp:281-311), which is exactly the silent failure
+	// we are hunting -- a valve that animates while the door it targets
+	// never gets the message.
+	// Normally this is only reachable through AI debug command 27
+	// (AICore.cpp:20686), which needs a debug path we do not have wired.
+	// Guarded by #ifndef M_RTM upstream, and M_RTM is not defined for this
+	// target (Target_Linux_SDL2.h:65), so the tracing really is compiled in.
+	{
+		const char* e = getenv("RIDDICK_LOG_MSG");
+		if (e && *e && *e != '0')
+		{
+			m_bConsoleLogMessages = true;
+			// Print a marker so a run can be told apart from one built
+			// before this flag existed: a log with the flag set but WITHOUT
+			// this line simply predates the feature. Cost us a round-trip
+			// once already.
+			fprintf(stderr, "[MSG] script message logging ON (RIDDICK_LOG_MSG)\n");
+			fflush(stderr);
+		}
+	}
 #endif
 
 #ifdef	SERVER_STATS
@@ -794,12 +824,77 @@ void CWorld_ServerCore::Message_SendToTarget(const CWObject_Message& _Msg, uint3
 	TSelection<CSelection::LARGE_BUFFER> Selection;
 	{
 		ThisClass::Selection_AddTarget(Selection, _NameHash);
+
+		// RIDDICK_DBG_MSG=1 (Linux port diagnostic): report targets that
+		// resolve to NOTHING. This is the one failure mode that is
+		// completely silent in the original code -- the selection comes
+		// back empty and Message_SendToSelection just iterates zero
+		// elements, so a scripted chain (valve -> door) dies here without
+		// a single line of output, which matches "the valve animates but
+		// the door never moves".
+		// Logged once per (name hash, message) pair, capped, because these
+		// fire every time the player retries the same switch.
+		{
+			static int sDbgMsg = -1;
+			if (sDbgMsg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_MSG");
+				sDbgMsg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (sDbgMsg && Selection.GetNumElements() == 0)
+			{
+				enum { MAXSEEN = 64 };
+				static uint32 sSeenHash[MAXSEEN] = { 0 };
+				static uint32 sSeenMsg[MAXSEEN] = { 0 };
+				static int sNSeen = 0;
+				bool bSeen = false;
+				for (int k = 0; k < sNSeen; ++k)
+					if (sSeenHash[k] == _NameHash && sSeenMsg[k] == (uint32)_Msg.m_Msg) { bSeen = true; break; }
+				if (!bSeen && sNSeen < MAXSEEN)
+				{
+					sSeenHash[sNSeen] = _NameHash;
+					sSeenMsg[sNSeen] = (uint32)_Msg.m_Msg;
+					++sNSeen;
+					fprintf(stderr, "[MSG] target hash=0x%08x UNRESOLVED (0 objects) msg=0x%x p0=%d p1=%d\n",
+						(unsigned)_NameHash, (unsigned)_Msg.m_Msg,
+						(int)_Msg.m_Param0, (int)_Msg.m_Param1);
+					fflush(stderr);
+				}
+			}
+		}
+
 		ThisClass::Message_SendToSelection(_Msg, Selection);
 	}
 }
 
 void CWorld_ServerCore::Message_SendToTarget(const CWObject_Message& _Msg, const char* _pName)
 {
+	// Same diagnostic as above, but here the NAME is still available --
+	// the hash overload can only report the hash. Log the pair so an
+	// unresolved hash in that log can be read back to a name.
+	{
+		static int sDbgMsgName = -1;
+		if (sDbgMsgName < 0)
+		{
+			const char* e = getenv("RIDDICK_DBG_MSG");
+			sDbgMsgName = (e && *e && *e != '0') ? 1 : 0;
+		}
+		if (sDbgMsgName && _pName)
+		{
+			enum { MAXNAMES = 128 };
+			static uint32 sSeen[MAXNAMES] = { 0 };
+			static int sN = 0;
+			const uint32 H = StringToHash(_pName);
+			bool bSeen = false;
+			for (int k = 0; k < sN; ++k) if (sSeen[k] == H) { bSeen = true; break; }
+			if (!bSeen && sN < MAXNAMES)
+			{
+				sSeen[sN++] = H;
+				fprintf(stderr, "[MSG] name '%s' -> hash=0x%08x\n", _pName, (unsigned)H);
+				fflush(stderr);
+			}
+		}
+	}
 	ThisClass::Message_SendToTarget(_Msg, StringToHash(_pName));
 }
 

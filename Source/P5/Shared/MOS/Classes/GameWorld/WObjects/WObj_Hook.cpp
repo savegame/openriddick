@@ -8,6 +8,129 @@
 #include "../../../../Projects/Main/GameClasses/WObj_Misc/WObj_ScenePoint.h"
 #include "../WDynamicsEngine.h"
 
+#include <stdio.h>	// RIDDICK_DBG_PATH diagnostic
+#include <stdlib.h>	// getenv
+
+// RIDDICK_DBG_PATH=1: trace the engine-path movers -- the objects that
+// actually open doors, raise gates and drive chains.
+//
+// Why here: the Pa1_Pit log proves the script side is healthy. The valve's
+// action cutscene fires, OBJMSG_ACTIONCUTSCENE_DOTRIGGER arrives, and the
+// whole authored chain runs with Result: 1 on every hop --
+//   valveacs -> VALVEOFF -> CHAIN1 / CHAIN2, then XTRAGATE,
+// including chain1's own timed messages (the dor_metal_move03 movement
+// sound at +0.06s and a WaitImpulse at exactly +1.0s). Timed messages are
+// driven off the path clock, so the path clock runs. Yet the geometry does
+// not move and characters are still blocked by it.
+//
+// That leaves three candidates, and these probes separate them:
+//  * the path resource parsed to nothing -- CWO_PosHistory::LoadPath()
+//    returns silently when the version word does not match
+//    POSHISTORY_RESOURCEID/_PACKED, leaving zero sequences and therefore no
+//    motion and no error;
+//  * the path is there but evaluates to a constant matrix (mis-parsed
+//    keyframes: wrong stride, wrong transform);
+//  * the motion is computed but Attach_SetPosition() keeps failing on
+//    collision, so the mover never leaves its start position.
+static bool PathDbg_Enabled()
+{
+	static int s_On = -1;
+	if (s_On < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_PATH");
+		s_On = (e && *e && *e != '0') ? 1 : 0;
+	}
+	return s_On != 0;
+}
+
+// RIDDICK_DBG_PATH=1: hex-dump a poshistory resource so the PC layout can be
+// reverse-engineered.
+//
+// Needed because the PC data uses poshistory version 1002, which this PS3
+// snapshot does not know: it only handles POSHISTORY_RESOURCEID (1000,
+// every keyframe a full 32-byte CFileKeyframe) and
+// POSHISTORY_PACKED_RESOURCEID (1001, first and last keyframe full, the
+// middle ones 16-byte CFileKeyframe_Packed). LoadPath() drops anything else
+// silently, so EVERY mover in the level ends up with zero sequences -- which
+// is why doors, gates and chains never move while their scripts run
+// perfectly.
+//
+// The dump prints the resource length together with the first words, and the
+// two sizes the known layouts would imply for the same keyframe count. If
+// len matches one of them, 1002 is an existing layout under a new version
+// number; if it matches neither, the keyframe record itself changed and the
+// hex bytes are what is left to read it from.
+static void PathDbg_DumpResource(const char* _pName, int _iObj, int _iRes,
+	const uint8* _pData, int _Len)
+{
+	// LoadPath() is retried every time GetDuration() is called as long as the
+	// path stays invalid, so the same resource comes past here every frame.
+	// Dump distinct resource indices only, and few of them.
+	static int s_lSeen[6] = { -1, -1, -1, -1, -1, -1 };
+	static int s_nDumped = 0;
+	for (int i = 0; i < s_nDumped; i++)
+		if (s_lSeen[i] == _iRes)
+			return;
+	if (s_nDumped >= (int)(sizeof(s_lSeen) / sizeof(s_lSeen[0])))
+		return;
+	s_lSeen[s_nDumped++] = _iRes;
+
+	const uint32* w = (const uint32*)_pData;
+	const int nWords = _Len / 4;
+
+	fprintf(stderr, "[PATH] dump obj=%d '%s' iRes=%d len=%d\n", _iObj, _pName, _iRes, _Len);
+	if (nWords >= 4)
+	{
+		// The tag is optional: XWC writes 'PATH' in front so it can recognise
+		// paths inside resource data. Report both readings so the log states
+		// which word the version actually came from.
+		fprintf(stderr, "[PATH] dump   w0=0x%08x w1=0x%08x w2=0x%08x w3=0x%08x  tag='%c%c%c%c'\n",
+			(unsigned)w[0], (unsigned)w[1], (unsigned)w[2], (unsigned)w[3],
+			_pData[0] >= 32 && _pData[0] < 127 ? _pData[0] : '.',
+			_pData[1] >= 32 && _pData[1] < 127 ? _pData[1] : '.',
+			_pData[2] >= 32 && _pData[2] < 127 ? _pData[2] : '.',
+			_pData[3] >= 32 && _pData[3] < 127 ? _pData[3] : '.');
+
+		// Try both "version at w0" and "version at w1" (tag present).
+		for (int iBase = 0; iBase <= 1 && iBase + 2 < nWords; iBase++)
+		{
+			const uint32 Ver = w[iBase];
+			const uint32 nSeq = w[iBase + 1];
+			const uint32 nKeys = w[iBase + 2];
+			if ((Ver & 0xffff) < 900 || (Ver & 0xffff) > 1100)
+				continue;
+			const int HdrWords = iBase + 2;			// version + nSeq (+ tag)
+			const int Size1000 = HdrWords * 4 + 4 + (int)nKeys * 32;
+			const int Size1001 = HdrWords * 4 + 4 + (nKeys >= 2 ? 64 + ((int)nKeys - 2) * 16
+			                                                    : (int)nKeys * 32);
+			fprintf(stderr, "[PATH] dump   as ver@w%d: ver=%u(id=%u,flags=%u) nSeq=%u nKeys0=%u"
+				"  size_if_1000=%d size_if_1001=%d\n",
+				iBase, (unsigned)Ver, (unsigned)(Ver & 0xffff), (unsigned)((Ver >> 16) & 1),
+				(unsigned)nSeq, (unsigned)nKeys, Size1000, Size1001);
+		}
+	}
+
+	const int nShow = Min(_Len, 320);
+	for (int i = 0; i < nShow; i += 16)
+	{
+		char Hex[16 * 3 + 1];
+		char Asc[17];
+		int n = Min(16, nShow - i);
+		for (int j = 0; j < n; j++)
+		{
+			const uint8 b = _pData[i + j];
+			Hex[j * 3 + 0] = "0123456789abcdef"[b >> 4];
+			Hex[j * 3 + 1] = "0123456789abcdef"[b & 15];
+			Hex[j * 3 + 2] = ' ';
+			Asc[j] = (b >= 32 && b < 127) ? (char)b : '.';
+		}
+		Hex[n * 3] = 0;
+		Asc[n] = 0;
+		fprintf(stderr, "[PATH] hex %04x: %-48s |%s|\n", i, Hex, Asc);
+	}
+	fflush(stderr);
+}
+
 #ifdef COMPILER_MSVC
 #pragma warning(disable : 4756)	// warning C4756: overflow in constant arithmetic, (Pack32/Unpack32, fix someday -JA)
 #endif
@@ -912,6 +1035,48 @@ void CWObject_Attach::OnRefresh()
 	}
 	
 	CMTime Time = GetUpdatedTime();
+
+	// RIDDICK_DBG_PATH: what the mover wants versus where it is, once per
+	// refresh while it is running. Reads as one of:
+	//  * want == pos and never changing -> GetRenderMatrix() is constant, so
+	//    the path decoded to a single point (or not at all);
+	//  * want != pos every tick -> the move keeps being refused, see the
+	//    "[PATH] blocked" line below;
+	//  * want advancing and pos following -> the server side is fine and the
+	//    problem is on the client/render side.
+	// Also prints the PHYSICS/SEMIPHYSICS client flags: without
+	// CLIENTFLAGS_PHYSICS the whole movement branch below is skipped and the
+	// object never moves server-side at all.
+	if(PathDbg_Enabled() && (m_ClientFlags & CLIENTFLAGS_RUN))
+	{
+		// Per-object budget, not a global one: the map's always-running script
+		// loops (MAPSTARTSCRIPT, SUPERSCRIPTLOOP) otherwise eat the whole
+		// allowance before a door is ever touched.
+		static int16 s_lObj[24] = { 0 };
+		static uint8 s_lCount[24] = { 0 };
+		int iSlot = -1;
+		for(int i = 0; i < 24; i++)
+		{
+			if(s_lObj[i] == m_iObject) { iSlot = i; break; }
+			if(s_lObj[i] == 0) { s_lObj[i] = m_iObject; iSlot = i; break; }
+		}
+		if(iSlot >= 0 && s_lCount[iSlot] < 8)
+		{
+			s_lCount[iSlot]++;
+			CMat4Dfp32 Want = GetRenderMatrix(m_pWServer, Time, m_pWServer->GetGameTick(), 0);
+			const CVec3Dfp32 WantPos = CVec3Dfp32::GetRow(Want, 3);
+			const CVec3Dfp32 CurPos = GetPosition();
+			fprintf(stderr, "[PATH] tick obj=%d '%s' t=%.3f want=(%.1f %.1f %.1f) pos=(%.1f %.1f %.1f) "
+				"phys=%d semi=%d\n",
+				(int)m_iObject, GetName(), Time.GetTime(),
+				WantPos.k[0], WantPos.k[1], WantPos.k[2],
+				CurPos.k[0], CurPos.k[1], CurPos.k[2],
+				(int)((m_ClientFlags & CLIENTFLAGS_PHYSICS) != 0),
+				(int)((m_ClientFlags & CLIENTFLAGS_SEMIPHYSICS) != 0));
+			fflush(stderr);
+		}
+	}
+
 	if(m_ClientFlags & CLIENTFLAGS_SEMIPHYSICS)
 	{
 		Attach_SetPosition(GetRenderMatrix(m_pWServer, Time, m_pWServer->GetGameTick(), 0), false);
@@ -969,6 +1134,26 @@ void CWObject_Attach::OnRefresh()
 			{
 				if(!Attach_SetPosition(Mat, false))
 				{
+					// RIDDICK_DBG_PATH: the move was refused by collision.
+					// This is the branch that makes a door look stuck while
+					// its script and its clock both run correctly.
+					if(PathDbg_Enabled())
+					{
+						static int s_nBlocked = 0;
+						if(s_nBlocked++ < 200)
+						{
+							const CVec3Dfp32 WantPos = CVec3Dfp32::GetRow(Mat, 3);
+							const CVec3Dfp32 OldPos = CVec3Dfp32::GetRow(Old, 3);
+							fprintf(stderr, "[PATH] blocked obj=%d '%s' want=(%.1f %.1f %.1f) "
+								"old=(%.1f %.1f %.1f) autorev=%d damage=%d\n",
+								(int)m_iObject, GetName(),
+								WantPos.k[0], WantPos.k[1], WantPos.k[2],
+								OldPos.k[0], OldPos.k[1], OldPos.k[2],
+								(int)((m_Flags & FLAGS_AUTOREVERSE) != 0), (int)m_Damage);
+							fflush(stderr);
+						}
+					}
+
 					if(m_Flags & FLAGS_AUTOREVERSE)
 						Reverse();
 					else
@@ -2302,6 +2487,38 @@ void CWObject_Engine_Path::Run(int _iType)
 		UpdateNoRefreshFlag();
 		GetUpdatedTime();
 
+		// RIDDICK_DBG_PATH: state of the path at the moment the mover starts.
+		// nSeq=0 means LoadPath() produced nothing (version word not
+		// recognised, or the resource is not a poshistory at all); dur<=0
+		// means the sequence exists but has no length; travel is the distance
+		// between the matrices at t=0 and t=dur, so travel==0 with dur>0 says
+		// the keyframes decoded to a single point.
+		if(PathDbg_Enabled())
+		{
+			static int s_nLogged = 0;
+			if(s_nLogged++ < 200)
+			{
+				CWO_PosHistory* pPH = GetClientData(this);
+				const int nSeq = pPH ? pPH->m_lSequences.Len() : -1;
+				const fp32 Dur = GetDuration();
+				fp32 Travel = -1.0f;
+				if(pPH && m_iAnim2 >= 0 && m_iAnim2 < nSeq && Dur > 0.0f)
+				{
+					CMat4Dfp32 M0, M1;
+					if(pPH->GetMatrix(m_iAnim2, 0.0f, false, 0, M0) &&
+					   pPH->GetMatrix(m_iAnim2, Dur, false, 0, M1))
+						Travel = (CVec3Dfp32::GetRow(M1, 3) - CVec3Dfp32::GetRow(M0, 3)).Length();
+				}
+				const CVec3Dfp32 Pos = GetPosition();
+				fprintf(stderr, "[PATH] run obj=%d '%s' type=%d iAnim0=%d iAnim2=%d nSeq=%d "
+					"dur=%.3f travel=%.2f cflags=0x%x flags=0x%x pos=(%.1f %.1f %.1f)\n",
+					(int)m_iObject, GetName(), _iType, (int)m_iAnim0, (int)m_iAnim2, nSeq,
+					Dur, Travel, (unsigned)m_ClientFlags, (unsigned)m_Flags,
+					Pos.k[0], Pos.k[1], Pos.k[2]);
+				fflush(stderr);
+			}
+		}
+
 		if(m_Flags & FLAGS_PHYSICS_DRIVEN && ClientFlags() & CLIENTFLAGS_RUN)	//we can have received a stop msg already
 		{
 			if(m_iObjectLinkedToEP)
@@ -2886,7 +3103,14 @@ void CWObject_Engine_Path::LoadPath(CWorld_PhysState* _pPhysState, CWObject_Core
 	{
 		TAP<const uint8> pData = _pPhysState->GetMapData()->GetResource_XWData(pCD->m_iXWData, _iIndex);
 		if (pData.GetBasePtr())
+		{
+			if (PathDbg_Enabled())
+				// CWObject_CoreData has no GetName(); the object index is
+				// enough to pair this with the "[PATH] run" line.
+				PathDbg_DumpResource("?", _pObj->m_iObject, _iIndex,
+					pData.GetBasePtr(), pData.Len());
 			GetClientData(_pObj)->LoadPath(pData.GetBasePtr(), pCD->m_TransformMat);
+		}
 	}
 }
 
@@ -3039,7 +3263,7 @@ void CWObject_Engine_Path::OnSpawnWorld()
 		CAttachClientData_Engine_Path* pCD = GetAttachClientData_Engine_Path(this);
 		TAP<const uint8> pData = m_pWServer->GetMapData()->GetResource_XWData(pCD->m_iXWData, m_iAnim0);
 		if (!pData.Len())
-			ConOutL(CStrF("§cf00ERROR: Resource data is missing for engine path %s (%d)", GetName(), m_iObject));
+			ConOutL(CStrF("Â§cf00ERROR: Resource data is missing for engine path %s (%d)", GetName(), m_iObject));
 
 		// If we're a child object, adjust the 'pathrelmat' to work in local space 
 		if (GetParent() > 0)
@@ -3158,7 +3382,7 @@ void CWObject_Engine_Path::AttachObject()
 			m_PosOffset = WVec * InvObjMat;
 			if(!pObj->m_pRigidBody2)
 			{
-				ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) target object %s has no rigid body information, creating it\n", GetName(), m_TargetName.Str()));
+				ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) target object %s has no rigid body information, creating it\n", GetName(), m_TargetName.Str()));
 				CWO_PhysicsState Phys = pObj->GetPhysState();
 				if(!Phys.m_nPrim)
 				{	//Object has no phys primitives, lets create a box
@@ -3187,10 +3411,10 @@ void CWObject_Engine_Path::AttachObject()
 			m_pWServer->Message_SendToObject(Msg, m_iObjectLinkedToEP);
 		}
 		else
-			ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found\n", GetName(), m_TargetName.Str()));
+			ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found\n", GetName(), m_TargetName.Str()));
 	}
 	else
-		ConOutL(CStrF("§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found, or multiple copies were found\n", GetName(), m_TargetName.Str()));
+		ConOutL(CStrF("Â§cf80WARNING: Physic driven engine path(Name: %s) has target object %s but it couldn't be found, or multiple copies were found\n", GetName(), m_TargetName.Str()));
 }
 
 fp32 CWObject_Engine_Path::GetDuration()
@@ -3695,7 +3919,7 @@ CMat4Dfp32 CWObject_Engine_Path::GetRenderMatrix(CWorld_PhysState *_pWPhysState,
 	if(m_iAnim2 < 0 || m_iAnim2 >= pCData->m_lSequences.Len())
 	{
 		if(m_iAnim2 != 0)
-			ConOutLD(CStrF("§cf80WARNING: (GP) CWObject_Engine_Path, Sequence %i does not exist", m_iAnim2));
+			ConOutLD(CStrF("Â§cf80WARNING: (GP) CWObject_Engine_Path, Sequence %i does not exist", m_iAnim2));
 
 		if(GetAttach(0))
 		{

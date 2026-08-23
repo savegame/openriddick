@@ -16674,7 +16674,7 @@ bool CAI_Action_Combat::FindScenePointDestination()
 	{	// We are retreating a bit
 		SpeakRandom(CAI_Device_Sound::ENEMY_RETREAT);
 		/*
-		Har lagt in det på riflecombat
+		Har lagt in det pÃ¥ riflecombat
 
 		(0 = left, 1 = right)
 

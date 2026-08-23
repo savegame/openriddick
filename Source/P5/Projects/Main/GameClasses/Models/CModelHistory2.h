@@ -4,7 +4,7 @@
 //----------------------------------------------------------------------
 
 #include "MFloat.h"
-#include "../../../../Shared/mos/xr/XRCustomModel.h"
+#include "../../../../Shared/MOS/XR/XRCustomModel.h"
 //----------------------------------------------------------------------
 
 enum IPMethod

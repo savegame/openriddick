@@ -9,7 +9,7 @@
 #include "../WObj_Char.h"
 #include "WRPGAmmo.h"
 #include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_SimpleMessage.h"
-#include "../WObj_AI/AI_Knowledgebase.h"
+#include "../WObj_AI/AI_KnowledgeBase.h"
 
 //-------------------------------------------------------------------
 //- CRPG_Object_Pickup ----------------------------------------------

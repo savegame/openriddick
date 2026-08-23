@@ -1,8 +1,8 @@
  #include "PCH.h"
 #include "AICore.h"
-#include "../../../../shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
-#include "../../../../shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
-#include "../../../../shared/MOS/XR/XRBlockNav.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_PhysCluster.h"
+#include "../../../../Shared/MOS/XR/XRBlockNav.h"
 #include "../WObj_Game/WObj_GameMod.h"
 #include "WObj_Aux/WObj_AreaInfo.h"
 #include "WObj_Aux/WObj_Team.h"
@@ -34,7 +34,7 @@ enum
 MRTC_IMPLEMENT(CAI_Core, CReferenceCount);
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObj_LightMeter
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -7250,7 +7250,7 @@ bool CAI_Core::CheckMoveresult(int32 _MoveResult,CWO_ScenePoint* _pScenePoint)
 		{
 			CVec3Dfp32 Start = m_PathFinder.SafeGetPathPosition(GetBasePos(),2,1);
 			CVec3Dfp32 End = m_PathFinder.SafeGetPathPosition(_pScenePoint->GetPosition(),2,1);
-			ConOutL(CStrF("§c3f0WARNING: Unreachable ScenePoint! (User: %s(%d) Start: %d, %d, %d;  End:  %d, %d, %d; Sp: %s)",
+			ConOutL(CStrF("Â§c3f0WARNING: Unreachable ScenePoint! (User: %s(%d) Start: %d, %d, %d;  End:  %d, %d, %d; Sp: %s)",
 				m_pGameObject->GetName(),
 				GetObjectID(),
 				TruncToInt(Start[0]), TruncToInt(Start[1]), TruncToInt(Start[2]),
@@ -16010,7 +16010,7 @@ bool CAI_Core::OnImpulse(int _iImpulse, int _iSender, int _iObject, const CVec3D
 #ifndef M_RTM
 				if (DebugTarget())
 				{
-					CStr Name = CStr("§c3f0") +  m_pGameObject->GetName();
+					CStr Name = CStr("Â§c3f0") +  m_pGameObject->GetName();
 					ConOutL(Name+CStr(" team added ")+pTeam->GetName());
 				}
 #endif
@@ -16031,7 +16031,7 @@ bool CAI_Core::OnImpulse(int _iImpulse, int _iSender, int _iObject, const CVec3D
 #ifndef M_RTM
 					if (DebugTarget())
 					{
-						CStr Name = CStr("§c3f0") +  m_pGameObject->GetName();
+						CStr Name = CStr("Â§c3f0") +  m_pGameObject->GetName();
 						ConOutL(Name+CStr(" team removed ")+pTeam->GetName());
 					}
 #endif

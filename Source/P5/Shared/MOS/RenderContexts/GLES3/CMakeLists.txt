@@ -7,6 +7,7 @@ add_library(p5_rc_gles3 STATIC
     GLES3_VBOStreamer.cpp
     GLES3_DXT.cpp
     GLES3_RTTOverlay.cpp
+    GLES3_Geometry.cpp
 )
 
 target_compile_options(p5_rc_gles3 PRIVATE ${P5_ENGINE_CXX_FLAGS})

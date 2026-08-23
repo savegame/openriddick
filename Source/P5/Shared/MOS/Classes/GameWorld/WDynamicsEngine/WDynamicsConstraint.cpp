@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "PCH.h"
 
 #include "WDynamicsConstraint.h"
 
@@ -697,7 +697,7 @@ public:
 
 		vec128 LocalAnchorPoint1 = M_VSub(WorldAnchorPoint1, T1.r[3]);
 
-		// TODO: Hmmm, här förutsätter man att det är 1:an som är axeln....
+		// TODO: Hmmm, hÃ¤r fÃ¶rutsÃ¤tter man att det Ã¤r 1:an som Ã¤r axeln....
 		vec128 Axis1 = M_VNrm3(_Axis1);
 		Axis1 = M_VMulMat(Axis1, T1);
 
@@ -709,9 +709,9 @@ public:
 		vec128 WorldRA = M_VSub(M_VMulMat(_RA, T1), T1.r[3]);
 		//vec128 WorldRB = M_VSub(M_VMulMat(_RB, T2), T2.r[3]);
 
-		// TODO: Denna operationen är nog onödig, borde funka med -= RelativeAngle nedan
-		// Då ska M_VMulMat också bort. Problemt är att vinklarna kan gå utanför [-PI, PI] efter -=...
-		// Titta även på den andra Generate...
+		// TODO: Denna operationen Ã¤r nog onÃ¶dig, borde funka med -= RelativeAngle nedan
+		// DÃ¥ ska M_VMulMat ocksÃ¥ bort. Problemt Ã¤r att vinklarna kan gÃ¥ utanfÃ¶r [-PI, PI] efter -=...
+		// Titta Ã¤ven pÃ¥ den andra Generate...
 		CAxisRotfp32 AxisRot((CVec3Dfp32& )Axis, 1.0f *_RelativeAngle * (1.0f / (2.0f * _PI)));
 		CMat4Dfp32 RotMat;
 		AxisRot.CreateMatrix(RotMat);		
@@ -788,7 +788,7 @@ public:
 		vec128 LocalAnchorPoint1 = M_VSub(WorldAnchorPoint1, T1.r[3]);
 		vec128 LocalAnchorPoint2 = M_VSub(WorldAnchorPoint2, T2.r[3]);
 
-		// TODO: Hmmm, här förutsätter man att det är 1:an som är axeln....
+		// TODO: Hmmm, hÃ¤r fÃ¶rutsÃ¤tter man att det Ã¤r 1:an som Ã¤r axeln....
 		vec128 Axis1 = M_VNrm3(_Axis1);
 		Axis1 = M_VMulMat(Axis1, T1);
 
@@ -1826,7 +1826,7 @@ int CWD_HingeJoint::GenerateContact(const CWD_DynamicsWorld& _World, vec128 _dt,
 	}*/
 
 	/*
-	if (CWD_ConstraintUtil::GenerateMínDistanceContact3(m_iRB1, m_iRB2, RBState1, RBState2, 1.9f, dtinv, CI3, CI4))
+	if (CWD_ConstraintUtil::GenerateMÃ­nDistanceContact3(m_iRB1, m_iRB2, RBState1, RBState2, 1.9f, dtinv, CI3, CI4))
 	{
 		nContacts += 2;
 	}*/

@@ -1,5 +1,5 @@
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			-
 					
 	Author:			Erik Olofsson
@@ -19,9 +19,9 @@
 //#define __INC_MCC
 
 #include "MCCInc.h"
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MRTC_RemoteDebug.h"
-#include "MDA.h"
+#include "Mda.h"
 #include "MDA_3D.h"
 #include "MDA_Hash.h"
 #include "MDA_PQueue.h"
@@ -29,7 +29,7 @@
 #include "MMath.h"
 #include "MMath_Vec128.h"
 #include "MFile.h"
-#include "MComp.h"
+#include "Mcomp.h"
 #include "MMemMgrHeap.h"
 #include "MMemMgrPool.h"
 #include "MRTC_CallGraph.h"

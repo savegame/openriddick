@@ -71,8 +71,26 @@
 #define __w64						// MSVC 32/64 portability annotation, no-op here
 
 #define M_FAKEDYNAMICCAST
-#define M_EXCEPTIONS 0
-#define M_FILEERROR M_BREAKPOINT
+
+// ИСКЛЮЧЕНИЯ ВКЛЮЧЕНЫ (2026-08-08). Было `0`, унаследовано от Target_PS3.h.
+//
+// Почему это важнее, чем кажется. В движке ошибка -- это `throw
+// CCException`, который наверху ловится и превращается в сообщение: «файла
+// нет», «неподдерживаемый класс», «доступ не закрыт» -- всё это штатные,
+// переживаемые ситуации. При `M_EXCEPTIONS 0` каждый `Error(...)` и
+// `FileError(...)` разворачивается в `M_BREAKPOINT`, то есть `ud2` и SIGILL.
+// Любая мелочь, которую ретейл пережил бы строкой в консоли, убивала
+// процесс -- и именно это, а не «плохие данные», давало серию падений на
+// PS3-наборе: по одному прогону на каждую мелочь.
+//
+// Что меняется: `M_TRY`/`M_CATCH` перестают быть пустышками и становятся
+// настоящими `try`/`catch`, а `Error`/`FileError`/`MemError` начинают
+// бросать. Обработчики в коде УЖЕ НАПИСАНЫ (214 блоков `M_TRY`) -- они
+// просто никогда не выполнялись.
+//
+// Откат -- вернуть `0` здесь, ничего больше.
+#define M_EXCEPTIONS 1
+#define M_FILEERROR M_BREAKPOINT	// используется только при M_EXCEPTIONS 0
 
 #define IMAGE_IO_NOJPG
 #define IMAGE_IO_NOPCX
@@ -122,8 +140,13 @@
 #define M_ZERO128(_x, _y) memset((void*)((auint)(_x) + (auint)(_y)), 0, 128)
 #define M_PRECACHE128(_x, _y) __builtin_prefetch((const void*)((auint)(_x) + (auint)(_y)))
 
-#define M_TRY
-#define M_CATCH(_ToCatch)
+// Форма использования в коде:
+//     M_TRY { ... } M_CATCH( catch (CCException) { ... } );
+// поэтому `M_TRY` -> `try`, а `M_CATCH(x)` просто раскрывает свой аргумент.
+// За одним `M_TRY` бывает НЕСКОЛЬКО `M_CATCH` (иногда под `#ifdef`) -- это
+// законно, у одного `try` может быть несколько обработчиков.
+#define M_TRY try
+#define M_CATCH(_ToCatch) _ToCatch
 
 #define M_OFFSET(_Class, _Member, _Dest) aint _Dest;\
 			{\

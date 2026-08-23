@@ -3,7 +3,7 @@
 
 //-------------------------------------------------------------------
 
-#include "MRTC.h"
+#include "Mrtc.h"
 #include "MMath.h"
 #include "../WRPG/WRPGDef.h"
 

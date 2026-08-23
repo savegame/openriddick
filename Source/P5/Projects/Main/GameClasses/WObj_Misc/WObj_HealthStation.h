@@ -1,8 +1,8 @@
-// ...men annars hade det inte varit så tokigt.
+// ...men annars hade det inte varit sÃ¥ tokigt.
 #ifndef __WObj_HealthStation_h
 #define __WObj_HealthStation_h
 
-#include "WOBj_ActionCutscene.h"
+#include "WObj_ActionCutscene.h"
 
 enum
 {

@@ -1,6 +1,6 @@
 #include "PCH.h"
 #include "../AICore.h"
-#include "../../Wobj_CharMsg.h"
+#include "../../WObj_CharMsg.h"
 
 
 //The engage behaviour. As in attacking, not a prelude to marriage :)

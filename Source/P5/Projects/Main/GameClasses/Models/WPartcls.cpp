@@ -62,9 +62,9 @@ CXR_Model_ParticleSystem::CXR_Model_ParticleSystem()
 		m_spTC = pTC;
 	}
 	else
-		LogFile("§cf80WARNING: Particle-texture not found (PARTICLE_SOFT1)");
+		LogFile("Â§cf80WARNING: Particle-texture not found (PARTICLE_SOFT1)");
 
-	// ACHTUNG!, sp i global-scope -> förstörs EFTER g_pOS & TextureContext !!!!
+	// ACHTUNG!, sp i global-scope -> fÃ¶rstÃ¶rs EFTER g_pOS & TextureContext !!!!
 /*	if (ms_spTC == NULL)
 	{
 		ms_spTC = DNew(CTextureContainer_Plain) CTextureContainer_Plain;
@@ -1323,7 +1323,7 @@ void CXR_Model_Particles_Blood::RenderParticles(CRenderContext* _pRender, CXR_Wo
 #endif
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_Model_WaterTile
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1442,7 +1442,7 @@ void CXR_Model_WaterTile::OnPostCreate()
 
 	m_SurfaceID = pSurfCtx->GetSurfaceID(m_Surface);
 	if (!m_SurfaceID)
-		ConOutL("§cf80WARNING: (CXR_Model_WaterTile::OnPostCreate) Undefined surface " + m_Surface);
+		ConOutL("Â§cf80WARNING: (CXR_Model_WaterTile::OnPostCreate) Undefined surface " + m_Surface);
 
 	m_MediumFlags = pSurfCtx->GetSurface(m_SurfaceID)->GetBaseFrame()->m_Medium.m_MediumFlags;
 	m_MediumFlags |= XW_MEDIUM_WATER;
@@ -1460,7 +1460,7 @@ void CXR_Model_WaterTile::OnPrecache(CXR_Engine* _pEngine, int _iVariation)
 
 	m_SurfaceID = pSurfCtx->GetSurfaceID(m_Surface);
 	if (!m_SurfaceID)
-		ConOutL("§cf80WARNING: (CXR_Model_WaterTile::OnPrecache) Undefined surface " + m_Surface);
+		ConOutL("Â§cf80WARNING: (CXR_Model_WaterTile::OnPrecache) Undefined surface " + m_Surface);
 	else
 	{
 		CXW_Surface *pSurf = pSurfCtx->GetSurface(m_SurfaceID);
@@ -2516,7 +2516,7 @@ void CXR_Model_WaterTile::CollectPCS(CXR_PhysicsContext* _pPhysContext, const ui
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CXR_Model_WaterTile2
 |__________________________________________________________________________________________________
 \*************************************************************************************************/

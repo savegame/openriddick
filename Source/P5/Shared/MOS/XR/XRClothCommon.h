@@ -21,7 +21,7 @@
 //#define CLOTH_STORE_SKINNED_POSITION
 #define CLOTH_PRETRANSFORM
 
-// TODO: Fixa detta HACK!!! (5 är hårdkodat!)
+// TODO: Fixa detta HACK!!! (5 Ã¤r hÃ¥rdkodat!)
 #define CLOTH_IMPULSE_FACTOR (1.0f/5.0f)
 //#define CLOTH_IMPULSE_FACTOR (0.0f)
 //#define CLOTH_IMPULSE_ADJUST
@@ -614,7 +614,7 @@ void CClothWrapper::PostIntegrate()
 				const CJointVertsIndicies& riJoints = m_piJointVerticies[id];
 
 				/*
-				TODO: Uträkning av relativ rotation är i nöd av konstgjord andning...
+				TODO: UtrÃ¤kning av relativ rotation Ã¤r i nÃ¶d av konstgjord andning...
 				*/
 
 				vec128 snormal=M_VConst(1,0,0,0);

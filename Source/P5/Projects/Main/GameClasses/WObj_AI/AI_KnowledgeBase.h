@@ -93,7 +93,7 @@ protected:
 	//CAI_Core::m_Timer when we last changed relation
 	int m_RelationTimer;
 
-	//The agent´s presumed awareness of us.
+	//The agentÂ´s presumed awareness of us.
 	int8 m_AwarenessOfUs;
 	//Relation. How should we treat this agent, and how do we expect it to treat us. See enum above.
 	int8 m_Relation;

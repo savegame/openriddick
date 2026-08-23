@@ -675,9 +675,9 @@ void CMWnd_CubeMenu_Friends::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Cli
 
 	// update presence
 	if(m_CubeUser.m_pGameContextMod->m_ExtraContent_Live.GetPresence())
-		m_aButtonDescriptions[2] = CStr("x,§LLIVE_APPEARONLINE");
+		m_aButtonDescriptions[2] = CStr("x,Â§LLIVE_APPEARONLINE");
 	else
-		m_aButtonDescriptions[2] = CStr("x,§LLIVE_APPEAROFFLINE");
+		m_aButtonDescriptions[2] = CStr("x,Â§LLIVE_APPEAROFFLINE");
 
 	CMWnd *pDescWnd = GetItem("Description");
 	if(pDescWnd && m_CurrentSelected < rHandler.m_lFriends.Len())
@@ -704,29 +704,29 @@ void CMWnd_CubeMenu_Friends::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Cli
 				
 			if(rFriend.dwFriendState&XONLINE_FRIENDSTATE_FLAG_PLAYING) // user is playing XXX
 			{
-				Desc += L"§LMENU_FRIENDS_IS_PLAYING ";
+				Desc += L"Â§LMENU_FRIENDS_IS_PLAYING ";
 				Desc += Gamename.Unicode();
 				if(!Truncated)
 					Desc += L". ";
 			}
 			else
 			{
-				Desc += L"§LMENU_FRIENDS_ONLINE ";
+				Desc += L"Â§LMENU_FRIENDS_ONLINE ";
 				Desc += Gamename.Unicode();
 				if(!Truncated)
 					Desc += L". ";
 			}
 		}
 		else
-			Desc += L"§LMENU_FRIENDS_OFFLINE\n";
+			Desc += L"Â§LMENU_FRIENDS_OFFLINE\n";
 			
 		if(rFriend.dwFriendState&XONLINE_FRIENDSTATE_FLAG_RECEIVEDREQUEST) // someone wanna be a friend
-			Desc += L"§LMENU_FRIENDS_REQUEST\n";
+			Desc += L"Â§LMENU_FRIENDS_REQUEST\n";
 
 		if(rFriend.dwFriendState&XONLINE_FRIENDSTATE_FLAG_RECEIVEDINVITE) // someone want you to play XXX
-			Desc += L"§LMENU_FRIENDS_INVITE\n";
+			Desc += L"Â§LMENU_FRIENDS_INVITE\n";
 		if(rFriend.dwFriendState&XONLINE_FRIENDSTATE_FLAG_SENTREQUEST) // request to be friend
-			Desc += L"§LMENU_FRIENDS_SENTREQUEST\n";
+			Desc += L"Â§LMENU_FRIENDS_SENTREQUEST\n";
 
 			//Desc += "Is playing a game\n";
 
@@ -735,7 +735,7 @@ void CMWnd_CubeMenu_Friends::OnPaint(CRC_Util2D* _pRCUtil, const CClipRect &_Cli
 		{
 			wchar wGame[65];
 			XOnlineFriendsGetTitleName(rFriend.dwTitleID, XGetLanguage(), 64, wGame);
-			Desc += L"§LMENU_FRIENDS_IS_PLAYING";
+			Desc += L"Â§LMENU_FRIENDS_IS_PLAYING";
 			Desc += wGame;
 			Desc += L"\n";
 		}*/
@@ -871,84 +871,84 @@ bool CMWnd_CubeMenu_Friends_TakeAction::GetListItem(int32 _Index, CStr &_Name, b
 	case EType_GotInvite:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_FRIENDS_ACCEPTINVITE";
+			_Name = "nc, Â§LMENU_FRIENDS_ACCEPTINVITE";
 			if(_Focus) m_Action = EAction_AcceptInvite; // join
 		}
 		else if(_Index == 1)
 		{
-			_Name = "nc, §LMENU_FRIENDS_DECLINEINVITE";
+			_Name = "nc, Â§LMENU_FRIENDS_DECLINEINVITE";
 			if(_Focus) m_Action = EAction_DeclineInvite;
 		}
 		else if(_Index == 2)
 		{
-			_Name = "nc, §LMENU_FRIENDS_REMOVEFRIEND";
+			_Name = "nc, Â§LMENU_FRIENDS_REMOVEFRIEND";
 			if(_Focus) m_Action = EAction_ConfirmRemove;
 		}
 		break;
 	case EType_Offline:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_FRIENDS_REMOVEFRIEND";
+			_Name = "nc, Â§LMENU_FRIENDS_REMOVEFRIEND";
 			if(_Focus) m_Action = EAction_ConfirmRemove;
 		}
 		break;
 	case EType_Joinable:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_FRIENDS_JOIN";
+			_Name = "nc, Â§LMENU_FRIENDS_JOIN";
 			if(_Focus) m_Action = EAction_Join;
 		}
 		else if(_Index == 1)
 		{
-			_Name = "nc, §LMENU_FRIENDS_REMOVEFRIEND";
+			_Name = "nc, Â§LMENU_FRIENDS_REMOVEFRIEND";
 			if(_Focus) m_Action = EAction_ConfirmRemove;
 		}
 		break;
 	case EType_GotRequest:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_FRIENDS_ACCEPTREQUEST";
+			_Name = "nc, Â§LMENU_FRIENDS_ACCEPTREQUEST";
 			if(_Focus) m_Action = EAction_AcceptRequest;
 		}
 		else if(_Index == 1)
 		{
-			_Name = "nc, §LMENU_FRIENDS_DECLINEREQUEST";
+			_Name = "nc, Â§LMENU_FRIENDS_DECLINEREQUEST";
 			if(_Focus) m_Action = EAction_DeclineRequest;
 		}
 		else if(_Index == 2)
 		{
-			_Name = "nc, §LMENU_FRIENDS_BLOCK";
+			_Name = "nc, Â§LMENU_FRIENDS_BLOCK";
 			if(_Focus) m_Action = EAction_ConfirmBlock;
 		}
 		break;
 	case EType_SentRequest:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_FRIENDS_CANCELREQUEST";
+			_Name = "nc, Â§LMENU_FRIENDS_CANCELREQUEST";
 			if(_Focus) m_Action = EAction_CancelRequest;
 		}
 		break;
 	case EType_ConfirmRemove:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_NO";
+			_Name = "nc, Â§LMENU_NO";
 			if(_Focus) m_Action = EAction_Bail;
 		}
 		else if(_Index == 1)
 		{
-			_Name = "nc, §LMENU_YES";
+			_Name = "nc, Â§LMENU_YES";
 			if(_Focus) m_Action = EAction_Remove;
 		}
 		break;
 	case EType_ConfirmBlock:
 		if(_Index == 0)
 		{
-			_Name = "nc, §LMENU_NO";
+			_Name = "nc, Â§LMENU_NO";
 			if(_Focus) m_Action = EAction_Bail;
 		}
 		else if(_Index == 1)
 		{
-			_Name = "nc, §LMENU_YES";
+			_Name = "nc, Â§LMENU_YES";
 			if(_Focus) m_Action = EAction_Block;
 		}
 		break;
@@ -970,11 +970,11 @@ void CMWnd_CubeMenu_Friends_TakeAction::OnPaint(CRC_Util2D* _pRCUtil, const CCli
 
 		if(m_Type == EType_ConfirmRemove)
 		{
-			Layout_WriteText(Pos, CStr("n, §LMENU_ASKREMOVEFRIEND"));
+			Layout_WriteText(Pos, CStr("n, Â§LMENU_ASKREMOVEFRIEND"));
 		}
 		else if(m_Type == EType_ConfirmBlock)
 		{
-			Layout_WriteText(Pos, CStr("n, §LMENU_ASKBLOCKFRIEND"));
+			Layout_WriteText(Pos, CStr("n, Â§LMENU_ASKBLOCKFRIEND"));
 		}
 	}
 

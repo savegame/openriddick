@@ -2370,7 +2370,7 @@ const char **CSoundContext_Mixer::GetDebugStrings()
 							uint iCol = y;
 							uint TabBase = iCol * 250;
 							TempStr += CFStrF(
-								"§t%.3d%-20s §t%.3d P:%.02f §t%.3d V:%.2f §t%.3d L:%d §t%.3d Pi:%.2f kHz", 
+								"Â§t%.3d%-20s Â§t%.3d P:%.02f Â§t%.3d V:%.2f Â§t%.3d L:%d Â§t%.3d Pi:%.2f kHz", 
 								TabBase+9, Name.Str(), 
 								TabBase+120, VoicePos.GetTime(), 
 								TabBase+155, Volume, 
@@ -2380,14 +2380,14 @@ const char **CSoundContext_Mixer::GetDebugStrings()
 /*							if (y % 2 == 0)
 							{
 								TempStr = CFStrF(
-									"§t009%-20s §t120 P:%.02f §t155 V:%.2f §t183 PF:0x%08x §t250 L:%d §t270 Pi:%.2f kHz", 
+									"Â§t009%-20s Â§t120 P:%.02f Â§t155 V:%.2f Â§t183 PF:0x%08x Â§t250 L:%d Â§t270 Pi:%.2f kHz", 
 									Name.Str(), VoicePos.GetTime(), Volume, PauseFlags, bLoop, Pitch / 1000.0
 								);
 							}
 							else
 							{
 								TempStr += CFStrF(
-								"§t329| %-20s §t440 P:%.02f §t475 V:%.2f §t503 PF:0x%08x §t570 L:%d §t590 Pi:%.2f kHz", 
+								"Â§t329| %-20s Â§t440 P:%.02f Â§t475 V:%.2f Â§t503 PF:0x%08x Â§t570 L:%d Â§t590 Pi:%.2f kHz", 
 								Name.Str(), VoicePos.GetTime(), Volume, PauseFlags, bLoop, Pitch / 1000.0
 								);
 							}*/
@@ -2397,15 +2397,15 @@ const char **CSoundContext_Mixer::GetDebugStrings()
 						{
 							uint iCol = y;
 							uint TabBase = iCol * 250;
-							TempStr += CFStrF("§t%.3d-", TabBase+9);
+							TempStr += CFStrF("Â§t%.3d-", TabBase+9);
 
 /*							if (y % 2 == 0)
 							{
-								TempStr = "§t009-";
+								TempStr = "Â§t009-";
 							}
 							else
 							{
-								TempStr += "§t329| -";
+								TempStr += "Â§t329| -";
 							}*/
 
 						}

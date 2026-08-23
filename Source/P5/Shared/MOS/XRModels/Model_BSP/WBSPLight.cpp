@@ -232,7 +232,7 @@ void CXR_Model_BSP::Light_TagDynamics()
 
 	if (nDynamic > 32)
 	{
-		ConOut(CStrF("§cf80WARNING: Too many dynamic lights %d/%d", nDynamic, 16));
+		ConOut(CStrF("Â§cf80WARNING: Too many dynamic lights %d/%d", nDynamic, 16));
 		nDynamic = 32;
 	}
 }

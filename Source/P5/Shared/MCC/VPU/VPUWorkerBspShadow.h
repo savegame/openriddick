@@ -1,7 +1,7 @@
 #include "MRTC_VPU.h"
-#include "../../mos/xr/XRVertexBuffer_VPUShared.h"
-#include "../../mos/XRModels/Model_BSP/XWCommon_VPUShared.h"
-#include "../../mos/XRModels/Model_BSP2/XW2Common_VPUShared.h"
+#include "../../MOS/XR/XRVertexBuffer_VPUShared.h"
+#include "../../MOS/XRModels/Model_BSP/XWCommon_VPUShared.h"
+#include "../../MOS/XRModels/Model_BSP2/XW2Common_VPUShared.h"
 
 
 template <int TSize>

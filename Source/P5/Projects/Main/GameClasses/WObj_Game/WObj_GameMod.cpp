@@ -6,9 +6,9 @@
 #include "../WObj_Char/WObj_CharDarkling_ClientData.h"
 #include "../WObj_Char/WObj_CharShapeshifter.h"
 #include "../WObj_Sys/WObj_Trigger.h"
-#include "../wrpg/WRPGChar.h"
-#include "../wrpg/WRPGItem.h"
-#include "../wrpg/WRPGWeapon.h"
+#include "../WRPG/WRPGChar.h"
+#include "../WRPG/WRPGItem.h"
+#include "../WRPG/WRPGWeapon.h"
 #include "../../GameWorld/WFrontEndMod.h"
 #include "../../Exe/WGameContextMain.h"
 #include "../../Exe_Xenon/Darkness.spa.h"
@@ -168,7 +168,7 @@ static const char* GetBindingGUITexture(int _ScanCode)
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameP4
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -942,7 +942,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 						if(Name != "$SPACE")
 						{
 							CRC_Font *pFont = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font(Name.GetStrSep(",")));
-							CStr St = CStrF("§Z%i%s", Name.GetStrSep(",").Val_int(), pReg->GetValue(iLine).Str());
+							CStr St = CStrF("Â§Z%i%s", Name.GetStrSep(",").Val_int(), pReg->GetValue(iLine).Str());
 							if(pFont)
 								_pUtil2D->Text_DrawFormatted(Clip, pFont, St, Name.GetStrSep(",").Val_int(), Pos, WSTYLE_TEXT_SHADOW, TextCol, ShadowCol, 0, 640, LineSize, false);
 						}
@@ -973,7 +973,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 					if(Text.Find("|") != -1)
 						Title = Text.GetStrSep("|");
 					else
-						Title = "§LGAMEMSG_INFO";
+						Title = "Â§LGAMEMSG_INFO";
 
 					int iSurfRes = 0;
 					int SurfW = 0;
@@ -984,7 +984,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 						SurfW = Text.GetStrSep(",").Val_int();
 						SurfH = Text.GetStrSep(",").Val_int();
 					}
-					Text = "§Z18" + Text;
+					Text = "Â§Z18" + Text;
 
 					wchar Buffer[1024];
 					Localize_Str(Text.Str(), Buffer, 1024);
@@ -1053,7 +1053,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 								CRC_Font *pFont2 = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font("PALATINO"));
 								if(pFont2)
 									pFont = pFont2;
-								CStr St2 = "§Z24" + St;
+								CStr St2 = "Â§Z24" + St;
 								int32 TextCol = 0x00808080 | (Alpha << 24);
 								int32 ShadowCol = 0x00000000 | (Alpha << 24);
 								_pUtil2D->GetAttrib()->Attrib_RasterMode(CRC_RASTERMODE_ALPHABLEND);
@@ -1116,7 +1116,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 		if(pFont)
 		{
 			wchar Buf[1024];
-			Localize_Str("§z09§LGAMEMSG_HELP", Buf, 1024);
+			Localize_Str("Â§z09Â§LGAMEMSG_HELP", Buf, 1024);
 			int Width = int(pFont->GetWidth(pFont->GetOriginalSize(), Buf));
 			int32 TextCol = CPixel32::From_fp32((226/1.7f),(224/1.7f),(220/1.7f),255);
 			_pUtil2D->Text_DrawFormatted(Clip, pFont, Buf, 555 - Width, 87, 0, TextCol, 0, 0, Width, 40, false);
@@ -1177,7 +1177,7 @@ void CWObject_GameP4::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 					CRC_Font *pFont = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font("HEADINGS"));
 					if(pFont)
 					{
-						CStr St("§Z14§LBINDING_UNDEF§p0§LMENU_BINDING_" + Action.Copy(7, 1024) + "§pq");
+						CStr St("Â§Z14Â§LBINDING_UNDEFÂ§p0Â§LMENU_BINDING_" + Action.Copy(7, 1024) + "Â§pq");
 						CPnt TopRight(RoundToInt(Clip.clip.p1.x * 0.70f), RoundToInt(Clip.clip.p1.y * 0.08f));
 						_pUtil2D->Text_DrawFormatted(Clip, pFont, St, TopRight.x, TopRight.y, WSTYLE_TEXT_WORDWRAP, 0xffffffff, 0, 0, 100, 1000, false);
 					}
@@ -1225,7 +1225,7 @@ int CWObject_GameP4::SetMission(int _MissionID, const char *_pSt)
 			pCD->m_lMissionFlags[i] = 0;
 			pCD->m_lMissionFlags.MakeDirty();
 
-			CFStr St = "§LMISSION_MISSIONUPDATED§pq|";
+			CFStr St = "Â§LMISSION_MISSIONUPDATEDÂ§pq|";
 			St += _pSt;
 #ifndef M_DEMO
 			if(!m_bNoHintIcon)
@@ -1252,7 +1252,7 @@ int CWObject_GameP4::SetMission(int _MissionID, const char *_pSt)
 		pCD->m_lMissionFlags.Add(0);
 		pCD->m_lMissionFlags.MakeDirty();
 
-		CFStr St = "§LMISSION_NEWMISSION§pq|";
+		CFStr St = "Â§LMISSION_NEWMISSIONÂ§pq|";
 #ifndef M_DEMO
 		CFStr St2 = _pSt;
 		if(St2.Find("_1") == St2.Len() - 2)
@@ -1261,9 +1261,9 @@ int CWObject_GameP4::SetMission(int _MissionID, const char *_pSt)
 #endif
 			St += _pSt;
 #ifndef M_DEMO
-		St += "§pq||§LMISSION_NEWMISSION2";
+		St += "Â§pq||Â§LMISSION_NEWMISSION2";
 		if(m_bNoHintIcon)
-			St += " §LMISSION_NEWMISSION3";
+			St += " Â§LMISSION_NEWMISSION3";
 #endif
 		ShowGameMsg(St, 4);
 		if (Player_GetNum())
@@ -1288,9 +1288,9 @@ int CWObject_GameP4::RemoveMission(int _MissionID, bool _bCompleted)
 /*			pCD->m_lMissionFlags[i] |= 1;
 			pCD->m_lMissionFlags.MakeDirty();*/
 			if(_bCompleted)
-				ShowGameMsg("§LMISSION_MISSIONCOMPLETED", 4);
+				ShowGameMsg("Â§LMISSION_MISSIONCOMPLETED", 4);
 			/*else
-				ShowGameMsg("§LMISSION_MISSIONFAILED", 4);*/
+				ShowGameMsg("Â§LMISSION_MISSIONFAILED", 4);*/
 			return 1;
 		}
 
@@ -1586,7 +1586,7 @@ CStr CWObject_GameP4::GetDefualtSpawnClass()
 	return "spectator";	// SPAWNCLASS makes no sense since CWObject_Player cannot host a player.
 }
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameCampaign
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1711,7 +1711,7 @@ void CWObject_GameCampaign::OnRefresh()
 #ifdef M_Profile
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameDebug
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1931,7 +1931,7 @@ int CWObject_GameDebug::OnCharacterKilled(int _iObject, int _iSender)
 
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameDM
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -1954,12 +1954,12 @@ CWObject_GameDM::CWObject_GameDM()
 	{
 		pCD->m_MaxTime = pGameMod->m_pMPHandler->m_TimeLimit;
 		pCD->m_MaxScore = pGameMod->m_pMPHandler->m_ScoreLimit;
-		pCD->m_GameModeName.m_Value = CStrF("§Z20 %s",pGameMod->m_pMPHandler->GetGameModeName().Str());
+		pCD->m_GameModeName.m_Value = CStrF("Â§Z20 %s",pGameMod->m_pMPHandler->GetGameModeName().Str());
 	}
 #else
 	pCD->m_MaxScore = 20;
 	pCD->m_MaxTime = 600;
-	pCD->m_GameModeName.m_Value = "§Z20 §LMENU_SHAPESHIFTER - §LMENU_DM";
+	pCD->m_GameModeName.m_Value = "Â§Z20 Â§LMENU_SHAPESHIFTER - Â§LMENU_DM";
 #endif
 	pCD->m_GameModeName.MakeDirty();
 
@@ -3055,23 +3055,23 @@ void CWObject_GameDM::OnClientNetMsg(CWObject_Client* _pObj, CWorld_Client* _pWC
 			{
 			case 0:
 #if defined(PLATFORM_XENON)
-				MMsg.m_Str2 = WTEXT("§LMP_DISCONNECT_SERVER_QUIT");	
+				MMsg.m_Str2 = WTEXT("Â§LMP_DISCONNECT_SERVER_QUIT");	
 #else
-				MMsg.m_Str2 = "§LMP_DISCONNECT_SERVER_QUIT";	
+				MMsg.m_Str2 = "Â§LMP_DISCONNECT_SERVER_QUIT";	
 #endif
 				break;
 			case 1:
 #if defined(PLATFORM_XENON)
-				MMsg.m_Str2 = WTEXT("§LMP_DISCONNECT_SERVER_TIMEOUT");	
+				MMsg.m_Str2 = WTEXT("Â§LMP_DISCONNECT_SERVER_TIMEOUT");	
 #else
-				MMsg.m_Str2 = "§LMP_DISCONNECT_SERVER_TIMEOUT";	
+				MMsg.m_Str2 = "Â§LMP_DISCONNECT_SERVER_TIMEOUT";	
 #endif
 				break;
 			case 2:
 #if defined(PLATFORM_XENON)
-				MMsg.m_Str2 = WTEXT("§LMP_DISCONNECT_QUIT");	
+				MMsg.m_Str2 = WTEXT("Â§LMP_DISCONNECT_QUIT");	
 #else
-				MMsg.m_Str2 = "§LMP_DISCONNECT_QUIT";	
+				MMsg.m_Str2 = "Â§LMP_DISCONNECT_QUIT";	
 #endif
 				break;
 			}
@@ -3587,7 +3587,7 @@ int CWObject_GameDM::OnRemoveClient(int _iClient, int _Reason)
 {
 	if(_iClient == -1)
 	{
-		ConOutL("§cf80WARNING: Dropping client with index -1");
+		ConOutL("Â§cf80WARNING: Dropping client with index -1");
 		return 1;
 	}
 
@@ -3595,7 +3595,7 @@ int CWObject_GameDM::OnRemoveClient(int _iClient, int _Reason)
 	CWO_PlayerDM *pPlayer = Player_GetDM(_iClient);
 	if(!pPlayer)
 	{
-		ConOutL(CStrF("§cf80WARNING: Failed to get client %i in OnRemoveClient", _iClient));
+		ConOutL(CStrF("Â§cf80WARNING: Failed to get client %i in OnRemoveClient", _iClient));
 		return 1;
 	}
 
@@ -3655,7 +3655,7 @@ CMat4Dfp32 CWObject_GameDM::GetSpawnPosition(int _Team)
 		if(!Indices.Len())
 		{
 			Pos = m_pWServer->Object_GetPositionMatrix(pSel[MRTC_RAND() % nSel]);
-			ConOutL(CStrF("§cf80WARNING: No player start positions on map with team %i", _Team));
+			ConOutL(CStrF("Â§cf80WARNING: No player start positions on map with team %i", _Team));
 			return Pos;
 		}
 
@@ -3666,7 +3666,7 @@ CMat4Dfp32 CWObject_GameDM::GetSpawnPosition(int _Team)
 	else
 	{
 		Pos.Unit();
-		ConOutL("§cf80WARNING: No player start positions on map.");
+		ConOutL("Â§cf80WARNING: No player start positions on map.");
 	}
 
 	return Pos;
@@ -3808,11 +3808,11 @@ void CWObject_GameDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, CW
 	_pUtil2D->Rect(Clip, rect, SCOREBOARD_BACKGROUND);
 
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, pCD->m_GameModeName.m_Value, -20, 100, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_NAME"), 105, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_SCORE"), 305, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_DEATHS"), 375, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_PING"), 445, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_NAME"), 105, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_SCORE"), 305, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_DEATHS"), 375, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_PING"), 445, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	DrawPlayerListBackGround(_pUtil2D, CRct(105, 155, 495, 295));
 		
@@ -3824,9 +3824,9 @@ void CWObject_GameDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, CW
 	if(sekunder < 0)
 		sekunder = 0;
 	if(sekunder < 10)
-		St = CStrF("§Z10%i:0%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:0%i", minuter, sekunder);
 	else
-		St = CStrF("§Z10%i:%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:%i", minuter, sekunder);
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 320, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	int row = 0;
@@ -3839,34 +3839,34 @@ void CWObject_GameDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, CW
 		int ping = 0;
 
 		if(Name.IsUnicode())
-			St = CStrF(WTEXT("§Z10 %s"), Name.StrW());
+			St = CStrF(WTEXT("Â§Z10 %s"), Name.StrW());
 		else
-			St = CStrF("§Z10 %s", Name.Str());
+			St = CStrF("Â§Z10 %s", Name.Str());
 
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 110, 160 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(Score < 10)
-			St = CStrF("§Z10   %i", Score);
+			St = CStrF("Â§Z10   %i", Score);
 		else if(Score < 100)
-			St = CStrF("§Z10  %i", Score);
+			St = CStrF("Â§Z10  %i", Score);
 		else
-			St = CStrF("§Z10 %i", Score);
+			St = CStrF("Â§Z10 %i", Score);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 305, 160 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(deaths < 10)
-			St = CStrF("§Z10   %i", deaths);
+			St = CStrF("Â§Z10   %i", deaths);
 		else if(deaths < 100)
-			St = CStrF("§Z10  %i", deaths);
+			St = CStrF("Â§Z10  %i", deaths);
 		else
-			St = CStrF("§Z10 %i", deaths);
+			St = CStrF("Â§Z10 %i", deaths);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 375, 160 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(ping < 10)
-			St = CStrF("§Z10   %i", ping);
+			St = CStrF("Â§Z10   %i", ping);
 		else if(ping < 100)
-			St = CStrF("§Z10  %i", ping);
+			St = CStrF("Â§Z10  %i", ping);
 		else
-			St = CStrF("§Z10 %i", ping);
+			St = CStrF("Â§Z10 %i", ping);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 445, 160 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		row++;
@@ -3881,33 +3881,33 @@ CStr CWObject_GameDM::GetStatusBarText(int _iText, CClientData* _pCD)
 	case NETMSG_GAME_PLAYERKILL:
 		{
 			if(_pCD->m_lMultiplayerMessages[_iText].m_Str1.IsUnicode())
-				St = CStrF(WTEXT("§Z10 %s §LMP_WAS_KILLED_BY§pq %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
+				St = CStrF(WTEXT("Â§Z10 %s Â§LMP_WAS_KILLED_BYÂ§pq %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
 			else
-				St = CStrF("§Z10 %s §LMP_WAS_KILLED_BY§pq %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
+				St = CStrF("Â§Z10 %s Â§LMP_WAS_KILLED_BYÂ§pq %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
 		}
 		break;
 	case NETMSG_GAME_PLAYERSUICIDE:
 		{
 			if(_pCD->m_lMultiplayerMessages[_iText].m_Str1.IsUnicode())
-				St = CStrF(WTEXT("§Z10 %s §LMP_SUICIDE"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW());
+				St = CStrF(WTEXT("Â§Z10 %s Â§LMP_SUICIDE"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW());
 			else
-				St = CStrF("§Z10 %s §LMP_SUICIDE", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str());
+				St = CStrF("Â§Z10 %s Â§LMP_SUICIDE", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str());
 		}
 		break;
 	case NETMSG_GAME_PLAYER_DISCONNECT:
 		{
 			if(_pCD->m_lMultiplayerMessages[_iText].m_Str1.IsUnicode())
-				St = CStrF(WTEXT("§Z10 %s %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
+				St = CStrF(WTEXT("Â§Z10 %s %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
 			else
-				St = CStrF("§Z10 %s %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
+				St = CStrF("Â§Z10 %s %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
 		}
 		break;
 	case NETMSG_GAME_TEAMKILL:
 		{
 			if(_pCD->m_lMultiplayerMessages[_iText].m_Str1.IsUnicode())
-				St = CStrF(WTEXT("§Z10 %s §LMP_WAS_TEAMKILLED_BY§pq %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
+				St = CStrF(WTEXT("Â§Z10 %s Â§LMP_WAS_TEAMKILLED_BYÂ§pq %s"), _pCD->m_lMultiplayerMessages[_iText].m_Str1.StrW(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.StrW());
 			else
-				St = CStrF("§Z10 %s §LMP_WAS_TEAMKILLED_BY§pq %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
+				St = CStrF("Â§Z10 %s Â§LMP_WAS_TEAMKILLED_BYÂ§pq %s", _pCD->m_lMultiplayerMessages[_iText].m_Str1.Str(), _pCD->m_lMultiplayerMessages[_iText].m_Str2.Str());
 		}
 		break;
 	}
@@ -3919,60 +3919,60 @@ void CWObject_GameDM::GetStatusBarTextImportant(int _iText, CClientData* _pCD, C
 	switch(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Type) 
 	{	
 	case NETMSG_GAME_JOIN:
-		_Title = "§LGAMEMSG_INFO";
+		_Title = "Â§LGAMEMSG_INFO";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("%s §LMP_HAS_JOINED_GAME"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("%s Â§LMP_HAS_JOINED_GAME"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("%s §LMP_HAS_JOINED_GAME", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("%s Â§LMP_HAS_JOINED_GAME", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_JOIN_TEAM:
-		_Title = "§LGAMEMSG_INFO";
+		_Title = "Â§LGAMEMSG_INFO";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("%s §LMP_HAS_JOINED_TEAM"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("%s Â§LMP_HAS_JOINED_TEAM"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("%s §LMP_HAS_JOINED_TEAM", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("%s Â§LMP_HAS_JOINED_TEAM", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_FLAGSTOLEN:
-		_Title = "§LMP_FLAG_STOLEN_TITLE";
+		_Title = "Â§LMP_FLAG_STOLEN_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_STOLEN_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_STOLEN_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_STOLEN_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_STOLEN_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_FLAGRETURNED:
-		_Title = "§LMP_FLAG_RETURNED_TITLE";
+		_Title = "Â§LMP_FLAG_RETURNED_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_RETURNED_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_RETURNED_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_RETURNED_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_RETURNED_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_FLAGCAPTURED:
-		_Title = "§LMP_FLAG_CAPTURED_TITLE";
+		_Title = "Â§LMP_FLAG_CAPTURED_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_CAPTURED_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_CAPTURED_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_CAPTURED_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_CAPTURED_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;					
 	case NETMSG_GAME_ENEMY_FLAGSTOLEN:
-		_Title = "§LMP_FLAG_ENEMY_STOLEN_TITLE";
+		_Title = "Â§LMP_FLAG_ENEMY_STOLEN_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_ENEMY_STOLEN_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_ENEMY_STOLEN_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_ENEMY_STOLEN_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_ENEMY_STOLEN_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_ENEMY_FLAGRETURNED:
-		_Title = "§LMP_FLAG_ENEMY_RETURNED_TITLE";
+		_Title = "Â§LMP_FLAG_ENEMY_RETURNED_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_ENEMY_RETURNED_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_ENEMY_RETURNED_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_ENEMY_RETURNED_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_ENEMY_RETURNED_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 		break;
 	case NETMSG_GAME_ENEMY_FLAGCAPTURED:
-		_Title = "§LMP_FLAG_ENEMY_CAPTURED_TITLE";
+		_Title = "Â§LMP_FLAG_ENEMY_CAPTURED_TITLE";
 		if(_pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.IsUnicode())
-			_Text = CStrF(WTEXT("§LMP_FLAG_ENEMY_CAPTURED_TEXT§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
+			_Text = CStrF(WTEXT("Â§LMP_FLAG_ENEMY_CAPTURED_TEXTÂ§pq %s"), _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.StrW());
 		else
-			_Text = CStrF("§LMP_FLAG_ENEMY_CAPTURED_TEXT§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
+			_Text = CStrF("Â§LMP_FLAG_ENEMY_CAPTURED_TEXTÂ§pq %s", _pCD->m_lMultiplayerMessagesImportant[_iText].m_Str1.Str());
 	}
 }
 
@@ -4016,25 +4016,25 @@ void CWObject_GameDM::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 		if(pCD->m_WarmUpMode == MP_WARMUP_MODE_PREGAME)
 		{
 			if(pCD->m_WarmUpCountDownTick == -1)
-				_pUtil2D->Text_DrawFormatted(Clip, pFont, "§Z32 §LMP_WARMUP", 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
+				_pUtil2D->Text_DrawFormatted(Clip, pFont, "Â§Z32 Â§LMP_WARMUP", 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
 			else
 			{
 				int Secs = TruncToInt((WARMUPCOUNTDOWN + 1.0f) - ((_pWClient->GetGameTick() - pCD->m_WarmUpCountDownTick) * _pWClient->GetGameTickTime()));
 				if(Secs)
-					_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z32 %i", Secs), 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
+					_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z32 %i", Secs), 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
 			}
 		}
 		else if(pCD->m_WarmUpMode == MP_WARMUP_MODE_BETWEEN_ROUNDS)
 		{
 			CStr Text;
 			if(pCD->m_LastRoundWinner.m_Value.IsUnicode())
-				Text = CStrF(WTEXT("§Z32 §LMP_LAST_ROUND_WINNER %s"), pCD->m_LastRoundWinner.m_Value.StrW());
+				Text = CStrF(WTEXT("Â§Z32 Â§LMP_LAST_ROUND_WINNER %s"), pCD->m_LastRoundWinner.m_Value.StrW());
 			else
-				Text = CStrF("§Z32 §LMP_LAST_ROUND_WINNER %s", pCD->m_LastRoundWinner.m_Value.Str());
+				Text = CStrF("Â§Z32 Â§LMP_LAST_ROUND_WINNER %s", pCD->m_LastRoundWinner.m_Value.Str());
 			_pUtil2D->Text_DrawFormatted(Clip, pFont, Text, 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
 			int Secs = TruncToInt((WARMUPCOUNTDOWN + 1.0f) - ((_pWClient->GetGameTick() - pCD->m_WarmUpCountDownTick) * _pWClient->GetGameTickTime()));
 			if(Secs)
-				_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z32 %i", Secs), 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
+				_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z32 %i", Secs), 110, 200, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 400, 32, false);
 		}
 
 		int Tick = _pWClient->GetGameTick();
@@ -4065,7 +4065,7 @@ void CWObject_GameDM::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 						SurfW = Text.GetStrSep(",").Val_int();
 						SurfH = Text.GetStrSep(",").Val_int();
 					}
-					Text = WTEXT("§Z18") + Text;
+					Text = WTEXT("Â§Z18") + Text;
 
 					wchar Buffer[1024];
 					Localize_Str(Text.StrW(), Buffer, 1024);
@@ -4112,7 +4112,7 @@ void CWObject_GameDM::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 								CRC_Font *pFont2 = _pWClient->m_spGUIData->GetResource_Font(_pWClient->m_spGUIData->GetResourceIndex_Font("PALATINO"));
 								if(pFont2)
 									pFont = pFont2;
-								CStr St2 = "§Z24" + St;
+								CStr St2 = "Â§Z24" + St;
 								_pUtil2D->GetAttrib()->Attrib_RasterMode(CRC_RASTERMODE_ALPHABLEND);
 								_pUtil2D->Text_DrawFormatted(Clip, pFont, St2, X, Y, WSTYLE_TEXT_WORDWRAP | WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640 - X, 480 - Y, false);
 							}
@@ -4161,7 +4161,7 @@ void CWObject_GameDM::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_Cli
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameTDM
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -4182,7 +4182,7 @@ CWObject_GameTDM::CWObject_GameTDM()
 #else
 	pCD->m_MaxScore = 100;
 	pCD->m_MaxTime = 600;
-	pCD->m_GameModeName.m_Value = "§Z20 §LMENU_SHAPESHIFTER - §LMENU_TDM";
+	pCD->m_GameModeName.m_Value = "Â§Z20 Â§LMENU_SHAPESHIFTER - Â§LMENU_TDM";
 #endif
 	pCD->m_GameModeName.MakeDirty();
 
@@ -4994,7 +4994,7 @@ int CWObject_GameTDM::OnRemoveClient(int _iClient, int _Reason)
 {
 	if(_iClient == -1)
 	{
-		ConOutL("§cf80WARNING: Dropping client with index -1");
+		ConOutL("Â§cf80WARNING: Dropping client with index -1");
 		return 1;
 	}
 	CClientData *pCD = GetClientData();
@@ -5059,18 +5059,18 @@ void CWObject_GameTDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 	_pUtil2D->Rect(Clip, rect, SCOREBOARD_BACKGROUND);
 
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, pCD->m_GameModeName.m_Value, -20, 100, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z16 §LMP_SCOREBOARD_TOTAL_SCORE"), 225, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z16 %i", Team1), 160, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z16 %i", Team2), 415, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_NAME"), 105, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_SCORE"), 185, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_DEATHS"), 225, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_PING"), 265, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_NAME"), 300, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_SCORE"), 380, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_DEATHS"), 420, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_PING"), 460, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z16 Â§LMP_SCOREBOARD_TOTAL_SCORE"), 225, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z16 %i", Team1), 160, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z16 %i", Team2), 415, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_NAME"), 105, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_SCORE"), 185, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_DEATHS"), 225, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_PING"), 265, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_NAME"), 300, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_SCORE"), 380, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_DEATHS"), 420, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_PING"), 460, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	DrawPlayerListBackGround(_pUtil2D, CRct(105, 180, 295, 295));
 	DrawPlayerListBackGround(_pUtil2D, CRct(295, 180, 490, 295));
@@ -5083,9 +5083,9 @@ void CWObject_GameTDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 	if(sekunder < 0)
 		sekunder = 0;
 	if(sekunder < 10)
-		St = CStrF("§Z10%i:0%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:0%i", minuter, sekunder);
 	else
-		St = CStrF("§Z10%i:%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:%i", minuter, sekunder);
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 320, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	int row1 = 0;
@@ -5109,33 +5109,33 @@ void CWObject_GameTDM::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 		}
 
 		if(Name.IsUnicode())
-			St = CStrF(WTEXT("§Z10 %s"), Name.StrW());
+			St = CStrF(WTEXT("Â§Z10 %s"), Name.StrW());
 		else
-			St = CStrF("§Z10 %s", Name.Str());
+			St = CStrF("Â§Z10 %s", Name.Str());
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 110 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(Score < 10)
-			St = CStrF("§Z10   %i", Score);
+			St = CStrF("Â§Z10   %i", Score);
 		else if(Score < 100)
-			St = CStrF("§Z10  %i", Score);
+			St = CStrF("Â§Z10  %i", Score);
 		else
-			St = CStrF("§Z10 %i", Score);
+			St = CStrF("Â§Z10 %i", Score);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 185 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(deaths < 10)
-			St = CStrF("§Z10   %i", deaths);
+			St = CStrF("Â§Z10   %i", deaths);
 		else if(deaths < 100)
-			St = CStrF("§Z10  %i", deaths);
+			St = CStrF("Â§Z10  %i", deaths);
 		else
-			St = CStrF("§Z10 %i", deaths);
+			St = CStrF("Â§Z10 %i", deaths);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 225 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(ping < 10)
-			St = CStrF("§Z10   %i", ping);
+			St = CStrF("Â§Z10   %i", ping);
 		else if(ping < 100)
-			St = CStrF("§Z10  %i", ping);
+			St = CStrF("Â§Z10  %i", ping);
 		else
-			St = CStrF("§Z10 %i", ping);
+			St = CStrF("Â§Z10 %i", ping);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 265 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(team == 0)
@@ -5156,7 +5156,7 @@ spCWO_Player CWObject_GameTDM::CreatePlayerObject()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameCTF
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -5183,12 +5183,12 @@ CWObject_GameCTF::CWObject_GameCTF()
 	{
 		pCD->m_MaxTime = pGameMod->m_pMPHandler->m_TimeLimit;
 		pCD->m_MaxCaptures = pGameMod->m_pMPHandler->m_CaptureLimit;
-		pCD->m_GameModeName.m_Value = CStrF("§Z20 %s",pGameMod->m_pMPHandler->GetGameModeName().Str());
+		pCD->m_GameModeName.m_Value = CStrF("Â§Z20 %s",pGameMod->m_pMPHandler->GetGameModeName().Str());
 	}
 #else
 	pCD->m_MaxTime = 600;
 	pCD->m_MaxCaptures = 3;
-	pCD->m_GameModeName.m_Value = "§Z20 §LMENU_SHAPESHIFTER - §LMENU_CTF";
+	pCD->m_GameModeName.m_Value = "Â§Z20 Â§LMENU_SHAPESHIFTER - Â§LMENU_CTF";
 #endif
 	pCD->m_GameModeName.MakeDirty();
 }
@@ -5961,18 +5961,18 @@ void CWObject_GameCTF::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 	_pUtil2D->Rect(Clip, rect, SCOREBOARD_BACKGROUND);
 
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, pCD->m_GameModeName.m_Value, -20, 100, WSTYLE_TEXT_SHADOW | WSTYLE_TEXT_CENTER, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z16 §LMP_SCOREBOARD_FLAGS_CAPTURED"), 225, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z16 %i", pCD->m_lCaptures[0]), 160, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("§Z16 %i", pCD->m_lCaptures[1]), 415, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_NAME"), 105, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_SCORE"), 185, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_DEATHS"), 225, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_PING"), 265, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_NAME"), 300, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_SCORE"), 380, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_DEATHS"), 420, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
-	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("§Z10 §LMP_SCOREBOARD_PING"), 460, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_TIME_LEFT"), 250, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z16 Â§LMP_SCOREBOARD_FLAGS_CAPTURED"), 225, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z16 %i", pCD->m_lCaptures[0]), 160, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStrF("Â§Z16 %i", pCD->m_lCaptures[1]), 415, 140, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_NAME"), 105, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_SCORE"), 185, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_DEATHS"), 225, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_PING"), 265, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_NAME"), 300, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_SCORE"), 380, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_DEATHS"), 420, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
+	_pUtil2D->Text_DrawFormatted(Clip, pFont, CStr("Â§Z10 Â§LMP_SCOREBOARD_PING"), 460, 165, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	DrawPlayerListBackGround(_pUtil2D, CRct(105, 180, 295, 295));
 	DrawPlayerListBackGround(_pUtil2D, CRct(295, 180, 490, 295));
@@ -5985,9 +5985,9 @@ void CWObject_GameCTF::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 	if(sekunder < 0)
 		sekunder = 0;
 	if(sekunder < 10)
-		St = CStrF("§Z10%i:0%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:0%i", minuter, sekunder);
 	else
-		St = CStrF("§Z10%i:%i", minuter, sekunder);
+		St = CStrF("Â§Z10%i:%i", minuter, sekunder);
 	_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 320, 125, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 	int row1 = 0;
@@ -6011,34 +6011,34 @@ void CWObject_GameCTF::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 		}
 
 		if(Name.IsUnicode())
-			St = CStrF(WTEXT("§Z10 %s"), Name.StrW());
+			St = CStrF(WTEXT("Â§Z10 %s"), Name.StrW());
 		else
-			St = CStrF("§Z10 %s", Name.Str());
+			St = CStrF("Â§Z10 %s", Name.Str());
 
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 110 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(Score < 10)
-			St = CStrF("§Z10   %i", Score);
+			St = CStrF("Â§Z10   %i", Score);
 		else if(Score < 100)
-			St = CStrF("§Z10  %i", Score);
+			St = CStrF("Â§Z10  %i", Score);
 		else
-			St = CStrF("§Z10 %i", Score);
+			St = CStrF("Â§Z10 %i", Score);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 185 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(deaths < 10)
-			St = CStrF("§Z10   %i", deaths);
+			St = CStrF("Â§Z10   %i", deaths);
 		else if(deaths < 100)
-			St = CStrF("§Z10  %i", deaths);
+			St = CStrF("Â§Z10  %i", deaths);
 		else
-			St = CStrF("§Z10 %i", deaths);
+			St = CStrF("Â§Z10 %i", deaths);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 225 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(ping < 10)
-			St = CStrF("§Z10   %i", ping);
+			St = CStrF("Â§Z10   %i", ping);
 		else if(ping < 100)
-			St = CStrF("§Z10  %i", ping);
+			St = CStrF("Â§Z10  %i", ping);
 		else
-			St = CStrF("§Z10 %i", ping);
+			St = CStrF("Â§Z10 %i", ping);
 		_pUtil2D->Text_DrawFormatted(Clip, pFont, St, 265 + offset, 185 + row * 10, WSTYLE_TEXT_SHADOW, SCOREBOARD_TEXTCOLOR, SCOREBOARD_TEXTSHADOW, 0, 640, 12, false);
 
 		if(team == 0)
@@ -6050,7 +6050,7 @@ void CWObject_GameCTF::OnClientRenderMultiplayerStatus(CWObject_Client* _pObj, C
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameSurvivor
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -6071,7 +6071,7 @@ CWObject_GameSurvivor::CWObject_GameSurvivor()
 #else
 	pCD->m_MaxScore = 20;
 	pCD->m_MaxTime = 600;
-	pCD->m_GameModeName.m_Value = "§Z20 §LMENU_SURVIVOR";
+	pCD->m_GameModeName.m_Value = "Â§Z20 Â§LMENU_SURVIVOR";
 #endif
 	pCD->m_GameModeName.MakeDirty();
 
@@ -6608,7 +6608,7 @@ spCWO_Player CWObject_GameSurvivor::CreatePlayerObject()
 }
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CWObject_GameLastHuman
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -6629,7 +6629,7 @@ CWObject_GameLastHuman::CWObject_GameLastHuman()
 #else
 	pCD->m_MaxScore = 20;
 	pCD->m_MaxTime = 600;
-	pCD->m_GameModeName.m_Value = "§Z20 §LMENU_LASTHUMAN";
+	pCD->m_GameModeName.m_Value = "Â§Z20 Â§LMENU_LASTHUMAN";
 #endif
 	pCD->m_GameModeName.MakeDirty();
 

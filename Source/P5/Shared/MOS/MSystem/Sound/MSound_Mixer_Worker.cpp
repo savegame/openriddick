@@ -8,7 +8,7 @@
 #include "../../../MCC/VPU/MRTC_VPU.h"
 #define PLATFORM_DMA
 #endif
-#include "../../../MCC/MMath_vec128.h"
+#include "../../../MCC/MMath_Vec128.h"
 #include "MSound_Mixer_Worker.h"
 
 M_INLINE static int TruncToInt( fp32 _Val )

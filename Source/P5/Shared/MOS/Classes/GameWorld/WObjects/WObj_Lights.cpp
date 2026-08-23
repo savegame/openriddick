@@ -235,7 +235,30 @@ void CWObject_Light::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 		{
 			CVec3Dfp32 p; p.ParseString(_Value);
 			p.Normalize();
+
+			// НАЙДЕНО (2026-08-04): матрица собиралась из НЕинициализированной.
+			//
+			// `CMat4Dfp32` -- POD-объединение без конструктора, а ниже
+			// заполняются только строки: `SetMatrixRow` пишет по три
+			// компонента, `RecreateMatrix(0,1)` восстанавливает строку 2,
+			// затем ставится позиция. **Четвёртый столбец
+			// (k[0..3][3]) не пишет никто** и остаётся мусором со стека,
+			// хотя у аффинной матрицы там обязаны быть 0,0,0,1.
+			//
+			// Симптомы сходятся: прожекторы светят не туда, а поведение
+			// МЕНЯЕТСЯ ОТ ЗАПУСКА К ЗАПУСКУ -- ровно подпись мусора со
+			// стека, а не перепутанного порядка осей. Отдельно замер
+			// `RIDDICK_DBG_ANGLES` показал, что ключ ANGLES/ROTATION на этой
+			// карте вообще не используется для света и камер (12 строк, все
+			// -- команды и игрок, и обе сборки дали идентичный вывод), то
+			// есть версия про порядок осей закрыта.
+			//
+			// Все остальные места движка, собирающие матрицу таким образом,
+			// сначала пишут её целиком (`CreateMatrix`,
+			// `CreateMatrixFromAngles`, `UnitNot3x3`) -- здесь этого шага
+			// не хватало.
 			CMat4Dfp32 m;
+			m.Unit();
 			p.SetMatrixRow(m, 0);
 			if (p[0] != 0.0f)
 				CVec3Dfp32(0,1,0).SetMatrixRow(m, 1);
@@ -440,7 +463,7 @@ bool CWObject_Light::RegisterToMaster()
 			CWObject* pMasterLight = m_pWServer->Object_Get(m_MasterLightID);
 			if (!pMasterLight)
 			{
-				ConOutL(CStrF("�cf80WARNING [Light %s] RegisterToMaster: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
+				ConOutL(CStrF("§cf80WARNING [Light %s] RegisterToMaster: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
 				return false;
 			}
 
@@ -466,7 +489,7 @@ void CWObject_Light::SendSignalToMasterLight(int32 _Signal, int32 _Param)
 		CWObject* pMasterLight = m_pWServer->Object_Get(m_MasterLightID);
 		if (!pMasterLight)
 		{
-			ConOutL(CStrF("�cf80WARNING [Light %s] SendSignalToMasterLight: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
+			ConOutL(CStrF("§cf80WARNING [Light %s] SendSignalToMasterLight: Master light not found (%s)", GetName(), m_MasterLightName.DbgName().Str()));
 			return;
 		}
 
@@ -744,7 +767,7 @@ aint CWObject_Light::OnMessage(const CWObject_Message& _Msg)
 #ifndef M_RTM
 			// Debug check, shouldn't be needed
 			if(m_NumActiveSlaveLights.Get(this) > m_NumSlaveLights.Get(this))
-				ConOutL(CStrF("�cf80WARNING (CWObject_Light::OnMessage): More lights are on then there are registered slaves (Active %d, Registered %d)", m_NumActiveSlaveLights.Get(this), m_NumSlaveLights.Get(this)));
+				ConOutL(CStrF("§cf80WARNING (CWObject_Light::OnMessage): More lights are on then there are registered slaves (Active %d, Registered %d)", m_NumActiveSlaveLights.Get(this), m_NumSlaveLights.Get(this)));
 #endif
 
 			// We extrapolate a bit, so that broken lights will have time to fade out

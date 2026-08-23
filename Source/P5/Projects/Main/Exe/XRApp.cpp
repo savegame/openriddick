@@ -1,6 +1,7 @@
 #include "PCH.h"
 #include <cstdio>
-#include "MRTC_Callgraph.h"
+#include <cstdlib>	// getenv/atoi (RIDDICK_VBHEAP)
+#include "MRTC_CallGraph.h"
 #include "../../Shared/MOS/MMain.h"
 #include "../../Shared/MOS/Classes/Render/MRenderCapture.h"
 #include "../../Shared/MOS/Classes/Win/MWinGrph.h"
@@ -1548,6 +1549,212 @@ int CSystemThread::Thread_Main()
 	return 0;
 }
 
+#ifdef PLATFORM_LINUX
+
+// ---------------------------------------------------------------------------
+//  Live engine console for the Linux port
+// ---------------------------------------------------------------------------
+// The engine registers a large set of console functions for exactly the kind
+// of A/B work this port needs -- xr_debugflags, xr_stencilshadows, xr_zfog,
+// xr_dlight, xr_specularforcepower and the rest (CXR_EngineImpl::Register,
+// XREngine.cpp:5982; CXR_Shader::Register, XRShader.cpp:2295) -- and they are
+// all registered in our build, because the engine is created with flags 0
+// (m_spEngine->Create(MaxRecurseDepth, 0) below) so AddToConsole() runs. What
+// the port was missing is any way to *reach* them: there is no on-screen
+// console (no key opens one) and the only executor was the single-shot
+// m_PendingExecute slot.
+//
+// Hence the three hooks below. None adds a render feature or a new engine
+// behaviour -- they only carry text to CConsole::ExecuteString, on the same
+// thread and at the same point in the frame that RIDDICK_AUTOSTART already
+// uses, so anything reachable from the game's own scripts is reachable here.
+//
+//   RIDDICK_CONEXEC="cmd1;cmd2"   run once, N frames in (see the delay note
+//                                 on RIDDICK_AUTOSTART); for a fixed setup.
+//   RIDDICK_CONSOLE_STDIN=1       read command lines from stdin every frame;
+//                                 type into the terminal while the game runs.
+//   RIDDICK_CONFILE=<path>        execute lines appended to <path> (only the
+//                                 bytes that are new since the last poll), so
+//                                 `echo "xr_debugflags(8192)" >> path` from a
+//                                 second terminal toggles the running game.
+//
+// stdin is OFF by default on purpose: under gdb the inferior shares the
+// terminal, and eating those keystrokes would swallow gdb's own commands.
+// RIDDICK_CONFILE has no such problem and works with a redirected stdout.
+
+#include <unistd.h>
+#include <poll.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
+// One command line -> console. Empty lines and '#'/'//' comments are skipped
+// so a command file can be annotated.
+static void Linux_ConsoleExecLine(CConsole* _pCon, const char* _pLine)
+{
+	if (!_pCon || !_pLine) return;
+
+	while (*_pLine == ' ' || *_pLine == '\t') _pLine++;
+	if (!*_pLine || *_pLine == '#' || (_pLine[0] == '/' && _pLine[1] == '/'))
+		return;
+
+	M_TRACEALWAYS("[CONSOLE] %s\n", _pLine);
+	_pCon->ExecuteString(CStr(_pLine));
+}
+
+// Byte accumulator shared by the stdin and file readers: feeds complete lines
+// to the console and keeps the tail between calls.
+class CLinux_ConsoleLineBuffer
+{
+public:
+	CLinux_ConsoleLineBuffer() : m_Len(0), m_bDrop(false) {}
+
+	// Drop a half-accumulated line. Used when the watched file is rewritten
+	// under us: the tail we were holding belongs to the old content and must
+	// not be glued to the front of the new.
+	void Reset() { m_Len = 0; m_bDrop = false; }
+
+	void Feed(CConsole* _pCon, const char* _pData, int _nData)
+	{
+		for(int i = 0; i < _nData; i++)
+		{
+			const char c = _pData[i];
+			if (c == '\n' || c == '\r')
+			{
+				if (!m_bDrop)
+				{
+					m_Line[m_Len] = 0;
+					Linux_ConsoleExecLine(_pCon, m_Line);
+				}
+				m_Len = 0;
+				m_bDrop = false;
+			}
+			else if (m_bDrop)
+				continue;					// rest of a dropped line
+			else if (m_Len < (int)sizeof(m_Line) - 1)
+				m_Line[m_Len++] = c;
+			else
+			{
+				// Overlong line: drop the whole thing, up to and including
+				// its newline. Executing a truncation would be worse.
+				M_TRACEALWAYS("[CONSOLE] line too long, ignored\n");
+				m_Len = 0;
+				m_bDrop = true;
+			}
+		}
+	}
+
+private:
+	char m_Line[512];
+	int m_Len;
+	bool m_bDrop;
+};
+
+static void Linux_PollConsoleStdin(CConsole* _pCon)
+{
+	static int s_Mode = -1;			// -1 undecided, 0 off, 1 on
+	if (s_Mode == -1)
+	{
+		const char* e = getenv("RIDDICK_CONSOLE_STDIN");
+		s_Mode = (e && *e && *e != '0') ? 1 : 0;
+		if (s_Mode)
+			M_TRACEALWAYS("[CONSOLE] stdin console active -- type engine commands, e.g. xr_debugflags(8192)\n");
+	}
+	if (s_Mode != 1) return;
+
+	static CLinux_ConsoleLineBuffer s_Buf;
+	for(;;)
+	{
+		struct pollfd pfd;
+		pfd.fd = STDIN_FILENO;
+		pfd.events = POLLIN;
+		pfd.revents = 0;
+		if (poll(&pfd, 1, 0) <= 0) break;			// nothing pending -- never blocks
+		if (!(pfd.revents & (POLLIN | POLLHUP))) break;
+
+		char Buf[256];
+		const ssize_t n = read(STDIN_FILENO, Buf, sizeof(Buf));
+		if (n > 0)
+		{
+			s_Buf.Feed(_pCon, Buf, (int)n);
+			continue;
+		}
+
+		// 0 = EOF (stdin closed / </dev/null), <0 = would-block or error.
+		if (n == 0)
+			s_Mode = 0;
+		break;
+	}
+}
+
+static void Linux_PollConsoleFile(CConsole* _pCon)
+{
+	static const char* s_pPath = NULL;
+	static int s_Mode = -1;			// -1 undecided, 0 off, 1 on
+	if (s_Mode == -1)
+	{
+		const char* e = getenv("RIDDICK_CONFILE");
+		s_pPath = (e && *e) ? e : NULL;
+		s_Mode = s_pPath ? 1 : 0;
+		if (s_Mode)
+			M_TRACEALWAYS("[CONSOLE] watching '%s' for engine commands\n", s_pPath);
+	}
+	if (s_Mode != 1) return;
+
+	// Every 15th frame is often enough for hand-typed commands and keeps the
+	// stat() off the per-frame path.
+	static int s_Countdown = 0;
+	if (--s_Countdown > 0) return;
+	s_Countdown = 15;
+
+	struct stat St;
+	if (stat(s_pPath, &St) != 0) return;
+
+	static off_t s_Offset = 0;
+	static bool s_bFirst = true;
+	if (s_bFirst)
+	{
+		// Start at the end: whatever the file already holds is a leftover
+		// from an earlier run, and silently replaying yesterday's toggles at
+		// startup would be a trap. A deliberate startup batch is what
+		// RIDDICK_CONEXEC is for.
+		s_bFirst = false;
+		s_Offset = St.st_size;
+		return;
+	}
+	// Persistent across polls: a writer can be caught mid-line, so an
+	// unterminated tail waits for its newline instead of being executed as a
+	// truncated command. Consequence to know: a final line written without a
+	// trailing newline never runs.
+	static CLinux_ConsoleLineBuffer s_Buf;
+
+	if ((off_t)St.st_size < s_Offset)
+	{
+		s_Offset = 0;							// file was truncated/rewritten
+		s_Buf.Reset();							// old tail is not new content
+	}
+	if ((off_t)St.st_size == s_Offset) return;	// nothing appended
+
+	const int fd = open(s_pPath, O_RDONLY);
+	if (fd < 0) return;
+	if (lseek(fd, s_Offset, SEEK_SET) == (off_t)-1)
+	{
+		close(fd);
+		return;
+	}
+
+	char Data[512];
+	for(;;)
+	{
+		const ssize_t n = read(fd, Data, sizeof(Data));
+		if (n <= 0) break;
+		s_Offset += n;
+		s_Buf.Feed(_pCon, Data, (int)n);
+	}
+	close(fd);
+}
+
+#endif // PLATFORM_LINUX
+
 void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 {
 	CMTime CMFrameTime;
@@ -1855,6 +2062,84 @@ void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 		}
 	}
 #endif
+	// RIDDICK_AUTOSTART=1 (or =<frames>) -- boot straight into the game,
+	// skipping the front-end entirely: legal screen, ESRB, publisher logo,
+	// main menu, difficulty page. Collecting a gameplay log otherwise costs a
+	// menu walk every single run, and menu frames are exactly the frames the
+	// probes are not interested in.
+	//
+	// Mechanism: fire the same console function the menu's "new game" button
+	// calls (startnewcampaign(2) = Butcher Bay, (1) = Dark Athena -- see the
+	// comment on CGameContextMod::Con_StartNewCampaign, WGameContextMain.cpp
+	// :1123), through the pending-execute slot below, once, after a short
+	// delay. The delay exists because the console function needs the game
+	// context and world data to be up; 30 frames is well past that and still
+	// under a second. RIDDICK_AUTOSTART=<n> overrides it if a content set
+	// needs longer. Combine with RIDDICK_STARTMAP to pick the world.
+	{
+		static int s_AutoStart = -2;
+		if (s_AutoStart == -2)
+		{
+			const char* e = getenv("RIDDICK_AUTOSTART");
+			if (e && *e && *e != '0')
+			{
+				const int n = atoi(e);
+				s_AutoStart = (n > 1) ? n : 30;
+			}
+			else
+				s_AutoStart = -1;
+		}
+		if (s_AutoStart > 0 && --s_AutoStart == 0)
+		{
+			s_AutoStart = -1;   // once per process
+			const char* pMode = getenv("RIDDICK_AUTOSTART_MODE");
+			const int Mode = (pMode && *pMode) ? atoi(pMode) : 2;
+			m_PendingExecute = CStrF("startnewcampaign(%d)", Mode);
+			M_TRACEALWAYS("[AUTOSTART] skipping the front-end: %s\n", m_PendingExecute.Str());
+		}
+	}
+
+#ifdef PLATFORM_LINUX
+	// RIDDICK_CONEXEC="cmd1;cmd2" -- a one-shot batch of engine console
+	// commands, fired on the same frame budget as RIDDICK_AUTOSTART (the
+	// console functions need the engine and game context up). Delay is
+	// overridable with RIDDICK_CONEXEC_DELAY=<frames>; the default 30 is a
+	// few frames past engine creation and still under a second.
+	// See the block comment above SystemThread for the whole mechanism.
+	{
+		static int s_ConExecDelay = -2;
+		static const char* s_pConExec = NULL;
+		if (s_ConExecDelay == -2)
+		{
+			const char* e = getenv("RIDDICK_CONEXEC");
+			if (e && *e)
+			{
+				s_pConExec = e;
+				const char* d = getenv("RIDDICK_CONEXEC_DELAY");
+				const int n = (d && *d) ? atoi(d) : 0;
+				s_ConExecDelay = (n > 0) ? n : 30;
+			}
+			else
+				s_ConExecDelay = -1;
+		}
+		if (s_ConExecDelay > 0 && --s_ConExecDelay == 0)
+		{
+			s_ConExecDelay = -1;			// once per process
+			CStr Cmds = s_pConExec ? s_pConExec : "";
+			while (Cmds != "")
+			{
+				CStr Cmd = Cmds.GetStrSep(";");
+				Cmd.Trim();
+				if (Cmd != "")
+					Linux_ConsoleExecLine(m_pSystem->m_spCon, Cmd.Str());
+			}
+		}
+	}
+
+	Linux_PollConsoleStdin(m_pSystem->m_spCon);
+	Linux_PollConsoleFile(m_pSystem->m_spCon);
+#endif
+
 	if (m_PendingExecute != "")
 	{
 		m_pSystem->m_spCon->ExecuteString(m_PendingExecute);
@@ -1880,7 +2165,7 @@ void CXRealityApp::SystemThread(CDisplayContext* _pDisplay)
 MRTC_IMPLEMENT_DYNAMIC(CXRealityApp, CApplication)
 
 
-#include "mfloat.h"
+#include "MFloat.h"
 CXRealityApp::CXRealityApp()
 {
 
@@ -3682,9 +3967,24 @@ void CXRealityApp::Create()
 				CStr Path = Paths.GetStrSep(";");
 				if(Path.GetDevice() == "")
 					Path = m_pSystem->m_ExePath + Path;
-				if(CDiskUtil::FileExists(Path + "FONTS\\" + MiniFont ".xfc"))
+				const bool bFound = CDiskUtil::FileExists(Path + "FONTS\\" + MiniFont ".xfc");
+#ifdef PLATFORM_LINUX
+				// ЗОНД (без флага): отладочный шрифт -- первый файл, который
+				// движок ищет на диске, и если он не нашёлся, дальше
+				// `Error` = `M_BREAKPOINT` = SIGILL без единого слова о том,
+				// ГДЕ искали. А искомое имя собирается из трёх частей
+				// (`m_ExePath` + компонент `DEFAULTGAMEPATH` + `FONTS\...`),
+				// и ошибка может быть в любой. Печатаем каждый кандидат.
+				M_TRACEALWAYS("[FONT] пробую '%s' -> %s\n",
+					(Path + "FONTS\\" + MiniFont ".xfc").Str(), bFound ? "есть" : "нет");
+#endif
+				if(bFound)
 					ValidPath = Path;
 			}
+#ifdef PLATFORM_LINUX
+			M_TRACEALWAYS("[FONT] exePath='%s' DEFAULTGAMEPATH='%s'\n",
+				m_pSystem->m_ExePath.Str(), OrgPaths.Str());
+#endif
 			
 			if (ValidPath == "")
 				Error("Create", CStrF("Could not find debugfont %s at: %s, Game: %s", CStrF("FONTS\\%s.xfc", MiniFont).Str(), m_pSystem->GetEnvironment()->GetValue("DEFAULTGAMEPATH", "Content\\").Str(), Game.Str()));
@@ -3914,7 +4214,27 @@ void CXRealityApp::InitWorld()
 	MRTC_GOM()->RegisterObject(spVBMC, "SYSTEM.VBMCONTAINER");
 	m_spVBMContainer = spVBMContainer;
 
+	// Size of one frame's vertex-buffer arena, in KiB. Retail's default is
+	// 4096 and it is enough there because retail advertises
+	// CRC_CAPS_FLAGS_MATRIXPALETTE: skinned characters go down the hardware
+	// path and never allocate CPU vertex arrays. Our GLES3 backend does not
+	// advertise it, so bHWAnim stays false (WTriMesh.cpp:5494) and every
+	// visible skinned cluster allocates the WHOLE vertex buffer twice
+	// (positions + normals, WTriMesh.cpp:5857-5862) -- per cluster, not per
+	// mesh. On i1_pigsville with a handful of guards on screen that blew
+	// through 4 MiB every frame ("Out of VB memory!" x139, clusters silently
+	// dropped, and finally a NULL matrix palette), so the Linux default is
+	// raised. RIDDICK_VBHEAP=<KiB> overrides both this and Environment.cfg.
+#ifdef PLATFORM_LINUX
+	int VBSize = pEnv->GetValuei("XR_VBHEAP", 32768);
+	{
+		const char* pVBHeapEnv = getenv("RIDDICK_VBHEAP");
+		if (pVBHeapEnv && *pVBHeapEnv)
+			VBSize = atoi(pVBHeapEnv);
+	}
+#else
 	int VBSize = pEnv->GetValuei("XR_VBHEAP", 4096);
+#endif
 	VBSize = Max(16, Min(1024*64, VBSize));
 #if defined(PLATFORM_XENON) || defined(PLATFORM_PS3)
 	m_spVBMContainer->Create(3, VBSize*1024, 1024);
@@ -6379,6 +6699,13 @@ void CXRealityApp::CommitOptions()
 		}
 
 		fp32 PixelAspect = pEnv->GetValuef("vid_pixelaspect", 1.0);
+		// -1 is the retail "auto/unset" sentinel and is what the shipped
+		// profile actually stores. Feeding it through unchanged makes
+		// CRC_Viewport::Update divide m_xScale by a negative number and
+		// mirror the world along X. Same guard the engine uses for
+		// VID_FORCEPIXELASPECT (MSystem_Win32.cpp:1383).
+		if (PixelAspect <= 0.0f)
+			PixelAspect = 1.0f;
 		//		if(!pDisplay->IsFullScreen())
 		//			pDisplay->SetScreenAspect(1.0f);
 		//		else

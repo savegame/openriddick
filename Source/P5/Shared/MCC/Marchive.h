@@ -2,7 +2,7 @@
 #ifndef _INC_MARCHIVE
 #define _INC_MARCHIVE
 
-#include "MDA.h"
+#include "Mda.h"
 #include "MFile.h"
 
 // -------------------------------------------------------------------

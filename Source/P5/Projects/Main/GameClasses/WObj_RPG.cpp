@@ -7,7 +7,7 @@
 #include "WRPG/WRPGChar.h"
 #include "WObj_Misc/WObj_ActionCutscene.h"
 
-#include "../../../Shared/Mos/Classes/GameWorld/WObjects/WObj_Game.h"
+#include "../../../Shared/MOS/Classes/GameWorld/WObjects/WObj_Game.h"
 #include "../../../Shared/MOS/Classes/GameWorld/WDataRes_Sound.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Core.h"
 #include "../../../Shared/MOS/Classes/GameWorld/Client/WClient_Sound.h"

@@ -1,5 +1,5 @@
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			-
 					
 	Author:			Erik Olofsson
@@ -204,7 +204,7 @@ float CMathAccel::fsqrt(fp32 n) const
 //	FastDivInt,		int32 / int32
 //
 //	16 c. Inc. loop.
-//	39 c. Inc loop, Kåd med vanlig division.
+//	39 c. Inc loop, KÃ¥d med vanlig division.
 //
 int CMathAccel::FastDivInt(int taljare, int namnare)
 {
@@ -222,8 +222,8 @@ int CMathAccel::FastDivInt(int taljare, int namnare)
 //-------------------------------------------------------------------
 //FastMulDiv64,	(int32 * int32) / int32
 //
-//	26 c. Inc. loop. 119 om det inte går att optimera.
-//	106 c. Inc loop, Kåd med vanlig 64-bit division.
+//	26 c. Inc. loop. 119 om det inte gÃ¥r att optimera.
+//	106 c. Inc loop, KÃ¥d med vanlig 64-bit division.
 //
 int CMathAccel::FastMulDiv64(int factor1, int factor2, int namnare)
 {
@@ -242,7 +242,7 @@ int CMathAccel::FastMulDiv64(int factor1, int factor2, int namnare)
 //FastDivFp32Int,  fp32 / int32
 //
 //	13 c. Inc. loop. 30 om ingen opt.
-//	30 c. Inc loop, Kåd med vanlig division.
+//	30 c. Inc loop, KÃ¥d med vanlig division.
 
 int CMathAccel::FastDivFp32Int(fp32 taljare, int namnare)
 {
@@ -346,7 +346,7 @@ void MemSetD(void* _pDest, int _Value, int _Count)
 #include "PCH.h"
 
 /*************************************************************************************************\
-|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+|Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯
 | CMDA_CRC32Checker
 |__________________________________________________________________________________________________
 \*************************************************************************************************/
@@ -430,7 +430,7 @@ void CMDA_CRC32Checker::AddFile(CCFile* _pFile)
 
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:	InternalRadixSort. (internal helper to RadixSort<T>)
 
 	Comments:	Sorts an array..

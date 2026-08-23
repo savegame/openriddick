@@ -2,3 +2,9 @@ build/
 build-*/
 *.log
 
+ppm
+screenshots
+bsp
+.vscode
+Tools/out/
+__pycache__/

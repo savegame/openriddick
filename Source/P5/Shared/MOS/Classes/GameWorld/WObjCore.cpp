@@ -1,4 +1,8 @@
 #include "PCH.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+
 #include "WObjCore.h"
 #include "Server/WServer.h"
 #include "WMapData.h"
@@ -90,7 +94,7 @@ CWO_PhysicsPrim::CWO_PhysicsPrim(int _PrimType, int _iPhysModel, const CVec3Dfp3
 #ifndef M_RTM
 	if (_Dim[0] > CWO_PHYSICSPRIM_MAXDIM_XY || _Dim[1] > CWO_PHYSICSPRIM_MAXDIM_XY ||_Dim[2] > CWO_PHYSICSPRIM_MAXDIM_Z ||
 		Abs(_Offset[0]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[1]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[2]) > CWO_PHYSICSPRIM_MAXOFS)
-		ConOut(CStrF("�cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
+		ConOut(CStrF("§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
 #endif
 	SetDim(_Dim);
 	SetOffset(_Offset);
@@ -109,7 +113,7 @@ void CWO_PhysicsPrim::Create(int _PrimType, int _iPhysModel, const CVec3Dfp32& _
 #ifndef M_RTM
 	if (_Dim[0] > CWO_PHYSICSPRIM_MAXDIM_XY || _Dim[1] > CWO_PHYSICSPRIM_MAXDIM_XY ||_Dim[2] > CWO_PHYSICSPRIM_MAXDIM_Z ||
 		Abs(_Offset[0]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[1]) > CWO_PHYSICSPRIM_MAXOFS || Abs(_Offset[2]) > CWO_PHYSICSPRIM_MAXOFS)
-		ConOut(CStrF("�cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
+		ConOut(CStrF("§cf80WARNING (CWO_PhysicsPrim::-): Invalid dim/offset %s, %s", _Dim.GetString().Str(), _Offset.GetString().Str()));
 #endif
 	SetDim(_Dim);
 	SetOffset(_Offset);
@@ -731,7 +735,7 @@ CWObject_CoreData::~CWObject_CoreData()
 {
 	/*if (m_pRigidBody) 
 	{
-		ConOutL(CStr("�cff0WARNING SOMEONE: Rigidbody exist in object core data. Where should this be removed!!"));
+		ConOutL(CStr("§cff0WARNING SOMEONE: Rigidbody exist in object core data. Where should this be removed!!"));
 		delete m_pRigidBody;
 		m_pRigidBody = NULL;
 	}*/
@@ -2080,10 +2084,10 @@ void CWObject::Phys_AddPrimitive(const char* _pPrim, CWO_PhysicsState* _pTarget)
 				pPhys->m_nPrim++;
 			}
 			else
-				ConOutL("�cf80WARNING (CWObject_Model::Phys_AddPrimitive): Model was not a physics-model.");
+				ConOutL("§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Model was not a physics-model.");
 		}
 		else
-			ConOutL("�cf80WARNING (CWObject_Model::Phys_AddPrimitive): Invalid model-index.");
+			ConOutL("§cf80WARNING (CWObject_Model::Phys_AddPrimitive): Invalid model-index.");
 	}
 	else
 		pPhys->m_nPrim++;
@@ -2184,7 +2188,7 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			_pKey->GetThisValueaf(3, v.k);
 
 			if (!m_pWServer->Object_SetPosition(m_iObject, v))
-				LogFile("�cf80WARNING: Failed setting ORIGIN, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("§cf80WARNING: Failed setting ORIGIN, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
 		}
 		break;
@@ -2194,22 +2198,62 @@ void CWObject::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			CMat4Dfp32 Mat(GetLocalPositionMatrix());
 			Mat.SetZRotation3x3(_pKey->GetThisValuef() * (1.0f/360.0f));
 			if (!m_pWServer->Object_SetPosition(m_iObject, Mat))
-				LogFile("�cf80WARNING: Failed setting ANGLE, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("§cf80WARNING: Failed setting ANGLE, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
 		}
 		break;
 
 	case MHASH2('ANG','LES') : // "ANGLES"
 	case MHASH2('ROTA','TION') : // "ROTATION"
-		{ 
+		{
 			CMat4Dfp32 Mat;
 			CVec3Dfp32 v; v.ParseString(_pKey->GetThisValue());
 			v *= (1.0f/360.0f);
 			v.CreateMatrixFromAngles(0, Mat);
 			CVec3Dfp32::GetMatrixRow(Mat, 3) = GetLocalPosition();
 			if (!m_pWServer->Object_SetPosition(m_iObject, Mat))
-				LogFile("�cf80WARNING: Failed setting ANGLES, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
+				LogFile("§cf80WARNING: Failed setting ANGLES, Entity: " + Dump(m_pWServer->GetMapData(), 0) );
 			m_LastPos = m_Pos;
+
+			// RIDDICK_DBG_ANGLES=1 -- ориентации сущностей.
+			//
+			// Через этот ключ проходит ВСЁ, что жалуется на поворот:
+			// прожекторы, следящие камеры, актёры катсцен. Печатаем сырую
+			// строку из карты и получившиеся строки матрицы, чтобы отличить
+			// три разных диагноза:
+			//   * строка разобралась не так (ParseString / порядок компонент);
+			//   * порядок осей в CreateMatrixFromAngles не тот, что ожидает
+			//     контент (тогда ошибка одинакова у всех сущностей);
+			//   * матрица верна, а портит её кто-то ниже по течению
+			//     (тогда искать в конкретном классе объекта).
+			// Двух прогонов подряд хватит и на второй вопрос: если строки
+			// РАЗЛИЧАЮТСЯ между запусками при одинаковой карте -- дело в
+			// неинициализированной памяти, а не в порядке осей.
+			static int s_Dbg = -1;
+			if (s_Dbg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_ANGLES");
+				s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_Dbg)
+			{
+				static int s_n = 0;
+				if (s_n < 120)
+				{
+					++s_n;
+					const char* pName = GetName();
+					const char* pTpl = GetTemplateName();
+					fprintf(stderr, "[ANGLES] obj=%d tpl='%s' name='%s' raw='%s' deg=(%.1f %.1f %.1f) "
+						"fwd=(%.3f %.3f %.3f) right=(%.3f %.3f %.3f) up=(%.3f %.3f %.3f)\n",
+						(int)m_iObject, (pTpl && *pTpl) ? pTpl : "-", (pName && *pName) ? pName : "-",
+						_pKey->GetThisValue().Str(),
+						v.k[0] * 360.0f, v.k[1] * 360.0f, v.k[2] * 360.0f,
+						Mat.k[0][0], Mat.k[0][1], Mat.k[0][2],
+						Mat.k[1][0], Mat.k[1][1], Mat.k[1][2],
+						Mat.k[2][0], Mat.k[2][1], Mat.k[2][2]);
+					fflush(stderr);
+				}
+			}
 		}
 		break;
 
@@ -2298,7 +2342,7 @@ void CWObject::OnFinishEvalKeys()
 	{
 		if(pTempPS->m_nPrim && !m_pWServer->Object_SetPhysics(m_iObject, *pTempPS))
 		{
-			ConOutL("�cf80WARNING: Unable to set temporary physics state.");
+			ConOutL("§cf80WARNING: Unable to set temporary physics state.");
 			LogFile("PHYSSTATE: " + pTempPS->Dump(-1));
 		}
 

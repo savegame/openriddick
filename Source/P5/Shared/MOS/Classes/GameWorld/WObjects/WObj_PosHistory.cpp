@@ -1,4 +1,6 @@
 #include "PCH.h"
+
+#include <stdio.h>	// [PATH] LoadPath report
 #include "WObj_PosHistory.h"
 #include "MFloat.h"
 
@@ -37,6 +39,17 @@ void CWO_PosHistory::LoadPath(const void* __pData, const CMat4Dfp32 &_Transform)
 	int32 nVersion = _pData[0];
 	SwapLE(nVersion);
 	int Version = nVersion & POSHISTORY_IDMASK;
+
+	// PC content writes version 1002 with the same layout as 1000 (see the
+	// enum in WObj_PosHistory.h for the byte-level evidence). Normalise the ID
+	// here so the dozen "GetVersion() == POSHISTORY_RESOURCEID" tests in
+	// CSequence keep working untouched; the flags bit is preserved.
+	if(Version == POSHISTORY_PC_RESOURCEID)
+	{
+		Version = POSHISTORY_RESOURCEID;
+		nVersion = (nVersion & ~POSHISTORY_IDMASK) | POSHISTORY_RESOURCEID;
+	}
+
 	if(Version == POSHISTORY_RESOURCEID || Version == POSHISTORY_PACKED_RESOURCEID)
 	{
 		m_Transform = _Transform;
@@ -73,6 +86,26 @@ void CWO_PosHistory::LoadPath(const void* __pData, const CMat4Dfp32 &_Transform)
 
 			if(nVersion & POSHISTORY_FLAGS)
 				iPos += (nPath + 3) / 4;
+		}
+	}
+	else
+	{
+		// A poshistory resource whose version word matches neither ID is
+		// dropped here without a word, leaving m_lSequences empty -- and an
+		// engine path with no sequences produces no motion and no error, so
+		// doors, gates and chains simply never move while their scripts and
+		// timed messages keep running correctly. Report it: this is the one
+		// place that can tell "the path data never parsed" apart from "the
+		// path parsed but decoded wrong". Not behind a flag on purpose, and
+		// capped, because it can only fire when something is genuinely broken.
+		static int s_nReported = 0;
+		if(s_nReported < 16)
+		{
+			++s_nReported;
+			fprintf(stderr, "[PATH] LoadPath: unknown poshistory version 0x%x (id=%d, expected %d or %d)"
+				" -- path dropped, mover will not move\n",
+				(unsigned)nVersion, Version, (int)POSHISTORY_RESOURCEID, (int)POSHISTORY_PACKED_RESOURCEID);
+			fflush(stderr);
 		}
 	}
 }
@@ -583,6 +616,12 @@ int CPosHistory_EditData::Load(const void* __pData)
 
 	int Ver = _piData[0];
 	int VerID = Ver & POSHISTORY_IDMASK;
+	// Same normalisation as in CWO_PosHistory::LoadPath: 1002 is 1000's layout.
+	if (VerID == POSHISTORY_PC_RESOURCEID)
+	{
+		VerID = POSHISTORY_RESOURCEID;
+		Ver = (Ver & ~POSHISTORY_IDMASK) | POSHISTORY_RESOURCEID;
+	}
 	if (VerID == POSHISTORY_RESOURCEID || VerID == POSHISTORY_PACKED_RESOURCEID)
 	{
 		int nSeq = _piData[1];

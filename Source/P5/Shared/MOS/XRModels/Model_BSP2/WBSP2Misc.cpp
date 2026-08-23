@@ -169,7 +169,7 @@ void CBSP2_LinkContext::Insert(int _ID, const CBox3Dfp32& _Box, int _Flags)
 /*	if (!m_lIDLinkMap[_ID])
 	{
 		InsertInfinite(_ID, _Flags);
-//		ConOut(CStrF("§c0f0NOTE: (CBSP2_LinkContext::Insert) ID %d (%s) was not linked to any PL.", _ID, (char*)_Box.GetString() ));
+//		ConOut(CStrF("Â§c0f0NOTE: (CBSP2_LinkContext::Insert) ID %d (%s) was not linked to any PL.", _ID, (char*)_Box.GetString() ));
 	}*/
 
 //if (bCheck && pByte[0x04474F13] != 0xfd) M_BREAKPOINT;
@@ -197,7 +197,7 @@ void CBSP2_LinkContext::InsertWithPVS(int _ID, const CBox3Dfp32& _Box, int _Flag
 /*	if (!m_lIDLinkMap[_ID])
 	{
 		InsertInfinite(_ID, _Flags);
-//		ConOut(CStrF("§c0f0NOTE: (CBSP2_LinkContext::Insert) ID %d (%s) was not linked to any PL.", _ID, (char*)_Box.GetString() ));
+//		ConOut(CStrF("Â§c0f0NOTE: (CBSP2_LinkContext::Insert) ID %d (%s) was not linked to any PL.", _ID, (char*)_Box.GetString() ));
 	}*/
 }
 

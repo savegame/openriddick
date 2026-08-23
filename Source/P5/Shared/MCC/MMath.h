@@ -11,8 +11,8 @@ extern "C" void FooBreak();
 NAME:		MOS_Math.cpp/h
 PURPOSE:	Math library
 CREATION:	960901
-AUTHOR:		Magnus Högdahl
-COPYRIGHT:	Magnus Högdahl
+AUTHOR:		Magnus HÃ¶gdahl
+COPYRIGHT:	Magnus HÃ¶gdahl
 
 CONTENTS:
 template class		Template_Matrix4			960820	OK					typedef: CMat4Dint8 .. CMat4Dfp10
@@ -2948,7 +2948,7 @@ public:
 
 	void Project(const V& b, V& r) const
 	{
-		// projicerar this i b och lägger det i r
+		// projicerar this i b och lÃ¤gger det i r
 		T blen2 = (b*b);
 		if (blen2 == T(0.0)) { r.SetScalar(0); return; };
 		T s = (*this)*b / (b*b);
@@ -2957,7 +2957,7 @@ public:
 
 	void ProjectPlane(const V& n, V& p) const
 	{
-		// projicerar this planet def av n och lägger det i p
+		// projicerar this planet def av n och lÃ¤gger det i p
 		T blen2 = (n*n);
 		if (blen2 == T(0.0)) { p.SetScalar(0); return; };
 		T s = (*this)*n / (n*n);
@@ -2969,7 +2969,7 @@ public:
 
 	void Reflect(const V& n, V& r) const
 	{
-		// this pekar "ner" i planet n, r pekar up ifrån planet.
+		// this pekar "ner" i planet n, r pekar up ifrÃ¥n planet.
 		V np;
 		Project(n, np);
 		np.Scale(-2, r);
@@ -5561,7 +5561,7 @@ public:
 
 	void Project(const V& b, V& r) const
 	{
-		// projicerar this i b och lägger det i r
+		// projicerar this i b och lÃ¤gger det i r
 		T blen2 = (b*b);
 		if (blen2 == 0) { r = 0; return; };
 		T s = (*this)*b / (b*b);
@@ -5570,7 +5570,7 @@ public:
 
 	void Reflect(const V& n, V& r) const
 	{
-		// this pekar "ner" i planet n, r pekar up ifrån planet.
+		// this pekar "ner" i planet n, r pekar up ifrÃ¥n planet.
 		V np;
 		Project(n, np);
 		np.Multiply(-2, r);

@@ -1,0 +1,59 @@
+*depth
+"
+
+float ConvertDepth(float4 _depthtexel, float4 _VPConst)
+{
+#ifdef target_hlsl
+	float depth = 1.0 - _depthtexel.r;
+#else
+        // GLSL, CG
+	float depth = dot(floor(_depthtexel.xyz * splat3(255.0) + splat3(0.5)), float3(0.0039062502328306575316, 0.00001525878997199475, 0.00000005960464832810451555));
+#endif
+	depth = -1.0 / (depth * _VPConst.w - _VPConst.x) * _VPConst.z;
+	return depth;
+}
+
+float4 ConvertDepthUVToPos(float _depth, float2 _uv, float4 _DepthScale)
+{
+	float4 pos;
+	// GLSL - pos.xy = (_uv * float2(2.0, -2.0) + float2(-1.0, 1.0)) * _VPScale.zw * splat2(_depth);
+	// HLSL, CG - pos.xy = (_uv * float2(2.0, 2.0) + float2(-1.0, -1.0)) * _VPScale.zw * splat2(_depth);
+	pos.xy = (_uv * _DepthScale.zw + _DepthScale.xy) * splat2(_depth);
+	pos.z = _depth;
+	pos.w = 1.0;
+	return pos;
+}
+
+float3 ConvertDepthToPixel(float _PixelPosZ, float4 _VPConst)
+{
+        // Old projection matrix -- possible for PS3?
+	// float depth1neg1 = (_VPConst.x - _VPConst.z / _PixelPosZ) / _VPConst.w;
+	// float depth01 = depth1neg1 * 0.5 + 0.5;//(depth1neg1 + 1.0) * 0.5;
+	float depth01 = (_VPConst.x - _VPConst.z / _PixelPosZ) / _VPConst.w;
+	
+	float3 pixel = float3(0.0, 0.0, 0.0);
+	
+	pixel = (frac(floor(splat3(depth01) * float3(16777215.0 / 65536.0, 16777215.0 / 256.0, 16777215.0)) / 256.0)) * splat3(256.0 / 255.0);
+	
+	return pixel;
+}
+
+float4 SMCoordinateTransform(float4 _v)
+{
+	_v.xyz *= splat3(1.0 / _v.w);
+
+#ifndef target_glsl
+	_v.y *= -1.0;
+#endif
+
+#ifdef target_hlsl
+	_v.xy += 0.5;
+	_v.z = 1.0 - _v.z;
+#else
+	_v.xy += splat2(0.5);
+	_v.z = _v.z * 0.5 + 0.5;
+#endif
+	return _v;
+}
+
+"

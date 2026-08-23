@@ -7,7 +7,7 @@ enum
 	DIALOGUECAMERA_MODE_UNDEFINED = -1,			// Undefined mode
 
 	DIALOGUECAMERA_MODE_DEFAULT_TWOSHOT = 0,		// Default third person camera. Two shoot camera, positioned just behind listener.  
-	DIALOGUECAMERA_MODE_THIRDPERSON_NOCLIP = 1,			// Third person camera. Does´nt clip when speaker/listener is swapped.
+	DIALOGUECAMERA_MODE_THIRDPERSON_NOCLIP = 1,			// Third person camera. DoesÂ´nt clip when speaker/listener is swapped.
 	DIALOGUECAMERA_MODE_BOUNDING_BOX = 2,				// Also a two shoot camera, but the camera is positioned safe inside the bounding box
 	DIALOGUECAMERA_MODE_SCRIPTED = 3,					// Scripted camera, get positions from level data
 	DIALOGUECAMERA_MODE_LOOKAT_SPEAKER = 4,				// Look at speaker, no clip

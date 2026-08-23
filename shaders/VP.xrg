@@ -1,0 +1,3896 @@
+
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+	File:			General vertex program pipeline
+					
+	Author:			Magnus Högdahl
+					
+	Copyright:		Starbreeze Studios 2001
+					
+	Comments:		This file implements a vertex processing pipeline that provide
+					all functionality found in a standard fixed function pipeline that
+					is required by GL/D3D rendering contexts.
+					In addition to emulating the fixed pipeline, the vertex program 
+					pipeline provide functionality such as matrix palette transformation 
+					and new texture coordinate generation modes.
+
+					Vertex programs are assembled using defines to enable and disable
+					program segments from this source file.
+
+	History:		
+		010830:		Created File
+
+		021121:		Nice history...
+
+\*____________________________________________________________________________________________*/
+
+/*************************************************************************************************\
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+| Comments
+|__________________________________________________________________________________________________
+\*************************************************************************************************/
+
+/*
+	Dynamic constants:
+
+	$MP				Matrix palette
+	$LIGHT			Lights
+	$TEXPARAMx		Texture coordinate generation parameters, x = [0..CRC_MAXTEXTURE[
+	$TEXMATRIXx		Texture transform matrix, x = [0..CRC_MAXTEXTURE[
+	$CONSTANTCOLOR	Constant color
+	$POSTRANS		Position MAD parameters
+	$TEXTURETRANSx  Texture MAD parameters
+
+
+	Registers:
+
+	R0				If matrixpalette: Vertex 4x3 transform. (Model-space to animated model-space)
+	R1				If matrixpalette: Vertex 4x3 transform. (Model-space to animated model-space)
+	R2				If matrixpalette: Vertex 4x3 transform. (Model-space to animated model-space)
+
+	R8				Model-space vertex position. (After MP transform)
+	R9				Model-space normal. (if lighting is enabled)
+	R10				Diffuse color. (if lighting is enabled)
+	R11				Specular color. (if lighting is enabled) (NOT IMPLEMENTED)
+
+
+	Static constants:
+
+	c[0..3]			Model*Projection	(Model-space to clip-space)
+	c[4..6]			Model rotate (3x3)	(Model-space to view-space)
+	c[7]			Model translate		(Model-space to view-space)
+	c[$BASE+8].x			0.0f
+	c[$BASE+8].y			1.0f
+	c[$BASE+8].z			0.5f
+	c[$BASE+8].w			2*255.0001f		// Bone index multiplier.
+	c[$BASE+9].x			2.0f
+	c[$BASE+9].y			0 // Unused
+	c[$BASE+9].z			0 // Unused
+	c[$BASE+9].w			0 // Unused
+
+
+
+	Quaternion -> Matrix:
+
+		T xs,ys,zs,wx,wy,wz,xx,xy,xz,yy,yz,zz;
+		T s = 2.0;
+
+		xs = k[0]*s;  ys = k[1]*s;  zs = k[2]*s;
+		wx = k[3]*xs; wy = k[3]*ys; wz = k[3]*zs;
+		xx = k[0]*xs; xy = k[0]*ys; xz = k[0]*zs;
+		yy = k[1]*ys; yz = k[1]*zs; zz = k[2]*zs;
+
+R8	*	_Mat.k[0][0] = (1.0 - (yy+zz));
+		_Mat.k[0][1] = (xy-wz);
+	*	_Mat.k[0][2] = (xz+wy);
+
+R9	*	_Mat.k[1][0] = (xy+wz);
+	*	_Mat.k[1][1] = (1.0 - (xx+zz));
+		_Mat.k[1][2] = (yz-wx);
+
+R10		_Mat.k[2][0] = (xz-wy);
+		_Mat.k[2][1] = (yz+wx);
+	*	_Mat.k[2][2] = (1.0 - (xx+yy));
+
+
+		ADD R4, c[A0.x+$MP+0], c[A0.x+$MP+0];
+		MUL R5, R4.xyzz, c[A0.x+$MP+0].xxxx;	// xx = k[0]*xs; xy = k[0]*ys; xz = k[0]*zs;
+		MUL R6, R4.yzzz, c[A0.x+$MP+0].yyzz;	// yy = k[1]*ys; yz = k[1]*zs; zz = k[2]*zs;
+		MUL R4, R4.xyzz, c[A0.x+$MP+0].wwww;	// wx = k[3]*xs; wy = k[3]*ys; wz = k[3]*zs;
+		ADD R8.x, R6.xxxx, R6.zzzz;				// yy+zz
+		ADD R8.x, c[$BASE+8].y, -R8.x;				// 1 - yy+zz
+		ADD R9, R5.yzzz, R4.zyyy;				// R9.x = xy+wz, R9.y = xz+wy
+		ADD R10, c[$BASE+8].y, -R5.x;					// R10 = 1 - xx
+		MOV R8.z, R9.y;							// R8.z = R9.y = xz+wy
+		ADD R10, R10, -R6.zxxx;					// R10.x = 1 - xx - zz, R10.yzw = 1 - xx - yy
+		ADD R8.y, R5.y, -R4.z;
+		ADD R9.z, R6.y, -R4.x;
+		MOV R9.y, R10.x;
+		ADD R10.x, R5.z, -R4.y;
+		ADD R10.y, R6.y, R4.x;
+
+
+*/
+
+/*************************************************************************************************\
+|¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+| Vertex program source
+|__________________________________________________________________________________________________
+\*************************************************************************************************/
+
+*VertexProgram
+{
+	*vpheader
+	"@HEADER
+	"
+	*if_texcoordin0 "@TEXCOORDIN0"
+	*if_texcoordin1 "@TEXCOORDIN1"
+	*if_texcoordin2 "@TEXCOORDIN2"
+	*if_texcoordin3 "@TEXCOORDIN3"
+	*if_texcoordin4 "@TEXCOORDIN4"
+	*if_texcoordin5 "@TEXCOORDIN5"
+	*if_texcoordin6 "@TEXCOORDIN6"
+	*if_texcoordin7 "@TEXCOORDIN7"
+
+	*if_texcoordout0 "@TEXCOORDOUT0"
+	*if_texcoordout1 "@TEXCOORDOUT1"
+	*if_texcoordout2 "@TEXCOORDOUT2"
+	*if_texcoordout3 "@TEXCOORDOUT3"
+	*if_texcoordout4 "@TEXCOORDOUT4"
+	*if_texcoordout5 "@TEXCOORDOUT5"
+	*if_texcoordout6 "@TEXCOORDOUT6"
+	*if_texcoordout7 "@TEXCOORDOUT7"
+
+	// ----------------------------------------------------------------
+	//  Matrix palette transform
+	// ----------------------------------------------------------------
+
+	*if_CubeVec
+	{
+		*if_PosTrans
+		"
+			MUL R8, @V_POS, c[$POSTRANS];
+			ADD R8, R8, c[$POSTRANS+1];
+		"
+		*ifnot_PosTrans
+		"
+			MOV R8, @V_POS;
+		"
+		
+		*Post
+		"
+			MUL R11, @V_MI, c[$BASE+9].xyyy;
+			@ARL A0.x, R11.x;
+			MUL R8.z, R8.z, c[A0.x+$MP+0].w;
+			ADD R8.xyz, R8, c[A0.x+$MP+0];
+			MUL R8.xyz, R8, c[$BASE+9].zzzz;
+		"
+
+		*if_usenormal
+		{
+			*normal
+			"
+				MOV R9, @V_NRML;
+			"
+
+			*if_normalizenormal
+			"
+				DP3 R3.w, R9, R9;
+				RSQ R3.w, R3.w;
+				MUL R9.xyz, R9, R3.w;
+			"
+		}
+	}
+	
+	*ifnot_CubeVec
+	{
+		*if_MWComp0
+		{
+			*if_PosTrans
+			"
+				MUL R8, @V_POS, c[$POSTRANS];
+				ADD R8, R8, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R8, @V_POS;
+			"
+
+			*if_usenormal
+			{
+				*normal
+				"
+					MOV R9, @V_NRML;
+				"
+
+				*if_normalizenormal
+				"
+					DP3 R3.w, R9, R9;
+					RSQ R3.w, R3.w;
+					MUL R9.xyz, R9, R3.w;
+				"
+			}
+		}
+
+		*if_MWComp1
+		{
+			*Pre
+			"		
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MOV r4, c[A0.x+$MP @MPSIGN 0];MUL R0, @V_MW.x, r4;
+				MOV r4, c[A0.x+$MP @MPSIGN 1];MUL R1, @V_MW.x, r4;
+				MOV r4, c[A0.x+$MP @MPSIGN 2];MUL R2, @V_MW.x, r4;
+			"
+			*if_PosTrans
+			" 
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"		
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*if_MWComp2
+		{
+			*Pre
+			"		
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MOV r4, c[A0.x+$MP @MPSIGN 0];MUL R0, @V_MW.x, r4;
+				MOV r4, c[A0.x+$MP @MPSIGN 1];MUL R1, @V_MW.x, r4;
+				MOV r4, c[A0.x+$MP @MPSIGN 2];MUL R2, @V_MW.x, r4;
+				@ARL A0.x, R3.y;
+				MOV r4, c[A0.x+$MP @MPSIGN 0];MAD R0, @V_MW.y, r4, R0;
+				MOV r4, c[A0.x+$MP @MPSIGN 1];MAD R1, @V_MW.y, r4, R1;
+				MOV r4, c[A0.x+$MP @MPSIGN 2];MAD R2, @V_MW.y, r4, R2;
+			"
+			*if_PosTrans
+			" 
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"		
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*if_MWComp3
+		{
+			*if_MPQuat
+			{
+				*Pre
+				"		
+					MUL R3, @V_MI, c[$BASE+8].w;
+					@ARL A0.x, R3.x;
+
+					ADD R4, c[A0.x+$MP+0], c[A0.x+$MP+0];
+					MUL R5, R4.xyzz, c[A0.x+$MP+0].xxxx;
+					MUL R6, R4.yzzz, c[A0.x+$MP+0].yyzz;
+					MUL R4, R4.xyzz, c[A0.x+$MP+0].wwww;
+					ADD R8.x, R6.xxxx, R6.zzzz;
+					ADD R8.x, c[$BASE+8].y, -R8.x;
+					ADD R9, R5.yzzz, R4.zyyy;
+					ADD R10, c[$BASE+8].y, -R5.x;
+					MOV R8.z, R9.y;
+					ADD R10, R10, -R6.zxxx;
+					ADD R8.y, R5.y, -R4.z;
+					ADD R9.z, R6.y, -R4.x;
+					MOV R9.y, R10.x;
+					ADD R10.x, R5.z, -R4.y;
+					ADD R10.y, R6.y, R4.x;
+					MOV R8.w, c[A0.x+$MP+1].x;
+					MOV R9.w, c[A0.x+$MP+1].y;
+					MOV R10.w, c[A0.x+$MP+1].z;
+
+					MUL R0, @V_MW.x, R8;
+					MUL R1, @V_MW.x, R9;
+					MUL R2, @V_MW.x, R10;
+					@ARL A0.x, R3.y;
+
+					ADD R4, c[A0.x+$MP+0], c[A0.x+$MP+0];
+					MUL R5, R4.xyzz, c[A0.x+$MP+0].xxxx;
+					MUL R6, R4.yzzz, c[A0.x+$MP+0].yyzz;
+					MUL R4, R4.xyzz, c[A0.x+$MP+0].wwww;
+					ADD R8.x, R6.xxxx, R6.zzzz;
+					ADD R8.x, c[$BASE+8].y, -R8.x;
+					ADD R9, R5.yzzz, R4.zyyy;
+					ADD R10, c[$BASE+8].y, -R5.x;
+					MOV R8.z, R9.y;
+					ADD R10, R10, -R6.zxxx;
+					ADD R8.y, R5.y, -R4.z;
+					ADD R9.z, R6.y, -R4.x;
+					MOV R9.y, R10.x;
+					ADD R10.x, R5.z, -R4.y;
+					ADD R10.y, R6.y, R4.x;
+					MOV R8.w, c[A0.x+$MP+1].x;
+					MOV R9.w, c[A0.x+$MP+1].y;
+					MOV R10.w, c[A0.x+$MP+1].z;
+
+					MAD R0, @V_MW.y, R8, R0;
+					MAD R1, @V_MW.y, R9, R1;
+					MAD R2, @V_MW.y, R10, R2;
+					@ARL A0.x, R3.z;
+
+					ADD R4, c[A0.x+$MP+0], c[A0.x+$MP+0];
+					MUL R5, R4.xyzz, c[A0.x+$MP+0].xxxx;
+					MUL R6, R4.yzzz, c[A0.x+$MP+0].yyzz;
+					MUL R4, R4.xyzz, c[A0.x+$MP+0].wwww;
+					ADD R8.x, R6.xxxx, R6.zzzz;
+					ADD R8.x, c[$BASE+8].y, -R8.x;
+					ADD R9, R5.yzzz, R4.zyyy;
+					ADD R10, c[$BASE+8].y, -R5.x;
+					MOV R8.z, R9.y;
+					ADD R10, R10, -R6.zxxx;
+					ADD R8.y, R5.y, -R4.z;
+					ADD R9.z, R6.y, -R4.x;
+					MOV R9.y, R10.x;
+					ADD R10.x, R5.z, -R4.y;
+					ADD R10.y, R6.y, R4.x;
+					MOV R8.w, c[A0.x+$MP+1].x;
+					MOV R9.w, c[A0.x+$MP+1].y;
+					MOV R10.w, c[A0.x+$MP+1].z;
+
+					MAD R0, @V_MW.z, R8, R0;
+					MAD R1, @V_MW.z, R9, R1;
+					MAD R2, @V_MW.z, R10, R2;
+				"
+					
+				*if_PosTrans
+				" 
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+				
+				*Post
+				"		
+					DP4 R8.x, R0, R4;
+					DP4 R8.y, R1, R4;
+					DP4 R8.z, R2, R4;
+					MOV R8.w, c[$BASE+8].y;
+				"		
+			}
+			*ifnot_MPQuat
+			{
+				*Pre
+				"
+					MOV R5, @V_MW;
+					MUL R3, @V_MI, c[$BASE+8].w;
+					@ARL A0.x, R3.x;
+					MUL R0, R5.x, c[A0.x+$MP @MPSIGN 0];
+					MUL R1, R5.x, c[A0.x+$MP @MPSIGN 1];
+					MUL R2, R5.x, c[A0.x+$MP @MPSIGN 2];
+					@ARL A0.x, R3.y;
+					MAD R0, R5.y, c[A0.x+$MP @MPSIGN 0], R0;
+					MAD R1, R5.y, c[A0.x+$MP @MPSIGN 1], R1;
+					MAD R2, R5.y, c[A0.x+$MP @MPSIGN 2], R2;
+					@ARL A0.x, R3.z;
+					MAD R0, R5.z, c[A0.x+$MP @MPSIGN 0], R0;
+					MAD R1, R5.z, c[A0.x+$MP @MPSIGN 1], R1;
+					MAD R2, R5.z, c[A0.x+$MP @MPSIGN 2], R2;
+				"
+				*if_PosTrans
+				" 
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+				*Post
+				"
+					DP4 R8.x, R0, R4;
+					DP4 R8.y, R1, R4;
+					DP4 R8.z, R2, R4;
+					MOV R8.w, c[$BASE+8].y;
+				"
+			}
+		}
+
+		*if_MWComp4
+		{				
+			*Pre
+			"
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MUL R0, @V_MW.x, c[A0.x+$MP @MPSIGN 0];
+				MUL R1, @V_MW.x, c[A0.x+$MP @MPSIGN 1];
+				MUL R2, @V_MW.x, c[A0.x+$MP @MPSIGN 2];
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.w, c[A0.x+$MP @MPSIGN 2], R2;
+			"
+			*if_PosTrans
+			" 
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+		
+		*if_MWComp5
+		{				
+			*Pre
+			"
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MUL R0, @V_MW.x, c[A0.x+$MP @MPSIGN 0];
+				MUL R1, @V_MW.x, c[A0.x+$MP @MPSIGN 1];
+				MUL R2, @V_MW.x, c[A0.x+$MP @MPSIGN 2];
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.w, c[A0.x+$MP @MPSIGN 2], R2;
+
+				MUL R3, @V_MI2, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MAD R0, @V_MW2.x, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.x, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.x, c[A0.x+$MP @MPSIGN 2], R2;
+			"
+			*if_PosTrans
+			"
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*if_MWComp6
+		{				
+			*Pre
+			"
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MUL R0, @V_MW.x, c[A0.x+$MP @MPSIGN 0];
+				MUL R1, @V_MW.x, c[A0.x+$MP @MPSIGN 1];
+				MUL R2, @V_MW.x, c[A0.x+$MP @MPSIGN 2];
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.w, c[A0.x+$MP @MPSIGN 2], R2;
+
+				MUL R3, @V_MI2, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MAD R0, @V_MW2.x, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.x, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.x, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW2.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.y, c[A0.x+$MP @MPSIGN 2], R2;
+			"
+			*if_PosTrans
+			"
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*if_MWComp7
+		{				
+			*Pre
+			"
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MUL R0, @V_MW.x, c[A0.x+$MP @MPSIGN 0];
+				MUL R1, @V_MW.x, c[A0.x+$MP @MPSIGN 1];
+				MUL R2, @V_MW.x, c[A0.x+$MP @MPSIGN 2];
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.w, c[A0.x+$MP @MPSIGN 2], R2;
+
+				MUL R3, @V_MI2, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MAD R0, @V_MW2.x, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.x, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.x, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW2.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW2.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.z, c[A0.x+$MP @MPSIGN 2], R2;
+			"
+			*if_PosTrans
+			"
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*if_MWComp8
+		{				
+			*Pre
+			"
+				MUL R3, @V_MI, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MUL R0, @V_MW.x, c[A0.x+$MP @MPSIGN 0];
+				MUL R1, @V_MW.x, c[A0.x+$MP @MPSIGN 1];
+				MUL R2, @V_MW.x, c[A0.x+$MP @MPSIGN 2];
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW.w, c[A0.x+$MP @MPSIGN 2], R2;
+
+				MUL R3, @V_MI2, c[$BASE+8].w;
+				@ARL A0.x, R3.x;
+				MAD R0, @V_MW2.x, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.x, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.x, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.y;
+				MAD R0, @V_MW2.y, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.y, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.y, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.z;
+				MAD R0, @V_MW2.z, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.z, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.z, c[A0.x+$MP @MPSIGN 2], R2;
+				@ARL A0.x, R3.w;
+				MAD R0, @V_MW2.w, c[A0.x+$MP @MPSIGN 0], R0;
+				MAD R1, @V_MW2.w, c[A0.x+$MP @MPSIGN 1], R1;
+				MAD R2, @V_MW2.w, c[A0.x+$MP @MPSIGN 2], R2;
+			"
+			*if_PosTrans
+			"
+				MUL R4, @V_POS, c[$POSTRANS];
+				ADD R4, R4, c[$POSTRANS+1];
+			"
+			*ifnot_PosTrans
+			"
+				MOV R4, @V_POS;
+			"
+			*Post
+			"
+				DP4 R8.x, R0, R4;
+				DP4 R8.y, R1, R4;
+				DP4 R8.z, R2, R4;
+				MOV R8.w, c[$BASE+8].y;
+			"
+		}
+
+		*ifnot_MWComp0
+		{
+			*if_usenormal
+			{
+				*if_normalizenormal
+				"
+					DP3 R3.w, R0, R0;
+					RSQ R3.w, R3.w;
+					MUL R0.xyz, R0, R3.w;
+					DP3 R3.w, R1, R1;
+					RSQ R3.w, R3.w;
+					MUL R1.xyz, R1, R3.w;
+					DP3 R3.w, R2, R2;
+					RSQ R3.w, R3.w;
+					MUL R2.xyz, R2, R3.w;
+				"
+				*normal
+				"
+					DP3 R9.x, R0, @V_NRML;
+					DP3 R9.y, R1, @V_NRML;
+					DP3 R9.z, R2, @V_NRML;
+				"
+			}
+		}
+	}
+
+
+	// ----------------------------------------------------------------
+	//  Shadow volume
+	// ----------------------------------------------------------------
+	//	ADD R4, R8, -c[$TEXPARAM0+0];
+	*if_texgen0_shadowvolume
+	"
+		ADD R4.xyz, R8, -c[$TEXPARAM0];
+		DP3 R3.w, R4, R4;
+		RSQ R3.w, R3.w;
+		MUL R4.xyz, R4, R3.w;
+		DP3 R3.w, R4, R9;
+		SLT R3.w, R3.w, c[$BASE+8].x;
+		MUL R5, R3.wwww, R4;
+		MUL R5, c[$TEXPARAM0].wwww, R5;
+		ADD R8.xyz, R8, R5;
+	"
+	
+	*copypos
+	"
+		MOV R4, R8;
+	"
+	
+	*if_texgen0_v_linear_texture
+	"
+		DP4 R3.x, R4, c[$TEXPARAM0+0];
+		DP4 R3.y, R4, c[$TEXPARAM0+1];
+		DP4 R3.z, R4, c[$TEXPARAM0+2];
+		DP4 R3.w, R4, c[$TEXPARAM0+3];
+		MOV R3.z, 0.0;
+		MOV R3.w, 1.0;
+		TEX R8, R3, texture[@VTX_TEX0], 2D;
+	"
+
+	*if_texgen1_n_linear_texture
+	"
+		DP4 R3.x, R4, c[$TEXPARAM1+0];
+		DP4 R3.y, R4, c[$TEXPARAM1+1];
+		DP4 R3.z, R4, c[$TEXPARAM1+2];
+		DP4 R3.w, R4, c[$TEXPARAM1+3];
+		MOV R3.z, 0.0;
+		MOV R3.w, 1.0;
+		TEX R9, R3, texture[@VTX_TEX1], 2D;
+	"
+	
+//		MUL R3.w, R3.w, c[$BASE+8].w;
+//		MIN R3.w, R3.w, c[$BASE+8].y;
+//		MAX R3.w, R3.w, c[$BASE+8].x;
+
+	// ----------------------------------------------------------------
+	//  Semi hardware shadow volume
+	// ----------------------------------------------------------------
+	*if_texgen0_shadowvolume2
+	{
+		*Pre
+		"
+			ADD R4.xyz, R8, -c[$TEXPARAM0];
+			DP3 R3.w, R4, R4;
+			RSQ R3.x, R3.w;
+			MUL R3.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R3.x;
+			SUB R3.w, c[$TEXPARAM0].wwww, R3.w;
+			MAX R3.w, R3.w, c[$BASE+8].x;
+			MUL R4, R4, R3.w;
+		"
+		*if_TextureTrans0
+		" 
+			MUL R5, $TEXINPUT0, c[$TEXTURETRANS0];
+			ADD R5, R5, c[$TEXTURETRANS0+1];
+			MUL R4, R5.xxxx, R4;
+		"
+		*ifnot_TextureTrans0
+		"
+			MUL R4, $TEXINPUT0.xxxx, R4;
+		"
+		*Post
+		"
+			ADD R8.xyz, R8, R4;
+		"
+	}
+	
+	// ----------------------------------------------------------------
+	//  Fog
+	// ----------------------------------------------------------------
+/*	*if_fogdepth
+	"
+		ADD R4, R8, c[$BASE+7];
+		DP4 @O_FOG, c[$BASE+6], R4;
+	"*/
+/* Range fog speciale
+	"
+		ADD R4, R8, c[$BASE+7];
+		DP4 R3.x, c[$BASE+4], R4;
+		DP4 R3.y, c[$BASE+5], R4;
+		DP4 R3.z, c[$BASE+6], R4;
+		DP3 R3.w, R3, R3;
+		RSQ R3.w, R3.w;
+		RCP R3.w, R3.w;
+		DP4 R3.x, c[$BASE+6], R4;
+		ADD R3.x, R3.x, R3.x;
+		MIN @O_FOG, R3.x, R3.w;
+	"
+*/
+	// ----------------------------------------------------------------
+	//  Lighting
+	// ----------------------------------------------------------------
+
+
+	*if_lighting
+	{
+		*LightBegin
+		"
+			MOV R10.xyzw, c[$BASE+8].xxxy;
+		"
+
+		// ----------------------------------------------------------------
+		// Point light 0 ($LIGHT+0 == LightPos (ViewSpace), $LIGHT+1 == Color)
+		*if_Light0_Point
+		"
+			ADD R4, c[$LIGHT+0], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+0].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R10.xyz, R3.xxxx, c[$LIGHT+1];
+		"
+
+		// ----------------------------------------------------------------
+		// Ambient light 0 ($LIGHT+0 == Unused, $LIGHT+1 == Color)
+
+		*if_Light0_Ambient
+		"
+			MOV R10.xyz, c[$LIGHT+1];
+		"
+
+		// ----------------------------------------------------------------
+		// Parallell light 0 ($LIGHT+0 == LightVector (ViewSpace), $LIGHT+1 == Color)
+
+		*if_Light0_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+0];
+			MUL R10.xyz, R3.xxxx, c[$LIGHT+1];
+		"
+
+
+		// ----------------------------------------------------------------
+		// Point light 1-7 ($LIGHT+0 == LightPos, RangeInv (Animated Model Space), $LIGHT+1 == Color)
+
+		*if_Light1_Point
+		"
+			ADD R4, c[$LIGHT+2], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+2].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+3], R10;
+		"
+
+		*if_Light2_Point
+		"
+			ADD R4, c[$LIGHT+4], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+4].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+5], R10;
+		"
+
+		*if_Light3_Point
+		"
+			ADD R4, c[$LIGHT+6], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+6].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+7], R10;
+		"
+
+		*if_Light4_Point
+		"
+			ADD R4, c[$LIGHT+8], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+8].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+9], R10;
+		"
+
+		*if_Light5_Point
+		"
+			ADD R4, c[$LIGHT+10], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+10].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+11], R10;
+		"
+
+		*if_Light6_Point
+		"
+			ADD R4, c[$LIGHT+12], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+12].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+13], R10;
+		"
+
+		*if_Light7_Point
+		"
+			ADD R4, c[$LIGHT+14], -R8;
+			DP3 R3.w, R4, R4;
+			RSQ R3.z, R3.w;
+			DST R3, R3.wwww, R3.zzzz;
+			MUL R3.x, c[$LIGHT+14].wwww, -R3.yyyy;
+			ADD R3.x, R3.x, c[$BASE+8].yyyy;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MUL R4.w, R3.w, R3.x;
+			MUL R4.xyz, R4, R4.w;
+			DP3 R3.x, R9, R4;
+			MAX R3.x, R3.x, c[$BASE+8].x;
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+15], R10;
+		"
+
+		// ----------------------------------------------------------------
+		// Ambient light 1-7 ($LIGHT+0 == Unused, $LIGHT+1 == Color)
+
+		*if_Light1_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+3];
+		"
+
+		*if_Light2_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+5];
+		"
+
+		*if_Light3_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+7];
+		"
+
+		*if_Light4_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+9];
+		"
+
+		*if_Light5_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+11];
+		"
+
+		*if_Light6_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+13];
+		"
+
+		*if_Light7_Ambient
+		"
+			ADD R10, R10, c[$LIGHT+15];
+		"
+
+		// ----------------------------------------------------------------
+		// Parallell light 1-7 ($LIGHT+0 == LightVector (ViewSpace), $LIGHT+1 == Color)
+
+		*if_Light1_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+2];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+3], R10;
+		"
+
+		*if_Light2_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+4];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+5], R10;
+		"
+
+		*if_Light3_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+6];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+7], R10;
+		"
+
+		*if_Light4_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+8];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+9], R10;
+		"
+
+		*if_Light5_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+10];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+11], R10;
+		"
+
+		*if_Light6_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+12];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+13], R10;
+		"
+
+		*if_Light7_Parallell
+		"
+			DP3 R3.x, R9, c[$LIGHT+14];
+			MAD R10.xyz, R3.xxxx, c[$LIGHT+15], R10;
+		"
+
+		*clamplight
+		"
+			MAX R10, R10, c[$BASE+8].x;
+		"
+
+		*if_colorvertex
+		"
+			MUL R10, R10, @V_COL0;
+		"
+
+		*if_fogdepth
+		"
+			ADD R4, R8, c[$BASE+7];
+			DP4 R4.w, c[$BASE+6], R4;	# Viewspace Z
+			MUL R4.w, c[$FOGDEPTH].y, R4;	# Map to 0..1 range for fogstart/end
+			SUB R4.w, R4, c[$FOGDEPTH].y;
+			MAX R4.w, R4.w, c[$BASE+8].x;	# Clamp01
+			MIN R4.w, R4.w, c[$BASE+8].y;
+			SUB R4.w, c[$BASE+8].y, R4.w;	# 1-Fog
+			MUL R10.w, R10.w, R4.w;
+		"
+
+		*storecolor
+		"
+			MUL @O_COL0, R10, c[$CONSTANTCOLOR];
+		"
+
+	}
+
+	*ifnot_lighting
+	{
+		*if_coloroutput
+		{
+			*if_colorvertex
+			"
+				MUL R10, @V_COL0, c[$CONSTANTCOLOR];
+			"
+			*ifnot_colorvertex
+			"
+				MOV R10, c[$CONSTANTCOLOR];
+			"
+
+			*if_fogdepth
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R4.w, c[$BASE+6], R4;	# Viewspace Z
+				MUL R4.w, c[$FOGDEPTH].y, R4;	# Map to 0..1 range for fogstart/end
+				SUB R4.w, R4, c[$FOGDEPTH].y;
+				MAX R4.w, R4.w, c[$BASE+8].x;	# Clamp01
+				MIN R4.w, R4.w, c[$BASE+8].y;
+				SUB R4.w, c[$BASE+8].y, R4.w;	# 1-Fog
+				MUL R10.w, R10.w, R4.w;
+			"
+
+			*store
+			"
+				MOV @O_COL0, R10;
+			"
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_clipplanes
+	"
+		ADD R4, R8, c[$BASE+7];
+		DP4 @O_HPOS.x, c[$BASE+0], R4;
+		DP4 @O_HPOS.y, c[$BASE+1], R4;
+		DP4 @O_HPOS.z, c[$BASE+2], R4;
+		DP4 @O_HPOS.w, c[$BASE+3], R4;
+	"
+
+	// ----------------------------------------------------------------
+	// User clip planes
+	// ----------------------------------------------------------------
+	*if_clipplanes
+	{
+		*store
+		"
+			ADD R4, R8, c[$BASE+7];
+			DP4 @O_HPOS.x, c[$BASE+0], R4;
+			DP4 @O_HPOS.y, c[$BASE+1], R4;
+			DP4 @O_HPOS.z, c[$BASE+2], R4;
+			DP4 @O_HPOS.w, c[$BASE+3], R4;
+		"
+		*if_clipvertex
+		"
+			MOV @O_CLIPVERTEX, R8;
+		"
+		*ifnot_clipvertex
+		"
+			DP4 @O_CLIP0, R8, c[$CLIPPLANES+0];
+			DP4 @O_CLIP1, R8, c[$CLIPPLANES+1];
+			DP4 @O_CLIP2, R8, c[$CLIPPLANES+2];
+			DP4 @O_CLIP3, R8, c[$CLIPPLANES+3];
+			DP4 @O_CLIP4, R8, c[$CLIPPLANES+4];
+			DP4 @O_CLIP5, R8, c[$CLIPPLANES+5];
+		"
+	}
+
+	// ----------------------------------------------------------------
+	//  Prepare tangents
+	//
+	//  NOTE: Matrix palette transform final matrix is destroyed here!
+	// ----------------------------------------------------------------
+	*if_usetangents
+	{
+		*if_CubeVec
+		{
+			*if_TextureTrans2
+			" 
+				MUL R0, $TEXINPUT2, c[$TEXTURETRANS2];
+				ADD R0, R0, c[$TEXTURETRANS2+1];
+			"
+			*ifnot_TextureTrans2
+			"
+				MOV R0, $TEXINPUT2;
+			"
+			*if_TextureTrans3
+			" 
+				MUL R1, $TEXINPUT3, c[$TEXTURETRANS3];
+				ADD R1, R1, c[$TEXTURETRANS3+1];
+			"
+			*ifnot_TextureTrans3
+			"
+				MOV R1, $TEXINPUT3;
+			"
+		}
+		*ifnot_CubeVec
+		{
+			*if_MWComp0
+			{
+				*if_TextureTrans2
+				" 
+					MUL R0, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD R0, R0, c[$TEXTURETRANS2+1];
+				"
+				*ifnot_TextureTrans2
+				"
+					MOV R0, $TEXINPUT2;
+				"
+				*if_TextureTrans3
+				" 
+					MUL R1, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD R1, R1, c[$TEXTURETRANS3+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R1, $TEXINPUT3;
+				"
+			}
+			*ifnot_MWComp0
+			{
+				*if_TextureTrans2
+				" 
+					MUL R4, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD R4, R4, c[$TEXTURETRANS2+1];
+					DP3 R10.x, R0, R4;
+					DP3 R10.y, R1, R4;
+					DP3 R10.zw, R2, R4;
+				"
+				*ifnot_TextureTrans2
+				"
+					DP3 R10.x, R0, $TEXINPUT2;
+					DP3 R10.y, R1, $TEXINPUT2;
+					DP3 R10.zw, R2, $TEXINPUT2;
+				"
+				*if_TextureTrans3
+				" 
+					MUL R5, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD R5, R5, c[$TEXTURETRANS3+1];
+					DP3 R11.x, R0, R5;
+					DP3 R11.y, R1, R5;
+					DP3 R11.zw, R2, R5;
+				"
+				*ifnot_TextureTrans3
+				"
+					DP3 R11.x, R0, $TEXINPUT3;
+					DP3 R11.y, R1, $TEXINPUT3;
+					DP3 R11.zw, R2, $TEXINPUT3;
+				"
+				*Post
+				" 
+					MOV R0, R10;
+					MOV R1, R11;
+				"
+			}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	//  Texture coordinate generation and transform
+	// ----------------------------------------------------------------
+	*ifnot_texgen0_shadowvolume
+	{
+	*ifnot_texgen0_shadowvolume2
+	{
+	*ifnot_texgen0_void
+	{
+		*if_texgen0_null
+		"
+			MOV @O_TEX0.x, c[$BASE+8].x;
+		"
+		
+		*if_texgen0_texcoord
+		{
+			*if_texmatrix0
+			{
+				*if_TextureTrans0
+				{
+					*Post
+					" 
+						MUL R4, $TEXINPUT0, c[$TEXTURETRANS0];
+						ADD R4, R4, c[$TEXTURETRANS0+1];
+						DP4 @O_TEX0.x, R4, c[$TEXMATRIX0+0];
+						DP4 @O_TEX0.y, R4, c[$TEXMATRIX0+1];
+						DP4 @O_TEX0.z, R4, c[$TEXMATRIX0+2];
+						DP4 @O_TEX0.w, R4, c[$TEXMATRIX0+3];
+					"
+				}
+				*ifnot_TextureTrans0
+				"
+					DP4 @O_TEX0.x, $TEXINPUT0, c[$TEXMATRIX0+0];
+					DP4 @O_TEX0.y, $TEXINPUT0, c[$TEXMATRIX0+1];
+					DP4 @O_TEX0.z, $TEXINPUT0, c[$TEXMATRIX0+2];
+					DP4 @O_TEX0.w, $TEXINPUT0, c[$TEXMATRIX0+3];
+				"
+			}
+
+			*ifnot_texmatrix0
+			{
+				*if_TextureTrans0
+				{
+					*if_CubeTex
+					{
+						*Pre
+						"
+							MOV R4, c[$BASE+8].xxxy;
+							MUL R4.xy, R11.y, c[A0.x+$MP+1];
+							MAD R4.xy, R11.z, c[A0.x+$MP+1].zwww, R4;
+						"
+						*if_CubeTexScl2
+						"						
+							MUL R3, $TEXINPUT0, c[$TEXTURETRANS0];
+							ADD R3, R3, c[$TEXTURETRANS0+1];
+
+							ADD R5.x, R11.y, c[$BASE+8].y;
+							MAD R4.xy, R3, R5.x, R4;
+						"
+						*ifnot_CubeTexScl2
+						"
+							MUL R3, $TEXINPUT0, c[$TEXTURETRANS0];
+							ADD R3, R3, c[$TEXTURETRANS0+1];
+							ADD R4.xy, R3, R4;
+						"
+						*if_CubeTexSclZ
+						"
+							MUL R3.x, R11.w, c[A0.x+$MP+0].w;
+							MUL R3.y, R4.y, R3.x;
+							SUB R3.z, c[$BASE+8].y, R11.w;
+							MAD R4.y, R4.y, R3.z, R3.y;
+						"
+						
+						*Post
+						"
+							MOV @O_TEX0, R4;
+						"
+					}
+
+					*ifnot_CubeTex
+					"
+						MUL R4, $TEXINPUT0, c[$TEXTURETRANS0];
+						ADD @O_TEX0, R4, c[$TEXTURETRANS0+1];
+					"
+				}
+				*ifnot_TextureTrans0
+				{
+				
+					*if_CubeTex
+					{
+						*Pre
+						"
+							MOV R4, c[$BASE+8].xxxy;
+							MUL R4.xy, R11.y, c[A0.x+$MP+1];
+							MAD R4.xy, R11.z, c[A0.x+$MP+1].zwww, R4;
+						"
+						*if_CubeTexScl2
+						"						
+							MUL R3.y, R11.y, c[$BASE+8].z;
+							SUB R3.x, c[$BASE+8].y, R3.y;
+							MAD R4.xy, $TEXINPUT0, R3.x, R4;
+						"
+						*ifnot_CubeTexScl2
+						"
+							ADD R4.xy, $TEXINPUT0, R4;
+						"
+						*if_CubeTexSclZ
+						"
+							MUL R3.x, R11.w, c[A0.x+$MP+0].w;
+							MUL R3.y, R4.y, R3.x;
+							SUB R3.z, c[$BASE+8].y, R11.w;
+							MAD R4.y, R4.y, R3.z, R3.y;
+						"
+						*Post
+						"
+							MOV @O_TEX0, R4;
+						"
+					}
+					*ifnot_CubeTex
+					"
+						MOV @O_TEX0, $TEXINPUT0;
+					"
+				}
+			}
+		}
+
+		*ifnot_texgen0_texcoord
+		{
+			*if_texgen0_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM0+0];
+				DP4 R3.y, R8, c[$TEXPARAM0+1];
+				DP4 R3.z, R8, c[$TEXPARAM0+2];
+				DP4 R3.w, R8, c[$TEXPARAM0+3];
+			"
+
+			*if_texgen0_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM0+0];
+					DP4 R3.y, R4, c[$TEXPARAM0+1];
+					DP4 R3.z, R4, c[$TEXPARAM0+2];
+					DP4 R3.w, R4, c[$TEXPARAM0+3];
+				"
+			}
+
+			*if_texgen0_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+			
+			*if_texgen0_linearnhf
+			"
+				MOV R4, c[$TEXPARAM0+1];
+				MOV R4.w, c[$BASE+8].y;
+				ADD R5, R4, -R8;
+				DP3 R3.x, R8, c[$TEXPARAM0+0];
+				ADD R3.x, R3.x, c[$TEXPARAM0+0].w;
+
+				DP4 R3.y, R4, c[$TEXPARAM0+0];
+				ADD R3.w, R3.x, -R3.y;
+				RCP R3.w, R3.w;
+				MIN R3.y, R3.y, c[$BASE+8].x;
+				MUL R3.y, R3.y, R3.w;
+				MUL R5, R5, R3.y;
+				ADD R4, R4, R5;
+				ADD R5, R4, -R8;
+
+				DP3 R3.y, R4, c[$TEXPARAM0+0];
+				ADD R3.y, R3.y, c[$TEXPARAM0+0].w;
+				MIN R3.xy, R3, c[$BASE+8].yyyy;
+				MAX R3.xy, R3, c[$BASE+8].xxxx;
+				ADD R3.x, R3.x, R3.y;
+				DP3 R4.w, R5, R5;
+				RSQ R4.w, R4.w;
+				RCP R4.w, R4.w;
+				MUL R3.x, R3.x, R4.w;
+				MUL R3.x, R3.x, c[$TEXPARAM0+1].w;
+				MOV R3.yzw, c[$BASE+8].yyyy;
+
+				MOV @O_COL0, c[$TEXPARAM0+2];
+			"
+
+			*if_texgen0_boxnhf
+			"
+				ADD R3, R8, -c[$TEXPARAM0+8];
+				MUL R3, R3, c[$TEXPARAM0+9];
+				MAX R3, R3, c[$BASE+8].xxxx;
+				MIN R3, R3, c[$BASE+8].yyyy;
+
+				MOV R10, c[$TEXPARAM0+1];
+				ADD R4, -c[$TEXPARAM0+0], R10;
+				MAD R5, R4, R3.xxxx, c[$TEXPARAM0+0];
+				MOV R10, c[$TEXPARAM0+3];
+				ADD R4, -c[$TEXPARAM0+2], R10;
+				MAD R6, R4, R3.xxxx, c[$TEXPARAM0+2];
+				ADD R4, -R5, R6;
+				MAD R7, R4, R3.yyyy, R5;
+
+				MOV R10, c[$TEXPARAM0+5];
+				ADD R4, -c[$TEXPARAM0+4], R10;
+				MAD R5, R4, R3.xxxx, c[$TEXPARAM0+4];
+				MOV R10, c[$TEXPARAM0+7];
+				ADD R4, -c[$TEXPARAM0+6], R10;
+				MAD R6, R4, R3.xxxx, c[$TEXPARAM0+6];
+				ADD R4, -R5, R6;
+				MAD R6, R4, R3.yyyy, R5;
+
+				ADD R4, -R7, R6;
+				MAD R7, R4, R3.zzzz, R7;
+				MOV R3, R7.w;
+				MOV R3.yzw, c[$BASE+8].yyyy;
+				MOV R7.w, c[$BASE+8].y;
+				MOV @O_COL0, R7;
+			"
+
+			*if_texgen0_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen0_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen0_tang_v
+			"
+				MOV R3, R1;
+			"
+
+
+			*if_texgen0_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen0_env
+			{
+				*if_TextureTrans0
+				" 
+					MUL R3, $TEXINPUT0, c[$TEXTURETRANS0];
+					ADD R3, R3, c[$TEXTURETRANS0+1];
+				"
+				*ifnot_TextureTrans0
+				"
+					MOV R3, $TEXINPUT0;
+				"
+				*Post
+				"
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+			// $TEXPARAM0+0 == LightPos.xyz, RangeInv (Animated Model Space), $TEXPARAM0+1 == Color
+			/*
+                        *if_texgen0_Lighting
+			"
+				ADD R4, c[$TEXPARAM0+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM0+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM0+1], R3.z;
+			"
+			*/
+			*if_texgen0_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM0+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM0+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM0+1], R3.z;
+			"
+
+			*if_texgen0_Lighting
+			"
+				ADD R4, c[$TEXPARAM0+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM0+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM0+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen0_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM0+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM0+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM0+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM0+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM0+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM0+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen0_tslv
+			"
+				ADD R4, c[$TEXPARAM0+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM0+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			// Not tested, only on texcoord 0
+			*if_texgen0_tsreflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R4, R3, R4;
+				DP3 R3.x, R0, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R9, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen0_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout2
+				"
+					DP3 R3.x,R9,c[$TEXPARAM0+0];
+					DP3 R3.y,R1,c[$TEXPARAM0+0];
+					DP3 R3.z,R0,c[$TEXPARAM0+0];
+					DP4 R3.w,R8,c[$TEXPARAM0+0];
+					DP3 R4.x,R9,c[$TEXPARAM0+1];
+					DP3 R4.y,R1,c[$TEXPARAM0+1];
+					DP3 R4.z,R0,c[$TEXPARAM0+1];
+					DP4 R4.w,R8,c[$TEXPARAM0+1];
+					MOV @O_TEX1, R4;
+					DP3 R4.x,R9,c[$TEXPARAM0+2];
+					DP3 R4.y,R1,c[$TEXPARAM0+2];
+					DP3 R4.z,R0,c[$TEXPARAM0+2];
+					DP4 R4.w,R8,c[$TEXPARAM0+2];
+					MOV @O_TEX2, R4;
+				"
+			}
+			
+			*if_texgen0_depthoffset
+			{
+				*if_TextureTrans0
+				" 
+					MUL R5, $TEXINPUT0, c[$TEXTURETRANS0];
+					ADD R5, R5, c[$TEXTURETRANS0+1];
+				"
+				*ifnot_TextureTrans0
+				"
+					MOV R5, $TEXINPUT0;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM0+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM0+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen0_mspos
+			"
+				MOV @O_TEX0, R8;
+			"
+
+
+			*if_texgen0_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen0_constant
+			"
+				MOV @O_TEX0, c[$TEXPARAM0+0];
+			"
+			
+			*ifnot_texgen0_constant {
+			*ifnot_texgen0_mspos
+			{
+				*if_texmatrix0
+				"
+					DP4 @O_TEX0.x, R3, c[$TEXMATRIX0+0];
+					DP4 @O_TEX0.y, R3, c[$TEXMATRIX0+1];
+					DP4 @O_TEX0.z, R3, c[$TEXMATRIX0+2];
+					DP4 @O_TEX0.w, R3, c[$TEXMATRIX0+3];
+				"
+				
+				*ifnot_texmatrix0
+				"
+					MOV @O_TEX0, R3;
+				"
+			}}
+		}
+	}
+	}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen1_void
+	{
+		*if_texgen1_null
+		"
+			MOV @O_TEX1.x, c[$BASE+8].x;
+		"
+		*if_texgen1_texcoord
+		{
+			*if_texmatrix1
+			{
+				*if_TextureTrans1
+				" 
+					MUL R4, $TEXINPUT1, c[$TEXTURETRANS1];
+					ADD R4, R4, c[$TEXTURETRANS1+1];
+					DP4 @O_TEX1.x, R4, c[$TEXMATRIX1+0];
+					DP4 @O_TEX1.y, R4, c[$TEXMATRIX1+1];
+					DP4 @O_TEX1.z, R4, c[$TEXMATRIX1+2];
+					DP4 @O_TEX1.w, R4, c[$TEXMATRIX1+3];
+				"
+				*ifnot_TextureTrans1
+				"
+					DP4 @O_TEX1.x, $TEXINPUT1, c[$TEXMATRIX1+0];
+					DP4 @O_TEX1.y, $TEXINPUT1, c[$TEXMATRIX1+1];
+					DP4 @O_TEX1.z, $TEXINPUT1, c[$TEXMATRIX1+2];
+					DP4 @O_TEX1.w, $TEXINPUT1, c[$TEXMATRIX1+3];
+				"
+			}
+
+			*ifnot_texmatrix1
+			{
+				*if_CubeTex
+				"
+					MOV @O_TEX1, R4;
+				"
+				
+				*ifnot_CubeTex
+				{
+					*if_TextureTrans1
+					" 
+						MUL R4, $TEXINPUT1, c[$TEXTURETRANS1];
+						ADD @O_TEX1, R4, c[$TEXTURETRANS1+1];
+					"
+					*ifnot_TextureTrans1
+					"
+						MOV @O_TEX1, $TEXINPUT1;
+					"
+				}
+			}
+		}
+
+		*ifnot_texgen1_texcoord
+		{
+			*if_texgen1_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM1+0];
+				DP4 R3.y, R8, c[$TEXPARAM1+1];
+				DP4 R3.z, R8, c[$TEXPARAM1+2];
+				DP4 R3.w, R8, c[$TEXPARAM1+3];
+			"
+
+			*if_texgen1_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM1+0];
+					DP4 R3.y, R4, c[$TEXPARAM1+1];
+					DP4 R3.z, R4, c[$TEXPARAM1+2];
+					DP4 R3.w, R4, c[$TEXPARAM1+3];
+				"
+			}
+
+			*if_texgen1_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen1_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen1_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen1_tang_v
+			"
+				MOV R3, R1;
+			"
+
+			*if_texgen1_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen1_env
+			{
+				*if_TextureTrans1
+				" 
+					MUL R3, $TEXINPUT1, c[$TEXTURETRANS1];
+					ADD R3, R3, c[$TEXTURETRANS1+1];
+				"
+				*ifnot_TextureTrans1
+				"
+					MOV R3, $TEXINPUT1;
+				"
+				*Post
+				"
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+
+                        /*
+			*if_texgen1_Lighting
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM1+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM1+1], R3.z;
+			"
+			*/
+			*if_texgen1_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM1+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM1+1], R3.z;
+			"
+
+			*if_texgen1_Lighting
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM1+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM1+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen1_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM1+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM1+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM1+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM1+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM1+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM1+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen1_tslv
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM1+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+/*				DP3 R3.w, R3, R3;
+				RSQ R3.w, R3.w;
+				MUL R3.xyz, R3, R3.w;*/
+
+/*			*if_texgen1_tsreflection
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				ADD R5, c[$TEXPARAM1+1], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+				DP3 R3.w, R5, R5;
+				RSQ R3.w, R3.w;
+				MUL R5.xyz, R5, R3.w;
+				ADD R4, R4, R5;
+				DP3 R3.x, R0, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R9, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+*/
+			*if_texgen1_tsreflection
+			"
+				ADD R4, c[$TEXPARAM1+0], -R8;
+				ADD R5, c[$TEXPARAM1+1], -R8;
+				ADD R4, R4, R5;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+				DP3 R3.x, R1, R4;
+				DP3 R3.y, R0, -R4;
+				DP3 R3.z, R9, R4;
+				MOV R4, c[$BASE+8].yxxx;
+				MUL R5, R3.zxyw, R4.yzxw;
+				MAD R5, R3.yzxw, R4.zxyw, -R5;
+				MUL R7, R3.zxyw, R5.yzxw;
+				MAD R4, R3.yzxw, R5.zxyw, -R7;
+
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+
+				DP3 R3.w, R5, R5;
+				RSQ R3.w, R3.w;
+				MUL R5.xyz, R5, R3.w;
+
+				MOV @O_TEX2.x, R3.y;
+				MOV @O_TEX2.y, R4.y;
+				MOV @O_TEX2.z, R5.y;
+				MOV @O_TEX2.w, c[$BASE+8].x;
+				MOV @O_TEX3.x, R3.z;
+				MOV @O_TEX3.y, R4.z;
+				MOV @O_TEX3.z, R5.z;
+				MOV @O_TEX3.w, c[$BASE+8].x;
+				MOV R3.y, R4.x;
+				MOV R3.z, R5.x;
+				MOV R3.w, c[$BASE+8].x;
+			"
+/*				DP3 R3.x, R0, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R9, R4;
+
+				DP3 R3.w, R5, R5;
+				RSQ R3.w, R3.w;
+				MUL R5.xyz, R5, R3.w;
+				ADD R4, R4, R5;
+				
+				*/
+
+//				MOV R3, R0;
+//				MOV @O_TEX2, R1;
+
+			*if_texgen1_bumpcubeenv
+			{
+				*doit
+				"
+					DP4	R3.x,c[$TEXPARAM1+0],R8;
+					DP4	R3.y,c[$TEXPARAM1+1],R8;
+					DP4	R3.z,c[$TEXPARAM1+2],R8;
+					ADD R3, -R3.xyzz, c[$TEXPARAM1+7].xyzz;
+					MOV R3.w, R3.x;
+					MOV R4.w, R3.y;
+					MOV R5.w, R3.z;
+				"
+/*				*if_texcoordout4
+				"
+					MUL @O_TEX4, R3,c[$BASE+9].wwww;
+				"*/
+				*doit2
+				"
+					DP3 R3.x,R9,c[$TEXPARAM1+0];
+					DP3 R3.y,R1,c[$TEXPARAM1+0];
+					DP3 R3.z,R0,c[$TEXPARAM1+0];
+					DP3 R4.x,R9,c[$TEXPARAM1+1];
+					DP3 R4.y,R1,c[$TEXPARAM1+1];
+					DP3 R4.z,R0,c[$TEXPARAM1+1];
+					DP3 R5.x,R9,c[$TEXPARAM1+2];
+					DP3 R5.y,R1,c[$TEXPARAM1+2];
+					DP3 R5.z,R0,c[$TEXPARAM1+2];
+					MUL R3.xyz, R3, c[$TEXPARAM1+3];
+					MUL R4.xyz, R4, c[$TEXPARAM1+3];
+					MUL R5.xyz, R5, c[$TEXPARAM1+3];
+					MOV @O_TEX2, R4;
+					MOV @O_TEX3, R5;
+				"
+			}
+			*if_texgen1_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout3
+				"
+					DP3 R3.x,R9,c[$TEXPARAM1+0];
+					DP3 R3.y,R1,c[$TEXPARAM1+0];
+					DP3 R3.z,R0,c[$TEXPARAM1+0];
+					DP4 R3.w,R8,c[$TEXPARAM1+0];
+					DP3 R4.x,R9,c[$TEXPARAM1+1];
+					DP3 R4.y,R1,c[$TEXPARAM1+1];
+					DP3 R4.z,R0,c[$TEXPARAM1+1];
+					DP4 R4.w,R8,c[$TEXPARAM1+1];
+					MOV @O_TEX2, R4;
+					DP3 R4.x,R9,c[$TEXPARAM1+2];
+					DP3 R4.y,R1,c[$TEXPARAM1+2];
+					DP3 R4.z,R0,c[$TEXPARAM1+2];
+					DP4 R4.w,R8,c[$TEXPARAM1+2];
+					MOV @O_TEX3, R4;
+				"
+			}
+			
+			*if_texgen1_depthoffset
+			{
+				*if_TextureTrans1
+				" 
+					MUL R5, $TEXINPUT1, c[$TEXTURETRANS1];
+					ADD R5, R5, c[$TEXTURETRANS1+1];
+				"
+				*ifnot_TextureTrans1
+				"
+					MOV R5, $TEXINPUT1;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM1+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM1+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen1_mspos
+			"
+				MOV @O_TEX1, R8;
+			"
+
+			*if_texgen1_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen1_wspos
+			"
+				DP4 R3.x,R8,c[$TEXPARAM1+0];
+				DP4 R3.y,R8,c[$TEXPARAM1+1];
+				DP4 R3.z,R8,c[$TEXPARAM1+2];
+				MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen1_constant
+			"
+				MOV @O_TEX1, c[$TEXPARAM1+0];
+			"
+			
+			*ifnot_texgen1_constant {
+			*ifnot_texgen1_mspos
+			{
+				*if_texmatrix1
+				"
+					DP4 @O_TEX1.x, R3, c[$TEXMATRIX1+0];
+					DP4 @O_TEX1.y, R3, c[$TEXMATRIX1+1];
+					DP4 @O_TEX1.z, R3, c[$TEXMATRIX1+2];
+					DP4 @O_TEX1.w, R3, c[$TEXMATRIX1+3];
+				"
+
+				*ifnot_texmatrix1
+				"
+					MOV @O_TEX1, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen2_void
+	{
+		*if_texgen2_null
+		"
+			MOV @O_TEX2.x, c[$BASE+8].x;
+		"
+		*if_texgen2_texcoord
+		{
+			*if_texmatrix2
+			{
+				*if_TextureTrans2
+				" 
+					MUL R4, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD R4, R4, c[$TEXTURETRANS2+1];
+					DP4 @O_TEX2.x, R4, c[$TEXMATRIX2+0];
+					DP4 @O_TEX2.y, R4, c[$TEXMATRIX2+1];
+					DP4 @O_TEX2.z, R4, c[$TEXMATRIX2+2];
+					DP4 @O_TEX2.w, R4, c[$TEXMATRIX2+3];
+				"
+				*ifnot_TextureTrans2
+				"
+					DP4 @O_TEX2.x, $TEXINPUT2, c[$TEXMATRIX2+0];
+					DP4 @O_TEX2.y, $TEXINPUT2, c[$TEXMATRIX2+1];
+					DP4 @O_TEX2.z, $TEXINPUT2, c[$TEXMATRIX2+2];
+					DP4 @O_TEX2.w, $TEXINPUT2, c[$TEXMATRIX2+3];
+				"
+			}
+
+			*ifnot_texmatrix2
+			{
+				*if_TextureTrans2
+				" 
+					MUL R4, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD @O_TEX2, R4, c[$TEXTURETRANS2+1];
+				"
+				*ifnot_TextureTrans2
+				"
+					MOV @O_TEX2, $TEXINPUT2;
+				"
+			}
+		}
+
+		*ifnot_texgen2_texcoord
+		{
+			*if_texgen2_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM2+0];
+				DP4 R3.y, R8, c[$TEXPARAM2+1];
+				DP4 R3.z, R8, c[$TEXPARAM2+2];
+				DP4 R3.w, R8, c[$TEXPARAM2+3];
+			"
+
+			*if_texgen2_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM2+0];
+					DP4 R3.y, R4, c[$TEXPARAM2+1];
+					DP4 R3.z, R4, c[$TEXPARAM2+2];
+					DP4 R3.w, R4, c[$TEXPARAM2+3];
+				"
+			}
+
+			*if_texgen2_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+			
+			*if_texgen2_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen2_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen2_tang_v
+			"
+				MOV R3, R1;
+			"
+			*if_texgen2_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen2_tsreflection
+			"
+				ADD R4, c[$TEXPARAM2+0], -R8;
+				ADD R5, c[$TEXPARAM2+1], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+				DP3 R3.w, R5, R5;
+				RSQ R3.w, R3.w;
+				MUL R5.xyz, R5, R3.w;
+				ADD R4, R4, R5;
+				DP3 R3.x, R0, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R9, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen2_bumpcubeenv
+			{
+				*doit
+				"
+					DP4	R3.x,c[$TEXPARAM2+0],R8;
+					DP4	R3.y,c[$TEXPARAM2+1],R8;
+					DP4	R3.z,c[$TEXPARAM2+2],R8;
+					ADD R3, -R3.xyzz, c[$TEXPARAM2+7].xyzz;
+					MOV R3.w, R3.x;
+					MOV R4.w, R3.y;
+					MOV R5.w, R3.z;
+				"
+				*doit2
+				"
+					DP3 R3.x,R9,c[$TEXPARAM2+0];
+					DP3 R3.y,R1,c[$TEXPARAM2+0];
+					DP3 R3.z,R0,c[$TEXPARAM2+0];
+					DP3 R4.x,R9,c[$TEXPARAM2+1];
+					DP3 R4.y,R1,c[$TEXPARAM2+1];
+					DP3 R4.z,R0,c[$TEXPARAM2+1];
+					DP3 R5.x,R9,c[$TEXPARAM2+2];
+					DP3 R5.y,R1,c[$TEXPARAM2+2];
+					DP3 R5.z,R0,c[$TEXPARAM2+2];
+					MUL R3.xyz, R3, c[$TEXPARAM2+3];
+					MUL R4.xyz, R4, c[$TEXPARAM2+3];
+					MUL R5.xyz, R5, c[$TEXPARAM2+3];
+					MOV @O_TEX3, R4;
+					MOV @O_TEX4, R5;
+				"
+			}
+
+                        *if_texgen2_decaltstransform
+                        "
+                                MOV R5,c[$TEXPARAM0+0];
+                                MOV R6,c[$TEXPARAM0+1];
+
+                                DP3 R3.x, R6,R0;
+                                DP3 R3.y, R5,R0;
+                                MOV R3, -R3;
+                                MOV R3.z, c[$BASE+8].x;
+                                DP3 R10.w,R3,R3;
+                                RSQ R10.w,R10.w;
+                                MUL R3, R3,R10.w;
+
+                                DP3 R4.x, R6,R1;
+                                DP3 R4.y, R5,R1;
+                                MOV R4.z, c[$BASE+8].x;
+                                DP3 R10.w,R4,R4;
+                                RSQ R10.w,R10.w;
+                                MUL R4, R4,R10.w;
+
+                                MOV @O_TEX3, R4;
+                        "
+
+
+			*if_texgen2_env
+			{
+				*if_TextureTrans2
+				" 
+					MUL R3, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD R3, R3, c[$TEXTURETRANS2+1];
+				"
+				*ifnot_TextureTrans2
+				"
+					MOV R3, $TEXINPUT2;
+				"
+				*Post
+				"
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+                        /*
+			*if_texgen2_Lighting
+			"
+				ADD R4, c[$TEXPARAM2+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM2+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM2+1], R3.z;
+			"
+			*/
+			*if_texgen2_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM2+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM2+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM2+1], R3.z;
+			"
+
+			*if_texgen2_Lighting
+			"
+				ADD R4, c[$TEXPARAM2+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM2+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM2+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen2_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM2+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM2+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM2+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM2+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM2+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM2+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			// This TSLV is flipped
+			*if_texgen2_tslv
+			"
+				ADD R4, c[$TEXPARAM2+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3, R3, c[$TEXPARAM2+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen2_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout4
+				"
+					DP3 R3.x,R9,c[$TEXPARAM2+0];
+					DP3 R3.y,R1,c[$TEXPARAM2+0];
+					DP3 R3.z,R0,c[$TEXPARAM2+0];
+					DP4 R3.w,R8,c[$TEXPARAM2+0];
+					DP3 R4.x,R9,c[$TEXPARAM2+1];
+					DP3 R4.y,R1,c[$TEXPARAM2+1];
+					DP3 R4.z,R0,c[$TEXPARAM2+1];
+					DP4 R4.w,R8,c[$TEXPARAM2+1];
+					MOV @O_TEX3, R4;
+					DP3 R4.x,R9,c[$TEXPARAM2+2];
+					DP3 R4.y,R1,c[$TEXPARAM2+2];
+					DP3 R4.z,R0,c[$TEXPARAM2+2];
+					DP4 R4.w,R8,c[$TEXPARAM2+2];
+					MOV @O_TEX4, R4;
+				"
+			}
+			
+			*if_texgen2_depthoffset
+			{
+				*if_TextureTrans2
+				" 
+					MUL R5, $TEXINPUT2, c[$TEXTURETRANS2];
+					ADD R5, R5, c[$TEXTURETRANS2+1];
+				"
+				*ifnot_TextureTrans2
+				"
+					MOV R5, $TEXINPUT2;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM2+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM2+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen2_mspos
+			"
+				MOV @O_TEX2, R8;
+			"
+
+
+			*if_texgen2_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen2_constant
+			"
+				MOV @O_TEX2, c[$TEXPARAM2+0];
+			"
+			
+			*ifnot_texgen2_constant {
+			*ifnot_texgen2_mspos
+			{
+				*if_texmatrix2
+				"
+					DP4 @O_TEX2.x, R3, c[$TEXMATRIX2+0];
+					DP4 @O_TEX2.y, R3, c[$TEXMATRIX2+1];
+					DP4 @O_TEX2.z, R3, c[$TEXMATRIX2+2];
+					DP4 @O_TEX2.w, R3, c[$TEXMATRIX2+3];
+				"
+
+				*ifnot_texmatrix2
+				"
+					MOV @O_TEX2, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen3_void
+	{
+		*if_texgen3_null
+		"
+			MOV @O_TEX3.x, c[$BASE+8].x;
+		"
+		*if_texgen3_texcoord
+		{
+			*if_texmatrix3
+			{
+				*if_TextureTrans3
+				" 
+					MUL R4, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD R4, R4, c[$TEXTURETRANS3+1];
+					DP4 @O_TEX3.x, R4, c[$TEXMATRIX3+0];
+					DP4 @O_TEX3.y, R4, c[$TEXMATRIX3+1];
+					DP4 @O_TEX3.z, R4, c[$TEXMATRIX3+2];
+					DP4 @O_TEX3.w, R4, c[$TEXMATRIX3+3];
+				"
+				*ifnot_TextureTrans3
+				"
+					DP4 @O_TEX3.x, $TEXINPUT3, c[$TEXMATRIX3+0];
+					DP4 @O_TEX3.y, $TEXINPUT3, c[$TEXMATRIX3+1];
+					DP4 @O_TEX3.z, $TEXINPUT3, c[$TEXMATRIX3+2];
+					DP4 @O_TEX3.w, $TEXINPUT3, c[$TEXMATRIX3+3];
+				"
+			}
+
+			*ifnot_texmatrix3
+			{
+				*if_TextureTrans3
+				" 
+					MUL R4, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD @O_TEX3, R4, c[$TEXTURETRANS3+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV @O_TEX3, $TEXINPUT3;
+				"
+			}
+		}
+
+		*ifnot_texgen3_texcoord
+		{
+			*if_texgen3_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM3+0];
+				DP4 R3.y, R8, c[$TEXPARAM3+1];
+				DP4 R3.z, R8, c[$TEXPARAM3+2];
+				DP4 R3.w, R8, c[$TEXPARAM3+3];
+			"
+
+			*if_texgen3_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM3+0];
+					DP4 R3.y, R4, c[$TEXPARAM3+1];
+					DP4 R3.z, R4, c[$TEXPARAM3+2];
+					DP4 R3.w, R4, c[$TEXPARAM3+3];
+				"
+			}
+
+			*if_texgen3_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen3_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen3_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen3_tang_v
+			"
+				MOV R3, R1;
+			"
+
+			*if_texgen3_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen3_tsreflection
+			"
+				ADD R4, c[$TEXPARAM3+0], -R8;
+				ADD R5, c[$TEXPARAM3+1], -R8;
+				ADD R4, R4, R5;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+				DP3 R3.x, R1, R4;
+				DP3 R3.y, R0, -R4;
+				DP3 R3.z, R9, R4;
+				MOV R4, c[$BASE+8].yxxx;
+				MUL R5, R3.zxyw, R4.yzxw;
+				MAD R5, R3.yzxw, R4.zxyw, -R5;
+				MUL R7, R3.zxyw, R5.yzxw;
+				MAD R4, R3.yzxw, R5.zxyw, -R7;
+
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				MUL R4.xyz, R4, R3.w;
+
+				DP3 R3.w, R5, R5;
+				RSQ R3.w, R3.w;
+				MUL R5.xyz, R5, R3.w;
+
+				MOV @O_TEX4.x, R3.y;
+				MOV @O_TEX4.y, R4.y;
+				MOV @O_TEX4.z, R5.y;
+				MOV @O_TEX4.w, c[$BASE+8].x;
+				MOV @O_TEX5.x, R3.z;
+				MOV @O_TEX5.y, R4.z;
+				MOV @O_TEX5.z, R5.z;
+				MOV @O_TEX5.w, c[$BASE+8].x;
+				MOV R3.y, R4.x;
+				MOV R3.z, R5.x;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen3_env
+			{
+				*if_TextureTrans3
+				" 
+					MUL R3, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD R3, R3, c[$TEXTURETRANS3+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R3, $TEXINPUT3;
+				"
+				*Post
+				"
+					MOV R3, $TEXINPUT3;
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+                        /*
+			*if_texgen3_Lighting
+			"
+				ADD R4, c[$TEXPARAM3+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM3+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM3+1], R3.z;
+			"
+			*/
+			*if_texgen3_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM3+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM3+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM3+1], R3.z;
+			"
+
+			*if_texgen3_Lighting
+			"
+				ADD R4, c[$TEXPARAM3+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM3+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM3+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen3_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM3+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM3+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM3+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM3+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM3+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM3+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen3_tslv
+			"
+				ADD R4, c[$TEXPARAM3+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM3+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen3_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout6
+				"
+					DP3 R3.x,R9,c[$TEXPARAM3+0];
+					DP3 R3.y,R1,c[$TEXPARAM3+0];
+					DP3 R3.z,R0,c[$TEXPARAM3+0];
+					DP4 R3.w,R8,c[$TEXPARAM3+0];
+					DP3 R4.x,R9,c[$TEXPARAM3+1];
+					DP3 R4.y,R1,c[$TEXPARAM3+1];
+					DP3 R4.z,R0,c[$TEXPARAM3+1];
+					DP4 R4.w,R8,c[$TEXPARAM3+1];
+					MOV @O_TEX4, R4;
+					DP3 R4.x,R9,c[$TEXPARAM3+2];
+					DP3 R4.y,R1,c[$TEXPARAM3+2];
+					DP3 R4.z,R0,c[$TEXPARAM3+2];
+					DP4 R4.w,R8,c[$TEXPARAM3+2];
+					MOV @O_TEX5, R4;
+				"
+			}
+			
+			*if_texgen3_depthoffset
+			{
+				*if_TextureTrans3
+				" 
+					MUL R5, $TEXINPUT3, c[$TEXTURETRANS3];
+					ADD R5, R5, c[$TEXTURETRANS3+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R5, $TEXINPUT3;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM3+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM3+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+			
+			*if_texgen3_mspos
+			"
+				MOV @O_TEX3, R8;
+			"
+
+
+			*if_texgen3_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen3_constant
+			"
+				MOV @O_TEX3, c[$TEXPARAM3+0];
+			"
+
+			*ifnot_texgen3_constant {
+			*ifnot_texgen3_mspos
+			{
+				*if_texmatrix3
+				"
+					DP4 @O_TEX3.x, R3, c[$TEXMATRIX3+0];
+					DP4 @O_TEX3.y, R3, c[$TEXMATRIX3+1];
+					DP4 @O_TEX3.z, R3, c[$TEXMATRIX3+2];
+					DP4 @O_TEX3.w, R3, c[$TEXMATRIX3+3];
+				"
+
+				*ifnot_texmatrix3
+				"
+					MOV @O_TEX3, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen4_void
+	{
+		*if_texgen4_null
+		"
+			MOV @O_TEX4.x, c[$BASE+8].x;
+		"
+		*if_texgen4_texcoord
+		{
+			*if_texmatrix4
+			{
+				*if_TextureTrans4
+				" 
+					MUL R4, $TEXINPUT4, c[$TEXTURETRANS4];
+					ADD R4, R4, c[$TEXTURETRANS4+1];
+					DP4 @O_TEX4.x, R4, c[$TEXMATRIX4+0];
+					DP4 @O_TEX4.y, R4, c[$TEXMATRIX4+1];
+					DP4 @O_TEX4.z, R4, c[$TEXMATRIX4+2];
+					DP4 @O_TEX4.w, R4, c[$TEXMATRIX4+3];
+				"
+				*ifnot_TextureTrans4
+				"
+					DP4 @O_TEX4.x, $TEXINPUT4, c[$TEXMATRIX4+0];
+					DP4 @O_TEX4.y, $TEXINPUT4, c[$TEXMATRIX4+1];
+					DP4 @O_TEX4.z, $TEXINPUT4, c[$TEXMATRIX4+2];
+					DP4 @O_TEX4.w, $TEXINPUT4, c[$TEXMATRIX4+3];
+				"
+			}
+
+			*ifnot_texmatrix4
+			{
+				*if_TextureTrans4
+				" 
+					MUL R4, $TEXINPUT4, c[$TEXTURETRANS4];
+					ADD @O_TEX4, R4, c[$TEXTURETRANS4+1];
+				"
+				*ifnot_TextureTrans4
+				"
+					MOV @O_TEX4, $TEXINPUT4;
+				"
+			}
+		}
+
+		*ifnot_texgen4_texcoord
+		{
+			*if_texgen4_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM4+0];
+				DP4 R3.y, R8, c[$TEXPARAM4+1];
+				DP4 R3.z, R8, c[$TEXPARAM4+2];
+				DP4 R3.w, R8, c[$TEXPARAM4+3];
+			"
+
+			*if_texgen4_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM4+0];
+					DP4 R3.y, R4, c[$TEXPARAM4+1];
+					DP4 R3.z, R4, c[$TEXPARAM4+2];
+					DP4 R3.w, R4, c[$TEXPARAM4+3];
+				"
+			}
+
+			*if_texgen4_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen4_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen4_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen4_tang_v
+			"
+				MOV R3, R1;
+			"
+
+			*if_texgen4_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen4_env
+			{
+				*if_TextureTrans4
+				" 
+					MUL R3, $TEXINPUT4, c[$TEXTURETRANS4];
+					ADD R3, R3, c[$TEXTURETRANS4+1];
+				"
+				*ifnot_TextureTrans4
+				"
+					MOV R3, $TEXINPUT4;
+				"
+				*Post
+				"
+					MOV R3, $TEXINPUT4;
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+                        /*
+			*if_texgen4_Lighting
+			"
+				ADD R4, c[$TEXPARAM4+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM4+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM4+1], R3.z;
+			"
+			*/
+			*if_texgen4_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM4+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM4+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM4+1], R3.z;
+			"
+
+			*if_texgen4_Lighting
+			"
+				ADD R4, c[$TEXPARAM4+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM4+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM4+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+                        
+                        *if_texgen4_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM4+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM4+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM4+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM4+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM4+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM4+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen4_tslv
+			"
+				ADD R4, c[$TEXPARAM4+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM4+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen4_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout7
+				"
+					DP3 R3.x,R9,c[$TEXPARAM4+0];
+					DP3 R3.y,R1,c[$TEXPARAM4+0];
+					DP3 R3.z,R0,c[$TEXPARAM4+0];
+					DP4 R3.w,R8,c[$TEXPARAM4+0];
+					DP3 R4.x,R9,c[$TEXPARAM4+1];
+					DP3 R4.y,R1,c[$TEXPARAM4+1];
+					DP3 R4.z,R0,c[$TEXPARAM4+1];
+					DP4 R4.w,R8,c[$TEXPARAM4+1];
+					MOV @O_TEX5, R4;
+					DP3 R4.x,R9,c[$TEXPARAM4+2];
+					DP3 R4.y,R1,c[$TEXPARAM4+2];
+					DP3 R4.z,R0,c[$TEXPARAM4+2];
+					DP4 R4.w,R8,c[$TEXPARAM4+2];
+					MOV @O_TEX6, R4;
+				"
+			}
+			*if_texgen4_depthoffset
+			{
+				*if_TextureTrans4
+				" 
+					MUL R5, $TEXINPUT4, c[$TEXTURETRANS4];
+					ADD R5, R5, c[$TEXTURETRANS4+1];
+				"
+				*ifnot_TextureTrans4
+				"
+					MOV R5, $TEXINPUT4;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM4+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM4+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+			
+			*if_texgen4_mspos
+			"
+				MOV @O_TEX4, R8;
+			"
+
+
+			*if_texgen4_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen4_constant
+			"
+				MOV @O_TEX4, c[$TEXPARAM4+0];
+			"
+			
+			*ifnot_texgen4_constant {
+			*ifnot_texgen4_mspos
+			{
+				*if_texmatrix4
+				"
+					DP4 @O_TEX4.x, R3, c[$TEXMATRIX4+0];
+					DP4 @O_TEX4.y, R3, c[$TEXMATRIX4+1];
+					DP4 @O_TEX4.z, R3, c[$TEXMATRIX4+2];
+					DP4 @O_TEX4.w, R3, c[$TEXMATRIX4+3];
+				"
+
+				*ifnot_texmatrix4
+				"
+					MOV @O_TEX4, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen5_void
+	{
+		*if_texgen5_null
+		"
+			MOV @O_TEX5.x, c[$BASE+8].x;
+		"
+		*if_texgen5_texcoord
+		{
+			*if_texmatrix5
+			{
+				*if_TextureTrans5
+				" 
+					MUL R4, $TEXINPUT5, c[$TEXTURETRANS5];
+					ADD R4, R4, c[$TEXTURETRANS5+1];
+					DP4 @O_TEX5.x, R4, c[$TEXMATRIX5+0];
+					DP4 @O_TEX5.y, R4, c[$TEXMATRIX5+1];
+					DP4 @O_TEX5.z, R4, c[$TEXMATRIX5+2];
+					DP4 @O_TEX5.w, R4, c[$TEXMATRIX5+3];
+				"
+				*ifnot_TextureTrans5
+				"
+					DP4 @O_TEX5.x, $TEXINPUT5, c[$TEXMATRIX5+0];
+					DP4 @O_TEX5.y, $TEXINPUT5, c[$TEXMATRIX5+1];
+					DP4 @O_TEX5.z, $TEXINPUT5, c[$TEXMATRIX5+2];
+					DP4 @O_TEX5.w, $TEXINPUT5, c[$TEXMATRIX5+3];
+				"
+			}
+
+			*ifnot_texmatrix5
+			{
+				*if_TextureTrans5
+				" 
+					MUL R4, $TEXINPUT5, c[$TEXTURETRANS5];
+					ADD @O_TEX5, R4, c[$TEXTURETRANS5+1];
+				"
+				*ifnot_TextureTrans5
+				"
+					MOV @O_TEX5, $TEXINPUT5;
+				"
+			}
+		}
+
+		*ifnot_texgen5_texcoord
+		{
+			*if_texgen5_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM5+0];
+				DP4 R3.y, R8, c[$TEXPARAM5+1];
+				DP4 R3.z, R8, c[$TEXPARAM5+2];
+				DP4 R3.w, R8, c[$TEXPARAM5+3];
+			"
+
+			*if_texgen5_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM5+0];
+					DP4 R3.y, R4, c[$TEXPARAM5+1];
+					DP4 R3.z, R4, c[$TEXPARAM5+2];
+					DP4 R3.w, R4, c[$TEXPARAM5+3];
+				"
+			}
+
+			*if_texgen5_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen5_normalmap
+			"
+				MOV R3, R9;
+			"
+
+			*if_texgen5_tang_u
+			"
+				MOV R3, R0;
+			"
+
+			*if_texgen5_tang_v
+			"
+				MOV R3, R1;
+			"
+			*if_texgen5_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen5_env
+			{
+				*if_TextureTrans5
+				" 
+					MUL R3, $TEXINPUT5, c[$TEXTURETRANS5];
+					ADD R3, R3, c[$TEXTURETRANS5+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R3, $TEXINPUT5;
+				"
+				*Post
+				"
+					MOV R3, $TEXINPUT5;
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+
+			*if_texgen5_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM5+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM5+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM5+1], R3.z;
+			"
+
+			*if_texgen5_Lighting
+			"
+				ADD R4, c[$TEXPARAM5+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM5+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM5+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+                        
+                        *if_texgen5_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM5+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM5+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM5+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM5+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM5+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM5+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+
+			*if_texgen5_tslv
+			"
+				ADD R4, c[$TEXPARAM5+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM5+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			*if_texgen5_pixelinfo
+			{
+				// Outputs 3 texcoords with a 4x3 tranformed tangentspace
+				*if_texcoordout7
+				"
+					DP3 R3.x,R9,c[$TEXPARAM5+0];
+					DP3 R3.y,R1,c[$TEXPARAM5+0];
+					DP3 R3.z,R0,c[$TEXPARAM5+0];
+					DP4 R3.w,R8,c[$TEXPARAM5+0];
+					DP3 R4.x,R9,c[$TEXPARAM5+1];
+					DP3 R4.y,R1,c[$TEXPARAM5+1];
+					DP3 R4.z,R0,c[$TEXPARAM5+1];
+					DP4 R4.w,R8,c[$TEXPARAM5+1];
+					MOV @O_TEX6, R4;
+					DP3 R4.x,R9,c[$TEXPARAM5+2];
+					DP3 R4.y,R1,c[$TEXPARAM5+2];
+					DP3 R4.z,R0,c[$TEXPARAM5+2];
+					DP4 R4.w,R8,c[$TEXPARAM5+2];
+					MOV @O_TEX7, R4;
+				"
+			}
+			
+			*if_texgen5_depthoffset
+			{
+				*if_TextureTrans5
+				" 
+					MUL R5, $TEXINPUT5, c[$TEXTURETRANS5];
+					ADD R5, R5, c[$TEXTURETRANS5+1];
+				"
+				*ifnot_TextureTrans5
+				"
+					MOV R5, $TEXINPUT5;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM5+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM5+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen5_mspos
+			"
+				MOV @O_TEX5, R8;
+			"
+
+
+			*if_texgen5_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen5_bumpcubeenv
+			{
+				*doit
+				"
+					DP3 R3.x,R9,c[$TEXPARAM5+0];
+					DP3 R3.y,R1,c[$TEXPARAM5+0];
+					DP3 R3.z,R0,c[$TEXPARAM5+0];
+					DP3 R4.x,R9,c[$TEXPARAM5+1];
+					DP3 R4.y,R1,c[$TEXPARAM5+1];
+					DP3 R4.z,R0,c[$TEXPARAM5+1];
+					DP3 R5.x,R9,c[$TEXPARAM5+2];
+					DP3 R5.y,R1,c[$TEXPARAM5+2];
+					DP3 R5.z,R0,c[$TEXPARAM5+2];
+					MOV @O_TEX6, R4;
+					MOV @O_TEX7, R5;
+				"
+			}
+			*if_texgen5_constant
+			"
+				MOV @O_TEX5, c[$TEXPARAM5+0];
+			"
+
+			*ifnot_texgen5_constant {
+			*ifnot_texgen5_mspos
+			{
+				*if_texmatrix5
+				"
+					DP4 @O_TEX5.x, R3, c[$TEXMATRIX5+0];
+					DP4 @O_TEX5.y, R3, c[$TEXMATRIX5+1];
+					DP4 @O_TEX5.z, R3, c[$TEXMATRIX5+2];
+					DP4 @O_TEX5.w, R3, c[$TEXMATRIX5+3];
+				"
+
+				*ifnot_texmatrix5
+				"
+					MOV @O_TEX5, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen6_void
+	{
+		*if_texgen6_null
+		"
+			MOV @O_TEX6.x, c[$BASE+8].x;
+		"
+		*if_texgen6_texcoord
+		{
+			*if_texmatrix6
+			{
+				*if_TextureTrans6
+				" 
+					MUL R4, $TEXINPUT6, c[$TEXTURETRANS6];
+					ADD R4, R4, c[$TEXTURETRANS6+1];
+					DP4 @O_TEX6.x, R4, c[$TEXMATRIX6+0];
+					DP4 @O_TEX6.y, R4, c[$TEXMATRIX6+1];
+					DP4 @O_TEX6.z, R4, c[$TEXMATRIX6+2];
+					DP4 @O_TEX6.w, R4, c[$TEXMATRIX6+3];
+				"
+				*ifnot_TextureTrans6
+				"
+					DP4 @O_TEX6.x, $TEXINPUT6, c[$TEXMATRIX6+0];
+					DP4 @O_TEX6.y, $TEXINPUT6, c[$TEXMATRIX6+1];
+					DP4 @O_TEX6.z, $TEXINPUT6, c[$TEXMATRIX6+2];
+					DP4 @O_TEX6.w, $TEXINPUT6, c[$TEXMATRIX6+3];
+				"
+			}
+
+			*ifnot_texmatrix6
+			{
+				*if_TextureTrans6
+				" 
+					MUL R4, $TEXINPUT6, c[$TEXTURETRANS6];
+					ADD @O_TEX6, R4, c[$TEXTURETRANS6+1];
+				"
+				*ifnot_TextureTrans6
+				"
+					MOV @O_TEX6, $TEXINPUT6;
+				"
+			}
+		}
+
+		*ifnot_texgen6_texcoord
+		{
+			*if_texgen6_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM6+0];
+				DP4 R3.y, R8, c[$TEXPARAM6+1];
+				DP4 R3.z, R8, c[$TEXPARAM6+2];
+				DP4 R3.w, R8, c[$TEXPARAM6+3];
+			"
+
+			*if_texgen6_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM6+0];
+					DP4 R3.y, R4, c[$TEXPARAM6+1];
+					DP4 R3.z, R4, c[$TEXPARAM6+2];
+					DP4 R3.w, R4, c[$TEXPARAM6+3];
+				"
+			}
+
+			*if_texgen6_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen6_normalmap
+			"
+				MOV R3, R9;
+			"
+			*if_texgen6_tang_u
+			"
+				MOV R3, R0;
+			"
+			*if_texgen6_tang_v
+			"
+				MOV R3, R1;
+			"
+
+			*if_texgen6_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen6_env
+			{
+				*if_TextureTrans6
+				" 
+					MUL R3, $TEXINPUT6, c[$TEXTURETRANS6];
+					ADD R3, R3, c[$TEXTURETRANS6+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R3, $TEXINPUT6;
+				"
+				*Post
+				"
+					MOV R3, $TEXINPUT6;
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+                        /*
+			*if_texgen6_Lighting
+			"
+				ADD R4, c[$TEXPARAM6+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM6+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM6+1], R3.z;
+			"
+			*/
+			*if_texgen6_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM6+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM6+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM6+1], R3.z;
+			"
+
+			*if_texgen6_Lighting
+			"
+				ADD R4, c[$TEXPARAM6+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM6+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM6+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen6_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM6+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM6+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM6+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM6+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM6+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM6+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen6_tslv
+			"
+				ADD R4, c[$TEXPARAM6+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM6+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+			
+			*if_texgen6_depthoffset
+			{
+				*if_TextureTrans6
+				" 
+					MUL R5, $TEXINPUT6, c[$TEXTURETRANS6];
+					ADD R5, R5, c[$TEXTURETRANS6+1];
+				"
+				*ifnot_TextureTrans6
+				"
+					MOV R5, $TEXINPUT6;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM6+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM6+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen6_mspos
+			"
+				MOV @O_TEX6, R8;
+			"
+
+
+			*if_texgen6_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen6_constant
+			"
+				MOV @O_TEX6, c[$TEXPARAM6+0];
+			"
+			
+			*ifnot_texgen6_constant {
+			*ifnot_texgen6_mspos
+			{
+				*if_texmatrix6
+				"
+					DP4 @O_TEX6.x, R3, c[$TEXMATRIX6+0];
+					DP4 @O_TEX6.y, R3, c[$TEXMATRIX6+1];
+					DP4 @O_TEX6.z, R3, c[$TEXMATRIX6+2];
+					DP4 @O_TEX6.w, R3, c[$TEXMATRIX6+3];
+				"
+
+				*ifnot_texmatrix6
+				"
+					MOV @O_TEX6, R3;
+				"
+			}}
+		}
+	}
+
+	// ----------------------------------------------------------------
+	*ifnot_texgen7_void
+	{
+		*if_texgen7_null
+		"
+			MOV @O_TEX7.x, c[$BASE+8].x;
+		"
+		*if_texgen7_texcoord
+		{
+			*if_texmatrix7
+			{
+				*if_TextureTrans7
+				" 
+					MUL R4, $TEXINPUT7, c[$TEXTURETRANS7];
+					ADD R4, R4, c[$TEXTURETRANS7+1];
+					DP4 @O_TEX7.x, R4, c[$TEXMATRIX7+0];
+					DP4 @O_TEX7.y, R4, c[$TEXMATRIX7+1];
+					DP4 @O_TEX7.z, R4, c[$TEXMATRIX7+2];
+					DP4 @O_TEX7.w, R4, c[$TEXMATRIX7+3];
+				"
+				*ifnot_TextureTrans7
+				"
+					DP4 @O_TEX7.x, $TEXINPUT7, c[$TEXMATRIX7+0];
+					DP4 @O_TEX7.y, $TEXINPUT7, c[$TEXMATRIX7+1];
+					DP4 @O_TEX7.z, $TEXINPUT7, c[$TEXMATRIX7+2];
+					DP4 @O_TEX7.w, $TEXINPUT7, c[$TEXMATRIX7+3];
+				"
+			}
+
+			*ifnot_texmatrix7
+			{
+				*if_TextureTrans7
+				" 
+					MUL R4, $TEXINPUT7, c[$TEXTURETRANS7];
+					ADD @O_TEX7, R4, c[$TEXTURETRANS7+1];
+				"
+				*ifnot_TextureTrans7
+				"
+					MOV @O_TEX7, $TEXINPUT7;
+				"
+			}
+		}
+
+		*ifnot_texgen7_texcoord
+		{
+			*if_texgen7_linear
+			"
+				DP4 R3.x, R8, c[$TEXPARAM7+0];
+				DP4 R3.y, R8, c[$TEXPARAM7+1];
+				DP4 R3.z, R8, c[$TEXPARAM7+2];
+				DP4 R3.w, R8, c[$TEXPARAM7+3];
+			"
+
+			*if_texgen7_linear_ms
+			{
+				*if_PosTrans
+				"
+					MUL R4, @V_POS, c[$POSTRANS];
+					ADD R4, R4, c[$POSTRANS+1];
+				"
+				*ifnot_PosTrans
+				"
+					MOV R4, @V_POS;
+				"
+
+				*doeet
+				"
+					DP4 R3.x, R4, c[$TEXPARAM7+0];
+					DP4 R3.y, R4, c[$TEXPARAM7+1];
+					DP4 R3.z, R4, c[$TEXPARAM7+2];
+					DP4 R3.w, R4, c[$TEXPARAM7+3];
+				"
+			}
+
+			*if_texgen7_screen
+			"
+				MUL r4, c93, r12.w
+				MAD r3, r12, c92, r4
+			"
+
+			*if_texgen7_normalmap
+			"
+				MOV R3, R9;
+			"
+			*if_texgen7_tang_u
+			"
+				MOV R3, R0;
+			"
+			*if_texgen7_tang_v
+			"
+				MOV R3, R1;
+			"
+
+			*if_texgen7_reflection
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].x;
+				DP3 R4.x, R9, c[$BASE+4];
+				DP3 R4.y, R9, c[$BASE+5];
+				DP3 R4.z, R9, c[$BASE+6];
+				MOV R4.w, c[$BASE+8].x;
+				DP3 R3.w, -R3, R4;
+				ADD R3.w, R3.w, R3.w;
+				MUL R4, R4, R3.wwww;
+				ADD R3, R3, R4;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen7_env
+			{
+				*if_TextureTrans7
+				" 
+					MUL R3, $TEXINPUT7, c[$TEXTURETRANS7];
+					ADD R3, R3, c[$TEXTURETRANS7+1];
+				"
+				*ifnot_TextureTrans3
+				"
+					MOV R3, $TEXINPUT7;
+				"
+				*Post
+				"
+					MOV R3, $TEXINPUT7;
+					DP3 R3.x, R9, c[$BASE+4];
+					DP3 R3.y, -R9, c[$BASE+5];
+					MUL R3, R3, c[$BASE+8].zzzz;
+					ADD R3, R3, c[$BASE+8].zzzz;
+				"
+			}
+
+	                /*
+			*if_texgen7_Lighting
+			"
+				ADD R4, c[$TEXPARAM7+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM7+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+				MUL R3, c[$TEXPARAM7+1], R3.z;
+			"
+			*/
+			*if_texgen7_Lighting_Nonormal
+			"
+				ADD R4, c[$TEXPARAM7+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.z, R3.w;
+				RCP R3.z, R3.z;
+				MUL R3.z, c[$TEXPARAM7+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R3, c[$TEXPARAM7+1], R3.z;
+			"
+
+			*if_texgen7_Lighting
+			"
+				ADD R4, c[$TEXPARAM7+0], -R8;
+				DP3 R3.w, R4, R4;
+				RSQ R3.w, R3.w;
+				RCP R3.z, R3.w;
+				MUL R3.z, c[$TEXPARAM7+0].wwww, -R3.z;
+				ADD R3.z, R3.z, c[$BASE+8].yyyy;
+				MAX R3.z, R3.z, c[$BASE+8].x;
+				MUL R4.w, R3.w, R3.z;
+				MUL R4.xyz, R4, R4.w;
+  			        DP3 R3.x, R9, R4;
+  			        MAX R3.x, R3.x, c[$BASE+8].x;
+  		 	        MUL R3.xyz, R3.xxxx, c[$TEXPARAM7+1];
+  		 	        MOV R3.w, c[$BASE+8].y;
+			"
+			
+			*if_texgen7_LightField
+			"
+                                MAX R5, R9,c[$BASE+8].xxxx;
+                                MAX R4, -R9,c[$BASE+8].xxxx;
+                                MUL R3.xyz, R4.x, c[$TEXPARAM7+0];
+                                MAD R3.xyz, R4.y, c[$TEXPARAM7+2],R3;
+                                MAD R3.xyz, R4.z, c[$TEXPARAM7+4],R3;
+                                MAD R3.xyz, R5.x, c[$TEXPARAM7+1],R3;
+                                MAD R3.xyz, R5.y, c[$TEXPARAM7+3],R3;
+                                MAD R3.xyz, R5.z, c[$TEXPARAM7+5],R3;
+                                
+                                ADD R3, R3,R3;
+                                MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen7_tslv
+			"
+				ADD R4, c[$TEXPARAM7+0], -R8;
+				DP3 R3.x, R9, R4;
+				DP3 R3.y, R1, R4;
+				DP3 R3.z, R0, R4;
+				MUL R3.xyz, R3, c[$TEXPARAM7+0].wwww;
+				MOV R3.w, c[$BASE+8].x;
+			"
+
+			*if_texgen7_depthoffset
+			{
+				*if_TextureTrans7
+				" 
+					MUL R5, $TEXINPUT7, c[$TEXTURETRANS7];
+					ADD R5, R5, c[$TEXTURETRANS7+1];
+				"
+				*ifnot_TextureTrans7
+				"
+					MOV R5, $TEXINPUT7;
+				"
+				*Post
+				"
+				    SUB R3,c[$TEXPARAM7+0],R8;
+				    DP3 R3.w,R3,R3;
+				    RSQ R3.w,R3.w;
+				    MUL R3,R3,R3.w;
+				    DP3 R4.x,R3,R0;
+				    DP3 R4.y,R3,R1;
+				    DP3 R4.w,R3,R9;
+				    RCP R4.w,R4.w;
+				    MUL R3,R4,c[$TEXPARAM7+1];
+				    MAD R3,R3,R4.w,R5;
+				 "
+			}
+
+			*if_texgen7_mspos
+			"
+				MOV @O_TEX7, R8;
+			"
+
+
+			*if_texgen7_vspos
+			"
+				ADD R4, R8, c[$BASE+7];
+				DP4 R3.x, R4, c[$BASE+4];
+				DP4 R3.y, R4, c[$BASE+5];
+				DP4 R3.z, R4, c[$BASE+6];
+				MOV R3.w, c[$BASE+8].y;
+			"
+
+			*if_texgen7_constant
+			"
+				MOV @O_TEX7, c[$TEXPARAM7+0];
+			"
+			
+			*ifnot_texgen7_constant {
+			*ifnot_texgen7_mspos
+			{
+				*if_texmatrix7
+				"
+					DP4 @O_TEX7.x, R3, c[$TEXMATRIX7+0];
+					DP4 @O_TEX7.y, R3, c[$TEXMATRIX7+1];
+					DP4 @O_TEX7.z, R3, c[$TEXMATRIX7+2];
+					DP4 @O_TEX7.w, R3, c[$TEXMATRIX7+3];
+				"
+
+				*ifnot_texmatrix7
+				"
+					MOV @O_TEX7, R3;
+				"
+			} }
+		}
+	}
+	*end
+	"
+	@END
+	"
+}
+
+

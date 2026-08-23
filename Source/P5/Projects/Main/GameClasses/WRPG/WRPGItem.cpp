@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM MODEL-key probe
+#include <stdlib.h>	// getenv
+
 #include "WRPGSpell.h"
 #include "WRPGChar.h"
 #include "../WObj_RPG.h"
@@ -350,9 +353,79 @@ bool CRPG_Object_Item::OnEvalKey(uint32 _KeyHash, const CRegistry* _pKey)
 			break;
 		}
 
+	// PC content declares an item's mesh with the key MODEL0, not MODEL.
+	//
+	// Found with the [ITEM] probe on i1_pigsville: template
+	// weapon_assaultrifle1 (56 keys) carries MODEL0 = 'weapons\asr',
+	// weapon_shotgun1 carries MODEL0 = 'weapons\combatshotgun', and not a
+	// single MODEL key appears anywhere in the run. So the case below never
+	// executed, m_iModel[0] stayed zero, and the item render gate
+	// (WObj_CharRender.cpp, IsValid() == (m_iModel[0] != 0)) silently dropped
+	// the weapon -- invisible in the hands of both player and NPCs while
+	// firing kept working.
+	//
+	// The retail binary accepts both spellings and all four slots
+	// (GameClasses_Win32_x86_dll_decomp.c:401270-401330, the item key parser,
+	// identified by the neighbouring attachrottrack/attachpoint cases):
+	//   0xff1eef1  "model"  -> uint16 at this+0x1f2   = m_iModel[0]
+	//   0xe326de1  "model0" -> same label LAB_1026306b, same +0x1f2
+	//   0xe326de2  "model1" -> this+0x1f4
+	//   0xe326de3  "model2" -> this+0x1f6
+	//   0xe326de4  "model3" -> this+0x1f8
+	// Offsets 0x1f2/0x1f4/0x1f6/0x1f8 are exactly uint16 m_iModel[4]. Hashes
+	// verified against MRTC_StringHash.h (djb2, lowercased, minus 5381).
+	//
+	// The base CWObject_Model::OnEvalKey does the same for character bodies
+	// (WObj_System.cpp:276-281 lists case MODEL and case MODEL0 together) --
+	// which is why bodies rendered and held items did not.
 	case MHASH2('MODE','L'): // "MODEL"
+	case MHASH2('MODE','L0'): // "MODEL0"
 		{
 			m_Model.m_iModel[0] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+
+			// RIDDICK_DBG_ITEM=1: the one missing fact about invisible weapons
+			// -- the model name that was asked for, and what the resource
+			// table answered. Everything downstream (equip, replication,
+			// render gate) was already proven to carry the value faithfully,
+			// so a zero here means the resolver; no line at all means the
+			// template has no MODEL key and the model is declared some other
+			// way (ATTACHMODEL<n> writes slot n+1, not slot 0).
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				static int s_nLogged = 0;
+				if (s_On && s_nLogged < 16)
+				{
+					++s_nLogged;
+					fprintf(stderr, "[ITEM] MODEL key='%s' -> iModel=%d (item '%s')\n",
+						KeyValue.Str(), (int)m_Model.m_iModel[0], m_Name.Str());
+					fflush(stderr);
+				}
+			}
+			break;
+		}
+
+	// MODEL1..MODEL3 -- further slots of the same item; retail reads them into
+	// the same array (see the offsets above). Absent from this snapshot.
+	case MHASH2('MODE','L1'): // "MODEL1"
+		{
+			m_Model.m_iModel[1] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L2'): // "MODEL2"
+		{
+			m_Model.m_iModel[2] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
+			break;
+		}
+
+	case MHASH2('MODE','L3'): // "MODEL3"
+		{
+			m_Model.m_iModel[3] = m_pWServer->GetMapData()->GetResourceIndex_Model(KeyValue);
 			break;
 		}
 
@@ -827,9 +900,9 @@ CFStr CRPG_Object_Item::GetItemName() const
 	MAUTOSTRIP(CRPG_Object_Item_GetItemName, CFStr());
 	CFStr Name;
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Name = CFStr("§LITEM_") + CFStr(m_Name.Str() + 7);
+		Name = CFStr("Â§LITEM_") + CFStr(m_Name.Str() + 7);
 	else
-		Name = CFStr("§LITEM_") + CFStr(m_Name.Str());
+		Name = CFStr("Â§LITEM_") + CFStr(m_Name.Str());
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{
@@ -851,7 +924,7 @@ CFStr CRPG_Object_Item::GetItemName() const
 			Name = Stripped;
 			
 /*		if(m_NumItems > 0)
-			Name += CFStrF("§p0%i§pq", m_NumItems);*/
+			Name += CFStrF("Â§p0%iÂ§pq", m_NumItems);*/
 	}
 	return Name;
 }
@@ -868,9 +941,9 @@ CFStr CRPG_Object_Item::GetItemDesc() const
 		return m_ItemDescription;
 
 	if(m_Name.CompareSubStr("pickup") == 0)
-		Desc = CFStr("§LITEMDESC_") + CFStr(m_Name.Str() + 7);
+		Desc = CFStr("Â§LITEMDESC_") + CFStr(m_Name.Str() + 7);
 	else
-		Desc = CFStr("§LITEMDESC_") + CFStr(m_Name.Str());
+		Desc = CFStr("Â§LITEMDESC_") + CFStr(m_Name.Str());
 
 //	if(m_Flags & RPG_ITEM_FLAGS_RENDERQUANTITY)
 	{
@@ -1859,7 +1932,7 @@ int CRPG_Object_Item::GetGivenClearanceLevel()
 
 MRTC_IMPLEMENT_DYNAMIC(CRPG_Object_Item, CRPG_Object);
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Class:			CRPG_Object_Collectible
 
 	Comments:		
@@ -1888,7 +1961,7 @@ public:
 		CRPG_Object_Item::OnPickup(_iObject, _pRoot, _bNoSound, _iSender, _bNoPickupIcon);
 
 		CWObject_Message Msg(OBJMSG_GAME_SHOWGAMEMSG, 0, 0, _iSender, 1);
-		CStr St = CStrF("§LITEM_COLLECTIBLE|$%i,192,256,§C888§LCOLLECTIBLE_STATUS§p0%i§pq||", m_iIconSurface, m_ID + 1);
+		CStr St = CStrF("Â§LITEM_COLLECTIBLE|$%i,192,256,Â§C888Â§LCOLLECTIBLE_STATUSÂ§p0%iÂ§pq||", m_iIconSurface, m_ID + 1);
 		CStr St2 = St;
 
 		MACRO_GetRegisterObject(CGameContext, pGame, "GAMECONTEXT");
@@ -1907,17 +1980,17 @@ public:
 					St = St2;
 					j = 0;
 				}
-				St += "§Lcollectible_unlock§p0§C884" + lpContent[i]->m_Name + "§C888§pq||";
+				St += "Â§Lcollectible_unlockÂ§p0Â§C884" + lpContent[i]->m_Name + "Â§C888Â§pq||";
 				j++;
 			}
 			if(lpContent.Len() > 1)
-				St += "§Lcollectible_multiple";
+				St += "Â§Lcollectible_multiple";
 			else if(lpContent.Len() > 0)
-				St += "§Lcollectible_single";
+				St += "Â§Lcollectible_single";
 			ConExecute("saveprofile()");
 		}
 		else
-			St += "§Lcollectible_dup";
+			St += "Â§Lcollectible_dup";
 
 		Msg.m_pData = (void*)St.Str();
 		m_pWServer->Message_SendToObject(Msg, m_pWServer->Game_GetObjectIndex());
@@ -1929,7 +2002,7 @@ public:
 
 	virtual CFStr GetItemName()
 	{
-		return "§LITEM_COLLECTIBLE";
+		return "Â§LITEM_COLLECTIBLE";
 	}
 
 	virtual bool MergeItem(int _iObject, CRPG_Object_Item *_pObj)

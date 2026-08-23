@@ -6,6 +6,11 @@
 #include "../../XR/XREngineVar.h"
 #include "../../Classes/BitString/MBitString.h"
 
+#ifdef PLATFORM_LINUX
+#include <stdio.h>
+#include <stdlib.h>
+#endif
+
 //#define MODEL_BSP_EXACTPORTALCULL
 //#define MODEL_BSP_EXACTRELAXED
 
@@ -111,6 +116,45 @@ vec128 CalcBoxScissor(const CBSP2_ViewInstance* _pView, vec128 _BoxMin, vec128 _
 {
 	vec128 v0, v1, v2, v3, v4, v5, v6, v7;
 	M_VGetBoxVertices(_BoxMin, _BoxMax, v0, v1, v2, v3, v4, v5, v6, v7);
+
+#ifdef PLATFORM_LINUX
+	// RIDDICK_DBG_SCISSOR=N: dump first N light-scissor projections
+	// (camera-mirror research, Docs/Research_CameraMirror_Report.md).
+	static int sScLog = -1;
+	if (sScLog < 0)
+	{
+		const char* e = getenv("RIDDICK_DBG_SCISSOR");
+		sScLog = e ? atoi(e) : 0;
+	}
+	if (sScLog > 0)
+	{
+		--sScLog;
+		CVec4Dfp32 BMin, BMax;
+		memcpy(&BMin, &_BoxMin, 16);
+		memcpy(&BMax, &_BoxMax, 16);
+		const CMat4Dfp32& M = _pView->m_VPVMat;
+		fprintf(stderr, "[SCISSOR] boxW min=(%.2f,%.2f,%.2f) max=(%.2f,%.2f,%.2f) VPScale=(%.2f,%.2f) VPMid=(%.2f,%.2f) VPRect=(%d,%d..%d,%d)\n",
+			BMin.k[0], BMin.k[1], BMin.k[2], BMax.k[0], BMax.k[1], BMax.k[2],
+			_pView->m_VPScaleVec.k[0], _pView->m_VPScaleVec.k[1],
+			_pView->m_VPMidVec.k[0], _pView->m_VPMidVec.k[1],
+			(int)_pView->m_VPRect.p0.x, (int)_pView->m_VPRect.p0.y,
+			(int)_pView->m_VPRect.p1.x, (int)_pView->m_VPRect.p1.y);
+		for (int i = 0; i < 8; ++i)
+		{
+			fp32 cx = (i & 1) ? BMax.k[0] : BMin.k[0];
+			fp32 cy = (i & 2) ? BMax.k[1] : BMin.k[1];
+			fp32 cz = (i & 4) ? BMax.k[2] : BMin.k[2];
+			fp32 vx = M.k[0][0]*cx + M.k[1][0]*cy + M.k[2][0]*cz + M.k[3][0];
+			fp32 vy = M.k[0][1]*cx + M.k[1][1]*cy + M.k[2][1]*cz + M.k[3][1];
+			fp32 vz = M.k[0][2]*cx + M.k[1][2]*cy + M.k[2][2]*cz + M.k[3][2];
+			fp32 sx = (M_Fabs(vz) > 0.0001f) ? vx/vz*_pView->m_VPScaleVec.k[0] + _pView->m_VPMidVec.k[0] : fp32(-99999);
+			fp32 sy = (M_Fabs(vz) > 0.0001f) ? vy/vz*_pView->m_VPScaleVec.k[1] + _pView->m_VPMidVec.k[1] : fp32(-99999);
+			fprintf(stderr, "[SCISSOR]   c%d w=(%.2f,%.2f,%.2f) view=(%.3f,%.3f,%.3f) scr=(%.1f,%.1f)\n",
+				i, cx, cy, cz, vx, vy, vz, sx, sy);
+		}
+		fflush(stderr);
+	}
+#endif
 //	CVec4Dfp32 BoxV[8];
 //	_Box.GetVerticesV4(BoxV);
 
@@ -214,7 +258,7 @@ int CXR_Model_BSP2::Portal_And(const CRC_ClipVolume* _pPortal, const CBSP2_Porta
 	int iiv = _pP->m_iiVertices;
 	if (nv < 3)
 	{
-		ConOut(CStrF("§cf80WARNING: Fucked up portal!  %d verts.", nv));
+		ConOut(CStrF("Â§cf80WARNING: Fucked up portal!  %d verts.", nv));
 		return 0;
 	}
 
@@ -553,7 +597,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 			{
 				if (m_pView->m_nRPortals >= m_pView->m_MaxRPortals)
 				{
-					ConOut("§cf80WARNING: Insufficient portal storage.");
+					ConOut("Â§cf80WARNING: Insufficient portal storage.");
 					return;
 				}
 				iRPortal = m_pView->m_nRPortals;
@@ -614,7 +658,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 
 					if (m_pView->m_nRPortals >= m_pView->m_MaxRPortals)
 					{
-						ConOut("§cf80WARNING: Insufficient portal storage.");
+						ConOut("Â§cf80WARNING: Insufficient portal storage.");
 						return;
 					}
 
@@ -736,7 +780,7 @@ void CXR_Model_BSP2::Portal_AddNode(CBSP2_View_Params* _pViewParams, int _iNode,
 
 	if (pNode->IsLeaf())
 	{
-//		ConOut("Ett vadå?");
+//		ConOut("Ett vadÃ¥?");
 		// This is a leaf!
 //		m_pView->m_pCurVisLeaves[m_pView->m_nCurVisLeaves++] = _iNode;
 //		m_pView->m_liLeafRPortals[pNode->m_iPortalLeaf] = _iClipRPortal;
@@ -888,7 +932,7 @@ void CXR_Model_BSP2::Portal_Open_r(CBSP2_View_Params* _pViewParams, int _iNode, 
 		EnableTreeFromNode(_iNode);
 
 
-		// Markera alla grannars träd.
+		// Markera alla grannars trÃ¤d.
 		{
 			const CBSP2_PortalLeafExt* pPL = &m_pPortalLeaves[pNode->m_iPortalLeaf];
 			int np = pPL->m_nPortals;
@@ -3664,7 +3708,7 @@ CXR_LightOcclusionInfo* CXR_Model_BSP2::View_Light_GetOcclusion(int _iLight)
 	return View_Light_GetOcclusionInt(_iLight);
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:	Used to determine the partial visibility of a given volume (_Box)
 
 	Parameters:

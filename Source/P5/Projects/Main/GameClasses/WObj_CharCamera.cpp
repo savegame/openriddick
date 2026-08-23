@@ -1,5 +1,5 @@
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	File:			Character camera 
 					
 	Author:			fredrik larsson
@@ -19,10 +19,13 @@
 
 
 #include "PCH.h"
+
+#include <stdio.h>	// [SKEL] NaN-bone report
+#include <stdlib.h>	// getenv
 #include "WObj_Char.h"
 #include "WRPG/WRPGSpell.h"
 #include "Models/CSinRandTable.h"
-#include "WObj_Misc/WObj_ActionCutsceneCamera.h"
+#include "WObj_Misc/WObj_ActionCutscenecamera.h"
 #include "WObj_Misc/WObj_CreepingDark.h"
 
 //#define NEW_CAMERA
@@ -827,7 +830,7 @@ void CWObject_Character::Camera_Offset(CWObject_CoreData* _pObj, CWorld_PhysStat
 #define  CAMERA_SPEEDLERPER		0.05f
 
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:		Retrieves the camera matrix.
 
 	Parameters:	
@@ -1378,7 +1381,7 @@ void CWObject_Character::ZeroInLookForDialogueCameras(CWO_Character_ClientData *
 	}	
 }
 
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 	Function:		Gets the first person view camera.
 
 	Parameters:	
@@ -1544,6 +1547,65 @@ void CWObject_Character::Camera_Get_FirstPerson(CWorld_PhysState* _pWPhysState,
 		if (IdealPosition.k[0] != IdealPosition.k[0])
 		{
 			M_TRACEALWAYS("WARNING: Fucked up camera rottrack in skeleton instance\n");
+
+			// The fallback puts the camera at the OBJECT ORIGIN plus the face
+			// offset -- i.e. down at the character's feet. That is exactly the
+			// reported "camera sinks into the floor / jerks" symptom, and this
+			// warning fires on essentially every frame (731 times in the
+			// Pa1_Pit run of 2026-07-29).
+			//
+			// Where the NaN comes from: CXR_Skeleton::EvalAnim deliberately
+			// poisons the whole bone-transform array with QNaN (0x7fc00000)
+			// before evaluating, under #ifndef M_RTM, so that any bone the
+			// evaluation does NOT fill is loudly invalid. M_RTM is not defined
+			// for this target, so we get the poison; the retail PC build does
+			// define it and would keep an identity matrix instead.
+			//
+			// That leaves two possibilities, and the census below tells them
+			// apart: if only a few high bone indices are NaN, those bones are
+			// simply never evaluated for this skeleton and the poison is
+			// merely exposing it; if a whole range is NaN, our node walk is
+			// failing to evaluate the skeleton and that is a real defect.
+			static int s_Dbg = -1;
+			if (s_Dbg < 0)
+			{
+				const char* e = getenv("RIDDICK_DBG_SKEL");
+				s_Dbg = (e && *e && *e != '0') ? 1 : 0;
+			}
+			if (s_Dbg && pSkelInst)
+			{
+				static int s_nLogged = 0;
+				if (s_nLogged++ < 8)
+				{
+					const int nBones = pSkelInst->m_nBoneTransform;
+					int nNaN = 0;
+					char Idx[256];
+					int Used = 0;
+					Idx[0] = 0;
+					for (int iB = 0; iB < nBones; iB++)
+					{
+						const CMat4Dfp32& M = pSkelInst->GetBoneTransform(iB);
+						bool bNaN = false;
+						for (int r = 0; r < 4 && !bNaN; r++)
+							for (int c = 0; c < 4; c++)
+								if (M.k[r][c] != M.k[r][c]) { bNaN = true; break; }
+						if (bNaN)
+						{
+							nNaN++;
+							if (Used < (int)sizeof(Idx) - 8)
+								Used += snprintf(Idx + Used, sizeof(Idx) - Used, "%s%d",
+									Used ? "," : "", iB);
+						}
+					}
+					fprintf(stderr, "[SKEL] camera bone NaN: obj=%d camBone=%d nBones=%d "
+						"nNaN=%d nSkelNodes=%d point=(%.2f %.2f %.2f) naN_bones=[%s]\n",
+						(int)_pCamObj->m_iObject, (int)PLAYER_ROTTRACK_CAMERA, nBones,
+						nNaN, (int)pSkel->m_lNodes.Len(),
+						Point.k[0], Point.k[1], Point.k[2], Idx);
+					fflush(stderr);
+				}
+			}
+
 			IdealPosition = _pCamObj->GetPosition() + Point;
 		}
 

@@ -1,5 +1,8 @@
 #include "PCH.h"
 
+#include <stdio.h>	// [ITEM] RIDDICK_DBG_ITEM report
+#include <stdlib.h>	// getenv
+
 #include "WObj_Char.h"
 
 #include "../../../Shared/MOS/XR/XREngineVar.h"
@@ -8,8 +11,8 @@
 #include "../../../Shared/MOS/Classes/Win/MWindows.h"
 #include "WObj_Game/WObj_GameMod.h"
 #include "WObj_Misc/WObj_ActionCutscene.h"
-#include "WObj_Misc/WObj_ActionCutsceneCamera.h"
-#include "WObj_Misc/WObj_Telephone.h"
+#include "WObj_Misc/WObj_ActionCutscenecamera.h"
+#include "WObj_Misc/WObj_TelePhone.h"
 #include "WObj_Misc/WObj_CreepingDark.h"
 #include "WRPG/WRPGSpell.h"
 #include "../GameWorld/WClientMod.h"
@@ -190,7 +193,7 @@ void CWObject_Character::OnClientRenderVis(CWObject_Client* _pObj, CWorld_Client
 	if(pSGI && (pCD->m_3PI_LightState != THIRDPERSONINTERACTIVE_LIGHT_STATE_OFF)) 
 #endif
 	{
-		// FJ-NOTE: Adding a light source above speaker�s head. Might need to fade this up/down to make it look good.
+		// FJ-NOTE: Adding a light source above speaker´s head. Might need to fade this up/down to make it look good.
 
 		//CMat4Dfp32 Mat;
 		CMat4Dfp32 NewMat;
@@ -297,8 +300,13 @@ void CWObject_Character::OnClientRenderVis(CWObject_Client* _pObj, CWorld_Client
 			int iPass = _pEngine->GetVCDepth();
 			bool bFirstPerson = bLocalPlayer && !iPass && !bThirdPerson && !bCutSceneView;
 
-			if (!bFirstPerson)
+			if (!bFirstPerson && !iPass)
 			{
+				// Прогон 52 (2026-08-24): конус только в главном виде.
+				// Портальные подвиды (GetVCDepth()>0) рисуют сцену в тот же
+				// фреймбуфер без клип-плоскостей (бэкенд их не потребляет,
+				// grep Clip_ в RenderContexts/GLES3 пуст) -- конус
+				// дублировался по одному ореолу на каждый VC-проход.
 				CXR_AnimState AnimState;
 				CXR_Model *pModel = _pWClient->GetMapData()->GetResource_Model(pCD->m_iLightCone);
 				_pEngine->Render_AddModel(pModel, Mat, AnimState);
@@ -431,7 +439,7 @@ void CWObject_Character::CalcMatrices_r(int _iNode,
 	}
 }
 
-/*��������������������������������������������������������������������������������������������*\
+/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
 	File:			Character rendering.
 					
 	Contents:		OnClientRender
@@ -740,7 +748,7 @@ void CWObject_Character::OnClientRender(CWObject_Client* _pObj, CWorld_Client* _
 				CStr MeshName0 = (pTM0) ? pTM0->m_MeshName.GetFilenameNoExt() : CStr();
 				CStr MeshName1 = (pTM1) ? pTM1->m_MeshName.GetFilenameNoExt() : CStr();
 
-				CStr St = CStrF("�cf80WARNING: Skeleton missmatch. iObj %d,  Body %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d), Head %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d)", 
+				CStr St = CStrF("§cf80WARNING: Skeleton missmatch. iObj %d,  Body %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d), Head %s (LOD %d, Nodes %d, UsedRot %d, UsedMove %d)", 
 					_pObj->m_iObject, 
 					MeshName0.GetStr(), liLOD[0], pS0->m_lNodes.Len(), pS0->m_nUsedRotations, pS0->m_nUsedMovements, 
 					MeshName1.GetStr(), liLOD[1], pS1->m_lNodes.Len(), pS1->m_nUsedRotations, pS1->m_nUsedMovements);
@@ -1348,6 +1356,64 @@ if (REPORT_MISSING_JOINTS)
 		// Render items
 		if(!bLocalPlayer || !(pCD->m_ActionCutSceneCameraMode & CActionCutsceneCamera::ACS_CAMERAMODE_ACTIVE) && !(_pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DIALOGUE))
 		{
+			// RIDDICK_DBG_ITEM=1: every term of the held-item render gate, plus
+			// the inputs GetModel0_RenderInfo() needs.
+			//
+			// Weapons are invisible in every hand while firing still works, and
+			// nothing is logged anywhere -- because each way this can fail is
+			// silent. The gate below drops the item when any of four terms is
+			// false, and GetModel0_RenderInfo() itself returns false without a
+			// word when the model resource is missing or the attach bone index
+			// is out of range for the skeleton. This line reports all of them
+			// at once so one run picks the branch:
+			//   model=0            -> m_iModel[0] never assigned/replicated
+			//   equipped=0         -> RPG_ITEM_FLAGS_EQUIPPED not set server-side
+			//   norender=1         -> RPG_ITEM_FLAGS_NORENDERMODEL set
+			//   noitemrender=1     -> animgraph state flag AG2_STATEFLAG_NOITEMRENDER
+			//   rotTrack >= nBones -> attach bone index outside the skeleton
+			{
+				static int s_On = -1;
+				if (s_On < 0)
+				{
+					const char* e = getenv("RIDDICK_DBG_ITEM");
+					s_On = (e && *e && *e != '0') ? 1 : 0;
+				}
+				if (s_On)
+				{
+					static int16 s_lObj[16] = { 0 };
+					static uint8 s_lCount[16] = { 0 };
+					int iSlot = -1;
+					for (int i = 0; i < 16; i++)
+					{
+						if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+						if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
+					}
+					if (iSlot >= 0 && s_lCount[iSlot] < 4)
+					{
+						s_lCount[iSlot]++;
+						const uint32 StateFlags = pCD->m_AnimGraph2.GetStateFlagsLoCombined();
+						fprintf(stderr, "[ITEM] obj=%d local=%d "
+							"i0{model=%d flags=0x%x equipped=%d norender=%d rotTrack=%d attach=%d} "
+							"i1{model=%d flags=0x%x equipped=%d norender=%d} "
+							"stateLo=0x%x noitemrender=%d noitemrender2=%d nBones=%d\n",
+							(int)_pObj->m_iObject, (int)bLocalPlayer,
+							(int)pCD->m_Item0_Model.m_iModel[0], (unsigned)pCD->m_Item0_Flags,
+							(int)((pCD->m_Item0_Flags & RPG_ITEM_FLAGS_EQUIPPED) != 0),
+							(int)((pCD->m_Item0_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) != 0),
+							(int)pCD->m_Item0_Model.m_iAttachRotTrack,
+							(int)pCD->m_Item0_Model.m_iAttachPoint[0],
+							(int)pCD->m_Item1_Model.m_iModel[0], (unsigned)pCD->m_Item1_Flags,
+							(int)((pCD->m_Item1_Flags & RPG_ITEM_FLAGS_EQUIPPED) != 0),
+							(int)((pCD->m_Item1_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) != 0),
+							(unsigned)StateFlags,
+							(int)((StateFlags & AG2_STATEFLAG_NOITEMRENDER) != 0),
+							(int)((StateFlags & AG2_STATEFLAG_NOITEMRENDERSECONDARY) != 0),
+							pSkelInstance ? (int)pSkelInstance->m_nBoneTransform : -1);
+						fflush(stderr);
+					}
+				}
+			}
+
 			if(pCD->m_Item0_Model.IsValid() && !(pCD->m_Item0_Flags & RPG_ITEM_FLAGS_NORENDERMODEL) && (pCD->m_Item0_Flags & RPG_ITEM_FLAGS_EQUIPPED) && !(pCD->m_AnimGraph2.GetStateFlagsLoCombined() & AG2_STATEFLAG_NOITEMRENDER))
 			{
 				pCD->m_Item0_Model.SetAG2I(pCD->m_WeaponAG2.GetAG2I());
@@ -1570,7 +1636,7 @@ if (REPORT_MISSING_JOINTS)
 
 			fp32 d = CVec3Dfp32::GetRow(_pEngine->GetVC()->m_CameraWMat, 3).Distance(ModelPosition);
 
-			// Inte s� j�vla snyggt..
+			// Inte så jävla snyggt..
 	/*		if ((_pObj->m_ClientFlags & PLAYER_CLIENTFLAGS_DEAD) && 
 				(lModelAnims[0].m_AnimTime0 > 5.0f*SERVER_TICKSPERSECOND))
 				d = 2000;*/
@@ -1627,7 +1693,7 @@ if (REPORT_MISSING_JOINTS)
 					CMat4Dfp32 Camera = WallMarkPos;
 
 #ifndef PLATFORM_DOLPHIN
-					//	SS: Varf�r g�rs detta? Kopieras texturerna flippat i opengl/dx???
+					//	SS: Varför görs detta? Kopieras texturerna flippat i opengl/dx???
 					CVec3Dfp32::GetRow(Camera, 2) = -CVec3Dfp32::GetRow(Camera, 2);
 					CVec3Dfp32::GetRow(Camera, 1) = -CVec3Dfp32::GetRow(Camera, 1);
 #endif
@@ -1919,7 +1985,7 @@ void CWObject_Character::OnClientRenderStatusBar(CWObject_Client* _pObj, CWorld_
 					CVec2Dfp32 TopLeftMag(550, 240);
 					int Color = (int(255 - (255 * Time.GetTime() / Duration)) << 24) | 0xffffff;
 					int ColorDark = (int(255 - (255 * Time.GetTime() / Duration)) << 24) | 0x000000;
-					CStr St = CStrF("�Z22%i", pCD->m_Pickup_Magazine_Num.m_Value);
+					CStr St = CStrF("§Z22%i", pCD->m_Pickup_Magazine_Num.m_Value);
 					_pUtil2D->Text_DrawFormatted(Clip, pFont, St, TopLeftMag[0] - 22, TopLeftMag[1] + 18, 0, ColorDark, ColorDark, ColorDark, 40, 40, true);
 					_pUtil2D->Text_DrawFormatted(Clip, pFont, St, TopLeftMag[0] - 22, TopLeftMag[1] + 18, 0, Color, Color, Color, 40, 40, false);
 				}

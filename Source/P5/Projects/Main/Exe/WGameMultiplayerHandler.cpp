@@ -1,4 +1,4 @@
-/*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯*\
+/*Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯Â¯*\
 File:			The MultiplayerHandler
 
 Author:			Roger Mattsson
@@ -689,34 +689,34 @@ CStr CWGameMultiplayerHandler::GetGameModeName(void)
 	switch(m_GameStyle)
 	{
 	case CONTEXT_GAME_STYLE_SHAPESHIFTER:
-		Name = "§LMENU_SHAPESHIFTER";
+		Name = "Â§LMENU_SHAPESHIFTER";
 		bDoSubStyle = true;
 		break;
 	case CONTEXT_GAME_STYLE_DARKLINGS_VS_DARKLINGS:
-		Name = "§LMENU_DARKLINGS_VS_DARKLINGS";
+		Name = "Â§LMENU_DARKLINGS_VS_DARKLINGS";
 		bDoSubStyle = true;
 		break;
 	case CONTEXT_GAME_STYLE_DARKLINGS_VS_HUMANS:
-		Name = "§LMENU_DVH";
+		Name = "Â§LMENU_DVH";
 		break;
 	case CONTEXT_GAME_STYLE_SURVIVOR:
-		Name = "§LMENU_SURVIVOR";
+		Name = "Â§LMENU_SURVIVOR";
 	    break;
 	case CONTEXT_GAME_STYLE_LASTHUMAN:
-		Name = "§LMENU_LASTHUMAN";
+		Name = "Â§LMENU_LASTHUMAN";
 		break;
 	}
 
 	if(bDoSubStyle)
 	{
 		if(m_GameSubMode == CONTEXT_GAME_SUB_MODE_CAPTURE_THE_FLAG)
-			Name = CStrF("%s - §LMENU_CTF", Name.Str());
+			Name = CStrF("%s - Â§LMENU_CTF", Name.Str());
 		else
 		{
 			if(m_GameMode == CONTEXT_GAME_MODE_FREE_FOR_ALL)
-				Name = CStrF("%s - §LMENU_DM", Name.Str());
+				Name = CStrF("%s - Â§LMENU_DM", Name.Str());
 			else
-				Name = CStrF("%s - §LMENU_TDM", Name.Str());
+				Name = CStrF("%s - Â§LMENU_TDM", Name.Str());
 		}
 	}
 
