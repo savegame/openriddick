@@ -359,7 +359,9 @@ typedef void (CWO_ClientData_AnimGraph2Interface::*PFN_ANIMGRAPH2_EFFECT)(const 
 //--------------------------------------------------------------------------------
 
 #define MAX_ANIMGRAPH2_DEFCONDITIONS	10
-#define MAX_ANIMGRAPH2_DEFPROPERTIES	20
+// PC-данные используют 23 FUNCTION-свойства (ISWALKANGLE*MELEE = 19-22,
+// см. EXPORTED-каталог в .xah); PS3-снапшот обрезал таблицу до 20.
+#define MAX_ANIMGRAPH2_DEFPROPERTIES	23
 #define MAX_ANIMGRAPH2_DEFOPERATORS	9
 #define MAX_ANIMGRAPH2_DEFEFFECTS	25
 #define NUM_DIALOGUE_PROPERTIES 6

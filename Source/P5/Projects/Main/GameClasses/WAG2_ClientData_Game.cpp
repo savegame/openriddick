@@ -1034,6 +1034,65 @@ CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeft(const CWAG2I
 	return CAG2Val::From((int)0);
 }
 
+// MELEE-варианты (слоты 19-22 каталога функций PC-данных:
+// ISWALKANGLEFWD/RIGHT/BWD/LEFTMELEE). Условия боевых melee-блоков
+// ссылаются на них; при пустых слотах fallback 0 давал тиковую петлю
+// реакций IDLE<->WALKLEFT/WALKBWD у патрульных (прогоны 37-38).
+// Реализация -- та же проверка стика, что у не-melee вариантов
+// (ретейл-декомпила этих функций в нашем распоряжении нет; расхождение
+// возможно только в константах "допуска").
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleFwdMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_FWD_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) ||
+		(Angle < WALKANGLE_RIGHT_START + EXPLORE_MOVEANGLE_EXTRAANGLE))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleRightMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_RIGHT_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_BWD_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleBwdMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_BWD_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_LEFT_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
+CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeftMelee(const CWAG2I_Context* _pContext)
+{
+	fp32 Angle = GetPropertyFloat(PROPERTY_FLOAT_MOVEANGLEUNITCONTROL);
+
+	if ((Angle > (WALKANGLE_LEFT_START - EXPLORE_MOVEANGLE_EXTRAANGLE)) &&
+		(Angle < (WALKANGLE_FWD_START + EXPLORE_MOVEANGLE_EXTRAANGLE)))
+	{
+		return CAG2Val::From((int)1);
+	}
+
+	return CAG2Val::From((int)0);
+}
+
 CAG2Val CWO_Clientdata_Character_AnimGraph2::Property_CanEndACS(const CWAG2I_Context* _pContext)
 {
 	if (_pContext->m_pWPhysState->IsClient())
@@ -2051,7 +2110,10 @@ PFN_ANIMGRAPH2_PROPERTY CWO_Clientdata_Character_AnimGraph2::ms_lpfnProperties_S
 	/* 16 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_CanActivateItem,
 	/* 17 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_RandFromParam,
 	/* 18 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_TurnInAngleDiff,
-	/* 19 */ NULL,
+	/* 19 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleFwdMelee,
+	/* 20 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleRightMelee,
+	/* 21 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleBwdMelee,
+	/* 22 */ (PFN_ANIMGRAPH2_PROPERTY)&CWO_Clientdata_Character_AnimGraph2::Property_WalkAngleLeftMelee,
 };
 
 

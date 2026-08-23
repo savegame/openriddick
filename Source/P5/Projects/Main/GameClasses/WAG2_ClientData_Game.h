@@ -950,6 +950,10 @@ class CWO_Clientdata_Character_AnimGraph2 : public CWO_ClientData_AnimGraph2Inte
 		CAG2Val Property_WalkAngleRight(const CWAG2I_Context* _pContext);
 		CAG2Val Property_WalkAngleBwd(const CWAG2I_Context* _pContext);
 		CAG2Val Property_WalkAngleLeft(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleFwdMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleRightMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleBwdMelee(const CWAG2I_Context* _pContext);
+		CAG2Val Property_WalkAngleLeftMelee(const CWAG2I_Context* _pContext);
 
 		CAG2Val Property_CanEndACS(const CWAG2I_Context* _pContext);
 
