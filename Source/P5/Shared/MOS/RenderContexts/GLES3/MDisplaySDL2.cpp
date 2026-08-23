@@ -4805,7 +4805,13 @@ public:
 			// attrib-based GLES3 drawing.
 			m_Caps_Flags = CRC_CAPS_FLAGS_HWAPI
 			             | CRC_CAPS_FLAGS_ARBITRARY_TEXTURE_SIZE
-			             | CRC_CAPS_FLAGS_SEPARATESTENCIL;
+			             | CRC_CAPS_FLAGS_SEPARATESTENCIL
+			             // ReadDepthPixels ниже реализован (построчный
+			             // glReadPixels GL_DEPTH_COMPONENT, эталон -- PC-ретейл):
+			             // открывает окулозию флаеров ламп в
+			             // CXR_Util::Render_Flares (XRUtil.cpp:1296). Больше этот
+			             // флаг нигде в дереве не проверяется.
+			             | CRC_CAPS_FLAGS_READDEPTH;
 
 			// RIDDICK_HWSKIN=1: tell the engine we can skin on the GPU, so
 			// animated meshes keep their hardware path (VBID + matrix
@@ -5033,6 +5039,65 @@ public:
 					_TextureID, _SrcRect.p0.x, _SrcRect.p0.y,
 					_SrcRect.p1.x, _SrcRect.p1.y, _Dest.x, _Dest.y, W, H);
 			}
+		}
+
+		// Чтение глубины -- окулозия флаеров ламп (CXR_Util::Render_FlaresPreRender,
+		// XRUtil.cpp:1181: сэмплирует квадрат nSample x nSample вокруг проекции
+		// флаера и по глубине решает, виден ли он; гейт caps --
+		// CRC_CAPS_FLAGS_READDEPTH в Render_Flares, XRUtil.cpp:1296).
+		// Эталон -- CRenderContextGL::ReadDepthPixels из PC-ретейла
+		// (RndrGL_dll_decomp.c ~:72540): построчный glReadPixels
+		// GL_DEPTH_COMPONENT с переворотом Y (экран движка сверху-вниз,
+		// у GL -- снизу-вверх) и клампом к таргету. Читаем из ТЕКУЩЕГО
+		// read-фреймбуфера: в момент PreRender-колбэка VBM (XRVBManager.cpp:3420)
+		// мир уже отрисован в экранный FBO / RTT-слот / fb0(DIRECT_RENDER),
+		// у всех трёх есть depth-аттачмент.
+		bool ReadDepthPixels(int _x, int _y, int _w, int _h, fp32* _pBuffer)
+		{
+			if (!_pBuffer || _w <= 0 || _h <= 0)
+				return false;
+
+			// Размер таргета берём из текущего GL-вьюпорта: бэкенд ставит
+			// его при каждой смене RT как glViewport(x0, TargetH - p1.y, w, h)
+			// (Viewport_Update), т.е. vp[1]+vp[3] == высота таргета и для
+			// экранного FBO, и для RTT-слотов, и для окна.
+			GLint VP[4] = { 0, 0, 0, 0 };
+			glGetIntegerv(GL_VIEWPORT, VP);
+			const int TW = VP[2];
+			const int TH = VP[1] + VP[3];
+			if (TW <= 0 || TH <= 0)
+				return false;
+
+			// Кламп запрошенного окна к таргету (как в ретейле).
+			int x0 = _x, y0 = _y;
+			int w = _w, h = _h;
+			if (x0 < 0) { w += x0; x0 = 0; }
+			if (y0 < 0) { h += y0; y0 = 0; }
+			if (x0 + w > TW) w = TW - x0;
+			if (y0 + h > TH) h = TH - y0;
+			if (w <= 0 || h <= 0)
+				return false;
+
+			while (glGetError() != GL_NO_ERROR) {}
+
+			// Построчно с переворотом Y: строка 0 буфера = верхняя строка
+			// экрана движка (ретейл: gl_y = H - row - y - 1). Питч строки в
+			// буфере оставляем равным исходному _w на случай клампа.
+			for (int r = 0; r < h; r++)
+				glReadPixels(x0, TH - y0 - r - 1, w, 1,
+					GL_DEPTH_COMPONENT, GL_FLOAT, _pBuffer + r * _w);
+
+			const GLenum Err = glGetError();
+			if (Err != GL_NO_ERROR)
+			{
+				static int sErrCount = 0;
+				if (!(sErrCount++ % 60))
+					fprintf(stderr, "[GLES3-FLARE] ReadDepthPixels GL err 0x%x (%dx%d @ %d,%d)\n",
+						(unsigned)Err, w, h, x0, y0);
+				fflush(stderr);
+				return false;
+			}
+			return true;
 		}
 
 		void RenderTarget_Clear(CRct _ClearRect, int _WhatToClear, CPixel32 _Color, fp32 _ZBufferValue, int _StecilValue)

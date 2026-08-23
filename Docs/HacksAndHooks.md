@@ -4168,7 +4168,7 @@ ASSERT: Memory manager error, Could not find chunk memory belong to
 | Эффект | Чем рисуется | Статус |
 |---|---|---|
 | Тень решётки / cookie спота | Проекционная маска спота: `LIGHT_PROJMAP` -> `SetProjectionMap` -> NDSP-программа с кубической маской | Открытый дефект порта (см. «Открытый дефект» про NDSP/CUBE выше) |
-| Ореол статической лампы | Объект Light с флагом `CXR_LIGHT_FLARE` -> модель FLARE -> `CXR_Model_Flare::OnRender` | **МЁРТВ: безусловный `return // FIXME`** (WModel_Flare.cpp:181-182, родной код снапшота); XR_FLARES ни на что не влияет -- проверка стоит после return'а. Кандидат фикса: убрать return, восстановить путь Render_Flares (XRUtil.cpp:1288+), сверить с RndrGL-декомпилом |
+| Ореол статической лампы | Объект Light с флагом `CXR_LIGHT_FLARE` -> модель FLARE -> `CXR_Model_Flare::OnRender` | **ИСПРАВЛЕНО 2026-08-24** — см. «Флары ламп» ниже |
 | Конус фонаря NPC | Модель SpotLightVolume (8 спрайтов + аддитивный квад), WObj_CharRender.cpp:306-310 | Рисуется, НО дублируется |
 
 Дубли конуса фонаря NPC, гипотезы по убыванию уверенности:
@@ -4181,3 +4181,53 @@ ASSERT: Memory manager error, Could not find chunk memory belong to
 IK-примечание: ноги на ступенях -- `DISABLE_CHAR_PLAYER_IK=1` /
 `DISABLE_CHAR_DARKLING_IK=1` прописаны в шипнутом Environment.cfg
 (строки 50-51), это не артефакт дебаг-сессий.
+
+## Флары ламп (2026-08-24)
+
+**Симптом:** ореолы статических ламп не рисовались. Причина -- безусловный
+`return; // FIXME:!!!!!!!!!!!!!` в начале `CXR_Model_Flare::OnRender`
+(WModel_Flare.cpp:181-182 в исходном виде) -- родной код PS3-снапшота,
+гейт `XR_ENGINE_FLARES` стоял ПОСЛЕ него и был мёртв.
+
+**Фикс (вариант «восстановить исходный путь»):**
+
+1. `WModel_Flare.cpp` -- return снят; дальше штатный путь: Alloc_VB +
+   атрибуты (`ZCOMPARE|ZWRITE` off, `ALPHAADD`, текстура флаера на юните 0)
+   и `CXR_Util::Render_Flares(...)` (XRUtil.cpp:1286). Гейт
+   `XR_ENGINE_FLARES` теперь работает: `xr_flares=0` / env `XR_FLARES=0`
+   отключает все флаеры.
+2. `MDisplaySDL2.cpp`, класс `CRC_GLES3`:
+   * реализован виртуал `CRenderContext::ReadDepthPixels(int,int,int,int,
+     fp32*)` (~строка 5050): построчный `glReadPixels(GL_DEPTH_COMPONENT,
+     GL_FLOAT)` с переворотом Y (`gl_y = H - row - y - 1`, как в эталонном
+     `CRenderContextGL::ReadDepthPixels`, RndrGL_dll_decomp.c ~:72540),
+     клампом к текущему таргету (размер берётся из активного GL-вьюпорта:
+     `vp[1]+vp[3]` = высота таргета для экранного FBO, RTT-слота и fb0).
+     Ошибки GL печатаются как `[GLES3-FLARE]` (раз в 60);
+   * caps дополнены `CRC_CAPS_FLAGS_READDEPTH` -- без него
+     `Render_Flares` возвращал false на первом же чеке (XRUtil.cpp:1296).
+     Больше этот флаг нигде в дереве не проверяется, других путей не
+     открывает.
+
+**Как работает окулозия:** `Render_Flares` строит квад во view-space и
+вешает PreRender-колбэк `Render_FlaresPreRender` (XRUtil.cpp:1181); VBM
+выполняет его при флеше VB с приоритетом `CXR_VBPRIORITY_FLARE=9999`,
+т.е. когда мир уже отрисован. Колбэксэмлирует квадрат nSample x nSample
+(у флаера ламп m_nSample=10) глубины вокруг проекции флаера, декодирует
+window-z в view-z (формула предполагает стандартный [-1,1] NDC z -- у нас
+так и есть: Viewport_Update масштабирует только строки x/y проекции) и
+пересобирает список видимых треугольников с альфой по доле видимых
+сэмплов.
+
+**Побочный эффект (ожидаемый, ретейл-поведение):** вместе с флаерами ламп
+оживают остальные три мёртвых потребителя `Render_Flares`, которые до сих
+пор получали false из-за caps: sky-flare (WSky.cpp:1364), аттач-флаеры
+оружия (WModel_AttachFlare.cpp:84), вспышки взрывов
+(WModel_Explosion.cpp:526).
+
+**Env-флагов НЕ добавлено.** Выключатели: консольная `xr_flares(0)` /
+env `XR_FLARES=0`. Диагностика: `[GLES3-FLARE]` в stderr при ошибках
+чтения глубины. Отключить только окулозию (рисовать флаеры сквозь стены)
+на лету нельзя -- при необходимости поставить гейт в ReadDepthPixels
+(return false => Render_FlaresPreRender выкинет ВСЕ квады как невидимые;
+для «всегда видимы» вместо этого форсировать Vis=nPixels в колбэке).

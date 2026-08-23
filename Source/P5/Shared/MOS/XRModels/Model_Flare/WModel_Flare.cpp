@@ -178,10 +178,12 @@ void CXR_Model_Flare::OnRender(CXR_Engine* _pEngine, CRenderContext* _pRender, C
 
 //ConOutL("Flare begin");
 
-// FIXME:!!!!!!!!!!!!!
-return;
-
-
+	// 2026-08-24: снят FIXME-return (родной для PS3-снапшота) -- все флаеры
+	// ламп не рисовались. Путь ниже использует только Alloc_VB/Alloc_Attrib
+	// и CXR_Util::Render_Flares; для его окулозии GLES3-бэкенд теперь
+	// реализует CRenderContext::ReadDepthPixels (CRC_GLES3, MDisplaySDL2.cpp)
+	// и объявляет CRC_CAPS_FLAGS_READDEPTH. Гейт XR_ENGINE_FLARES ниже
+	// работает штатно: xr_flares=0 / XR_FLARES=0 отключает флаеры.
 	if (!_pRender) return;
 	if (!_pVBM) return;
 	if (!_pAnimState) return;
