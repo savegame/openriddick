@@ -3162,25 +3162,39 @@ void CWObject_Character::OnRefresh_ServerPredicted_Extras(CWO_Character_ClientDa
 			s_On = (e && *e && *e != '0') ? 1 : 0;
 		}
 		static int s_n = 0;
+		static int16 s_lObj[12] = { 0 };
+		static uint16 s_lCnt[12] = { 0 };
 		CWAG2I* pAG2I = _pCD->m_AnimGraph2.GetAG2I();
-		if (s_On && pAG2I && pAG2I->GetNumTokens() > 0 && s_n < 300)
+		if (s_On && pAG2I && pAG2I->GetNumTokens() > 0)
 		{
-			const CWAG2I_Token* pTok = pAG2I->GetToken(0);
-			const CWAG2I_StateInstance* pSI = pTok ? pTok->GetTokenStateInstance() : NULL;
-			if (pSI)
+			int iSlot = -1;
+			for (int i = 0; i < 12; i++)
 			{
-				++s_n;
-				CWO_ClientData_AnimGraph2Interface* pEv =
-					pAG2I->GetEvaluator();
-				fp32 DestSpeed = pEv ? pEv->GetDestinationSpeed() : -1.0f;
-				fprintf(stderr,
-					"[TS] obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
-					(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
-					(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
-					pSI->GetTimeScale_Cached(), DestSpeed,
-					pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
-				fflush(stderr);
+				if (s_lObj[i] == _pObj->m_iObject) { iSlot = i; break; }
+				if (s_lObj[i] == 0) { s_lObj[i] = _pObj->m_iObject; iSlot = i; break; }
 			}
+			if (iSlot >= 0 && s_lCnt[iSlot] < 80)
+			{
+				const CWAG2I_Token* pTok = pAG2I->GetToken(0);
+				const CWAG2I_StateInstance* pSI = pTok ? pTok->GetTokenStateInstance() : NULL;
+				if (pSI)
+				{
+					++s_n;
+					++s_lCnt[iSlot];
+					CWO_ClientData_AnimGraph2Interface* pEv =
+						pAG2I->GetEvaluator();
+					fp32 DestSpeed = pEv ? pEv->GetDestinationSpeed() : -1.0f;
+					fprintf(stderr,
+						"[TS] obj=%d st=%d fHi=0x%x ts=%.3f dest=%.2f adapt=%.3f\n",
+						(int)_pObj->m_iObject, (int)pTok->GetStateIndex(),
+						(int)_pCD->m_AnimGraph2.GetStateFlagsHi(),
+						pSI->GetTimeScale_Cached(), DestSpeed,
+						pEv ? pEv->GetAdaptiveTimeScale() : -1.0f);
+					fflush(stderr);
+				}
+			}
+		}
+	}
 		}
 	}
 
