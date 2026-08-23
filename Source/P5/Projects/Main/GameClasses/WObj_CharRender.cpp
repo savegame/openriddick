@@ -300,8 +300,13 @@ void CWObject_Character::OnClientRenderVis(CWObject_Client* _pObj, CWorld_Client
 			int iPass = _pEngine->GetVCDepth();
 			bool bFirstPerson = bLocalPlayer && !iPass && !bThirdPerson && !bCutSceneView;
 
-			if (!bFirstPerson)
+			if (!bFirstPerson && !iPass)
 			{
+				// Прогон 52 (2026-08-24): конус только в главном виде.
+				// Портальные подвиды (GetVCDepth()>0) рисуют сцену в тот же
+				// фреймбуфер без клип-плоскостей (бэкенд их не потребляет,
+				// grep Clip_ в RenderContexts/GLES3 пуст) -- конус
+				// дублировался по одному ореолу на каждый VC-проход.
 				CXR_AnimState AnimState;
 				CXR_Model *pModel = _pWClient->GetMapData()->GetResource_Model(pCD->m_iLightCone);
 				_pEngine->Render_AddModel(pModel, Mat, AnimState);
